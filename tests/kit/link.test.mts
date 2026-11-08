@@ -1003,7 +1003,7 @@ test('link cargo without a declaration runs a plain locked fetch of the release 
   assert.match(log(), /^cargo fetch --locked$/m);
 });
 
-// K440-2: link writes a git-ignored go.work into each Go module of a checkout, kit's own tools included (scripts/kit/symbols/go), so the
+// K440-2: link writes a git-ignored go.work into each Go module of a checkout, the fixture module of kit included, so the
 // checkout of kit must ignore it; otherwise link fails before it writes the workspace hook of K440.
 test('every Go module of the kit checkout gets a git-ignored go.work (K440-2)', () => {
   const root = repositoryRoot();

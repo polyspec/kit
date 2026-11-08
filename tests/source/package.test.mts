@@ -36,7 +36,7 @@ test('make kit-build emits every tool of scripts/kit into dist as .mjs with .mjs
   const schemas = walk(path.join(ROOT, 'scripts/kit/schema'));
   assert.ok(schemas.length > 0);
   for (const schema of schemas) assert.equal(readFileSync(path.join(copy, 'dist/schema', schema), 'utf8'), readFileSync(path.join(ROOT, 'scripts/kit/schema', schema), 'utf8'), `dist/schema/${schema}`);
-  // The symbol extractors of parity are programs of their ecosystems, which dist/parity-symbols.mjs runs from dist/symbols.
+  // The PHP programs of kit (dist/symbols) run with the php of the repository, from dist/symbols.
   // The tracked sources, not the folder: kit's CI installs the packages of the PHP extractor into its vendor/ (K248-4).
   const extractors = run('git', ['ls-files', '--', 'scripts/kit/symbols'], ROOT).split('\n').filter(Boolean).map(file => path.posix.relative('scripts/kit/symbols', file));
   assert.ok(extractors.length > 0);
@@ -44,10 +44,10 @@ test('make kit-build emits every tool of scripts/kit into dist as .mjs with .mjs
 });
 
 // The checkout export resolves to source; the packed-consumer test below checks dist (K217).
-test('@polyspec/kit/test-output resolves and exposes the five readers (K217)', (t) => {
+test('@polyspec/kit/test-output resolves and exposes the four readers (K217)', (t) => {
   const copy = builtCopy(t);
-  const script = "import * as m from '@polyspec/kit/test-output'; console.log(['goEvents', 'cargoEvents', 'pythonEvents', 'phpunitEvents', 'nodeEvents'].map(name => typeof m[name]).join(' '));";
-  assert.equal(run(process.execPath, ['--input-type=module', '-e', script], copy).trim(), 'function function function function function');
+  const script = "import * as m from '@polyspec/kit/test-output'; console.log(['goEvents', 'cargoEvents', 'pythonEvents', 'phpunitEvents'].map(name => typeof m[name]).join(' '));";
+  assert.equal(run(process.execPath, ['--input-type=module', '-e', script], copy).trim(), 'function function function function');
 });
 
 test('npm pack packs exactly the files of package.json files and the files npm always packs', (t) => {
@@ -67,7 +67,7 @@ test('npm pack packs exactly the files of package.json files and the files npm a
 
 // The tool APIs of kit that a repository imports; generic needs (globs, schemas, processes) come from their ecosystem
 // libraries, not from kit's internals.
-const EXPORTED = ['tracked-files', 'test-hooks', 'test-progress', 'run-tests', 'glob', 'parity-declaration', 'land', 'parity', 'checklist', 'php-extension', 'holder-lock'];
+const EXPORTED = ['tracked-files', 'test-hooks', 'test-progress', 'run-tests', 'glob', 'land', 'checklist', 'php-extension', 'holder-lock'];
 // install-vscode needs its optional peer @vscode/test-electron, which only a repository with VS Code integration tests
 // installs: the export resolves, and without the peer the import fails naming it.
 const PEER_EXPORTED = { 'install-vscode': '@vscode/test-electron' };

@@ -20,7 +20,7 @@ KIT_TEST_FILES_1 := \
 	tests/kit/checklist.test.mts \
 	tests/kit/gate-targets.test.mts tests/kit/install-mise.test.mts tests/kit/mise-tools.test.mts \
 	tests/kit/install-vscode.test.mts tests/kit/isolation.test.mts tests/kit/lint-python.test.mts \
-	tests/kit/parity.test.mts tests/kit/paths.test.mts tests/kit/php-platform.test.mts \
+	tests/kit/paths.test.mts tests/kit/php-platform.test.mts \
 	tests/kit/process.test.mts tests/kit/test-exit-deadline.test.mts \
 	tests/kit/toolchain-declared.test.mts tests/kit/toolchain-lint.test.mts
 KIT_TEST_FILES_2 := \
@@ -29,12 +29,12 @@ KIT_TEST_FILES_2 := \
 	tests/kit/install-php.test.mts tests/kit/kit-mk.test.mts tests/kit/link-folders.test.mts \
 	tests/kit/link.test.mts tests/kit/owner-check.test.mts tests/kit/pack-manifest.test.mts \
 	tests/kit/rebuild-check.test.mts tests/kit/release-root.test.mts \
-	tests/kit/phpunit-identity.test.mts tests/kit/parity-diagnostics.test.mts tests/kit/parity-operation.test.mts tests/kit/parity-output.test.mts tests/kit/run-command-signal.test.mts \
+	tests/kit/run-command-signal.test.mts \
 	tests/kit/release-tools.test.mts tests/kit/text-absent.test.mts \
 	tests/kit/toolchain-exceptions.test.mts tests/kit/uv-install.test.mts
 KIT_TEST_FILES_3 := \
 	tests/kit/documents-stamp.test.mts tests/kit/install-symbols.test.mts \
-	tests/kit/kit-tools.test.mts tests/kit/markdown.test.mts tests/kit/parity-requirements.test.mts \
+	tests/kit/kit-tools.test.mts tests/kit/markdown.test.mts \
 	tests/kit/recipe-tools.test.mts \
 	tests/kit/release-tag.test.mts tests/kit/run-tests.test.mts \
 	tests/kit/stubs.test.mts tests/kit/suppression-check.test.mts tests/kit/test-output.test.mts \
@@ -43,12 +43,12 @@ KIT_TEST_FILES_4 := \
 	tests/kit/holder-lock.test.mts \
 	tests/kit/install-tools.test.mts tests/kit/kit-assets.test.mts tests/kit/kit-bootstrap.test.mts \
 	tests/kit/kit-check.test.mts tests/kit/kit-files.test.mts tests/kit/land.test.mts \
-	tests/kit/language-check.test.mts tests/kit/link-check.test.mts tests/kit/lint-go.test.mts tests/kit/parity-ledger.test.mts \
+	tests/kit/language-check.test.mts tests/kit/link-check.test.mts tests/kit/lint-go.test.mts \
 	tests/kit/registry.test.mts tests/kit/release.test.mts \
-	tests/kit/sandbox-cleanup.test.mts tests/kit/test-gap-start.test.mts tests/kit/test-markers.test.mts \
+	tests/kit/sandbox-cleanup.test.mts tests/kit/test-gap-start.test.mts \
 	tests/kit/toolchain-files.test.mts
 KIT_TEST_FILES_5 := \
-	tests/kit/divergence-check.test.mts tests/kit/duplication-check.test.mts tests/kit/git-hooks.test.mts \
+	tests/kit/duplication-check.test.mts tests/kit/git-hooks.test.mts \
 	tests/kit/lint-php.test.mts \
 	tests/kit/php-ext.test.mts tests/kit/plan.test.mts \
 	tests/kit/process-group.test.mts \
@@ -63,16 +63,16 @@ KIT_TEST_FILES_6 := \
 	tests/kit/release-tools-path.test.mts tests/kit/run-command.test.mts \
 	tests/kit/tracked-files.test.mts tests/kit/verification.test.mts \
 	tests/kit/worktree-setup.test.mts
-KIT_TEST_FILES_7 := tests/kit/install-composer-project.test.mts tests/kit/parity-api.test.mts tests/kit/runtime-targets.test.mts tests/kit/install-rust.test.mts tests/kit/provider-tests.test.mts tests/kit/release-run.test.mts tests/kit/playwright-reporter.test.mts
+KIT_TEST_FILES_7 := tests/kit/install-composer-project.test.mts tests/kit/runtime-targets.test.mts tests/kit/install-rust.test.mts tests/kit/provider-tests.test.mts tests/kit/release-run.test.mts tests/kit/playwright-reporter.test.mts
 
 SOURCE_TEST_GROUPS := ts php rust go python common-1 common-2 common-3
-SOURCE_TEST_FILES_ts := tests/source/lint-ts-real.test.mts tests/source/node-real.test.mts tests/source/symbols-ts-real.test.mts
-SOURCE_TEST_FILES_php := tests/source/phpunit-identity.test.mts tests/source/link-composer-real.test.mts tests/source/lint-php-real.test.mts tests/source/symbols-php-real.test.mts
+SOURCE_TEST_FILES_ts := tests/source/lint-ts-real.test.mts tests/source/node-real.test.mts
+SOURCE_TEST_FILES_php := tests/source/phpunit-identity.test.mts tests/source/link-composer-real.test.mts tests/source/lint-php-real.test.mts
 SOURCE_TEST_FILES_rust := tests/source/link-cargo-real.test.mts tests/source/lint-rust-real.test.mts
-SOURCE_TEST_FILES_go := tests/source/parity-go.test.mts tests/source/go-bench-output-real.test.mts tests/source/lint-go-real.test.mts
-SOURCE_TEST_FILES_python := tests/source/lint-python-real.test.mts tests/source/python-real.test.mts tests/source/python-venv-real.test.mts tests/source/symbols-python-real.test.mts tests/source/uv-link-real.test.mts tests/source/wheel-metadata-real.test.mts
+SOURCE_TEST_FILES_go := tests/source/go-bench-output-real.test.mts tests/source/lint-go-real.test.mts
+SOURCE_TEST_FILES_python := tests/source/lint-python-real.test.mts tests/source/python-real.test.mts tests/source/python-venv-real.test.mts tests/source/uv-link-real.test.mts tests/source/wheel-metadata-real.test.mts
 SOURCE_TEST_FILES_common-1 := tests/source/package.test.mts tests/source/npm-audit-online-real.test.mts tests/source/tool-records-real.test.mts tests/source/ci-workflow.test.mts
-SOURCE_TEST_FILES_common-2 := tests/source/consumer-layout.test.mts tests/source/parity-real.test.mts
+SOURCE_TEST_FILES_common-2 := tests/source/consumer-layout.test.mts
 SOURCE_TEST_FILES_common-3 := tests/source/process-group-posix.test.mts tests/source/install-vscode-posix.test.mts tests/source/checklist-real.test.mts tests/source/checkout.test.mts tests/source/fresh-checkout.test.mts tests/source/layout-real.test.mts tests/source/mise-env-real.test.mts tests/source/mise-trust-real.test.mts tests/source/npm-locked-link-real.test.mts tests/source/npm-source-link-real.test.mts tests/source/release-workflow.test.mts tests/source/tracked-var.test.mts
 
 # The packages of package-lock.json with the npm of var/tools, the step after make install-tools TOOLS=npm; the release
@@ -135,7 +135,6 @@ kit-build: ## Build the package @polyspec/kit into dist/ through dist.next/ and 
 	cp -R scripts/kit/php-library dist.next/php-library
 	tar -C scripts/kit --exclude=vendor -cf - symbols | tar -C dist.next -xf -
 	$(NODE) $(KIT)/kit-items.$(KIT_EXT) dist.next/kit-items.json
-	cp -R scripts/kit/markers dist.next/markers
 	cp -R scripts/kit/runners dist.next/runners
 	if [ -d dist ]; then mv dist dist.old; fi
 	if mv dist.next dist; then rm -rf dist.old; else if [ -d dist.old ]; then mv dist.old dist; fi; exit 1; fi
@@ -151,7 +150,7 @@ install: install-kit kit-install ## Install the tools and packages in the bootst
 kit-install: install-kit ## The install step of kit after its bootstrap: the packages of the PHP symbol extractor (kit-install-symbols-php); ONLINE
 	$(MAKE) --no-print-directory kit-install-symbols-php
 
-install-kit: ## Install the mise, node and npm of mise.toml, the packages of package-lock.json, the tools and the declared parity tools (K861), in that order, in the checkout's own var/tools, a worktree's too (K858); ONLINE
+install-kit: ## Install the mise, node and npm of mise.toml, the packages of package-lock.json, the tools and the declared PHP programs of kit (K861), in that order, in the checkout's own var/tools, a worktree's too (K858); ONLINE
 	$(MAKE) --no-print-directory install-tools TOOLS=npm
 	$(MAKE) --no-print-directory install-packages
 	$(MAKE) --no-print-directory install-tools

@@ -2,7 +2,7 @@
 // The PHP extension of a repository (S10): one model and one build for every repository.
 //
 //   node scripts/kit/php-extension.mts <command> --extension <folder> --build-dir <folder> [--library <folder>]... [--skip <name>]... [build options]
-//                                      [-- <the selection of runtime-targets test: --roots <folder>... | --parity <path>> [-- <runner argument>...]]
+//                                      [-- <the selection of runtime-targets test: --roots <folder>...> [-- <runner argument>...]]
 //   check   the extension that config.m4 declares and, when present, the arginfo stub hash of each stub
 //   build [--output <absolute-path>] [--source-copy <source> <output>] [--configure-arg <arg>]
 //           the check, then phpize in a temporary source copy under the build folder, the arginfo from the gen_stub.php of

@@ -13,8 +13,8 @@ and its Korean twin, as such an example; a repository's AGENTS.md links to its c
 
 ## Rules
 
-- Own: Native event parsers preserve the framework's complete identity and flow. PHPUnit keeps its fully qualified class, method and data set; parity never aliases another namespace to a qualified binding. Repository recipes own selection and expected cases.
-  Enforced by: `tests/kit/phpunit-identity.test.mts`
+- Own: Native event parsers preserve the framework's complete identity and flow. PHPUnit keeps its fully qualified class, method and data set. Repository recipes own selection and expected cases.
+  Enforced by: `tests/source/phpunit-identity.test.mts`
 
 - Own: Every tracked test file belongs to exactly one CI shard in the repository Makefile: KIT_TEST_FILES for kit tests and SOURCE_TEST_FILES for source tests. Adding a test includes declaring its shard; the exact-once CI inventory check is a unit test of that declaration. A test that ran locally but is absent from CI is incomplete.
   Enforced by: `tests/source/ci-workflow.test.mts`
@@ -23,19 +23,13 @@ and its Korean twin, as such an example; a repository's AGENTS.md links to its c
   Enforced by: `tests/source/ci-workflow.test.mts`, `tests/source/process-group-posix.test.mts`
 
 - Own: On POSIX, an interrupted command harness stops admitting commands, requests termination of its owned groups and awaits child close and cleanup before exiting with interrupted status. Force is escalation after the declared cleanup grace, never a substitute for cooperative cleanup. A synchronous forced-exit hook is emergency cleanup only. The output limit uses the same cooperative shutdown and still fails after a cooperative exit; collection stops at the limit and the result awaits child close. Long commands expose no inactivity deadline. A group identifier containing only native defunct members is not a live survivor; cleanup still awaits owned child close and leaves orphan reaping to the operating system.
-  Enforced by: `tests/kit/run-command-signal.test.mts`, `tests/kit/process-group.test.mts`, `tests/source/process-group-posix.test.mts`, `tests/kit/parity-operation.test.mts`
+  Enforced by: `tests/kit/run-command-signal.test.mts`, `tests/kit/process-group.test.mts`, `tests/source/process-group-posix.test.mts`
 
 - Own: A settled VS Code download keeps its result while its owned helper group receives a termination request. The installer awaits child close and cleanup, escalating only after the one-second grace. Native POSIX lifecycle evidence runs in the Linux source CI group.
   Enforced by: `tests/source/install-vscode-posix.test.mts`, `tests/source/ci-workflow.test.mts`
 
-- Refines S12: `workflows/ci-pipeline.yml` plans its job data separately from running checks. Shared, parity and runtime checks depend only on the plan outputs, use their own checkout and setup, and run independently; a failed shared check suppresses no independent result. The final required job judges planning, shared checks and every selected job, and fails on a skipped selected job.
+- Refines S12: `workflows/ci-pipeline.yml` plans its job data separately from running checks. Shared and runtime checks depend only on the plan outputs, use their own checkout and setup, and run independently; a failed shared check suppresses no independent result. The final required job judges planning, shared checks and every selected job, and fails on a skipped selected job.
   Enforced by: `tests/kit/gates-workflow.test.mts`
-
-- Own: Each phased parity binding job executes the tools and setup targets that its repository explicitly declares in config/ci.json parityBindings. The implementation set must match config/parity.json exactly. Empty arrays mean no setup; kit infers no runtime or extractor installation for a binding. Build units, fixtures and artifacts remain the repository's responsibility. The rules checker uses the validated selection of CI jobs; an unselected job provides no enforcement evidence.
-  Enforced by: `tests/kit/ci-setup.test.mts`, `tests/kit/gates-workflow.test.mts`, `tests/kit/check-rules.test.mts`
-
-- Own: A parity invocation calls its native test command once, without an implicit prebuild; repository recipes own explicit preparation and reusable build outputs. It streams stdout and stderr once to the target log while keeping the original captures for native verdict parsing. Node uses its standard reporter for diagnostics and separate native events for verdicts; a diagnostic never supplies a pass. Parity binding commands have no inactivity deadline; a repository supplies native case deadlines, and checker interruption still ends the process groups.
-  Enforced by: `tests/kit/parity-diagnostics.test.mts`, `tests/kit/parity-operation.test.mts`, `tests/kit/parity-output.test.mts`, `tests/kit/parity-ledger.test.mts`
 
 - Own: Incoming Kit change requests are tracked in GitHub issues. Keep each issue updated with implementation progress,
   verification evidence and release status, and close it only after its stated acceptance conditions are met.
@@ -93,8 +87,6 @@ and its Korean twin, as such an example; a repository's AGENTS.md links to its c
 - Refines P15: A function or constant that two tools need lives in one module of `scripts/kit/` that both import.
   `make duplication-check` (jscpd) fails when a piece of 6 lines or more exists twice.
   Enforced by: `make duplication-check`
-- Own: Native compiler compatibility tests use valid source for the complete package input. A successful native baseline precedes the intended source mutation; its failure must retain the expected diagnostic and no executed cases. Stub directives are never native compiler input.
-  Enforced by: `tests/source/parity-go.test.mts`
 
 - Refines P19: Tests are in `tests/kit/`, run with stub commands and the fixture `tests/kit/fixture`, and each test fails
   when its
@@ -132,10 +124,6 @@ and its Korean twin, as such an example; a repository's AGENTS.md links to its c
   of this checkout's install, such as the mise data folder of the checkout, never a symbolic link, which carries no
   environment: a tool of one checkout never runs with the tools of another (`scripts/kit/bootstrap/tool-wrappers.mts`).
   Enforced by: `tests/kit/install-php.test.mts`
-- Own: A repository with several implementations of one spec declares them in `config/parity.json` and runs
-  `parity-declarations-check` among its check targets and `parity-check` in its CI, both before a push lands
-  (docs/operations/tool-inventory.md, Language parity).
-  Enforced by: `make parity-declarations-check`
 - Own: Every check gives the same result for the same tree. A tool writes through a temporary file and a rename, prints a line
   for each step, and has no time limit; a test case has its own timeout. A network query is made only by a command that a
   make recipe runs through `$(ONLINE)`, such as those of `install-tools` and `release-assets`, and its result is a committed

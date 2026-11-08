@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: d8921a2ccd354217b9fefa856006d3d0ea55144183f74b8d9410221f010cd312 -->
+<!-- source-sha256: 562fb592cc7768f329388772581dcc559182fead5fa6635efd0a518698a5bf6d -->
 
 # 도구 목록
 
@@ -41,7 +41,7 @@ x64와 arm64의 linux, macOS, Windows 중 archive가 있는 각 platform의 sha2
 것을 설치합니다. PHP는 machine이 제공하며 `install-php.mts`가 그대로 wrapper로 제공하고(K283, K862, 아래), `config/phpunit`과 `config/php-lint`의 Composer project, rustup으로
 설치하는(`install-rust.mts`) `rust-toolchain.toml`의 toolchain과 그 component(checkout에서 파일을 읽는
 호출자가 준 flag로 `rustup toolchain install`, kit의 recipe는 `--no-self-update`를 넘김(K1097); rustup 1.28은 cargo가 처음 실행될 때 더는 설치하지 않습니다)와 `exceptions`의
-Rust channel입니다. 이미 설치된 것은 rustup이 판정합니다(K861). `TOOLS` selector가 없으면 기존처럼 전체 도구를 설치합니다. `make install-tools TOOLS="go python"`은 해당 mise 도구와 선언된 prerequisite만 설치합니다. Selector는 `scripts/kit/toolchain-mise.mts`의 `TOOLS`에 있는 정확한 이름입니다. `deadcode`, `govulncheck`, `golangciLint`는 Go도 설치하고, `vulture`는 Python과 uv를 설치하며, Python은 선언된 wheel backend를 설치합니다. PHP Composer 도구는 선언된 PHP wrapper와 Composer를 설치하고, Rust는 stable toolchain과 선언된 exception channel을 설치합니다. 알 수 없거나 비어 있거나 선언되지 않은 selector는 변경 전에 거부합니다. 선택 설치는 다른 기존 설치물을 지우지 않습니다. 전체 설치든 선택 설치든 symbol extractor는 만들지 않으며, 명시적 target `kit-install-symbols`가 `EXTRACTORS` 인수가 이름 붙인 extractor를 설치하며, 그 선언을 요구하지 않습니다(K1071). `install-kit`이 `kit-install-declared`(`install-symbols --declared`)로 저장소의 선언(`config/toolchain.json`의 `symbolExtractors`)을 읽어 같은 도구를 실행하므로, 어떤 저장소도 호출을 복사하지 않습니다(K861). bootstrap의 `TOOLS=npm`은 그대로입니다.
+Rust channel입니다. 이미 설치된 것은 rustup이 판정합니다(K861). `TOOLS` selector가 없으면 기존처럼 전체 도구를 설치합니다. `make install-tools TOOLS="go python"`은 해당 mise 도구와 선언된 prerequisite만 설치합니다. Selector는 `scripts/kit/toolchain-mise.mts`의 `TOOLS`에 있는 정확한 이름입니다. `deadcode`, `govulncheck`, `golangciLint`는 Go도 설치하고, `vulture`는 Python과 uv를 설치하며, Python은 선언된 wheel backend를 설치합니다. PHP Composer 도구는 선언된 PHP wrapper와 Composer를 설치하고, Rust는 stable toolchain과 선언된 exception channel을 설치합니다. 알 수 없거나 비어 있거나 선언되지 않은 selector는 변경 전에 거부합니다. 선택 설치는 다른 기존 설치물을 지우지 않습니다. 전체 설치든 선택 설치든 kit의 PHP program(`scripts/kit/symbols/php`, lint-php의 nikic/php-parser)은 설치하지 않으며, 명시적 target `kit-install-symbols`가 `EXTRACTORS` 인수가 `php`를 이름 붙일 때 그것을 설치하며, 그 선언을 요구하지 않습니다(K1071). `install-kit`이 `kit-install-declared`(`install-symbols --declared`)로 저장소의 선언(`config/toolchain.json`의 `symbolExtractors`)을 읽어 같은 도구를 실행하므로, 어떤 저장소도 호출을 복사하지 않습니다(K861). bootstrap의 `TOOLS=npm`은 그대로입니다.
 bootstrap(`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`)은 반드시 있어야 하는 `+sha512.<digest>`로
 `config/toolchain.json` `mise`의 sha256으로 mise 자체를, 그리고 그와 함께 `mise.toml`의 node와 npm(`npm:npm`, `mise.lock`에 lock됨)을 설치합니다(K938). `install-tool.mts`가 각각을 대상
 옆에서 만들고 거기서 download의 digest를 확인한 뒤 그 digest를 marker(`var/tools/mise-release`의 `.sha256`)에 쓰고 rename하므로, 두 번째 실행은 marker가 선언된 digest를 담은 설치를 유지하고 version은
@@ -74,7 +74,7 @@ PHP는 설치하지 않고 wrapper로 제공합니다(K283, K862). `.php-version
 실패합니다(K1117). kit은 설치를 판정하지 않습니다. 다른 설치용으로 빌드된 extension은 PHP 자신이 로드를 거부합니다. PATH에 php가 없으면
 `php is not on PATH`로 실패합니다.
 
-PHP extension에서는 설치 단계가 arginfo header를 쓰지 않습니다. build는 phpize 뒤에 phpize가 PHP build 디렉터리에서 extension source의 `build/`로 복사한 `gen_stub.php`를 실행합니다(K930, K941; Ubuntu의 `php-config --prefix`에는 build 디렉터리가 없습니다). 이 도구는 필요한 고정 PHP-Parser를 checkout마다 한 번 `var/php-ext/gen-stub/`의 `build/`에 내려받고, 이후 build는 다시 내려받지 않습니다. 실패한 build는 그 폴더를 스스로 지웁니다. 강제 종료된 build 뒤에는 `rm -rf var/php-ext/gen-stub`을 실행하십시오. 폴더에 덜 풀린 PHP-Parser가 남아 다음 build가 그것을 믿을 수 있습니다. 이 내려받기는 PHP 자신의 gen_stub.php가 하는 일이며 kit은 그 버전을 고정하거나 해시하지 않습니다. P35는 저장소의 lock graph를 다루며 도구 내부의 fetch는 다루지 않습니다. extension이 없는 PHP library는 extension 개발 도구가 필요하지 않습니다. 공유 `kit.mk`는 선언된 parity extractor 하나를 `make kit-install-symbols EXTRACTORS="go"` 또는 `EXTRACTORS="php"`로 설치합니다. 먼저 대응하는 고정 도구를 `make install-tools TOOLS="php composer"` 또는 `TOOLS=go`로 설치하며, `EXTRACTORS`는 `config/toolchain.json symbolExtractors`에 있어야 합니다.
+PHP extension에서는 설치 단계가 arginfo header를 쓰지 않습니다. build는 phpize 뒤에 phpize가 PHP build 디렉터리에서 extension source의 `build/`로 복사한 `gen_stub.php`를 실행합니다(K930, K941; Ubuntu의 `php-config --prefix`에는 build 디렉터리가 없습니다). 이 도구는 필요한 고정 PHP-Parser를 checkout마다 한 번 `var/php-ext/gen-stub/`의 `build/`에 내려받고, 이후 build는 다시 내려받지 않습니다. 실패한 build는 그 폴더를 스스로 지웁니다. 강제 종료된 build 뒤에는 `rm -rf var/php-ext/gen-stub`을 실행하십시오. 폴더에 덜 풀린 PHP-Parser가 남아 다음 build가 그것을 믿을 수 있습니다. 이 내려받기는 PHP 자신의 gen_stub.php가 하는 일이며 kit은 그 버전을 고정하거나 해시하지 않습니다. P35는 저장소의 lock graph를 다루며 도구 내부의 fetch는 다루지 않습니다. extension이 없는 PHP library는 extension 개발 도구가 필요하지 않습니다. 공유 `kit.mk`는 kit의 PHP program을 `make kit-install-symbols EXTRACTORS="php"`로 설치합니다. 먼저 PHP와 Composer를 `make install-tools TOOLS="php composer"`로 설치합니다.
 build는 임시 source 사본에서 generator를 실행하고 module만 게시하므로, kit은 generator 버전을 비교하지 않습니다(K930). phpize가 source의 `build/`에 `gen_stub.php`를 복사하지 않았으면 build가 실패합니다.
 Composer release archive는 generated header를 stub/output 경로로 선언합니다. Release asset은 tag의 stub에서 header를 만들고
 staged file을 Info-ZIP(`zip`)으로 추가하며, stored entry, mode 0644, commit timestamp를 고정합니다. `zip`이 없으면
@@ -126,9 +126,8 @@ kit은 toolchain의 version pin을 두지 않고 어떤 version과도 비교하�
 `rust-toolchain.toml`, `package.json`, `go.mod` 또는 lock에 선언한 것이며, 판단은 package manager가 합니다.
 `config/toolchain.json`의 `exceptions`는 `{ tool, channel, scope }` 항목을 선언하며(S8), scope는 `.`(기본값) 또는 checkout의
 directory입니다. kit은 호출자가 이름 붙인 도구의 항목만 읽습니다(K1072). `make install-tools`는 rust를 설치할 때 rust 항목마다
-channel을 설치하고, parity는 rustdoc JSON을 위해 Rust nightly를 읽으며, 이 형식은 nightly만 씁니다. 다른 도구의 항목, kit이 읽지
-않는 필드, channel의 형식은 저장소의 것이며, channel이 없는 그 도구의 항목은 그것을 설치할 호출자의 finding입니다. Rust nightly는
-parity가 읽으므로 stale이 되지 않습니다.
+channel을 설치합니다. 다른 도구의 항목, kit이 읽지
+않는 필드, channel의 형식은 저장소의 것이며, channel이 없는 그 도구의 항목은 그것을 설치할 호출자의 finding입니다.
 
 - TOML은 kit의 유일한 TOML reader인 `toml.mts`의 `readToml`로, smol-toml이 읽습니다(K73).
 - signal로 끝난 version 명령은 `exit status null`이 아니라 `ended by signal SIGKILL`처럼 signal로 보고합니다(K118).
@@ -209,18 +208,18 @@ S5(폴더), S7(test 위치)의 위치 부분, S9의 TypeScript 규칙은 kit의 
   `!{{vars.root_files}}`로 끝나며, 레포는 glob alternation인 `vars: { root_files: "{a,b}" }`로 자기 파일만 적습니다(`"{}"`는 아무것도
   적지 않습니다). alint는 변수를 text로 치환하므로 glob 하나의 alternation이 목록을 담습니다. rule `layout-root-files-additive`는
   `config/layout.yml`이 `layout-root-files`의 `paths`를 override하면 실패합니다. 그 override는 kit가 나중에 더하는 root 파일을 finding
-  없이 빠뜨리기 때문입니다. 예외마다 바로 위 주석에 이유를 적습니다. alint에는 이유를 담을 field가 없으므로, 표준 계획서가
-  parity(S6)와 함께 두는 `CODEOWNERS`의 `config/layout.yml` owner 필수 review가 S8을 강제합니다. kit에는 아직 `CODEOWNERS`가
+  없이 빠뜨리기 때문입니다. 예외마다 바로 위 주석에 이유를 적습니다. alint에는 이유를 담을 field가 없으므로,
+  `CODEOWNERS`의 `config/layout.yml` owner 필수 review가 S8을 강제합니다. kit에는 아직 `CODEOWNERS`가
   없습니다.
-- `PYTHONPATH`는 여기서 checkout 전체에 걸쳐 검사하고, parity schema도 `config/parity.json`에서 그것과 repository를 벗어나는
-  모든 경로를 거부합니다(K75). test의 기능 소유는 parity R5와 R6에 두고, layout은 root `tests/`의 위치만 정합니다.
+- `PYTHONPATH`는 여기서 checkout 전체에 걸쳐 검사하고, `config/*.json`에서 repository를 벗어나는 모든 경로도 검사합니다(K75).
+  layout은 root `tests/`의 위치만 정합니다.
 - `tests/source/layout-real.test.mts`는 실제 alint를 돌립니다. layout을 따르는 레포는 통과하고, 심은 위반은 각각 그것을
   가리키는 rule로 실패하며, `vars.root_files`로 자기 root 파일을 적은 레포는 kit의 root 파일과 함께 통과하고, 이 checkout은 통과합니다.
 
 ### 요구사항과 판정
 
 alint 0.18.2로 fixture 레포에서 측정했고, fsm과 orm에서는 읽기만 하며 돌렸습니다. 거기서 rule은 표준 계획서가 적은 위반을
-찾았습니다(root `conformance/`, `machines/`, `schema/`, `fsm-` 접두사, `fsm-go`의 module path, `config/parity.json`의
+찾았습니다(root `conformance/`, `machines/`, `schema/`, `fsm-` 접두사, `fsm-go`의 module path, `config/` 선언의
 `PYTHONPATH`와 `../ordered-json/…`, `.mjs` script).
 
 | 항목 | 요구사항 | alint rule | 판정 |
@@ -265,7 +264,7 @@ K804는 push gate(`push-gate.mts`, pre-push hook, `push-gate-hook`, `push-gate-c
 
 K240은 `full-run.mts`, 그 record `var/full-run.json`과 target `rerun-failed`를 제거했습니다. Suite command는 CI에서 실행합니다.
 K1053은 suite command의 guard(`ci-only.mts`와 FINAL_RUN)를 제거했습니다. `make ci-targets TARGETS="<target>..."`,
-`make owner-check`, 선택 없는 run-tests 실행, suite와 전체 `parity-check`는 시작된 곳 어디서나 실행되며, suite를 언제 실행할지는
+`make owner-check`, 선택 없는 run-tests 실행, suite는 시작된 곳 어디서나 실행되며, suite를 언제 실행할지는
 저장소 자신의 레시피입니다. CI report의 lock은 동시 기록을 막습니다. 아래 표는 K6.1의 merge를 기록합니다.
 
 파일: `scripts/kit/checklist.mts`, `git-hooks.mts`, `holder-lock.mts`,
@@ -400,20 +399,6 @@ generator, `tests/fixtures/*/generate.*`를 고른다. 호출자는 그중 tool 
 kit의 recipe는 `.d.ts` 파일과 test 파일을 빼지만 fixture generator는 빼지 않는다. 고른 tool source에 class가 없으면 finding이고, tracked가 아닌 파일의 class도
 finding이다.
 
-## Divergence check (K315)
-
-`make divergence-check`(P32)는 구현이 unit이 말하지 않는 방법으로 contract와 달라지면 실패한다. 호출자가 넘긴 구현 root, 곧
-`--parity <path>` parity 선언의 root나 `--roots`의 폴더를 읽고(K1114, 인수 없는 호출은 사용법 오류) 다음의 파일과 줄을 보고한다: extension, runtime, platform으로 분기하는 test(`extension_loaded`,
-`function_exists`, `PHP_VERSION`, `PHP_OS`, `sys.version_info`, `sys.platform`, `process.versions`, `process.platform`,
-`runtime.GOOS`, `runtime.GOARCH`, `cfg!`, `#[cfg(...)]`, `os.name`), 다른 구현이 있는지 읽는 구현의 code(`extension_loaded`), script,
-Makefile, workflow의 `--exclude-group`, 호출자가 `--feature-state <state>`로 거부하는 `contracts/features.json`의 상태, 그리고
-reason이 호출자가 `--reason-kind <kind>`로 선언한 kind 중 어느 것으로도 시작하지 않는 `config/duplication.json`의 예외와
-`config/parity.json`의 `tools`, `internal`. 두 규칙은 저장소의 것이다: `--feature-state`나 `--reason-kind`가 없으면 그 종류는
-찾지 않는다. kit의 recipe는 상태 `partial`, `unsupported`와 kind `generated:`, `fixture:`, `test:`, `harness:`, `ecosystem:`,
-`external:`를 선언한다(K1079). 건너뛰거나 좁힌 test는 `make test-markers-check`의 marker이며 이 검사는 `testing.Short()`,
-`pytest.importorskip`, `@requires`, `#[Requires...]`, `node:test` context의 skip도 읽는다. `make item-state`는 cause가 release,
-재현되지 않음, flake, 일시적이거나 무관한 실패, 환경을 인용하는 bypassed나 impossible 상태를 거부한다. `make item-state`는 Verification 칸의 명령이 commit이 담는 tree에서 통과한 뒤에만 item을 done으로 표시한다(K335). kit 자신의 도구와 test도 다른 저장소와 같이 검사한다(K954). TypeScript와 JavaScript 파일은 parser로 읽으므로, 문자열 리터럴 안에 쓰인 bypass나 divergence는 data이고 파일의 code만 대조합니다. CI identity는 실행되는 process의 `env` 옵션으로 넘기거나 `process.env`에 대입하면 finding이고, 테스트 대상 함수에 인자로 넘기면 data입니다(K954).
-
 ## Owner check (K8.1-1)
 
 `scripts/kit/owner-check.mts`는 template, crudui, hyper의 `owner-check.mts`와 ordered-json의 `owner_check.py`를 대체합니다.
@@ -458,10 +443,10 @@ reason이 호출자가 `--reason-kind <kind>`로 선언한 kind 중 어느 것�
 ## 테스트 실행기 (K8.1-2)
 
 `scripts/kit/run-tests.mts`는 template, crudui, hyper의 `run-tests.mts`와 ordered-json의 `test.py`를 대체합니다. 진행 reporter는
-`test-progress.mts`, `node-reporter.mts`, `vitest-reporter.mts`이며, go, cargo, PHPUnit, unittest 출력의 parser는 `test-output.mts`에 있고 언어 패리티 검사도 같은 함수로 읽습니다(K47). `test-exit-deadline.mts`는 각 node test 파일에 preload되어, 마지막 test 뒤 test timeout이 지나도 살아 있는 파일을 열린 handle 이름과 함께 실패시키며(K72),
+`test-progress.mts`, `node-reporter.mts`, `vitest-reporter.mts`이며, go, cargo, PHPUnit, unittest 출력의 parser는 `test-output.mts`에 있습니다(K47). `test-exit-deadline.mts`는 각 node test 파일에 preload되어, 마지막 test 뒤 test timeout이 지나도 살아 있는 파일을 열린 handle 이름과 함께 실패시키며(K72),
 `test-hooks.mts`는 test의 `setup`과 `teardown` helper입니다.
 
-PHPUnit TeamCity event는 fully qualified class, method, data set을 `TestRef.id`로, native display name을 `TestRef.name`으로 보존한다. 각 flow는 실행 중인 identity를 별도로 유지한다. 서로 다른 namespace의 같은 basename은 구별하며 qualified parity binding은 자신의 namespace만 받아들인다(K1091).
+PHPUnit TeamCity event는 fully qualified class, method, data set을 `TestRef.id`로, native display name을 `TestRef.name`으로 보존한다. 각 flow는 실행 중인 identity를 별도로 유지한다. 서로 다른 namespace의 같은 basename은 구별한다(K1091).
 
 합친 동작:
 
@@ -770,10 +755,9 @@ S10 PHP extension의 stub은 library의 class와 함수를 같은 이름과 sign
   `[report] make <target> exited with status N`으로 끝납니다(task K11-1).
 - 설정 파일이 없다는 메시지는 `check-commits`, `check-documents`, `owner-check`에서 파일의 용도를 적으며, 세 문장이 다릅니다.
 - `kit-check`는 (K289) `make check`와 CI group이 실행하는 suite인 `CHECK_TARGETS`가 `kit-gates`의 모든 prerequisite에 단어나
-  prerequisite로 닿는지도 요구하므로, gates workflow가 실행하는 gate가 suite에서 빠지지 않습니다. 아래의 provider API와 binding phase
-  partition이 완전하면 parity prerequisite를 대신 충족합니다. 언어의 lint와 PHP extension의 lint·test는 그 code를 가진 저장소에서만
+  prerequisite로 닿는지도 요구하므로, gates workflow가 실행하는 gate가 suite에서 빠지지 않습니다. 언어의 lint와 PHP extension의 lint·test는 그 code를 가진 저장소에서만
   요구합니다. kit의 checkout은 gate의 source이므로 검사하지 않습니다.
-- `workflows/ci-pipeline.yml`(`on: workflow_call`, K910)은 같은 `kit-gates` prerequisite를 shared, parity, runtime job으로 나눕니다.
+- `workflows/ci-pipeline.yml`(`on: workflow_call`, K910)은 같은 `kit-gates` prerequisite를 shared, runtime job으로 나눕니다.
   저장소의 ci.yml이 이를 job `kit`으로 호출하고, 독립적인 저장소 job은 함께 실행합니다. 마지막 `ci-passed` job은 다른 모든 job을 needs로 요구하므로 run 하나가 commit의 모든 job을 담습니다. 파이프라인, release.yml, 저장소 workflow의 모든 job은 composite action 하나인
   `actions/kit-bootstrap/action.yml`로 bootstrap합니다. 이는 저장소가 `.github/actions/kit-bootstrap/action.yml`로 복사해 자기 것으로 가지는 예시이며(K1052),
   job은 checkout 뒤에 `uses: ./.github/actions/kit-bootstrap`으로 실행합니다. mise.toml의 Node.js, lock된 kit package,
@@ -790,7 +774,6 @@ S10 PHP extension의 stub은 library의 class와 함수를 같은 이름과 sign
     "runtimes": ["go", "php", "php-ext", "python", "rust", "ts"],
     "setup": {
       "shared": ["orm-install-shared-tools"],
-      "parity": ["orm-build-parity-fixtures"],
       "runtimes": {
         "go": ["orm-install-go"],
         "php": ["orm-install-php"],
@@ -803,54 +786,36 @@ S10 PHP extension의 stub은 library의 class와 함수를 같은 이름과 sign
   }
   ```
 
-  Runtime setup target은 해당 runtime job과 전체 또는 API parity job에서 실행됩니다. Binding phase는 아래의 별도 명시적 setup을 사용합니다.
+  Runtime setup target은 해당 runtime job에서 실행됩니다.
   비어 있지 않은 runtime 목록은 Kit 기본값을 대체하므로, 해당 runtime이 필요한 setup과 추적된 native package lock을
   모두 포함해야 합니다. 목록이 비어 있으면 저장소 자신의 `deps-<runtime>` target(ts는 `deps-node`, `deps-go`, `deps-rust`,
   php와 php-ext는 `deps-php`, `deps-python`)을 실행합니다. 이는 package manager의 lock 설치를 얇게 부르는 target입니다(K859).
   plan의 runtime만 setup합니다. 선언된 target과 기본 target은 선언대로 실행합니다. kit은 먼저 Makefile과
-  대조하지 않으며, 없는 target은 실행될 때 make가 알립니다(K1068). ci-setup은 package manager, target, parity-check가 스스로 판정하는 것을 거부하지 않습니다(K860).
+  대조하지 않으며, 없는 target은 실행될 때 make가 알립니다(K1068). ci-setup은 package manager와 target이 스스로 판정하는 것을 거부하지 않습니다(K860).
   PHP runtime job은 선언된 PHP와 Composer 도구를 선택합니다. PHP extension job도 이 도구를
   선택하고 extension의 lint, build, test 전에 설치 단계가 필요 없습니다. build는 phpize가 `build/`에 복사한 `gen_stub.php`를 실행합니다. Extension test는 Composer package에 설치된
-  PHPUnit을 사용하므로 Kit의 private PHPUnit 선언은 필요하지 않습니다. PHP parity runner가 Composer를 쓰면 parity 도구에도
-  Composer를 포함합니다. PHP setup 목록을 직접 지정하는 소비 저장소는 root와 package를 포함해 필요한 Composer project를
+  PHPUnit을 사용하므로 Kit의 private PHPUnit 선언은 필요하지 않습니다. PHP setup 목록을 직접 지정하는 소비 저장소는 root와 package를 포함해 필요한 Composer project를
   모두 나열해야 합니다.
-  `parityMode`는 선택 항목입니다. 선언이 없으면 호출자가 `--parity <path>`를 넘길 때 `full`, 넘기지 않을 때 `none`으로 계획합니다(K1068, K1114).
-  `full`은 provider의 전체 `parity-check`를 실행합니다. `phases`는 `parity-api-check`를 한 번 실행하고 `parityBindings`가
-  선언한 binding마다 job 하나인 `parity-bindings-<implementation>-check` matrix를 실행합니다. 소비 저장소는 concrete target에 setup prerequisite를 추가합니다.
-  ci-setup은 `--parity`가 이름 붙인 경로에서만 parity 선언을 읽습니다(K1114). 그 runner가 parity 도구를 고르고 기본 모드를 정합니다. 그 경로가 없거나,
-  `--parity` 없이 `none`이 아닌 모드를 선언하면 plan이 고칠 방법과 함께 실패합니다(K951).
   마지막 job `required`(ubuntu-24.04)는
   파이프라인의 모든 job을 needs로 하고, plan이 선택한 job이 성공하지 않으면(skip된 경우 포함, K950) 실패합니다. plan이 고르지 않은 job은 skip되며 결과가 아닙니다.
   kit-ci-verify-gates는 없습니다.
   선택 항목인 `targets` map은 각 job에서 저장소 자신의 check target을 이름합니다. `shared`는 shared job에서 `kit-gates-static` 뒤에,
   Pipeline은 계획과 검사를 분리합니다. 작은 `plan` job은 고정된 package를 bootstrap하고 kit-ci-plan을 실행하며
-  job 선언을 게시하지만 검사나 runtime setup을 실행하지 않습니다. Shared 검사·선택된 parity job·runtime job은
+  job 선언을 게시하지만 검사나 runtime setup을 실행하지 않습니다. Shared 검사·runtime job은
   계획 출력에만 의존하여 runner 여유가 있을 때 독립적으로 시작합니다. Shared 검사의 artifact를 주고받지 않으므로
-  shared 검사 실패가 독립 결과를 막지 않습니다. 마지막 required job은 계획·shared 검사·선택된 모든 parity/runtime
+  shared 검사 실패가 독립 결과를 막지 않습니다. 마지막 required job은 계획·shared 검사·선택된 모든 runtime
   job을 항상 판정하며 선택된 job이 건너뛰거나 취소되어도 실패합니다. 이 제어 의존성을 제거해도 GitHub의 runner
   동시 실행 한도는 늘어나지 않습니다.
   규칙 도달성은 저장소의 CI pipeline을 그 workflow 중 하나로서 step의 make 명령으로 읽는다. 예시 pipeline이 읽는 config/ci.json은 그 자체로 어떤 target에도 도달하지 않는다(K1057).
-  Phases 모드의 config/ci.json은 `parityBindings`에서 implementation 이름을
-  `{ "setup": ["setup-target"], "tools": ["tool-selector"] }`에 대응시킵니다. 계획은 선언된 binding만 실행하며 다른 파일과
-  대조하지 않습니다. binding이 없는 config/parity.json의 implementation은 binding job을 받지 않으며, 그것이 허용되는지는
-  저장소 자신의 규칙입니다(K1068). 빈 배열은 setup이나 tool을 요구하지 않는다는 명시적 선언입니다.
-  각 binding matrix job은 해당 항목의 tool만 설치하고
-  `make kit-ci-setup GROUP=parity-binding IMPLEMENTATION=<name>`으로 해당 setup만 실행합니다.
-  Symbol extractor를 암묵적으로 설치하거나 runtime·API setup을 상속하지 않습니다. Repository는 context target의
-  prerequisite를 포함해 binding에 필요한 준비를 모두 나열합니다. API와 전체 parity는 완전한 준비를 유지합니다.
-  이는 repository 선언의 실행이며 build artifact나 cache 관리가 아닙니다.
-  `parity`는 parity job(`parityMode` full)에서 `kit-gates-parity` 뒤에, 또는 parity-api job(`phases`)에서 `parity-api-check` 뒤에(bindings job은
-  `targets.parity`를 실행하지 않습니다), `runtimes.<runtime>`은 그 runtime job에서
+  `runtimes.<runtime>`은 그 runtime job에서
   `kit-gates-runtime-<runtime>` 뒤에 실행됩니다. `targets.runtimes`에 이름이 있는 runtime은 `runtimes`가 이름 붙이지 않아도 job을 가집니다.
-  config/parity.json이 없는 저장소는 parity job을 돌리지 않으므로 `targets.parity`도 실행하지 않습니다.
   선택 항목인 `tools` map은 setup target이 추가로 요구하는 Kit의 pinned tool selector를 선언합니다. 예를 들어 TypeScript
-  generator target이 Go를 필요로 하면 `"tools": { "ts": ["go"] }`로 선언합니다. install-tools가 해당 도구를 TypeScript job과 runtime
-  setup을 반복하는 parity job에서 판정하고 설치합니다. `shared`와 `parity` key는 각 job의 도구를 선택합니다. 각 selector는
+  generator target이 Go를 필요로 하면 `"tools": { "ts": ["go"] }`로 선언합니다. install-tools가 해당 도구를 TypeScript job에서 판정하고 설치합니다. `shared` key는 shared job의 도구를 선택합니다. 각 selector는
   install-tools가 판정합니다.
   선택 항목인 `contexts` map은 잠긴 setup 뒤, 기존 provider gate를 실행하기 직전에 저장소의 prepare target을 실행하고
   gate 뒤에 cleanup target을 실행합니다. 각 scope에는 두 target이 모두 있어야 하며, 둘은 선언대로 실행됩니다(K1068). 예를 들어
   `"contexts": { "shared": { "prepare": "ci-shared-prepare", "cleanup": "ci-shared-cleanup" } }`는 shared
-  context를 선택합니다. `parity`는 선택된 각 parity job에서 따로 실행하고, runtime key는 해당 runtime job에 적용합니다.
+  context를 선택합니다. runtime key는 해당 runtime job에 적용합니다.
   준비 단계에 진입한 뒤에는 Actions `always()`로 cleanup을 실행하므로 prepare 또는 gate가 실패해도 정리합니다. Cleanup 실패도
   job 실패입니다. 잠긴 setup이 먼저 실패하면 prepare는 skip되고 cleanup도 실행하지 않습니다. Prepare target은 후속 workflow
   step에 변수를 전달할 때 runner의 기본 `GITHUB_ENV`를 쓸 수 있으며 Kit은 별도 환경 protocol을 만들지 않습니다.
@@ -1089,303 +1054,6 @@ consumer는 sibling을 polyspec wheel과 같이 설치합니다: uv가 쓴 자�
 이 sha256은 게시된 asset의 hash입니다.
 
 테스트: `tests/kit/release-wheel.test.mts`(두 wheel의 빌드).
-
-## Language parity (K33)
-
-`scripts/kit/parity.mts`는 repository의 모든 implementation이 적용되는 shared unit을 갖추는지 검사합니다. `config/parity.json`은
-implementation(repository의 language 집합의 유일한 원천)과 unit을 선언합니다. scope가 없는 unit은 모든 implementation에 적용합니다(S6).
-feature unit과 case가 한 implementation에만 있는 suite unit(K961)은 기존 `contracts/features.json` coverage part 또는 `config/release.json`의 archive package, `goModules` module, `manifests`의 `git-tag` Cargo.toml(이름은 그 `[package].name`)에서 owner를 도출할 수 있습니다. release owner는 `artifact`로 source 유형을 명시하고 source의 package 이름을 정확히 가리킵니다. feature가 unit id와 각 binding test를 나열하고 owner part가 모든 bound test를 담으며 release package에 manifest가 있다는 역참조는 config/parity.json이 `ownerCrossChecks`를 정할 때만 판단합니다(K1085). component나 artifact에만 해당하는 requirement가 owner scope 대상이며, requirement가 owner를 주어로 명시하고 native test가 그 requirement를 이름으로 인용해야 합니다. 공유 client requirement와 SQL 규칙은 계속 모든 implementation에 적용됩니다. API unit은 release package만 owner가 될 수 있습니다. 임의 profile, implementation 허용 목록, exclusion, native-only symbol은 scope가 아니며, 완료나 예정 같은 상태도 선언에 담지 않습니다. 검사기는 모든 사실을 tree에서 가져옵니다.
-
-- 각 implementation에서 각 suite와 feature의 binding을 직접 실행하고, 실행과 각 실행이 보고한 case와 test id의 ledger를 memory에
-  둡니다. 저장된 report는 읽지 않습니다. binding 명령은 native case 전의 조용한 compile과 초기화를 포함해 시간 제한이 없는 처리입니다.
-  각 저장소가 native case deadline을 제공합니다. checker 중단은 process group을 끝내고, 출력 한도는 과도한 출력을 계속 거부합니다.
-  Kit은 암묵적인 사전 build 없이 native test command를 한 번 호출합니다. Native tool이 compilation을 담당하며 종료 상태와 진단으로 compiler 실패를 보고합니다. Native case event가 없으면 실행된 case도 없습니다. 명시적인 준비와 재사용 build output은 repository recipe가 담당합니다. 별도 사전 build는 제거된 binding inactivity deadline에서 compilation을 제외하기 위해 존재했습니다.
-- 각 implementation의 public symbol을 그 생태계의 표준 도구(go/packages, API Extractor, nikic/php-parser, Python의 ast, rustdoc
-  JSON)로 읽습니다. commit된 snapshot은 읽지 않습니다.
-- 각 implementation의 생성물에서 error code를 읽습니다.
-
-한 spec을 여러 implementation으로 가진 repository는 `config/parity.json`을 선언하고, `parity-declarations-check`를 검사 target에서,
-`parity-check`를 CI에서 실행하며, 둘 다 push가 반영되기 전에 실행합니다.
-
-### 신뢰 경계
-
-검사기는 스스로 만들지 않는 입력 세 가지를 신뢰합니다. 각각은 다른 검사가 막습니다:
-
-- **각 symbol extractor의 도구**(go/packages, API Extractor, nikic/php-parser, ast, rustdoc). 검사기는 이 도구를 source에
-  실행하고 그 public symbol을 그대로 받습니다. kit의 extractor 프로그램은 도구가 주는 것을 나열할 뿐입니다.
-- **생성된 error code 생성물.** repository의 생성기 검사가 catalog에서 생성물을 다시 만들고, 다르면 실패합니다. 이 검사도
-  `parity-check`보다 먼저 실행해야 합니다. parity 검사는 commit된 생성물을 catalog와 비교하며, 다시 만들지 않습니다.
-- **각 native 도구의 출력**(node:test, vitest, go test, cargo test, unittest, PHPUnit). binding의 test는 검사를 위해 아무것도
-  출력하지 않으며, 각 case의 결과는 그 test에 대한 도구 자신의 보고입니다. go, node, vitest는 이벤트를 틀에 넣어 씁니다. go는
-  test의 출력을 JSON 이벤트의 `Output` 필드 안에 쓰고 `test-output.mts`가 이를 읽습니다. node는 kit의 node:test reporter인
-  `parity-node-reporter.mts`에 이벤트를 보고하고, vitest는 JSON report를 파일에 씁니다. cargo, unittest, PHPUnit은 틀에 넣지 않으므로, test가 같은 stream에 결과처럼 읽히는 줄을 출력할 수 있습니다:
-  cargo의 표준 출력에 있는 `test <name> ... ok`, unittest의 표준 오류에 있는 `... ok` 줄, 또는 PHPUnit이 되풀이한
-  `##teamcity[` 메시지입니다. 이 셋에 대해 검사기는 도구가 자신의 결과만 출력한다고 신뢰하며, 리뷰가 이를 강제합니다. 출력을
-  검사하는 방법으로는 막을 수 없습니다.
-
-Make target: `parity-check`는 binding과 symbol extractor를 실행하고 모든 rule을 검사합니다. `parity-declarations-check`는
-R1, R3, R11을 뺀 모든 rule을 검사하며 아무것도 실행하지 않습니다. 둘 다 offline이고, 단계마다와 finding마다 한 줄을 출력하며, finding이 있으면 1로 끝납니다.
-`node scripts/kit/parity.mts --phase api`는 native binding 없이 공개 symbol 추출과 모든 정적 parity 규칙을 실행합니다. `--phase bindings`는 공개 symbol 추출 없이
-native binding과 해당 requirement 검사를 실행합니다. 두 phase를 합치면 기본 `all` phase의 검사를 모두 다루며, 각 phase는 부분 범위를 출력하고 전체 parity 통과라고 보고하지 않습니다.
-`--phase all`이 기본값이며 기존 전체 `parity-check`를 유지합니다. `--phase api`와 `--implementation`은 함께 쓸 수 없고, `--declarations`는 기본 phase가 아닌 값과 함께 쓸 수 없습니다. Provider Make target `parity-api-check`와 `parity-bindings-%-check`가 지원하는 CI partition을 제공합니다. Binding target은 `%`에 적힌 implementation만 선택하며 기본 `parity-check`는 계속 `all`을 실행합니다.
-`make parity-check UNITS="<id> <id>"`(K221)는 이름 붙은 unit의 binding(R3)만 실행합니다. 전체 실행과 같은 runner, cwd, reader를 쓰고 결과를 같은 ledger 줄로 보고합니다. unit 전체가 필요한 cross-unit rule(R1, R2, R4~R11)은 실행하지 않으며, 그 실행은 이를 알리는 줄을 한 줄 출력합니다. `config/parity.json`의 어떤 unit도 갖지 않은 id는 실행을 시작하지 않고 그 id를 적어 실패합니다.
-`make parity-declarations-check UNITS="<id> <id>"`(K400)는 그 unit을 가리키는 finding과 `config/parity.json` 자체의 finding만 보고합니다. 그래서 자기 unit의 선언을 고친 행은 다른 unit에 finding이 남아 있어도 통과합니다. UNITS가 없으면 모든 finding을 보고합니다.
-`make parity-declarations-check RULES="<rule> <rule>"`(K414)는 이름 붙은 rule(id 또는 이름)의 finding과 `config/parity.json` 자체의 finding만 보고합니다. 그래서 문서의 사실을 고정하는 행은 다른 rule에 finding이 남아 있어도 자기 rule을 검증합니다.
-`make parity-declarations-check IDS="<requirement> <requirement>"`(K414-1)는 지정한 requirement id를 나타내는 finding을 보고하며, 해당 id를 인용하는 unit의 R2 missing binding도 포함합니다. 각 R2 finding은 unit의 requirement id를 함께 가집니다. `RULES` 또는 `UNITS`와 함께 쓰면 필터가 교차 적용됩니다. `config/parity.json` 자체의 finding은 모든 필터 실행에 남습니다.
-
-Node parity는 한 native 호출에서 stdout의 machine reporter와 stderr의 Node 표준 spec reporter를 사용합니다. ledger는 실행 중 assertion 상세와 test 출력을 포함한 stdout과 stderr를 한 번씩 전달하고, 판정 파싱에는 원본 캡처를 사용합니다. case 판정은 native 완료 이벤트만으로 정합니다. support 파일은 case를 보고하지 않고 종료 코드 0으로 끝나야 합니다. 실패한 support 뒤에도 독립 파일과 binding을 실행합니다.
-
-| Module | 담당 |
-|---|---|
-| `parity.mts` | 명령과 rule의 순서 |
-| `parity-declaration.mts` | schema, 선언의 참조, finding |
-| `parity-units.mts` | R1, R2, R4, R5, R6, R11 |
-| `parity-ledger.mts` | R3: binding 실행과 ledger |
-| `parity-runners.mts` | runner마다의 native 명령과 그 출력에서 읽은 case의 결과 |
-| `parity-node-reporter.mts` | node runner의 node:test reporter: 각 test를 감싼 suite와 함께 JSON 줄로 |
-| `parity-symbols.mts` | R1과 R11의 symbol extractor, rustdoc JSON 탐색 |
-| `install-symbols.mts` | go extractor의 build와 php extractor의 설치(var/tools) |
-| `symbols/` | extractor 프로그램: `go/`(go/packages), `php/`(nikic/php-parser), `python.py`(ast) |
-| `test-output.mts` | go, cargo, unittest, PHPUnit 출력의 parser, run-tests와 공유. node:test는 `parity-node-reporter.mts`로 보고하며, K125의 TAP reader는 제거했습니다 |
-| `parity-errors.mts` | R7 |
-| `parity-text.mts` | R9, R10 |
-
-### Rule
-
-모든 finding은 검사를 실패시킵니다. finding은 rule, unit, implementation, 위치(파일 또는 file:line)를 적습니다.
-
-| Rule | Finding |
-|---|---|
-| `declaration` | 선언에 다음 결함 중 하나가 있습니다. 이런 선언에는 다른 rule을 실행하지 않습니다. <br>- `scripts/kit/schema/parity.schema.json`을 어깁니다. <br>- 없는 파일이나 모르는 implementation을 적습니다. <br>- root가 repository 전체입니다. <br>- go 또는 cargo suite binding에 `symbol`이 없거나, go symbol이 `^Test\w*$`에 맞지 않습니다. <br>- feature binding에 `id`가 없거나 `symbol`이 있거나, suite binding에 `id`가 있거나, feature unit에 `file`이나 `cases`가 있습니다. <br>- case 이름이 반복되거나, 공백을 담거나, go binding이 있는 unit에서 `/`를 담습니다. <br>- `symbols`의 `entry`가 없습니다. <br>- pattern에 group이 없습니다. <br>- catalog pattern이 catalog의 줄을 읽지 못하거나, catalog 또는 생성물 pattern이 code를 하나도 읽지 못합니다. <br>- `support` glob이 그 implementation의 test 파일(그 runner의 규약, 그 `tests`, 그 runner의 `testPatterns`)도 test처럼 이름 붙은 파일도 하나도 고르지 않거나, 보조 파일이 그 implementation의 `roots` 밖에 있거나, Go 보조 파일이 `go test`가 실행하는 함수를 선언하거나, cargo 보조 파일이 test attribute를 담거나, binding의 test가 그 implementation의 `support`에 맞습니다. <br>- `command`, `args`, `env` 값, 또는 binding `command`의 단어가 `${NAME}`이 아닌 `${` 형식을 담습니다(K223). <br>- binding의 `command`가 비었거나 `args`의 pattern이 거부하는 단어를 담습니다(S3). <br>- env가 `PYTHONPATH`를 설정하거나, 경로 field나 `args`, `env` 값의 단어가 절대 경로이거나 `~`로 시작하거나 `..` segment를 담습니다(S3). |
-| R1 missing-implementation | API unit이 한 implementation의 symbol을 선언하지 않거나, 선언한 symbol 중 하나라도 그 implementation의 extractor가 주는 public symbol이 아닙니다. 또는 implementation의 extractor가 symbol을 주지 못합니다: 프로그램이나 nightly가 없거나, 실패하거나, 목록을 출력하지 않습니다. |
-| R2 missing-binding | suite 또는 feature unit에 적용되는 implementation의 binding이 없습니다. owner가 없는 unit에는 모든 implementation이 적용되고, owner가 있는 feature나 suite에는 Kit이 선언된 owner에서 도출한 implementation이 적용됩니다. |
-| R3 not-executed | binding이 시작하지 못하거나(program이 없거나, 그 implementation의 environment 참조가 설정되지 않았거나 비었거나 checkout과 사용 중인 kit 패키지 밖 경로로 풀림), 0이 아닌 status로 끝나거나, 통과한 case가 suite 파일의 case와 정확히 같지 않습니다. feature binding은 그 실행에서 `id`가 정확히 한 번 통과해야 하며, Cargo는 그 `id`를 exact libtest filter로 실행하고 file runner는 전체 파일을 실행합니다. Cargo filter가 0개를 찾으면 미실행이고, binding id 밖의 test가 보고되어도 R3입니다. 각 binding은 한 번 실행됩니다(K959). 고정 seed와 격리된 database가 실행을 결정적으로 만들며, 그렇지 않은 test는 두 번째 실행이 찾을 대상이 아니라 test의 결함입니다. finding은 실패, skip, 누락, 초과 case를 나열합니다. 실행이 case를 두 번 보고하면 finding은 `reported twice` 부분으로 그 case를 적습니다. build되지 않는 Go package는 compiler 출력을 덧붙입니다. |
-| R4 undeclared-suite | `suites` glob의 파일이 어떤 suite unit의 파일도 아니고 어떤 case directory 안에도 있지 않습니다. |
-| R5 undeclared-test | implementation의 test 파일(그 root 안에서 그 runner의 규약이나 `testPatterns`가 고르는 파일, 또는 그 `tests` glob의 파일) 중 그 `support` 파일이 아닌 것이 그 implementation의 어떤 binding의 test도 아닙니다. 또는 그 root 안의 파일이 test처럼 이름 붙었고(`*_test.*`, `test_*.*`, `*Test.*`, `*.test.*`, `*.spec.*`), 어떤 규약도 고르지 않으며, 어떤 binding도 실행하지 않습니다. 또는 node, php, python implementation의 보조 파일이 `parity-check`가 실행할 때 case를 보고합니다. |
-| R6 misplaced-test | binding의 test가 그 implementation의 `roots` 밖이고, 그것이 `shares`로 선언한 implementation의 root(그 선언 없이는 다른 implementation을 공유하지 않는다, K1117) 밖이며, `comparators` 밖에 있습니다. 또는 하나 이상의 runner의 규약이나 `testPatterns`가 고르는 파일로서 그 runner들의 implementation의 `support` 파일이 아닌 것이, 그 runner들의 모든 implementation의 root 밖이고 `comparators` 밖이며 `tools` root 밖에 있습니다. vendored `scripts/kit`과 `tests/kit`은 kit 자신의 것이어서 검사하지 않습니다. |
-| R7 error-catalog | implementation이 code(`errors`)를 선언하지 않거나, 그 code가 catalog와 다릅니다(누락 또는 초과 code). |
-| R9 language-set-drift | `languageLists`가 선언한 다른 파일의 목록이 implementation과 다르거나, pattern이 아무것도 찾지 못합니다. |
-| R10 docs-count | `documents`의 문서가 implementation N개를 세는데, 그 문장이 implementation N개를 모두 적지 않습니다. 다만 문장이 정확히 N개를 적고 passage의 이름을 모두 모은 것이 모든 implementation이면 예외입니다. 또는 이름을 모두 모아도 모든 implementation이 아닌 문장에서 implementation 이름 세 개 이상을 나열합니다. each나 각각 뒤의 수는 항목마다 세므로 count가 아니고("각각 한 구현"), 열거의 다른 항목이 양쪽에 있는 이름의 run은 그 항목들을 나열하므로 list가 아닙니다("Node.js, npm, Go, Rust, PHP minor version, Composer"). 마지막 이름 뒤의 `documents` noun은 항목이 아닙니다 (K197). |
-| R11 undeclared-public | implementation의 extractor가 주는 public symbol을 API unit도 선언하지 않습니다. |
-| R12 duplicate-binding | suite 또는 API unit이 `bindings`나 `symbols`에 한 implementation을 두 번 적습니다. Feature unit은 같은 implementation과 native `id`를 두 번 적으면 안 됩니다. 하나의 feature가 한 implementation의 서로 다른 native id를 binding할 수 있으며, 같은 test file의 database별 case도 해당합니다. |
-| R16 internal-contract | implementation의 `internal` glob이 고른 test가 spec의 requirement(`requirements.pattern`이 맞는 list item이나 heading)를 이름으로 부르면, contract test가 internal test 사이에 숨을 수 없도록 finding이 된다(K313). |
-| R17 leaked-internal | public signature, parent class, interface가 internal symbol을 이름으로 가리킨다. 대상은 docblock에 `@internal`이 있는 PHP class, `_` 하나로 시작하는 Python 이름, entry point가 export하지 않는 TypeScript type(API Extractor `ae-forgotten-export`)이며, 각각 implementation의 extractor(`extract.php`와 `python.py`의 `--leaks`)가 보고한다. finding은 public symbol과 internal symbol을 이름으로 말한다(K307-1). |
-
-### Runner
-
-| Runner | 명령 | Case | Feature id |
-|---|---|---|---|
-| `go` | `go.mod`가 있는 가장 가까운 directory에서 `go test -json -count=1 -run ^<symbol>$ ./<directory>`. feature는 `-run` 없이 실행합니다 | 직계 subtest `<symbol>/<case>`의 `pass`, `fail`, `skip` event | test 또는 subtest 이름 `TestX/case` |
-| `cargo` | `<crate>/tests/<name>.rs`이면 `cargo test --manifest-path <crate>/Cargo.toml --test <name>`, 아니면 `--lib`을 사용하고, 이어서 feature의 exact native id를 `-- --exact --test-threads=1` 앞에 둡니다. match가 없는 id는 실행되지 않은 case입니다(R3) | `<symbol>::<case>` test의 출력 줄 `test <name> ... ok`, `FAILED`, `ignored`. libtest-mimic(`harness = false` test target)은 각 이름을 가장 긴 이름에 맞춰 채우므로 `...` 앞의 공백은 몇 칸이든 됩니다. 이름과 결과 사이에 test의 출력이 끼면 결과는 줄 하나에 `ok`, `FAILED`, `ignored`만 적힌 줄이며, 그 줄이 결과로 집계됩니다(K229) | libtest 경로 `module::test` |
-| `node` | `node --test --test-reporter=<scripts/kit/parity-node-reporter.mts> --test-reporter-destination=stdout --test-reporter=spec --test-reporter-destination=stderr <test>` | reporter가 이름 붙인 최상위 test: node:test 자신의 통과, 실패, skip, todo입니다. 파일 자신의 test는 case가 아닙니다. coverage 파일은 case를 database item마다 `<case> [<database>]`로 보고하며, 그 보고는 case `<case>`의 것이고 모든 보고가 통과해야 통과합니다(K231) | test와 그것을 감싼 suite의 이름을 ` › `로 이은 것 |
-| `vitest` | checkout root에서 `node node_modules/vitest/vitest.mjs run <args> --dir <root> --reporter=json --outputFile.json=<temporary>/vitest.json <test>`. `--dir`은 test를 가진 implementation의 root이므로 discovery가 var/ 아래 링크를 따라가지 않는다 (K202). `<temporary>`는 시스템 임시 폴더(`TMPDIR`) 아래 새 폴더이며, 실행이 어떻게 끝나든 매 실행 뒤 지우므로 checkout에는 아무것도 쓰지 않는다 (K1101) | JSON report의 최상위 test: `passed`, `failed`, `skipped` 또는 `pending`, `todo` | `ancestorTitles`와 `title`을 ` › `로 이은 것 |
-| `php` | `php <args> <package>/vendor/bin/phpunit --teamcity <configuration> <test>`를 checkout root에서 실행합니다. `<package>`는 test 위에서 `composer.json`이 있는 가장 가까운 directory이고, `<configuration>`은 `--configuration <package>/phpunit.xml`, `phpunit.xml.dist`만 있으면 `--configuration <package>/phpunit.xml.dist`, 둘 다 없으면 `--no-configuration`입니다. symbol `<class>::<method>`가 있는 suite binding은 `--filter /^<class>::<method>(?: with data set \|$)/`를 더해 그 method만 실행합니다 | symbol이 있으면 TeamCity 메시지의 data set `<method> with data set "<case>"`, 없으면 test method `test_<case>` | test method: binding이 선언한 `<Class>::<method>`(PHPUnit이 보고하는 id) 또는 bare `<method>`입니다. method의 data set은 그 보고들이며, 모두 통과해야 통과하고 하나라도 실패하면 실패합니다(K229) |
-| `python` | `var/tools/mise/shims/python3 <args> -m unittest -v <test>` | 표준 오류의 verbose 출력의 test method `test_<case>` | test method. data set 또는 database item마다 보고되며, 모든 보고가 통과해야 통과합니다(K229) |
-
-go, cargo, php, python runner는 그 도구의 출력을 `test-output.mts`의 parser로 읽습니다. run-tests가 실행을 읽는 parser와 같습니다(K47).
-node는 reporter API로, vitest는 JSON report로 보고하므로 그 글은 parse하지 않습니다. todo는 도구가 실패를 기대하는 test, 즉 node나
-vitest의 todo와 unittest의 `expected failure`입니다. 통과가 아니므로 그 case는 검사에서 실패하며, run-tests는 todo를 통과 줄로 보여 줍니다. binding의 case가 아닌 test 이름은 무시하되, go subtest가 case 아래에 중첩되면 `/`를 유지하므로 suite가
-선언하지 않은 case로 R3가 잡습니다. case 이름에는 공백이 없고, go binding이 있는 unit에서는 `/`도 없습니다. Go가 subtest 이름을
-`/`에서 중첩하기 때문입니다. node:test 실행은 `NODE_TEST_CONTEXT`를 뺀 environment로 시작합니다. 검사를 시작한 test 실행에 합류하지
-않게 하기 위해서입니다.
-
-Composer php-ext package를 root로 하는 PHP 구현은 library 자체 Composer project의 PHPUnit과 확장 인수로 library test binding을 실행합니다(K790). 자체 runner나 command가 있는 binding은 선언된 실행을 유지합니다.
-
-PHPUnit은 작업 directory에서 설정을 읽습니다. 검사는 모든 runner의 작업 directory를 checkout root로 두어서 `command`, `args`와 경로가
-한 기준을 공유하므로, php binding은 자신의 package의 설정을 직접 적습니다. `--configuration`에 package의 `phpunit.xml`(없고
-`phpunit.xml.dist`만 있으면 그것)을 주며, 둘 다 없으면 `--no-configuration`을 줍니다. 다른 directory의 설정이 적용되지 않게 하기 위해서입니다.
-
-implementation은 비어 있지 않은 `command`로 runner의 program을 바꿀 수 있습니다. `/`를 담은 command는 virtual environment의
-Python처럼 checkout root에 대한 상대 경로입니다. 아니면 PATH의 이름입니다. 선언의 어떤 경로도 checkout을 벗어나지 않습니다(S3).
-schema는 경로 field와 `args`, `env` 값의 각 단어(`=`, `:`, 공백 사이)에서 절대 경로, `~`로 시작하는 경로, `..` segment를 거부하고,
-package를 설치된 그대로 test하므로 이름이 `PYTHONPATH`인 `env`도 거부합니다. `${NAME}` 참조가 그런 경로로 풀리는 값은 실행을
-시작하지 못합니다(R3). `args`는 go와 cargo에서는 `test` 뒤에, node에서는 test 파일 앞에, php에서는 PHPUnit 경로 앞에, python에서는 `-m unittest` 앞에 옵니다. 예를 들어 PHP implementation 하나에만 `-d extension=<library>`를 줍니다. `env`는 검사의 environment 위에
-그 implementation의 실행에만 변수를 설정합니다.
-
-`command`, `args`, `env` 값은 이웃 repository의 checkout이나 Makefile이 build하는 library처럼 실행 environment를 `${NAME}`으로
-참조할 수 있습니다. `parity-declarations-check`는 environment를 읽지 않고 `${NAME}`이 아닌 `${` 형식에서만 실패합니다. 그래서 기본값
-형식은 없고, 중괄호 없는 `$NAME`은 그냥 글입니다. `parity-check`는 binding을 실행할 때 각 참조를 NAME의 값으로 바꿉니다. 값은 checkout 안이나, link된 저장소가 자기 밖에서
-`$(KIT)`로 닿는 사용 중인 kit 패키지 안의 경로를 가리킬 수 있습니다(K922). NAME이
-설정되지 않았거나 비었으면 그 implementation의 모든 binding이 그 값과 NAME을 적은, 시작하지 못하는 R3 finding이고, 다른 rule은
-계속 실행됩니다. 단계 줄은 command와 argument를 선언한 그대로, 값이 아니라 참조로 출력합니다.
-
-implementation은 test 보조 파일을 `support` glob으로 선언합니다. 그 `roots` 안에서 그 runner의 규약, 그 `tests`, 그 runner의
-`testPatterns`가 고르거나 test처럼 이름 붙었지만 test를 담지 않는 파일로, 이름이 `_test.go`로 끝나야 하는 Go helper가 그 예입니다. 보조 파일은 binding의 test가 아니므로
-R5가 건너뛰고, R6는 그 implementation의 runner의 pattern에 대해서만 건너뜁니다. 보조 파일은 그 runner가 실행할 test를 담지
-않습니다:
-
-- Go 보조 파일은 `go test`가 실행하는 top-level 함수를 선언하지 않습니다. 소문자가 뒤따르지 않는 `Test`, `Benchmark`, `Fuzz`, 그리고
-  `Example`입니다.
-- cargo 보조 파일은 test attribute를 담지 않습니다. `#[test]`, `#[bench]`, `#[test_case]`, `#[rstest]`, 또는 `#[tokio::test]`처럼
-  path가 붙은 그것들입니다.
-- `parity-check`는 node, php, python 보조 파일을 그 implementation의 runner로 한 번씩 실행하고, 그 출력이 보고하는 case는 R5 finding입니다.
-
-각 glob은 그런 파일을 하나 이상 골라야 하므로, 낡은 glob은 선언 finding입니다.
-
-### Test 파일 규약 (K75)
-
-kit은 runner마다 test 파일을 고정합니다(S3, `parity-declaration.mts`의 `CONVENTIONS`): go `**/*_test.go`, cargo
-`**/tests/**/*.rs`와 test attribute를 담은 모든 `.rs` 파일, node `**/*.test.{ts,mts,cts,mjs,cjs,js}`, vitest
-`**/*.{test,spec}.{ts,mts,cts,js,mjs,cjs,tsx,jsx}`, php `**/*Test.php`, python `**/test_*.py`. implementation의 test 파일은 그 root
-안에서 그 runner의 규약이 고르는 파일과 그 `tests` glob의 파일입니다. implementation의 `tests`와 runner의 `testPatterns`는 규약에
-더하기만 하고, 선언의 어떤 것도 규약에서 파일을 빼지 못하며, 보조 파일은 test를 담지 않음이 증명됩니다. implementation의 root 안에서
-흔한 규약으로 test처럼 이름 붙었고(`*_test.*`, `test_*.*`, `*Test.*`, `*.test.*`, `*.spec.*`) 어떤 규약도 고르지 않는 파일은
-`*_test.php`라는 이름의 PHP script처럼 그 runner가 실행하지 않는 test입니다. binding이 실행하거나, 규약대로 이름을 바꾸거나, support
-glob이 선언할 때까지 R5가 실패시킵니다. node와 vitest의 규약은 겹치므로, R6는 그 파일을 고르는 runner 중 어느 하나의 root 안에 있는
-파일을 받아들입니다.
-
-### Feature unit (K75)
-
-kind가 `feature`인 unit은 각 implementation의 native test 하나를 적습니다. `bindings`는 `{ implementation, test, id }`이고,
-`id`는 runner가 보고하는 native test id입니다(위 Feature id 참고). vector 파일은 없습니다. `parity-check`는 각 feature binding의
-native test id를 한 번 실행합니다. Cargo는 exact libtest id만 실행하고, file runner는 전체 파일을 실행합니다. 실행이 0으로 끝나고 그
-`id`가 한 번 통과하면 binding이 성립합니다. 없거나, 실패하거나, 건너뛰었거나, 반복되는 id는 R3이고, 한
-implementation의 binding이 없는 feature는 R2입니다.
-
-binding은 `command`(argv 배열, 예: `["make", "feature-check", "ITEM=roundtrip"]`)를 적어 runner의 기본 명령 대신 실행할 수 있습니다
-(K216). 첫 단어는 program이고, `/`를 담으면 checkout root에 상대적인 path, 아니면 PATH의 이름입니다. 나머지 단어는 인자입니다.
-명령은 test를 담은 implementation의 directory에서 실행되며, runner는 기본 명령의 출력과 같은 방식으로 출력을 읽으므로 명령은
-그 runner가 읽는 형식을 출력해야 합니다(go test -json, cargo test, node --test, vitest의 JSON 보고서, PHPUnit TeamCity, unittest).
-명령은 적은 그대로 쓰입니다. 시작하지 못하거나 0이 아닌 상태로 끝나면 그 명령을 이름 붙인 R3이며, runner의 기본 명령이 대신
-실행되지 않습니다. `command`의 단어는 `${NAME}` 참조를 담을 수 있고, binding을 실행할 때 `command`, `args`, `env`와 같은 규칙으로 풀립니다(K223). NAME이 설정되지 않았거나 비었으면 그 binding의 실행이 R3 finding이고 아무것도 실행하지 않으며, 기본값 형식은 없습니다. 단어는 `args`의 path 규칙을 따릅니다.
-
-`command`가 없는 binding은 `args`를 선언해 implementation runner 인자 뒤, runner가 native test selector와 reporter를 추가하기 전에 전달할 수 있습니다. 표준 runner와 출력 reader를 유지하면서 한 native test file을 binding별 filter로 실행합니다. 전체 실행을 대체하는 `command`와 binding `args`는 함께 쓸 수 없습니다. binding 인자의 `${NAME}` 참조는 implementation 인자와 같은 규칙으로 풉니다.
-
-### Symbol extractor (K75)
-
-Implementation은 기존 `entry` 또는 `{ entry, features? }` 입력을 가진 비어 있지 않은 `entries` 목록을 선언합니다(K714). 입력마다 native extractor를 실행해 public name과 leak을 합치며, 하나라도 실패하면 전체 snapshot을 거부합니다. Rust 입력만 명시적인 Cargo feature를 선택할 수 있습니다. 경로와 feature 선택이 같은 중복 입력은 거부합니다.
-
-Feature unit의 모든 requirement가 유효한 보류 checklist item으로 명시적으로 deferred되면 source binding은 유지하고 native case는 실행하지 않습니다(K715). 보고서는 이를 `HELD`로 표시하며 execution ledger에 통과 증거를 기록하지 않습니다. Active requirement와 deferred requirement가 섞인 unit은 조용히 보류하지 않고 거부합니다. Unit 없이 선언한 기존 deferred requirement도 지원합니다.
-
-implementation의 `symbols`는 `{ extractor, entry }`를 선언하며, `python`은 `distribution`도 선언합니다. `parity-check`는 extractor를 실행해 `entry`의 public API를 그
-생태계의 표준 도구로 읽고, 그것이 주는 것으로 R1과 R11을 판정합니다. commit된 snapshot은 읽지 않으며,
-`parity-declarations-check`는 extractor를 실행하지 않습니다.
-
-| Extractor | 도구 | Entry | Id |
-|---|---|---|---|
-| `go` | `var/tools/symbols-go/bin/kit-symbols-go`, `golang.org/x/tools/go/packages` v0.52.0 위의 kit 프로그램 | module directory | 각 internal이 아니고 test가 아닌 package의 export된 이름의 `<import path>.<name>`, `<import path>.<type>.<method or field>` |
-| `ts` | API Extractor 7.59.4(`@microsoft/api-extractor`, kit의 의존성)의 API model | 가장 가까운 `package.json`의 package에 있는, tsc 7이 내는 것 같은 `.d.ts` entry point. 그 package의 `tsconfig.json`으로, 없으면 ESNext library와 `@types` 없이 compile함 | `@scope/name!Codec#encode:member(1)` 같은 canonical reference |
-| `php` | nikic/php-parser 5.9.0 위의 `scripts/kit/symbols/php/extract.php` | source directory나 파일, 예를 들어 PHP extension의 `*.stub.php` | public 선언의 `Ns\Class`, `Ns\Class::method`, `Ns\Class::CONST`, `Ns\Class::$property`, `Ns\function`, `Ns\CONST`. docblock에 `@internal`(phpstan과 psalm이 읽는 대로 docblock 줄의 처음에 오는 tag)을 가진 class, function, constant, method, property는 public 선언이 아니고 그 tag를 가진 class는 member를 숨깁니다(K307) |
-| `python` | `scripts/kit/symbols/python.py`가 `entry` 아래 디스크의 `.py` 파일을, git이 무시하는 생성 모듈도 포함해 `ast`로 읽으며, 이름이 Python 식별자가 아닌 `.venv` 같은 폴더와 `__pycache__`는 읽지 않습니다(K977). 그리고 PATH의 `python3`로 실행합니다. import root는 `entry`에서 위로 가장 가까운 `pyproject.toml` 옆의 `src` 폴더 아래에 `entry`가 있으면 그 `src`, 아니면 그 `pyproject.toml`의 폴더입니다(Python Packaging User Guide의 src layout과 flat layout). 환경, 설치, distribution은 읽지 않으며 kit은 아무것도 만들거나 설치하지 않습니다(K855). `pyproject.toml`이 담지 않는 entry는 실패합니다 | `packages/python/src/<package>` 같은 source package의 package 폴더 | `__all__`, 없으면 `_`로 시작하지 않는 이름의 `<module>.<name>`과 `<module>.<class>.<method>`, 모듈 이름은 import root에서의 경로; git이 무시하는 생성 모듈도 package가 배포하는 대로 public(K977) |
-| `rust` | `cargo +<nightly> rustdoc -- -Z unstable-options --output-format json`(format 61) | `Cargo.toml`, 그 library | root에서 닿는 각 public item(re-export 포함)의 `<crate>::<path>`와 그 public field, variant, inherent item, trait item |
-
-- repository는 `config/toolchain.json`의 `symbolExtractors`에 `go`와 `php`를 적습니다. 그러면 `make install`의 `install-kit`이
-  `make kit-install-symbols`를 실행해 go 프로그램을 `var/tools/symbols-go`에 build하고, php extractor의 lock된 Composer project를
-  선언된 Composer로 `var/tools/symbols-php`에 설치합니다(`install-symbols.mts`). 설치할 때마다 다시 build하며, go와 Composer가
-  자기 cache를 둡니다(K861).
-  `make kit-build`는 `scripts/kit/symbols`를 `dist/symbols`로 복사합니다.
-- rustdoc JSON은 불안정하므로(rust-lang/rust#76578), rust extractor는 `config/toolchain.json` `exceptions`에서 tool이 `rust`이고
-  scope가 crate를 담는 항목의 Rust nightly를 `RUSTUP_AUTO_INSTALL=0`으로 실행합니다. 그 재시도 조건은 "rustdoc JSON is stable"이며,
-  nightly를 쓰는 곳은 이것뿐입니다. `make install-tools`가 exceptions의 Rust channel마다
-  rustup 자체 설정의 profile로 `rustup toolchain install <channel>`을 실행해 설치하며(`install-rust.mts`, K1097), rustup이 없으면 그 설치 방법과 함께 실패합니다.
-- 설치되지 않은 extractor, 없거나 둘인 nightly, 실패한 도구, id 목록이 아닌 출력은 extractor와 entry를 적은 R1 finding입니다.
-
-### Consumer의 interface manifest (K227)
-
-`config/parity.json`은 language parity만 선언하며 그 밖은 선언하지 않습니다. consumer의 다른 contract 데이터(interface manifest의
-rule, record, owner 등)는 consumer 자신의 파일에 남고 이 schema의 key가 아닙니다. kit은 그런 파일을 가리키는 참조를 읽지 않습니다.
-
-결정(K227, K1069): kit은 consumer의 interface manifest를 위한 schema key를 추가하지 않습니다(typed든 opaque든). `parity.schema.json`은
-kit의 다른 모든 schema처럼 reader가 읽는 key만 기술하고 다른 key를 거부하지 않습니다. 이유: (1) parity reader는 그런 데이터를 읽지 않으므로 kit의 어떤 검사도 평가하지 않는 사실을
-검증하게 되고, 그것을 거부하면 consumer 자신의 선언을 판단하게 된다. (2) typed key는 kit의 schema가 한 consumer의 데이터 모델을 담게 하고, opaque key는 declaration 검사를 아무 내용이나
-통과시킨다. (3) profile과 native-only 항목이 없으므로(S6) kit과 consumer 파일 사이에 남는 결합이 없다. 한 spec의 language 사실을
-한 곳에 두려는 consumer는 language 사실을 `config/parity.json`에, 나머지 contract 데이터는 자기 파일에 둡니다.
-
-### case의 requirement (K277)
-
-directory suite의 case directory는 `case.json`을 가지며, 그 `requirements` 문자열 배열은 case가 test하는 requirement id를
-나열합니다. kit은 이를 text가 아니라 JSON으로 읽고, `stage` 같은 다른 key는 무시합니다. R15에서 unit이 인용한 id는 그 unit의
-case 집합의 `case.json` 하나가 나열하면 이름이 있는 것이므로, case의 다른 파일에 있는 id 모양의 문자열은 세지 않습니다.
-`case.json`이 없거나, JSON이 아니거나, `requirements`가 문자열 배열이 아니면 그 파일을 이름으로 가리키는 `declaration`
-finding이고, docs/spec이 정의하지 않는 id는 `case.json`을 가리키는 R14이며 unit들이 directory를 공유해도 한 번만 보고합니다.
-
-unit은 파일 이름 하나인 `caseFile`을 선언할 수 있습니다. 그러면 그 unit의 case 집합은 그 파일을 가진 선택된 case
-directory입니다. 한 directory를 공유하는 unit은 각각 비교하는 출력을 가진 case를 가집니다. vector 파일을 가진 suite의
-`caseFile`은 declaration finding입니다. 단일 파일 suite는 R15의 text 일치를 그대로 씁니다.
-
-### 선언
-
-`config/parity.json`은 `scripts/kit/schema/parity.schema.json`으로 검증합니다:
-
-| Key | 내용 |
-|---|---|
-| `implementations` | `name`, `runner`(`go`, `cargo`, `node`, `vitest`, `php`, `python`), `prose`(문서가 그것을 적는 이름으로, R10이 읽음), `roots`(그 directory; repository 전체는 안 됨), `tests`(test 파일의 glob 하나 이상), `support`(test 보조 파일의 glob), `internal`(implementation의 내부 test의 glob, 각각 `{ glob, reason }`: 맞는 test는 parity unit이 아니고, R5가 binding을 요구하지 않으며, binding이 이를 부를 수 없고, requirement를 부르지 않고(R16), test를 고르지 않는 glob은 declaration finding이다; K313), `command`, `args`, `env`(`name`, `value`), `symbols`(`go`, `php`, `python`, `rust`, `ts` 중 하나인 `extractor`와 그것이 읽는 path인 `entry`; Symbol extractors), `errors`(`file`, `pattern`: 생성된 code), `shares`(자기 runtime에서 test 파일을 실행하는, 같은 runner의 다른 implementation. 예를 들어 대체하는 library의 test를 실행하는 native extension. R6은 그 binding test를 공유한 implementation의 root 안에서도 받아들이고, R5는 자기 root와 test만 판정한다. 자기 자신, 없는 implementation, 다른 runner를 이름 붙이면 declaration finding이다. root `packages/php-ext`의 extension은 S10 layout에 따라 kit이 PHP library인 `packages/php`와 `packages/<component>/php`의 implementation을 공유시키므로 `shares`가 필요 없다) |
-| `suites` | 공유 vector 파일의 glob |
-| `comparators` | 여러 implementation의 출력을 비교하는 검사의 directory |
-| `tools` | 공유 implementation 집합 밖에 있는 tooling directory의 `root`와 `reason`으로, 매 실행이 출력합니다. R6은 그곳의 test를 받아들이고 R3과 R5는 판정하지 않습니다. 선택적 `units`는 implementation binding을 추가하지 않고 tool 소유 requirement와 정확한 native selector를 선언합니다. 각 test는 root 아래에 존재하고 selector와 인용된 모든 requirement를 포함해야 합니다. Parity는 trace를 검사하지만 test를 실행하지 않으며 기존 tool package owner check가 test를 실행합니다 |
-| `testPatterns` | 각 `runner`에 대해 repository 전체의 test 파일 `globs` |
-| `units` | `id`, `kind`(`suite`, `feature` 또는 `api`), `requirements`. suite는 `file`, `cases`(vector 파일이면 `$` 뒤에 `.<key>`와 `[*]` 단계와 선택적인 마지막 `.~` 단계가 오는 path로, `.~`는 object의 key를 case 이름으로 고릅니다. directory이면 그에 상대적인 glob으로, `/` 단계마다 directory 한 단계에 맞고, 맞은 directory 하나가 directory에 상대적인 path로 이름 붙은 case 하나입니다. 예는 `<group>/<case>/` 위의 `*/*`입니다. 맞은 파일은 declaration finding이고, 각 case directory는 `case.json`을 가집니다. Requirement of a case 참고. go binding은 그런 이름을 중첩 subtest로 보고합니다), directory suite의 선택적 `caseFile`, `bindings`(`implementation`, `test`, `symbol`, runner 인자에 추가되는 선택적 `args`, 전체 실행을 대체하는 선택적 argv `command`; 두 속성은 함께 쓸 수 없으며 Feature unit 참고)를 가집니다. API unit은 구현마다 하나의 `symbols` 항목을 가집니다. 각 항목은 기존 `symbol` 문자열 또는 같은 API 개념에 속하는 정확한 공개 이름의 비어 있지 않은 고유 `symbols` 목록 중 하나만 선언합니다. R1은 목록의 모든 이름이 해당 구현에 있는지 검사하고 R11은 추출된 모든 공개 이름이 API unit에 선언되었는지 검사합니다. 기존 단일 문자열 선언의 의미는 유지합니다. |
-| `errors` | `catalog`(`file`, `pattern`) |
-| `languageLists` | `file`, `pattern`(첫 group이 목록을 담고, group의 단어가 이름) |
-| `documents` | `globs`와 수 뒤에 오는 단어인 `nouns`(`languages`, `언어`) |
-
-pattern은 각 줄에 적용하는 정규식(flag `gm`)이며, 첫 group이 값입니다. 수는 숫자, twelve까지의 영어 수 단어나 `both`, 또는 열까지의
-한국어 고유어 수사이고, 공백, hyphen(`four-client`), 또는 한국어 단위(`6개 언어`, `여섯 개 언어`, `세 가지 언어`) 뒤에 noun 하나가
-옵니다. 목록은 `,`, `and`, `or`, `/`, `및`, 또는 조사 `와`와 `과`로 이은 implementation 이름 세 개 이상입니다. implementation의
-extractor는 그 public symbol의 id를 줍니다(Symbol extractors).
-
-R10은 `scripts/kit/markdown.mts`의 Markdown reader 위에서 문서의 산문을 passage 단위로 읽습니다. passage는 이어지는 줄을 포함한
-문단이나 list item, marker를 뺀 block quote, ATX heading(`#`부터 `######`와 공백), 또는 table row입니다. fenced block, 들여쓴 code
-block, setext 밑줄은 산문이 아니며, setext 밑줄은 그 문단을 끝냅니다. inline code, link 목적지, autolink, 그냥 쓴 URL, link 정의,
-HTML tag와 주석은 비우므로 산문만 implementation을 적습니다. 이름 뒤의 code span은 그 이름을 목록에 남깁니다
-(``Go `x`, PHP `y`, Rust `z`, and TypeScript `w` ``). 문장은 공백 앞의 `.`, `!`, `?`에서 끝나고, table cell은 따로 한 문장입니다.
-
-N의 수는 N이 implementation의 수이고 문장이 그것들만 적거나("five clients: Go, PHP, Rust, TypeScript and
-Python"), 문장이 정확히 N개의 implementation을 적고 passage의 이름을 모두 모은 것이 모든 implementation일 때 맞습니다. 그래서 다른 것을 하나나
-둘 세는 수도 다른 수와 똑같이 실패하며, 문서는 그런 문장을 수사 없이 씁니다. 목록은 그 문장의 implementation 이름을 모두 모은 것이
-모든 implementation일 때 맞습니다. implementation 일부에 대해 말하는 문장은 같은 문장에서 나머지도 적습니다("Go, Rust and TypeScript generate
-the methods; PHP and Python resolve them at call time"). marker와 들여쓰기가 같고 사이에 다른 passage가 없는 한 Markdown
-list의 item들은, 각 item이 implementation을 정확히 하나 적을 때 한 목록입니다. 그런 이름 세 개 이상은 모두 모아 모든 implementation일 때
-맞습니다. implementation은 그 이름이나 `prose`의 이름(`php-extension`의 `"prose": ["PHP extension"]`)으로 대소문자 구분 없이
-적힙니다. 다른 implementation의 이름인 prose 이름과 반복된 prose 이름은 declaration finding입니다.
-
-catalog pattern은 catalog에서 빈 줄도 주석(`#` 또는 `//`로 시작하는 줄)도 아닌 각 줄에 적용합니다. 그런 줄 모두에 맞아야 하므로
-어떤 code도 빠지지 않습니다. pattern이 group 없이 맞는 줄은 항목의 다른 field처럼 code를 담지 않습니다. 예는
-`^- code: (\w+)$|^  \w+: .*$`입니다.
-
-### Repository 연결
-
-1. `config/parity.json`을 씁니다. 모든 implementation, vector 파일마다 suite unit, 공개 개념마다
-   API unit을 선언합니다. shared unit은 모든 implementation에서 성립하고 owner-scoped feature나 suite는 선언된 owner에서 성립합니다.
-2. 각 binding의 native test가 suite의 case마다 runner의 이름으로 그 case를 보고하게 합니다(Runner 표 참고). Go에서는 subtest
-   `<symbol>/<case>`, cargo에서는 test `<symbol>::<case>`, node:test에서는 이름이 `<case>`인 최상위 test, PHPUnit에서는 binding이
-   symbol로 적은 method `<class>::<method>`의 이름이 `<case>`인 data set(문자열 key의 `#[DataProvider]`, class는 fully
-   qualified), 그렇지 않으면 PHPUnit과 unittest에서는 test method `test_<case>`입니다. binding은 검사를 위한 줄을 출력하지
-   않습니다.
-3. 각 implementation의 `symbols`(`extractor`, `entry`)를 선언하고, 각 implementation의 error code를 catalog에서 생성합니다.
-4. `parity-declarations-check`를 repository의 검사 target에, `parity-check`를 CI에 추가해 둘 다 push가 반영되기 전에 실행되게
-   합니다. error code 생성물을 다시 만드는 검사 뒤에 실행합니다(신뢰 경계). kit의 kit.mk에 target이 있으며, 저장소는 이를 자기 recipe로 복사합니다(K1054).
-
-```json
-{
-  "schema": 1,
-  "implementations": [
-    { "name": "go", "runner": "go", "roots": ["packages/go"], "tests": ["packages/go/**/*_test.go"],
-      "symbols": { "extractor": "go", "entry": "packages/go" }, "errors": { "file": "packages/go/codes.go", "pattern": "^\\tCode\\w+ = \"(\\w+)\"$" } },
-    { "name": "python", "runner": "python", "roots": ["packages/python"], "tests": ["packages/python/tests/*.py"],
-      "symbols": { "extractor": "python", "entry": "packages/python", "distribution": "client" }, "errors": { "file": "packages/python/codes.py", "pattern": "^\\w+ = \"(\\w+)\"$" } }
-  ],
-  "suites": ["tests/**/vectors.json"],
-  "comparators": ["tests/conformance/check"],
-  "testPatterns": [
-    { "runner": "go", "globs": ["**/*_test.go"] },
-    { "runner": "python", "globs": ["**/test_*.py"] }
-  ],
-  "units": [
-    { "id": "codec", "kind": "suite", "requirements": ["CX-1"], "file": "tests/codec/vectors.json", "cases": "$.vectors[*].name",
-      "bindings": [
-        { "implementation": "go", "test": "packages/go/codec_test.go", "symbol": "TestCodecVectors" },
-        { "implementation": "python", "test": "packages/python/tests/test_codec.py" }
-      ] },
-    { "id": "host-decode", "kind": "api", "requirements": ["CX-1"], "symbols": [
-        { "implementation": "go", "symbol": "packages/go/hostcodec.go::HostDecode" },
-        { "implementation": "python", "symbol": "packages/python/codec.py::host_decode" }
-      ] }
-  ],
-  "requirements": { "pattern": "CX-[0-9]+" },
-  "errors": { "catalog": { "file": "docs/errors.yaml", "pattern": "^\\s*- code: (\\w+)$" } }
-}
-```
 
 ## uv (K54)
 

@@ -3,7 +3,7 @@
 // where channel is what the tool installs or runs and scope the directory of the checkout that the entry covers ("." for all of
 // it, the default). kit reads the entries of the tool its caller names and nothing else: an entry of another tool, a field that kit
 // does not read and the form of a channel are the repository's own (K1072). install-tools reads the Rust channels when it installs
-// rust; parity reads the Rust nightly that extracts the Rust symbols (rustdoc JSON).
+// rust.
 import { toolchainConfig } from './bootstrap/toolchain-declared.mts';
 import { isJsonList, isJsonObject } from './bootstrap/files.mts';
 

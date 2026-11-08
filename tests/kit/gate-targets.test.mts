@@ -1,7 +1,7 @@
 // Tests of the make targets of the gates in scripts/kit/kit.mk: the commands that each target runs, and the setting of
 // core.hooksPath at every make invocation of a checkout that tracks the pre-commit hook.
 import assert from 'node:assert/strict';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -40,26 +40,7 @@ test('each target runs the tool of its gate with the commit and the keys that th
   assert.deepEqual(commands(directory, 'hooks-check'), [`$(NODE) scripts/kit/git-hooks.mts check ${declaration}`]);
 });
 
-test('the provider parity phase targets fix their selectors and accept a concrete implementation name', (t) => {
-  const directory = repository(t);
-  const makefile = path.join(directory, 'Makefile');
-  writeFileSync(makefile, readFileSync(makefile, 'utf8').replace('KIT := scripts/kit', `KIT := ${path.join(ROOT, 'scripts/kit')}`));
-  mkdirSync(path.join(directory, 'config'), { recursive: true });
-  writeFileSync(path.join(directory, 'config/parity.json'), JSON.stringify({
-    schema: 1,
-    implementations: [{ name: 'go', runner: 'go', roots: ['packages/go'] }],
-    requirements: { pattern: 'REQ-[0-9]+' },
-    units: [],
-  }));
-  assert.deepEqual(commands(directory, 'parity-api-check'), ['$(NODE) scripts/kit/parity.mts --phase api']);
-  assert.deepEqual(commands(directory, 'parity-bindings-go-check'), ['$(NODE) scripts/kit/parity.mts --phase bindings --implementation go']);
-  writeFileSync(path.join(directory, 'parity-bindings-go-check'), 'existing file');
-  assert.deepEqual(commands(directory, 'parity-bindings-go-check'), ['$(NODE) scripts/kit/parity.mts --phase bindings --implementation go']);
-  writeFileSync(makefile, `${readFileSync(makefile, 'utf8')}\nparity-bindings-go-check: fixture-setup\nfixture-setup:\n\t@true\n`);
-  assert.deepEqual(commands(directory, 'parity-bindings-go-check'), ['true', '$(NODE) scripts/kit/parity.mts --phase bindings --implementation go']);
-});
-
-test('the source checkout can dry-run the first npm tool install without a parity declaration or installed SDK packages', (t) => {
+test('the source checkout can dry-run the first npm tool install without installed SDK packages', (t) => {
   const directory = repository(t);
   assert.deepEqual(commands(directory, 'install-tools', 'TOOLS=npm'), ['node scripts/kit/bootstrap/bootstrap.mts']);
 });

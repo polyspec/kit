@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 7f49463acc65700948216f0dc8871d7a5b10c3e1aab9892c90e77a27c37dc2b3 -->
+<!-- source-sha256: 4d711d3e68af35125579a84d3e64c4b986b55c9cc5421c99320fb5d5c96c0b98 -->
 # 개발
 
 [English](AGENTS.md)
@@ -13,8 +13,8 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 
 ## 규칙
 
-- Own: Native event parser는 framework의 완전한 identity와 flow를 보존한다. PHPUnit은 fully qualified class, method, data set을 유지하며 parity는 다른 namespace를 qualified binding의 alias로 취급하지 않는다. Selection과 expected case는 repository recipe가 소유한다.
-  Enforced by: `tests/kit/phpunit-identity.test.mts`
+- Own: Native event parser는 framework의 완전한 identity와 flow를 보존한다. PHPUnit은 fully qualified class, method, data set을 유지한다. Selection과 expected case는 repository recipe가 소유한다.
+  Enforced by: `tests/source/phpunit-identity.test.mts`
 
 - Own: 추적하는 모든 test file은 repository Makefile의 CI shard 하나에 정확히 한 번 속한다. Kit test는 KIT_TEST_FILES에, source test는 SOURCE_TEST_FILES에 선언한다. Test 추가에는 shard 선언이 포함되며 exact-once CI inventory 검사는 그 선언의 unit test이다. 로컬에서 실행했어도 CI에 없으면 미완료이다.
   Enforced by: `tests/source/ci-workflow.test.mts`
@@ -23,19 +23,13 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   Enforced by: `tests/source/ci-workflow.test.mts`, `tests/source/process-group-posix.test.mts`
 
 - Own: POSIX에서 중단된 command harness는 새 command를 받지 않고 소유 group의 종료를 요청하며 child close와 cleanup을 기다린 뒤 중단 상태로 종료한다. 강제 종료는 선언된 cleanup grace 뒤의 단계이며 협조적인 cleanup을 대신하지 않는다. 동기 강제 exit hook은 비상 cleanup만 담당한다. 출력 제한도 같은 정상 종료 요청을 사용하며 정상 종료해도 실패로 처리한다. 제한에 도달하면 수집을 멈추고 결과는 child close를 기다린다. 긴 command는 inactivity deadline을 제공하지 않는다. Native 종료 상태인 member만 남은 group identifier는 살아 있는 survivor가 아니며 cleanup은 소유 child의 close를 계속 기다리고 orphan 회수는 운영체제가 담당한다.
-  Enforced by: `tests/kit/run-command-signal.test.mts`, `tests/kit/process-group.test.mts`, `tests/source/process-group-posix.test.mts`, `tests/kit/parity-operation.test.mts`
+  Enforced by: `tests/kit/run-command-signal.test.mts`, `tests/kit/process-group.test.mts`, `tests/source/process-group-posix.test.mts`
 
 - Own: VS Code 다운로드 결과를 보존한 채 소유 helper group에 종료를 요청한다. installer는 child close와 cleanup을 기다리며 1초 유예 뒤에만 강제 종료한다. native POSIX 수명 증거는 Linux source CI group에서 실행한다.
   Enforced by: `tests/source/install-vscode-posix.test.mts`, `tests/source/ci-workflow.test.mts`
 
-- Refines S12: `workflows/ci-pipeline.yml`은 검사 실행과 별도로 job 데이터를 계획합니다. Shared·parity·runtime 검사는 계획 출력에만 의존하고 자신의 checkout과 setup으로 독립적으로 실행합니다. Shared 검사 실패가 독립 결과를 막지 않습니다. 마지막 required job은 계획·shared 검사·선택된 모든 job을 판정하며 선택된 job이 건너뛰어도 실패합니다.
+- Refines S12: `workflows/ci-pipeline.yml`은 검사 실행과 별도로 job 데이터를 계획합니다. Shared·runtime 검사는 계획 출력에만 의존하고 자신의 checkout과 setup으로 독립적으로 실행합니다. Shared 검사 실패가 독립 결과를 막지 않습니다. 마지막 required job은 계획·shared 검사·선택된 모든 job을 판정하며 선택된 job이 건너뛰어도 실패합니다.
   Enforced by: `tests/kit/gates-workflow.test.mts`
-
-- Own: Phase로 나눈 각 parity binding job은 repository가 config/ci.json의 parityBindings에 명시한 tool과 setup target을 실행합니다. Implementation 집합은 config/parity.json과 정확히 일치해야 합니다. 빈 배열은 setup이 없다는 뜻이며 kit은 binding에 runtime이나 extractor 설치를 추론하여 추가하지 않습니다. Build unit·fixture·artifact는 repository의 책임입니다. 규칙 검사기는 검증된 CI job 선택을 사용한다. 선택되지 않은 job은 강제 증거가 아니다.
-  Enforced by: `tests/kit/ci-setup.test.mts`, `tests/kit/gates-workflow.test.mts`, `tests/kit/check-rules.test.mts`
-
-- Own: parity 호출은 실행 중 stdout과 stderr를 target log로 한 번씩 전달하고 native 판정 파싱을 위해 원본 캡처를 유지한다. Node는 표준 reporter로 상세를 보고하고 별도의 native event로 판정한다. 상세 출력은 통과 판정을 공급하지 않는다. parity binding 명령에는 무출력 제한이 없다. 저장소가 native case deadline을 제공하며 checker 중단은 process group을 계속 정리한다. Parity invocation은 암묵적인 사전 build 없이 native test command를 한 번 호출하고, 명시적인 준비와 재사용 build output은 repository recipe가 담당한다.
-  Enforced by: `tests/kit/parity-diagnostics.test.mts`, `tests/kit/parity-operation.test.mts`, `tests/kit/parity-output.test.mts`, `tests/kit/parity-ledger.test.mts`
 
 - Own: Kit 변경 요청은 GitHub issue에서 추적합니다. 각 issue에 구현 진행 상황, 검증 근거와 release 상태를 기록하고,
   명시된 acceptance 조건을 충족한 뒤에만 닫습니다.
@@ -86,8 +80,6 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 - Refines P15: 두 도구가 필요로 하는 함수나 상수는 둘 다 import하는 `scripts/kit/`의 module 하나에 둡니다. `make duplication-check`(jscpd)는 6줄 이상의
   같은 부분이 두 번 있으면 실패합니다.
   Enforced by: `make duplication-check`
-- Own: Native compiler 호환성 test는 package 입력 전체에 유효한 source를 사용한다. 정상 native baseline 뒤에 의도한 source 변경을 수행하고 그 실패는 예상 진단과 실행되지 않은 case를 보존해야 한다. Stub 지시문을 native compiler 입력으로 사용하지 않는다.
-  Enforced by: `tests/source/parity-go.test.mts`
 
 - Refines P19: 테스트는 `tests/kit/`에 있고, stub 명령과 fixture `tests/kit/fixture`로 실행하며, 각 테스트는 동작이 깨지면 실패합니다. 결함은
   재현하는 실패 테스트를 먼저 추가하고, 고치고, 테스트를 유지합니다.
@@ -122,9 +114,6 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   실행하는 wrapper script이며, environment를 담지 못하는 symbolic link가 아닙니다. 한 checkout의 도구는 다른 checkout의 도구로
   실행되지 않습니다(`scripts/kit/bootstrap/tool-wrappers.mts`).
   Enforced by: `tests/kit/install-php.test.mts`
-- Own: 한 spec을 여러 implementation으로 가진 저장소는 그것을 `config/parity.json`에 선언하고, `parity-declarations-check`를 검사
-  target에서, `parity-check`를 CI에서 실행하며, 둘 다 push가 반영되기 전에 실행합니다(docs/operations/tool-inventory.md, Language parity).
-  Enforced by: `make parity-declarations-check`
 - Own: 모든 검사는 같은 tree에 같은 결과를 냅니다. 도구는 임시 파일과 rename으로 쓰고, 단계마다 한 줄을 출력하며, 시간 제한이 없습니다. 테스트
   case는 자기 timeout을 가집니다. 네트워크 조회는 make recipe가 `$(ONLINE)`으로 실행하는 명령(예: `install-tools`와
   `release-assets`의 명령)나 자기 lock이 이름한 것을 받는 package manager(K1014)만 하고, 결과는 commit된 기록, 설치, 또는

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { ConfigError, parseJson, readConfig, readConfigFindings, SCHEMAS, SchemaError, schemaFile, validate } from '../../scripts/kit/schema-validate.mts';
+import { ConfigError, readConfig, readConfigFindings, SCHEMAS, SchemaError, schemaFile, validate } from '../../scripts/kit/schema-validate.mts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(HERE, 'fixture');
@@ -73,18 +73,3 @@ test('every schema of kit compiles in the strict mode of ajv (K158)', () => {
   }
 });
 
-// rustdoc JSON of format 61 (nightly-2026-10-01 and nightly-2026-09-01 emit it): the macro_rules! item holds a single string,
-// as `ItemEnum::Macro` does in rustdoc-types, and the schema of the extractor reads it (K207).
-test('the rustdoc schema accepts the format 61 JSON of a crate with a macro_rules! item', (t) => {
-  const root = mkdtempSync(path.join(tmpdir(), 'kit-rustdoc-'));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  const doc = JSON.stringify({
-    format_version: 61,
-    root: 1,
-    index: {
-      1: { name: 'codec', visibility: 'public', inner: { module: { is_crate: true, items: [2] } } },
-      2: { name: 'make', visibility: 'public', inner: { macro: 'macro_rules! make {\n    () => { ... };\n}' } },
-    },
-  });
-  assert.deepEqual(parseJson(doc, 'rustdoc.schema.json', 'rustdoc'), JSON.parse(doc));
-});

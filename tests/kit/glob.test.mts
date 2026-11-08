@@ -1,4 +1,4 @@
-// Tests of the globs of repository paths (owner rules, document and parity configurations): picomatch with `dot: true`, so
+// Tests of the globs of repository paths (owner rules and document configurations): picomatch with `dot: true`, so
 // a path under a dot directory such as .github or docs/.vitepress matches like any other path.
 import assert from 'node:assert/strict';
 import test from 'node:test';

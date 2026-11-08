@@ -1,6 +1,6 @@
 <?php
 
-// The check of the autoload files of lint-php (K377), read with nikic/php-parser beside the visitor of extract.php.
+// The check of the autoload files of lint-php (K377), read with nikic/php-parser.
 
 declare(strict_types=1);
 
@@ -42,46 +42,6 @@ final class AutoloadFiles
             self::statements($tree, null, $file, $findings);
         }
         return $findings;
-    }
-
-    /**
-     * Prints `file:line` for each polyfill guard of `$sources`, a map of a file name to its text (K883): the one
-     * definition of the shape (isPolyfillGuard), which divergence-check asks for the guard lines that it leaves out.
-     * A text that does not parse holds none.
-     */
-    public static function guards(array $sources): void
-    {
-        $parser = (new ParserFactory())->createForNewestSupportedVersion();
-        foreach ($sources as $file => $text) {
-            try {
-                $tree = $parser->parse((string) $text) ?? [];
-            } catch (Error) {
-                continue;
-            }
-            foreach (self::guardLines($tree, null) as $line) {
-                echo "{$file}:{$line}\n";
-            }
-        }
-    }
-
-    /** The lines of the conditions of the polyfill guards among `$statements` of the namespace `$namespace`. */
-    private static function guardLines(array $statements, ?string $namespace): array
-    {
-        $lines = [];
-        foreach ($statements as $statement) {
-            if ($statement instanceof Node\Stmt\Namespace_) {
-                if ($statement->stmts === null) {
-                    $namespace = $statement->name?->toString();
-                } else {
-                    $lines = [...$lines, ...self::guardLines($statement->stmts, $statement->name?->toString())];
-                }
-            } elseif ($statement instanceof Node\Stmt\If_ && $namespace !== null) {
-                if (self::isPolyfillGuard($statement, $namespace)) {
-                    $lines[] = $statement->cond->getStartLine();
-                }
-            }
-        }
-        return $lines;
     }
 
     /** Prints a finding for `$file` at `$line` and counts it in `$findings`. */
@@ -139,16 +99,6 @@ final class AutoloadFiles
             return null;
         }
         return $statement instanceof Node\Stmt\ClassLike ? 'a class, interface, trait or enum' : 'another statement';
-    }
-
-    /** The constant that `$if` defines when it is the polyfill guard of a define() in `$namespace` (K897), or null. */
-    public static function guardedConstant(Node\Stmt\If_ $if, string $namespace): ?string
-    {
-        $declared = $if->stmts[0] ?? null;
-        if (!$declared instanceof Node\Stmt\Expression || !self::isPolyfillGuard($if, $namespace)) {
-            return null;
-        }
-        return self::calledName($declared->expr, 'define');
     }
 
     /** Whether `$expr` is define() of a namespaced constant name: a string literal with a namespace separator. */

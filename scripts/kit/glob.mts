@@ -1,5 +1,5 @@
 // Globs of repository paths, read by picomatch with `dot: true`: a path under a dot directory (.github, docs/.vitepress)
-// matches like any other path. Owner rules and the document and parity configurations select tracked paths with them; the
+// matches like any other path. Owner rules and the document configurations select tracked paths with them; the
 // syntax is picomatch's (`*` within one segment, `**` across segments, `{a,b}` alternatives, `?`, ranges and extglobs).
 import picomatch from 'picomatch';
 

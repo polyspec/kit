@@ -13,7 +13,6 @@ import * as phpExtension from '../../scripts/kit/php-extension.mts';
 import { declarationFindings, declarations, declarationsOf, extensionFiles, extensionFindings, extensionNames, layoutOptions, stubHash, type Declarations, type Layout } from '../../scripts/kit/php-extension.mts';
 import { put, tree } from './tree.mts';
 import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
-import { sharedRoots } from '../../scripts/kit/parity-declaration.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const FIXTURE = path.join(ROOT, 'tests/kit/php-ext-fixture');
@@ -547,12 +546,6 @@ test('K1103 the extension, build and library folders are the caller\'s', (t) => 
   const moved: Record<string, string> = { 'ext/src/config.m4': 'PHP_NEW_EXTENSION([demo], [demo.c])\n', 'ext/src/demo.stub.php': '<?php\n' };
   assert.deepEqual(extensionNames(Object.keys(moved), file => moved[file], 'ext'), { extension: 'demo', stubs: ['ext/src/demo.stub.php'] });
   assert.deepEqual(extensionFindings(Object.keys(moved), file => moved[file], 'packages/php-ext'), []);
-  // The extension shares the tests of the implementation that it names, and of no folder by layout (K1103).
-  const php = { name: 'php', runner: 'php', roots: ['packages/php'] };
-  const extension = { name: 'php-ext', runner: 'php', roots: ['packages/php-ext'] };
-  const declared = new Map([[php.name, php], [extension.name, extension]]);
-  assert.deepEqual(sharedRoots(extension, declared), []);
-  assert.deepEqual(sharedRoots({ ...extension, shares: 'php' }, declared), ['packages/php']);
   const root = tree(t, { 'README.md': 'x\n', 'ext/vendor/a/b.stub.php': '<?php\n', 'ext/src/vendor.c': 'x\n' });
   // The folders that the caller skips hold no source; a file named like one is still a source (K1103).
   assert.deepEqual(extensionFiles(root, 'ext', ['vendor']), ['README.md', 'ext/src/vendor.c']);

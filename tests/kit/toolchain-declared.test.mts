@@ -17,7 +17,7 @@ test('declaredToolchain reads each declaring file of the full shape', (t) => {
     php: { minors: ['8.2', '8.5'], source: 'config/toolchain.json php' },
     mise: { version: '2026.10.8', sha256: mise.sha256, source: 'config/toolchain.json mise' },
     phpunit: { version: '11.5.57', manifest: 'config/phpunit/composer.json', source: 'config/toolchain.json phpunit' },
-    symbolExtractors: { extractors: ['go', 'php'], source: 'config/toolchain.json symbolExtractors' },
+    symbolExtractors: { extractors: ['php'], source: 'config/toolchain.json symbolExtractors' },
   });
 });
 
@@ -50,7 +50,7 @@ test('a declaration that is malformed or contradicts another fails with the file
 
 test('declaredToolchain reads the symbol extractors that make kit-install-symbols builds, and names a list of unknown ones (K75)', (t) => {
   const declared = (value: unknown) => declaredToolchain(toolchainCheckout(t, { 'config/toolchain.json': JSON.stringify({ schema: 1, symbolExtractors: value }) }));
-  assert.deepEqual(declared(['go']).symbolExtractors, { extractors: ['go'], source: 'config/toolchain.json symbolExtractors' });
-  assert.throws(() => declared(['cobol']), /config\/toolchain\.json symbolExtractors is \["cobol"\]; expected a list of go, php/);
+  assert.deepEqual(declared(['php']).symbolExtractors, { extractors: ['php'], source: 'config/toolchain.json symbolExtractors' });
+  assert.throws(() => declared(['go']), /config\/toolchain\.json symbolExtractors is \["go"\]; expected a list of php/);
   assert.throws(() => declared([]), /symbolExtractors is \[\]/);
 });

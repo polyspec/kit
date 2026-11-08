@@ -1,5 +1,5 @@
 <!-- doc-id: adoption -->
-<!-- source-sha256: b1597023d0ab62251d5d15885570e77aacbbe7b8643f531a699445588f666590 -->
+<!-- source-sha256: 6122fa4a89c50bb5bd44b8922232ed10a7cfa1720037357df140eb6dc8469296 -->
 # kit을 채택한 저장소에서 일하기
 
 [English](adoption.md)
@@ -18,12 +18,8 @@ kit을 쓰는 저장소에서 일하는 agent나 사람의 절차이며, 그 바
 
 ## 범위
 
-- contract 동작은 모든 구현에 있고(S6, S10) test와 함께 구현한다(P32).
-- 언어나 runtime에 고유한 통합은 `docs/spec`에 중립적인 규칙 하나로 쓰고, 각 구현이 자기 고유한 형태를 묶는다(P32).
-- 한 구현의 내부 test는 어떤 parity unit도 부르지 않고 requirement도 인용하지 않는 보통의 package test이며, 우연히 public인
-  symbol은 non-public이 된다(P32).
-- 작업에 필요한데 `docs/spec`에 없는 규칙은 거기에 먼저 쓴다. unit을 버리지 않고, test 없이 requirement를 인용하지 않으며, 검사를
-  피하려고 이름을 바꾸지 않는다(P33).
+- kit은 구현들이 서로 어떻게 관계되는지 검사하지 않으며, 각 저장소가 자기 테스트를 실행한다(K1129).
+- 작업에 필요한데 `docs/spec`에 없는 규칙은 거기에 먼저 쓰고, 검사를 피하려고 이름을 바꾸지 않는다(P33).
 - 반복된 code는 재구성하고, tool source는 분류하며, 생성물은 추적하지 않는다. 다만 consumer가 tagged tree로 설치하는 생성 source는 `config/generated.json`에 선언하고 추적한다(P34).
 
 ## Provider

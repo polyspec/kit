@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 299c25b0f00fb972b96cc51ba79d1e9cd85557c1dc50c0ef938e716a2889ad6a -->
+<!-- source-sha256: cf321910edff97eb31baca65430e2a6ece4015956ae52c0d74ecd758a81e1ba8 -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -31,7 +31,7 @@ link-check는 source 연결을 설명하며 모든 version과 peer dependency를
 
 Provider는 변경된 dependency와 build 입력을 자신의 package manager로 설치한다. 이미 올바른 source link를 재사용해도 새 외부 provider dependency를 설치하거나 lifecycle을 다시 실행하지는 않는다. Source 수정은 새 release 없이 보이며 컴파일 산출물은 native build가 필요하다.
 
-독립 runtime job은 `make link RUNTIME=<runtime>`을 실행한다(`go`, `php`, `php-ext`, `python`, `rust`, `ts`). 선택자는 provider 탐색, link와 설치 source 검증을 해당 runtime으로 제한한다. TypeScript는 npm 폴더, PHP와 PHP extension은 Composer vendor 폴더를 link하고 Python은 site-packages 패키지 폴더를 link하고 Go는 workspace를 사용하며 Rust는 기존 Cargo source patch 경로를 유지한다. 기본 `make link`와 parity job은 선언한 모든 ecosystem을 유지한다. link 선언이 없으면 선택자는 link가 제거하는 link도 제한하므로, 한 runtime의 job은 Python 환경을 찾는 uv처럼 다른 runtime의 package manager를 실행하지 않는다(K983). consumer의 CI가 실행하는 `make install-link`, 그리고 `make unlink`는 `make link`처럼 `PROJECT`와 `RUNTIME`을 받고, hook은 쓰지 않는다.
+독립 runtime job은 `make link RUNTIME=<runtime>`을 실행한다(`go`, `php`, `php-ext`, `python`, `rust`, `ts`). 선택자는 provider 탐색, link와 설치 source 검증을 해당 runtime으로 제한한다. TypeScript는 npm 폴더, PHP와 PHP extension은 Composer vendor 폴더를 link하고 Python은 site-packages 패키지 폴더를 link하고 Go는 workspace를 사용하며 Rust는 기존 Cargo source patch 경로를 유지한다. 기본 `make link`는 선언한 모든 ecosystem을 유지한다. link 선언이 없으면 선택자는 link가 제거하는 link도 제한하므로, 한 runtime의 job은 Python 환경을 찾는 uv처럼 다른 runtime의 package manager를 실행하지 않는다(K983). consumer의 CI가 실행하는 `make install-link`, 그리고 `make unlink`는 `make link`처럼 `PROJECT`와 `RUNTIME`을 받고, hook은 쓰지 않는다.
 
 ## 방식
 

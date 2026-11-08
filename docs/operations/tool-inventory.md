@@ -44,7 +44,7 @@ installs only those mise tools and their declared prerequisites; selectors are t
 `deadcode`, `govulncheck` and `golangciLint` also install Go, `vulture` installs Python and uv, Python installs the declared wheel
 backend, PHP composer tools install the declared PHP wrapper and Composer, and Rust installs its stable and declared exception
 channels. Unknown, empty and undeclared selectors fail before mutation. A selected install leaves other installed tools in place
-Neither the full nor a selected install builds symbol extractors; their explicit target `kit-install-symbols` installs the extractors that its `EXTRACTORS` argument names, with no declaration of them required (K1071), and `install-kit` runs the same tool through `kit-install-declared` (`install-symbols --declared`) from the declarations of the repository (the `symbolExtractors` of `config/toolchain.json`), so no repository copies the calls (K861). The bootstrap selector `TOOLS=npm` is unchanged. The bootstrap (`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`) installs mise, by the sha256 of `config/toolchain.json` `mise`, and with it the node and the npm of `mise.toml` (`npm:npm`), locked in `mise.lock` (K938);
+Neither the full nor a selected install installs the PHP programs of kit (`scripts/kit/symbols/php`, nikic/php-parser for lint-php); their explicit target `kit-install-symbols` installs them when its `EXTRACTORS` argument names `php`, with no declaration of them required (K1071), and `install-kit` runs the same tool through `kit-install-declared` (`install-symbols --declared`) from the declarations of the repository (the `symbolExtractors` of `config/toolchain.json`), so no repository copies the calls (K861). The bootstrap selector `TOOLS=npm` is unchanged. The bootstrap (`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`) installs mise, by the sha256 of `config/toolchain.json` `mise`, and with it the node and the npm of `mise.toml` (`npm:npm`), locked in `mise.lock` (K938);
 `install-tool.mts` builds each of them beside its target, checks the digest of its download there, writes that digest into a
 marker (`.sha256` of `var/tools/mise-release`) and renames it, so a second run
 keeps an installation whose marker holds the declared digest and compares no version (K933). Only the marker is read, so a
@@ -80,7 +80,7 @@ as an exec wrapper with the absolute path, never a link, before the Composer ins
 which runs phpize, fails without them (K1117). Kit judges no install: PHP itself refuses to load an extension built for another install. No php on PATH
 fails with `php is not on PATH`.
 
-For a PHP extension, no install step writes the arginfo header: the build runs a copy of the `gen_stub.php` that phpize copies from the PHP build directory, from `var/php-ext/gen-stub/` of the checkout, after phpize and before configure (K930, K941; `php-config --prefix` names no build directory on Ubuntu), and that tool fetches its own pinned PHP-Parser once into the `build/` of `var/php-ext/gen-stub/`, which kit keeps per checkout, so later builds never fetch it again. A failed build removes that folder itself; after a killed build, run `rm -rf var/php-ext/gen-stub`, since the folder may hold a partial PHP-Parser that the next build would trust. P35 covers repository lock graphs, not a tool's internal fetch. A PHP library without an extension needs no extension development tools. The shared `kit.mk` exposes `make kit-install-symbols EXTRACTORS="go"` or `EXTRACTORS="php"` for one declared parity extractor; install the corresponding pinned tools first with `make install-tools TOOLS="php composer"` or `TOOLS=go`. The target calls the existing pinned installer, and `EXTRACTORS` must be present in `config/toolchain.json symbolExtractors`.
+For a PHP extension, no install step writes the arginfo header: the build runs a copy of the `gen_stub.php` that phpize copies from the PHP build directory, from `var/php-ext/gen-stub/` of the checkout, after phpize and before configure (K930, K941; `php-config --prefix` names no build directory on Ubuntu), and that tool fetches its own pinned PHP-Parser once into the `build/` of `var/php-ext/gen-stub/`, which kit keeps per checkout, so later builds never fetch it again. A failed build removes that folder itself; after a killed build, run `rm -rf var/php-ext/gen-stub`, since the folder may hold a partial PHP-Parser that the next build would trust. P35 covers repository lock graphs, not a tool's internal fetch. A PHP library without an extension needs no extension development tools. The shared `kit.mk` exposes `make kit-install-symbols EXTRACTORS="php"` for the PHP programs of kit; install PHP and Composer first with `make install-tools TOOLS="php composer"`.
 The build runs the generator in a temporary source copy and publishes only the module, so kit compares no generator version (K930). The build fails when phpize did not copy `build/gen_stub.php` into the source.
 Composer release archives declare generated headers by stub and output path. Release assets generate them from the tagged stub,
 then append the staged file with Info-ZIP (`zip`) using stored entries, mode 0644 and the commit timestamp; `make release-assets`
@@ -132,10 +132,8 @@ kit states no version pin of a toolchain and compares no version with one (S4): 
 repository declares in `mise.toml`, `rust-toolchain.toml`, `package.json`, `go.mod` or its lock, and the package manager judges it.
 `exceptions` of `config/toolchain.json` declares entries `{ tool, channel, scope }` (S8), where scope is `.` (the default) or a
 directory of the checkout. kit reads the entries of the tool its caller names and nothing else (K1072): `make install-tools`
-installs the channel of each rust entry when it installs rust, and parity reads the Rust nightly for rustdoc JSON, which only a
-nightly writes, so it fails without one where it needs one. An entry of another tool, a field that kit does not read and the form
+installs the channel of each rust entry when it installs rust. An entry of another tool, a field that kit does not read and the form
 of a channel are the repository's own; an entry of the tool without a channel is a finding of the caller that would install it.
-A Rust nightly is never stale: parity reads it.
 
 - TOML is read by smol-toml through `readToml` of `toml.mts`, the one TOML reader of kit (K73).
 - A version command ended by a signal is reported with the signal, for example `ended by signal SIGKILL`, not
@@ -237,11 +235,10 @@ no rebuild record for it; this section records the choice.
   `vars: { root_files: "{a,b}" }`, a glob alternation (`"{}"` names none). alint substitutes a variable as text, so the
   alternation of one glob carries the list. The rule `layout-root-files-additive` fails on an override of the `paths` of
   `layout-root-files` in `config/layout.yml`, which would drop each root file that kit adds later without a finding. Each exception carries its reason in the comment right above
-  it. alint has no field for a reason, so the owner's required review of `config/layout.yml` through `CODEOWNERS`, which
-  the standards plan sets up with parity (S6), is what enforces S8; kit has no `CODEOWNERS` yet.
-- `PYTHONPATH` is checked here across the checkout; the parity schema also rejects it, and every path that leaves the
-  repository, in `config/parity.json` (K75). Feature ownership of a test stays in parity R5 and R6, and the layout places
-  only the root `tests/`.
+  it. alint has no field for a reason, so the owner's required review of `config/layout.yml` through `CODEOWNERS` is what
+  enforces S8; kit has no `CODEOWNERS` yet.
+- `PYTHONPATH` is checked here across the checkout, and every path of `config/*.json` that leaves the repository (K75). The
+  layout places only the root `tests/`.
 - `tests/source/layout-real.test.mts` runs the real alint: a repository that follows the layout passes, each planted
   violations fails with the rule that names it, a repository whose `vars.root_files` names its own root files passes with the
   root files of kit, and this checkout passes.
@@ -250,7 +247,7 @@ no rebuild record for it; this section records the choice.
 
 Measured with alint 0.18.2 on fixture repositories, and read-only on fsm and orm, where the rules found the violations that the
 standards plan lists (root `conformance/`, `machines/`, `schema/`, the `fsm-` prefixes, the module path of `fsm-go`,
-`PYTHONPATH` and `../ordered-json/…` in `config/parity.json`, `.mjs` scripts).
+`PYTHONPATH` and `../ordered-json/…` in a `config/` declaration, `.mjs` scripts).
 
 | Item | Requirement | alint rule | Verdict |
 |---|---|---|---|
@@ -295,7 +292,7 @@ below record the merge of K6.1.
 
 K240 removed `full-run.mts`, its record `var/full-run.json` and the target `rerun-failed`. Suite commands run in CI.
 K1053 removed the guard of suite commands (`ci-only.mts` and FINAL_RUN): `make ci-targets TARGETS="<target>..."`,
-`make owner-check`, a run of run-tests without a selection, the suites and a full `parity-check` run wherever they are started;
+`make owner-check`, a run of run-tests without a selection and the suites run wherever they are started;
 when a suite runs is the repository's own recipe. The lock of the CI report prevents concurrent writers. The table below records
 the merge of K6.1.
 
@@ -439,23 +436,6 @@ sources lie with `--source <glob>`, repeatable (K1080); every tracked file that 
 `tests/fixtures/*/generate.*`. The caller drops the files among them that are no tool source with `--exclude <glob>`, repeatable;
 the recipe of kit drops the `.d.ts` files and the test files, but not a fixture generator. An unclassified selected tool source is a finding; so is a class of a file that is not tracked.
 
-## Divergence check (K315)
-
-`make divergence-check` (P32) fails when an implementation differs from the contract by a way that no unit states. It reads the
-implementation roots that the caller passes, those of the parity declaration of `--parity <path>` or the folders of `--roots`
-(K1114; a bare call is a usage error), and reports the file and the line of: a
-test that branches on the extension, the runtime or the platform (`extension_loaded`, `function_exists`, `PHP_VERSION`,
-`PHP_OS`, `sys.version_info`, `sys.platform`, `process.versions`, `process.platform`, `runtime.GOOS`, `runtime.GOARCH`, `cfg!`,
-`#[cfg(...)]`, `os.name`); code of an implementation that reads whether another implementation is present (`extension_loaded`);
-`--exclude-group` in a script, a Makefile or a workflow; a state of `contracts/features.json` that the caller refuses with
-`--feature-state <state>`; and an exception of `config/duplication.json` or of the `tools` and `internal` of `config/parity.json`
-whose reason begins with none of the kinds that the caller declares with `--reason-kind <kind>`. Both rules belong to the
-repository: with no `--feature-state` or no `--reason-kind` the check finds nothing of that kind. The recipe of kit declares the
-states `partial` and `unsupported` and the kinds `generated:`, `fixture:`, `test:`, `harness:`, `ecosystem:` and `external:` (K1079). The skipped and narrowed tests are the markers of
-`make test-markers-check`, which also reads `testing.Short()`, `pytest.importorskip`, `@requires`, `#[Requires...]` and the skip of a
-`node:test` context. `make item-state` refuses a bypassed or impossible state whose cause cites a release, a failure that is not
-reproduced, a flake, a transient or unrelated failure or the environment. `make item-state` marks an item done only after the commands of its Verification cell pass on the tree that the commit holds (K335). The tools and tests of kit itself are checked like any repository's (K954). A TypeScript or JavaScript file is read with its parser, so a bypass or a divergence written inside a string literal is data, and only the code of the file is matched. A CI identity is a finding when a spawned process receives it in its `env` option or when `process.env` is assigned it; passed to a function under test as an argument, it is data.
-
 ## Owner check (K8.1-1)
 
 `scripts/kit/owner-check.mts` replaces `owner-check.mts` of template, crudui and hyper and `owner_check.py` of
@@ -503,10 +483,10 @@ Dropped behaviors:
 
 `scripts/kit/run-tests.mts` replaces `run-tests.mts` of template, crudui and hyper and `test.py` of ordered-json. Its progress
 reporters are `test-progress.mts`, `node-reporter.mts` and `vitest-reporter.mts`, and its parsers of the go, cargo, PHPUnit and
-unittest output are in `test-output.mts`, which the language-parity check reads with the same functions (K47); `test-exit-deadline.mts` is preloaded into
+unittest output are in `test-output.mts` (K47); `test-exit-deadline.mts` is preloaded into
 each node test file and fails a file whose process outlives its last test by the test timeout, naming its open handles (K72), and `test-hooks.mts` is the `setup` and `teardown` helper of tests.
 
-PHPUnit TeamCity events preserve the fully qualified class, method and data set as `TestRef.id`, and the native display name as `TestRef.name`. A flow retains its own running identities. Equal basenames in different namespaces are distinct; a qualified parity binding accepts only its own namespace (K1091).
+PHPUnit TeamCity events preserve the fully qualified class, method and data set as `TestRef.id`, and the native display name as `TestRef.name`. A flow retains its own running identities. Equal basenames in different namespaces are distinct (K1091).
 
 Merged behaviors:
 
@@ -851,10 +831,9 @@ Left as it is, with the reason:
   the purpose of the file; the three sentences differ.
 - K810 deleted this check, the names, runtime targets and lint selection of K246 and K534, and the tracked link check. `kit-check` required (K289) that `CHECK_TARGETS`, the suite that `make check` and the CI groups run, reaches every
   prerequisite of `kit-gates`, as a word or as a prerequisite of one, so a gate that the gates workflow runs is not left out of
-  the suite. The parity prerequisite may be fulfilled by the complete provider-owned API and binding phase partition described
-  below. The lint of a language, and the lint and test of a PHP extension, are required only in a repository that holds code of it.
+  the suite. The lint of a language, and the lint and test of a PHP extension, are required only in a repository that holds code of it.
   kit's own checkout is not checked, since it is the source of the gates.
-- `workflows/ci-pipeline.yml` (`on: workflow_call`, K910) partitions the same `kit-gates` prerequisites into shared, parity, and
+- `workflows/ci-pipeline.yml` (`on: workflow_call`, K910) partitions the same `kit-gates` prerequisites into shared and
   runtime jobs; the repository's ci.yml calls it as its job `kit`, and independent repository jobs run alongside it. The final `ci-passed` job requires every other job, so one run holds every job of a commit. Every job of the pipeline, of release.yml and of a repository workflow
   bootstraps with one composite action, `actions/kit-bootstrap/action.yml`, an example that a repository copies to
   `.github/actions/kit-bootstrap/action.yml` and owns (K1052), and a job runs after its checkout with `uses: ./.github/actions/kit-bootstrap`: the
@@ -874,7 +853,6 @@ Left as it is, with the reason:
     "runtimes": ["go", "php", "php-ext", "python", "rust", "ts"],
     "setup": {
       "shared": ["orm-install-shared-tools"],
-      "parity": ["orm-build-parity-fixtures"],
       "runtimes": {
         "go": ["orm-install-go"],
         "php": ["orm-install-php"],
@@ -887,55 +865,37 @@ Left as it is, with the reason:
   }
   ```
 
-  Runtime setup targets are run in that runtime's job and in the full or API parity job. Binding phases use their own explicit setup below.
+  Runtime setup targets are run in that runtime's job.
   A nonempty runtime list replaces Kit's defaults and must include all setup that runtime needs, including its tracked native
   package locks. An empty runtime list runs the repository's own `deps-<runtime>` target (`deps-node` for ts, `deps-go`,
   `deps-rust`, `deps-php` for php and php-ext, `deps-python`), a thin call of the locked install of its package manager (K859). Only a runtime of the plan is set up. Every declared or
   default target runs as declared: kit does not check it against the Makefile first, and make reports a target that does not exist when it
-  runs (K1068). ci-setup refuses nothing that a package manager, a target or parity-check
+  runs (K1068). ci-setup refuses nothing that a package manager or a target
   judges itself (K860).
   PHP runtime jobs select the declared PHP and Composer tools. PHP extension jobs select those prerequisites, and
   no install step precedes the lint, build and test of an extension, since the build runs the `gen_stub.php` that phpize copies into `build/` of the source. Extension tests use PHPUnit installed
-  with their Composer package, so Kit's private PHPUnit declaration is not required. PHP parity selection includes Composer
-  when its runner needs it. A consumer with a nonempty PHP setup list must include every Composer project it needs, including
+  with their Composer package, so Kit's private PHPUnit declaration is not required. A consumer with a nonempty PHP setup list must include every Composer project it needs, including
   root and package projects.
-  `parityMode` is optional: without it the plan is `full` when the caller passes `--parity <path>` and `none` when it does not (K1068, K1114).
-  `full` runs the complete provider `parity-check`; `phases` runs the provider `parity-api-check` once and a
-  `parity-bindings-<implementation>-check` matrix with one job for each binding that `parityBindings` declares. A phase consumer
-  adds setup prerequisites to those concrete targets.
   The pipeline separates planning from checks. A small `plan` job bootstraps the locked package and runs kit-ci-plan;
-  it publishes the job declarations but runs no check or runtime setup. Shared checks, selected parity jobs and runtime
+  it publishes the job declarations but runs no check or runtime setup. Shared checks and runtime
   jobs depend only on those plan outputs and start independently when runner capacity permits. They exchange no shared
   check artifact. A failed shared check therefore does not suppress independent results. The final required job always
-  judges the plan, shared checks and every selected parity/runtime job, including skipped or cancelled selected jobs.
+  judges the plan, shared checks and every selected runtime job, including skipped or cancelled selected jobs.
   Removing this control dependency does not increase GitHub's runner concurrency limit.
   Rule reachability reads the CI pipeline of a repository as one of its workflows, by the make commands of its steps; config/ci.json, which the example pipeline reads, reaches no target by itself (K1057).
-  In phases mode, `parityBindings` in config/ci.json maps an implementation name to
-  `{ "setup": ["setup-target"], "tools": ["tool-selector"] }`. The plan runs exactly the declared bindings and compares them
-  with no other file: an implementation of config/parity.json without a binding gets no binding job, and whether that is
-  acceptable is the repository's own rule (K1068). Empty arrays explicitly request no setup or tools. Each binding matrix job installs only that entry's
-  tools and runs only its setup through `make kit-ci-setup GROUP=parity-binding IMPLEMENTATION=<name>`.
-  It installs no symbol extractor implicitly and inherits no runtime or API setup. The repository lists every prerequisite
-  its binding needs, including prerequisites of its context targets. API and full parity keep their complete preparation.
-  This is execution of repository declarations, not build artifact or cache management.
-  ci-setup reads a parity declaration only at the path that `--parity` names (K1114): its runners, which select the parity tools, and
-  the default mode. A path that is missing, and a declared mode other than `none` without `--parity`, fail the
-  plan with the fix (K951).
   The final job `required` (ubuntu-24.04) needs every job of the pipeline and fails when a job that the plan selected does not
   succeed, including a skipped one (K950); a job that the plan does not select is skipped and is not a result. There is no kit-ci-verify-gates.
   The optional `targets` map names the repository's own check targets of each job: `shared` runs after `kit-gates-static` in the
-  shared job, `parity` after `kit-gates-parity` in the parity job (`parityMode` full) or after `parity-api-check` in the parity-api job (`phases`; the
-  bindings jobs run no `targets.parity`), and `runtimes.<runtime>` after
+  shared job, and `runtimes.<runtime>` after
   `kit-gates-runtime-<runtime>` in that runtime's job; a runtime named in `targets.runtimes` has a job even when `runtimes` does
-  not name it. A repository without config/parity.json runs no parity job, so it never runs `targets.parity`.
+  not name it.
   The optional `tools` map names extra pinned Kit tool selectors needed by setup targets. For example, a TypeScript generator
-  target that needs Go declares `"tools": { "ts": ["go"] }`; install-tools judges and installs that tool in the TypeScript job and in
-  parity, which repeats runtime setup. `shared` and `parity` keys select tools for those jobs; install-tools judges each
+  target that needs Go declares `"tools": { "ts": ["go"] }`; install-tools judges and installs that tool in the TypeScript job. The `shared` key selects tools for the shared job; install-tools judges each
   selector.
   The optional `contexts` map gives a job a repository-owned prepare and cleanup target after locked setup and immediately
   around its existing provider gate. Each scope requires both targets, which run as declared (K1068). For example,
   `"contexts": { "shared": { "prepare": "ci-shared-prepare", "cleanup": "ci-shared-cleanup" } }` selects a
-  shared context. `parity` applies independently in each selected parity job; runtime keys apply to that runtime's job. The
+  shared context. Runtime keys apply to that runtime's job. The
   cleanup step uses Actions `always()` after preparation was entered, so it runs after either prepare or gate failure and its
   own failure fails the job. If an earlier locked setup fails, preparation was skipped and cleanup is not entered. A prepare
   target may export variables for later workflow steps through the runner's native `GITHUB_ENV`; Kit adds no environment
@@ -1184,345 +1144,6 @@ A consumer installs a sibling as it installs any polyspec wheel: its own lock, w
 its URL and its sha256, which is the hash of the published asset.
 
 The tests: `tests/kit/release-wheel.test.mts` (both wheels built).
-
-## Language parity (K33)
-
-`scripts/kit/parity.mts` checks that every implementation of a repository holds the shared units. `config/parity.json` declares
-the implementations, which is the one source of the language set of the repository, and the units. A unit without an owner applies
-to every implementation (S6). A feature unit, or a suite whose cases exist in one implementation only (K961), may name an owner only through a `coverage-part` of an existing
-`contracts/features.json` coverage owner, or a `release-package` of `config/release.json`; Kit derives the applicable implementation
-from that declared part or package directory. A release owner names its source explicitly as `archive`, `go-module` or `git-tag`, then
-resolves the exact package name from `packages`, `goModules` or the `[package].name` of a `git-tag` Cargo.toml of `manifests`. The bound test must belong to that part or package, and each requirement it cites must
-explicitly name the owner. An API unit can be owned by a release package only. There is no free-form profile, implementation allow-list,
-exclusion, admit list or native-only symbol, and the declaration holds no state such as done or planned: the checker takes its facts
-from the tree.
-
-- It runs the binding of each suite and feature in each implementation itself and keeps an in-memory ledger of the runs
-  and of the cases and test IDs that each run reported. It reads no saved report. A binding command is an operation without
-  a time limit, including quiet compilation and initialization before its native cases. Each repository supplies the native
-  case deadlines. Interrupting the checker ends its process groups; the output bound still rejects excessive output.
-  Kit invokes the native test command once, without an implicit prebuild.
-  The native tool owns compilation and reports compiler failure through its exit status and diagnostics; no native case event means no executed case.
-  Repository recipes own explicit preparation and reusable build outputs.
-  The separate prebuild existed only to exclude compilation from the removed binding inactivity deadline.
-- It reads the public symbols of each implementation with the standard tool of its ecosystem (go/packages, API Extractor,
-  nikic/php-parser, Python's ast, rustdoc JSON). It reads no committed snapshot.
-- It reads the error codes from the generated artifact of each implementation.
-
-A repository with several implementations of one spec declares `config/parity.json`, runs `parity-declarations-check` among its
-check targets and `parity-check` in its CI, both before a push lands.
-
-### Trust boundary
-
-The checker trusts three inputs that it does not produce itself. Other checks close each one:
-
-- **The tool of each symbol extractor** (go/packages, API Extractor, nikic/php-parser, ast, rustdoc). The checker runs it
-  on the source and takes its public symbols as they are; the extractor programs of kit only list what the tool gives.
-- **The generated error-code artifacts.** The repository's generator check regenerates them from the catalog and fails on a
-  difference. That check must also run before `parity-check`. The parity check compares the committed artifacts with the
-  catalog, and it does not regenerate them.
-- **The output of each native tool** (node:test, vitest, go test, cargo test, unittest and PHPUnit). A binding's test prints
-  nothing for the check: the outcome of each case is the tool's own report of that test. go, node and vitest frame their
-  events: go writes the output of a test inside the `Output` field of its JSON events, which `test-output.mts` reads; node
-  reports its events to `parity-node-reporter.mts`, a node:test reporter of kit; and vitest writes its JSON report to a file. cargo, unittest and PHPUnit do not frame theirs, so a test can print a line that
-  reads as a result on the same stream: `test <name> ... ok` on the standard output of cargo, a `... ok` line on the standard
-  error of unittest, or an echoed `##teamcity[` message of PHPUnit. For those three the checker trusts the tool to print only
-  its own results, and review enforces it; no check of the output closes it.
-
-Node parity uses its machine reporter on stdout and Node's standard spec reporter on stderr in one native invocation. The ledger streams stdout and stderr once during execution, including assertion diagnostics and test output, and parses the original captures; native completion events alone determine case outcomes. Support files must exit zero and report no case; independent files and bindings still run after failed support.
-
-Make targets: `parity-check` runs the bindings and the symbol extractors and checks every rule. `parity-declarations-check`
-checks every rule except R1, R3 and R11 and runs nothing. Both are offline, print a line for each step and each finding, and exit with 1 when a finding exists.
-`node scripts/kit/parity.mts --phase api` runs public-symbol extraction and all static parity rules, without native bindings; `--phase bindings`
-runs native bindings and their requirement checks, without public-symbol extraction. Together these phases cover the checks of the default `all` phase;
-each phase names its partial scope in the output and neither reports a full parity pass. `--phase all` is the default and preserves the full `parity-check`.
-`--phase api` cannot be combined with `--implementation`, and `--declarations` cannot be combined with a non-default phase. Provider Make targets
-`parity-api-check` and `parity-bindings-%-check` expose the supported CI partition; the binding target selects the implementation named in `%`.
-The default `parity-check` continues to run `all`.
-`make parity-check UNITS="<id> <id>"` (K221) runs only the bindings (R3) of the named units, through the same runners, cwd and reader as a full run, and
-reports their outcomes with the same ledger lines. The cross-unit rules (R1, R2, R4 to R11) need every unit, so that run prints one line that says they do not run.
-An id that no unit of `config/parity.json` holds fails the run and names it; no run starts.
-`make parity-declarations-check UNITS="<id> <id>"` (K400) reports only the findings that name the units and those of `config/parity.json` itself,
-so a row that fixes the declarations of its units passes while other units still have findings; without UNITS it reports every finding.
-`make parity-declarations-check RULES="<rule> <rule>"` (K414) reports only the findings of the named rules, by id or by name, and those of `config/parity.json` itself, so a row whose fact is a rule of the documents verifies it while other rules still have findings.
-`make parity-declarations-check IDS="<requirement> <requirement>"` (K414-1) reports findings that identify those requirement ids, including R2 missing bindings of units that cite them; each R2 finding carries its unit's requirement ids. With `RULES` or `UNITS`, the filters intersect. Findings of `config/parity.json` itself remain visible in every filtered run.
-
-| Module | Concern |
-|---|---|
-| `parity.mts` | the command, and the order of the rules |
-| `parity-declaration.mts` | the schema, the references of the declaration, and the finding |
-| `parity-units.mts` | R1, R2, R4, R5, R6, R11 |
-| `parity-ledger.mts` | R3: the runs of the bindings and the ledger |
-| `parity-runners.mts` | the native command of each runner and the outcome of each case in its output |
-| `parity-node-reporter.mts` | the node:test reporter of the node runner: each test with its enclosing suites, as JSON lines |
-| `parity-symbols.mts` | the symbol extractors of R1 and R11, and the walk of rustdoc JSON |
-| `install-symbols.mts` | the build of the go extractor and the install of the php extractor into var/tools |
-| `symbols/` | the extractor programs: `go/` (go/packages), `php/` (nikic/php-parser), `python.py` (ast) |
-| `test-output.mts` | the parsers of the output of go, cargo, unittest and PHPUnit, shared with run-tests; node:test reports through `parity-node-reporter.mts`, and the TAP reader of K125 is removed |
-| `parity-errors.mts` | R7 |
-| `parity-text.mts` | R9, R10 |
-
-### Rules
-
-Every finding fails the check. A finding names its rule, unit, implementation and place (a file, or file:line).
-
-| Rule | Finding |
-|---|---|
-| `declaration` | The declaration has one of these defects. No other rule runs on such a declaration. <br>- It breaks `scripts/kit/schema/parity.schema.json`. <br>- It names a missing file, or an unknown implementation. <br>- A root is the whole repository. <br>- A go or cargo suite binding has no `symbol`, or a go symbol does not match `^Test\w*$`. <br>- A feature binding has no `id` or has a `symbol`, a suite binding has an `id`, or a feature unit has a `file` or `cases`. <br>- A case name repeats, holds whitespace, or holds `/` in a unit with a go binding. <br>- The `entry` of `symbols` does not exist. <br>- A pattern has no group. <br>- The catalog pattern does not read a line of the catalog, or a catalog or artifact pattern reads no code. <br>- A `support` glob selects no test file of its implementation (of its runner's convention, its `tests` or its runner's `testPatterns`) and no file named like a test, a support file lies outside the `roots` of its implementation, a Go support file declares a function that `go test` runs, a cargo support file holds a test attribute, or the test of a binding matches the `support` of its implementation. <br>- A `command`, `args` or `env` value, or a word of a binding `command`, holds a `${` form that is not `${NAME}` (K223). <br>- A binding `command` is empty, or holds a word that the pattern of `args` refuses (S3). <br>- An env sets `PYTHONPATH`, or a path field, or a word of an `args` or `env` value, is absolute, starts with `~` or holds a `..` segment (S3). |
-| R1 missing-implementation | An API unit declares no symbol of an implementation, or any declared symbol is no public symbol that the implementation's extractor gives. Or the extractor of an implementation gives no symbols: its program or nightly is missing, it fails, or it prints no list. |
-| R2 missing-binding | A suite or feature unit has no binding of an applicable implementation: all implementations for a unit without an owner, or the implementation that Kit derives from its declared owner. |
-| R3 not-executed | The binding cannot start (its program is missing, or an environment reference of its implementation is unset, empty or resolves to a path outside the checkout and the kit package in use), exits with a status other than 0, or the cases that passed are not exactly the cases of the suite file. A feature binding fails when its `id` did not pass exactly once in its run; Cargo applies the `id` as an exact libtest filter, while file-based runners run the whole file. A zero-match Cargo filter is not executed, and any reported test outside the bound ids is R3. Each binding runs once (K959): fixed seeds and isolated databases make a run deterministic, and a test that is not is a defect of the test, not something a second run finds. The finding lists the failed, skipped, missing and extra cases. A case that the run reports twice is named by a `reported twice` part of the finding. A Go package that does not build adds its compiler output. |
-| R4 undeclared-suite | A file of the `suites` globs is the file of no suite unit and lies in the case directory of none. |
-| R5 undeclared-test | A test file of an implementation (a file in its roots that the convention or `testPatterns` of its runner selects, or a file of its `tests` globs), other than its `support` files, is the test of no binding of that implementation. Or a file in its roots is named like a test (`*_test.*`, `test_*.*`, `*Test.*`, `*.test.*`, `*.spec.*`), no convention selects it, and no binding runs it. Or a support file of a node, php or python implementation reports a case when `parity-check` runs it. |
-| R6 misplaced-test | The test of a binding lies outside the `roots` of its implementation, outside the roots of the implementation that it declares with `shares` (an implementation shares no other without that declaration, K1117), and outside the `comparators`. Or a file that the convention or `testPatterns` of one or more runners select, other than a `support` file of an implementation of those runners, lies outside the roots of every implementation of those runners, outside the `comparators` and outside the `tools` roots. The vendored `scripts/kit` and `tests/kit` are kit's own and are not checked. |
-| R7 error-catalog | An implementation declares no codes (`errors`), or its codes differ from the catalog (missing or extra codes). |
-| R9 language-set-drift | A list in another file that `languageLists` declares differs from the implementations, or its pattern matches nothing. |
-| R10 docs-count | A document of `documents` counts N implementations, and its sentence names not all N implementations, unless its sentence names exactly N and the names of its passage are all the implementations. Or it lists three or more implementation names in a sentence whose names are not all the implementations. A number after each or 각각 counts per item and is no count ("are each one implementation"), and a run of names with another item of its enumeration on both sides lists those items and is no list ("Node.js, npm, Go, Rust, PHP minor version, Composer"); words of a noun of `documents` after the last name are no item (K197). |
-| R11 undeclared-public | A public symbol that the extractor of an implementation gives is declared by no API unit. |
-| R12 duplicate-binding | A suite or API unit names one implementation twice in its `bindings` or `symbols`. A feature unit names the same implementation and native `id` twice. A feature may bind distinct native ids of one implementation, including database-specific cases from the same test file. |
-| R16 internal-contract | A test that an `internal` glob of an implementation selects names a requirement of the spec (a list item or a heading that `requirements.pattern` matches), so a contract test cannot hide among the internal tests (K313). |
-| R17 leaked-internal | A public signature, parent class or interface names an internal symbol: a PHP class whose docblock carries `@internal`, a Python name that starts with one `_`, or a TypeScript type that the entry point does not export (API Extractor `ae-forgotten-export`), each reported by the extractor of the implementation (`--leaks` of `extract.php` and `python.py`); the finding names the public and the internal symbol (K307-1). |
-
-### Runners
-
-| Runner | Command | Cases | Feature ids |
-|---|---|---|---|
-| `go` | `go test -json -count=1 -run ^<symbol>$ ./<directory>` in the nearest directory with `go.mod`; a feature runs without `-run` | the `pass`, `fail` and `skip` events of the direct subtests `<symbol>/<case>` | the test or subtest name, `TestX/case` |
-| `cargo` | `cargo test --manifest-path <crate>/Cargo.toml --test <name>` for `<crate>/tests/<name>.rs`, else `--lib`, then the feature's exact native id before `-- --exact --test-threads=1`; a zero-match id is not executed (R3) | the tests `<symbol>::<case>`: `test <name> ... ok`, `FAILED` or `ignored` in the output, with any run of whitespace before `...`, as libtest-mimic (a `harness = false` test target) pads each name to the longest one; a test whose output lies between its name and its result (the case database's step lines) has its result as the word `ok`, `FAILED` or `ignored` alone on its line, which counts as that result (K229) | the libtest path, `module::test` |
-| `node` | `node --test --test-reporter=<scripts/kit/parity-node-reporter.mts> --test-reporter-destination=stdout --test-reporter=spec --test-reporter-destination=stderr <test>` | the top-level tests that the reporter names: node:test's own pass, fail, skip and todo; the test of the file itself is none; a coverage file reports a case once per database item as `<case> [<database>]`, and that report names the case `<case>`, which passes when each of its reports passes (K231) | the names of the test and its enclosing suites joined by ` › ` |
-| `vitest` | `node node_modules/vitest/vitest.mjs run <args> --dir <root> --reporter=json --outputFile.json=<temporary>/vitest.json <test>` from the checkout root, with `--dir` the root of the implementation that holds the test, so discovery does not follow a link under var/ (K202); `<temporary>` is a fresh folder under the temporary folder of the system (`TMPDIR`), which is removed after every run, whatever it ended with, so nothing is written into the checkout (K1101) | the top-level tests of the JSON report: `passed`, `failed`, `skipped` or `pending`, and `todo` | the `ancestorTitles` and `title` joined by ` › ` |
-| `php` | `php <args> <package>/vendor/bin/phpunit --teamcity <configuration> <test>` from the checkout root, where `<package>` is the nearest directory with `composer.json` above the test and `<configuration>` is `--configuration <package>/phpunit.xml`, or `--configuration <package>/phpunit.xml.dist` when only that exists, else `--no-configuration`; a suite binding with the symbol `<class>::<method>` adds `--filter /^<class>::<method>(?: with data set \|$)/`, so its method runs alone | with the symbol, the data sets `<method> with data set "<case>"` of the TeamCity messages; without it, the test methods `test_<case>` | the test method: `<Class>::<method>`, the id that PHPUnit reports, or the bare `<method>` that the binding declares; the data sets of the method are its reports, and it passes when each passes, a failing one fails it (K229) |
-| `python` | `var/tools/mise/shims/python3 <args> -m unittest -v <test>` | the test methods `test_<case>` of the verbose output on standard error | the test method, reported once or once per data set or database item: it passes when each report passes (K229) |
-
-The go, cargo, php and python runners read their tool's output with the parsers of `test-output.mts`, the same parsers that
-`run-tests` reads a run with (K47). node reports through its reporter API and vitest through its JSON report, so no text of
-theirs is parsed. A todo is a test that the tool expects to fail, a node or vitest todo or a unittest `expected failure`: it
-is no pass, so its case fails the check, while run-tests shows it as a pass line.
-
-A PHP implementation rooted in a Composer php-ext package runs library test bindings with the PHPUnit of the library's own Composer project and the extension arguments (K790). A binding with its own runner or command keeps that declared execution.
-
-PHPUnit reads its configuration from the working directory, and the check keeps the checkout root as the working directory of
-every runner, so that the `command`, `args` and paths of each runner share one base. A php binding therefore names the
-configuration of its package: `--configuration` with the package's `phpunit.xml` (or `phpunit.xml.dist` when only that exists),
-or `--no-configuration` when the package has neither, so that no configuration of another directory applies. A test whose name is no case of the binding is ignored: a go subtest nested below a case keeps its `/` and is a case that
-the suite does not declare. A case name holds no whitespace, and in a unit with a go binding it holds no `/`, because Go nests
-the names of subtests at `/`. A run of node:test starts without `NODE_TEST_CONTEXT`, so that it does not join the test run
-that started the check.
-
-An implementation can replace the program of its runner with `command`, which is not empty. A command that holds a `/` is a
-path relative to the root of the checkout, such as the Python of a virtual environment; otherwise it is a name on PATH. No
-path of the declaration leaves the checkout (S3): the schema rejects an absolute path, a path that starts with `~` and a `..`
-segment, in a path field and in each word (between `=`, `:` and whitespace) of an `args` or `env` value, and an `env` named
-`PYTHONPATH`, since a package is tested as installed. A value that a `${NAME}` reference resolves to such a path cannot start
-its run (R3). `args` go after `test` for go and cargo, and before the test file for node, before the PHPUnit path for php and before `-m unittest` for python, such as
-`-d extension=<library>` for one PHP implementation. `env` sets variables for the runs of that implementation only, over the
-environment of the check.
-
-A `command`, `args` or `env` value can reference the invoking environment as `${NAME}`, such as the checkout of a sibling
-repository or a library that the Makefile builds. `parity-declarations-check` does not read the environment: it fails only on a
-`${` form that is not `${NAME}`, so there is no default form, and `$NAME` without braces is plain text. `parity-check` replaces
-each reference with the value of NAME when it runs the bindings. A value may name a path inside the checkout or inside the kit
-package in use, which a linked repository reaches outside itself as `$(KIT)` (K922). When NAME is unset or empty, every binding of that
-implementation is an R3 finding that cannot start and names the value and NAME, while the other rules run. A step line prints
-the command and arguments as declared, with the reference and never its value.
-
-An implementation declares its test-support files with `support` globs: a file in its `roots` that the convention of its
-runner, its `tests` or the `testPatterns` of its runner select, or that is named like a test, but that holds no test, such as a Go helper that must end in `_test.go`. A support file is no
-test of a binding, so R5 skips it, and R6 skips it for the patterns of the runner of its implementation only. It must hold no
-test that its runner would run:
-
-- A Go support file declares no top-level function that `go test` runs: `Test`, `Benchmark` or `Fuzz` followed by no lower-case
-  letter, or `Example`.
-- A cargo support file holds no test attribute: `#[test]`, `#[bench]`, `#[test_case]`, `#[rstest]`, or one of these with a
-  path such as `#[tokio::test]`.
-- `parity-check` runs each node, php and python support file once with the runner of its implementation, and a case that its
-  output reports is an R5 finding.
-
-Each glob selects at least one such file, so a stale glob fails the declaration.
-
-### Test-file conventions (K75)
-
-kit fixes the test files of each runner (S3), `CONVENTIONS` of `parity-declaration.mts`: go `**/*_test.go`; cargo
-`**/tests/**/*.rs` and every `.rs` file that holds a test attribute; node `**/*.test.{ts,mts,cts,mjs,cjs,js}`; vitest
-`**/*.{test,spec}.{ts,mts,cts,js,mjs,cjs,tsx,jsx}`; php `**/*Test.php`; python `**/test_*.py`. The test files of an
-implementation are the files in its roots that the convention of its runner selects, and the files of its `tests` globs. The
-`tests` of an implementation and the `testPatterns` of a runner only add to the convention; nothing in the declaration
-removes a file from it, and a support file is proven to hold no test. A file in the roots of an implementation that is named
-like a test in a common convention (`*_test.*`, `test_*.*`, `*Test.*`, `*.test.*`, `*.spec.*`) and that no convention selects is
-a test that its runner does not run, such as a PHP script named `*_test.php`: R5 fails it until a binding runs it, it is
-renamed to the convention, or a support glob declares it. The node and vitest conventions overlap, so R6 accepts a file in a
-root of any runner whose convention selects it.
-
-### Feature units (K75)
-
-A unit of kind `feature` names one native test of each applicable implementation: `bindings` of `{ implementation, test,
-id }`, where `id` is the native test id as the runner reports it (see Feature ids above). It has no vector file. Without `owner`,
-every implementation applies. With `owner.kind: "coverage-part"`, `owner.feature` and `owner.part` must resolve to an existing feature and
-coverage owner in `contracts/features.json`; where config/parity.json names `ownerCrossChecks` (K1085), the feature must also list the unit id
-in `parity`, list each binding test in `tests`, and the test must lie under the declared part. With `owner.kind: "release-package"`, `owner.artifact` selects `archive`, `go-module` or `git-tag`,
-and `owner.package` must exactly match the name in the corresponding `config/release.json` section; where `ownerCrossChecks` is named, the binding test must lie under its package directory, which holds a package manifest. The owner source resolves to exactly one declared
-implementation, and each requirement must name that owner as its subject; shared client requirements therefore stay unscoped.
-`parity-check` runs the native test id of each feature binding once. Cargo runs only the exact libtest id; file-based runners run the
-whole file. The binding holds when the run exits with 0 and its `id` passed once. A missing, failed, skipped or repeated id
-is R3, and a feature without a binding of an implementation is R2.
-
-A binding of any unit kind may name `command`, an argv array such as `["make", "feature-check", "ITEM=roundtrip"]`, which runs in
-place of the default command of its runner (K216). The first word is the program: a path relative to the checkout root when it
-holds a `/`, else a name on PATH. The other words are its arguments. The command runs in the directory of the implementation
-that holds the test, and the runner reads its output as it reads the default output, so the command must print what that runner
-reads (go test -json, cargo test, node --test, the JSON report of vitest, PHPUnit TeamCity, unittest). The command is used as
-declared: one that cannot start, or exits with a status other than 0, is an R3 finding that names it, and the default command of
-the runner never runs instead. A word of `command` may hold a `${NAME}` reference to the invoking environment, resolved when the
-bindings run by the rule of the `command`, `args` and `env` of an implementation (K223): an unset or empty NAME is an R3 finding
-of the binding's runs, which then run nothing, and no default form exists. The words follow the path rule of `args`.
-
-A binding without `command` may name `args`, which append to the implementation's runner arguments before the runner adds its
-native test selector and reporter. This keeps the standard runner and output reader while allowing one native test file to run
-with different per-binding filters. Binding `args` cannot accompany `command`, which replaces the invocation; `${NAME}` references
-in binding arguments resolve by the same rule as implementation arguments.
-
-### Symbol extractors (K75)
-
-An implementation may declare either the existing `entry` or a nonempty `entries` list of `{ entry, features? }` inputs (K714). Each input runs its native extractor; the public names and leaks are combined, and any input failure rejects the whole snapshot. Rust inputs may select explicit Cargo features; other extractors reject feature selections. Duplicate paths with the same feature selection are rejected.
-
-A feature unit whose requirements are all explicitly deferred by valid held checklist items retains its source bindings but runs no native cases (K715). The report names it `HELD`, and the execution ledger records no passing evidence for it. A unit mixing active and deferred requirements is rejected rather than silently held. Existing deferred requirements without a unit remain supported.
-
-`symbols` of an implementation declares `{ extractor, entry }`, and for `python` also `distribution`. `parity-check` runs the extractor, which reads the public API of
-`entry` with the standard tool of its ecosystem, and judges R1 and R11 on what it gives. Nothing is read from a committed
-snapshot, and `parity-declarations-check` runs no extractor.
-
-| Extractor | Tool | Entry | Ids |
-|---|---|---|---|
-| `go` | `var/tools/symbols-go/bin/kit-symbols-go`, kit's program on `golang.org/x/tools/go/packages` v0.52.0 | a module directory | `<import path>.<name>`, `<import path>.<type>.<method or field>` of the exported names of each non-internal, non-test package |
-| `ts` | API Extractor 7.59.4 (`@microsoft/api-extractor`, a dependency of kit), its API model | a `.d.ts` entry point, such as the one that tsc 7 emits, in the package of the nearest `package.json`, compiled with that package's `tsconfig.json`, or without one with the library of ESNext and no `@types` | the canonical references, such as `@scope/name!Codec#encode:member(1)` |
-| `php` | `scripts/kit/symbols/php/extract.php` on nikic/php-parser 5.9.0 | a source directory or file, such as the `*.stub.php` of a PHP extension | `Ns\Class`, `Ns\Class::method`, `Ns\Class::CONST`, `Ns\Class::$property`, `Ns\function`, `Ns\CONST` of the public declarations; a class, function, constant, method or property whose docblock carries `@internal` (the tag opens a docblock line, as phpstan and psalm read it) is no public declaration, and a class that carries it hides its members (K307) |
-| `python` | `scripts/kit/symbols/python.py` reads with `ast` the `.py` files on disk under `entry`, Git-ignored generated modules included, and not the folders whose name is no Python identifier, such as `.venv`, nor `__pycache__` (K977), run by the `python3` of PATH; the import root is the folder `src` beside the nearest `pyproject.toml` from `entry` up when `entry` lies under it, else the folder of that `pyproject.toml` (the src and the flat layout of the Python Packaging User Guide); no environment, install or distribution is read, and kit creates and installs nothing (K855); an entry that no `pyproject.toml` holds fails | the package folder of the source package, such as `packages/python/src/<package>` | `<module>.<name>` of `__all__`, else of the names without `_`, and `<module>.<class>.<method>`, the module named by its path from the import root; a generated module that git ignores is public, as the package ships it (K977) |
-| `rust` | `cargo +<nightly> rustdoc -- -Z unstable-options --output-format json` (format 61) | a `Cargo.toml`, its library | `<crate>::<path>` of each public item reachable from the root, re-exports included, with its public fields, variants, inherent items and trait items |
-
-- A repository names `go` and `php` in `symbolExtractors` of `config/toolchain.json`; `install-kit` of `make install` then runs
-  `make kit-install-symbols`, which builds the go program into `var/tools/symbols-go` and installs the locked Composer project
-  of the php extractor into `var/tools/symbols-php` with the declared Composer (`install-symbols.mts`). Each install builds them
-  again, and go and Composer keep their own caches (K861). `make kit-build` copies `scripts/kit/symbols` into `dist/symbols`.
-- rustdoc JSON is unstable (rust-lang/rust#76578), so the rust extractor runs the Rust nightly of the `config/toolchain.json`
-  `exceptions` entry with tool `rust` whose scope holds the crate, with `RUSTUP_AUTO_INSTALL=0`; its retry condition is
-  "rustdoc JSON is stable". This is the only use of a nightly. `make install-tools` installs each Rust channel of the exceptions with
-  `rustup toolchain install <channel>` and the profile of rustup's own settings (`install-rust.mts`, K1097), and a missing rustup fails with its install.
-- An extractor that is not installed, a missing or doubled nightly, a failing tool and an output that is no list of ids are R1
-  findings that name the extractor and the entry.
-
-### Consumer interface manifests (K227)
-
-`config/parity.json` declares language parity and nothing else. A consumer's other contract data, such as the rules, records
-and owners of its interface manifest, stays in the consumer's own file and is not a key of this schema. kit reads no reference to such a file.
-
-Decision (K227, K1069): kit adds no schema key for a consumer's interface manifest, neither typed nor opaque, and
-`parity.schema.json`, like every schema of kit, describes only the keys its reader reads and refuses no other key. Reasons: (1) the parity reader never reads such data, so a key for it
-would validate facts that no check of kit evaluates, and refusing it would judge a declaration that is the consumer's own; (2) a typed key would make kit's schema encode one consumer's data model,
-and an opaque key would let any content pass the declaration check; (3) with no profile or native-only entry (S6), no coupling remains between kit and a consumer's file. A consumer that wants one parity source keeps its language facts
-in `config/parity.json` and its other contract data in its own file.
-
-### Requirements of a case (K277)
-
-A case directory of a directory suite holds `case.json`, whose `requirements` array of strings lists the requirement ids that
-the case tests. kit reads it as JSON, never as text, and ignores its other keys, such as `stage`. For R15, an id that a
-unit cites is named when a `case.json` of that unit's case set lists it, so an id-like string in another file of the case
-counts for nothing. A missing `case.json`, invalid JSON or a `requirements` that is no array of strings is a `declaration`
-finding that names the file, and an id that docs/spec does not define is R14 that names the `case.json`, reported once
-although units share the directory.
-
-A unit may declare `caseFile`, a bare file name: its case set is then the selected case directories that hold that file.
-Units that share one directory each take the cases that hold the output they compare. `caseFile` on a suite whose file is
-a vector file is a declaration finding. A single-file suite keeps the text match of R15.
-
-### Declaration
-
-`config/parity.json`, validated against `scripts/kit/schema/parity.schema.json`:
-
-| Key | Content |
-|---|---|
-| `implementations` | `name`, `runner` (`go`, `cargo`, `node`, `vitest`, `php`, `python`), `prose` (the names that documents write for it, which R10 reads), `roots` (its directories; never the whole repository), `tests` (at least one glob of its test files), `support` (globs of its test-support files), `internal` (globs of the internal tests of the implementation, each `{ glob, reason }`: a test that matches is no parity unit, R5 asks no binding for it, no binding names it, it names no requirement (R16), and a glob that selects no test is a declaration finding; K313), `command`, `args`, `env` (`name`, `value`), `symbols` (`extractor`, one of `go`, `php`, `python`, `rust`, `ts`, and `entry`, the path it reads; Symbol extractors), `errors` (`file`, `pattern`: the generated codes), `shares` (another implementation of the same runner whose test files it runs in its own runtime, such as a native extension that runs the tests of the library it replaces: R6 accepts its binding tests in the roots of the shared implementation, and R5 judges only its own roots and tests; naming itself, no implementation or another runner is a declaration finding; the extension of the root `packages/php-ext` needs no `shares`, since kit shares the implementations of the PHP libraries, `packages/php` and `packages/<component>/php`, with it by the layout of S10) |
-| `suites` | globs of the shared vector files |
-| `comparators` | the directories of the checks that compare the outputs of several implementations |
-| `tools` | `root` and `reason` of each directory of tooling outside the shared implementation set, printed on every run; R6 accepts a test there and R3 and R5 do not judge it; optional `units` name tool-owned requirements and exact native selectors without adding implementation bindings; each test must exist under the root, contain its selector and name every cited requirement. Parity validates the trace but does not run these tests; the tool package's existing owner check runs them |
-| `testPatterns` | for each `runner`, the `globs` of its test files across the repository |
-| `units` | `id`, `kind` (`suite`, `feature` or `api`) and `requirements`. A feature or a suite may have `owner`: `{kind: "coverage-part", feature, part}` from `contracts/features.json`, or `{kind: "release-package", artifact, package}` from `config/release.json` (`artifact` is `archive`, `go-module` or `git-tag` and selects `packages`, `goModules` or the `[package].name` of a `git-tag` Cargo.toml of `manifests`); the owner source determines its one applicable implementation. An API unit may have a `release-package` owner only (K961); an unscoped unit applies to all implementations. A suite has `file`, `cases` (for a vector file a path of `$` followed by `.<key>` and `[*]` steps and an optional last `.~` step, which selects the keys of an object as the case names; for a directory a glob relative to it whose `/` steps each match one directory level, each matched directory one case named by its path relative to the directory, such as `*/*` over `<group>/<case>/`, a matched file a declaration finding, and each case directory holds `case.json`, see Requirements of a case; a go binding reports such a name as nested subtests), the optional `caseFile` of a directory suite and `bindings` (`implementation`, `test`, `symbol`, optional `args` appended to runner arguments, and optional argv `command` replacing the whole invocation; the two cannot be combined, see Feature units). An API unit has `symbols` entries, one per implementation. Each entry declares either its existing `symbol` string or a nonempty, unique `symbols` list of exact public names belonging to the same API concept. It declares exactly one form. R1 verifies every listed name exists in that implementation; R11 requires every extracted public name to appear in an API unit. Existing scalar declarations keep their meaning. |
-| `errors` | `catalog` (`file`, `pattern`) |
-| `languageLists` | `file` and `pattern` (its first group holds the list; the words of the group are the names) |
-| `documents` | `globs` and `nouns`, the words that a count precedes (`languages`, `언어`) |
-
-A pattern is a regular expression that is applied to each line (flags `gm`), and its first group is the value. A count is digits,
-an English number word up to twelve or `both`, or a Korean native numeral up to 열, followed by one of the nouns after a space, a
-hyphen (`four-client`) or a Korean counter (`6개 언어`, `여섯 개 언어`, `세 가지 언어`). A list is three or more implementation
-names, joined by `,`, `and`, `or`, `/`, `및`, or the particles `와` and `과`. The extractor of an implementation gives the ids of
-its public symbols (Symbol extractors).
-
-R10 reads the prose of a document in passages, on the Markdown reader of `scripts/kit/markdown.mts`: a paragraph or a list item
-with the lines that continue it, a block quote without its markers, an ATX heading (`#` to `######` and a space), or a table
-row. A fenced block, an indented code block and a setext underline are no prose, and a setext underline ends its paragraph.
-Inline code, link destinations, autolinks, bare URLs, link definitions and HTML tags and comments are blanked, so only prose
-names an implementation; a code span after a name keeps the name in its list (``Go `x`, PHP `y`, Rust `z`, and TypeScript
-`w` ``). A sentence ends at `.`, `!` or `?` before a space, and a table cell is a sentence of its own.
-
-A count of N holds when N is the number of the implementations and its sentence names only them ("five clients: Go,
-PHP, Rust, TypeScript and Python"), or when its sentence names exactly N implementations and the names of its passage are all
-the implementations. A count of one or two of something else therefore fails as any other count does; a document writes such a
-sentence without a numeral. A list holds when the implementation names of its own sentence are all the implementations: a sentence
-that states something of a part of the implementations names the others in the same sentence ("Go, Rust and TypeScript generate
-the methods; PHP and Python resolve them at call time"). The items of one Markdown list, with the same marker and indent and
-no other passage between them, are one list when each item names exactly one implementation; three or more such names hold when
-they are all the implementations. An implementation is named by its name or by a name of its `prose` (`"prose": ["PHP extension"]`
-for `php-extension`), in any case; a prose name that is a name of another implementation, or a repeated prose name, is a
-declaration finding.
-
-The catalog pattern applies to each line of the catalog that is not blank and is not a comment (a line that starts with `#` or
-`//`). It must match every such line, so no code escapes it. A line that the pattern matches without its group holds no code,
-such as the other fields of an entry. An example is `^- code: (\w+)$|^  \w+: .*$`.
-
-### Wiring a repository
-
-1. Write `config/parity.json`. Declare every implementation, a suite unit for each vector
-   file and an API unit for each public concept. Shared units hold in every implementation; an owner-scoped feature or suite holds in its declared owner.
-2. Make each binding's native test report each case of a suite under the name of its runner (see Runners): a subtest
-   `<symbol>/<case>` in Go, a test `<symbol>::<case>` in cargo, a top-level node:test test named `<case>`, a data set named
-   `<case>` of the method `<class>::<method>` that the binding names as its symbol in PHPUnit (a `#[DataProvider]` with string
-   keys; the class is fully qualified), or else a test method `test_<case>` in PHPUnit and unittest. A binding prints no line
-   for the check.
-3. Declare `symbols` (`extractor`, `entry`) of each implementation, and generate the error codes of each implementation from
-   the catalog.
-4. Add `parity-declarations-check` to the check targets of the repository and `parity-check` to its CI, so both run before a push
-   lands. Run them after the checks that regenerate the error-code artifacts (the trust boundary). The kit.mk of kit holds the
-   targets, which a repository copies into its own recipes (K1054).
-
-```json
-{
-  "schema": 1,
-  "implementations": [
-    { "name": "go", "runner": "go", "roots": ["packages/go"], "tests": ["packages/go/**/*_test.go"],
-      "symbols": { "extractor": "go", "entry": "packages/go" }, "errors": { "file": "packages/go/codes.go", "pattern": "^\\tCode\\w+ = \"(\\w+)\"$" } },
-    { "name": "python", "runner": "python", "roots": ["packages/python"], "tests": ["packages/python/tests/*.py"],
-      "symbols": { "extractor": "python", "entry": "packages/python", "distribution": "client" }, "errors": { "file": "packages/python/codes.py", "pattern": "^\\w+ = \"(\\w+)\"$" } }
-  ],
-  "suites": ["tests/**/vectors.json"],
-  "comparators": ["tests/conformance/check"],
-  "testPatterns": [
-    { "runner": "go", "globs": ["**/*_test.go"] },
-    { "runner": "python", "globs": ["**/test_*.py"] }
-  ],
-  "units": [
-    { "id": "codec", "kind": "suite", "requirements": ["CX-1"], "file": "tests/codec/vectors.json", "cases": "$.vectors[*].name",
-      "bindings": [
-        { "implementation": "go", "test": "packages/go/codec_test.go", "symbol": "TestCodecVectors" },
-        { "implementation": "python", "test": "packages/python/tests/test_codec.py" }
-      ] },
-    { "id": "host-decode", "kind": "api", "requirements": ["CX-1"], "symbols": [
-        { "implementation": "go", "symbol": "packages/go/hostcodec.go::HostDecode" },
-        { "implementation": "python", "symbol": "packages/python/codec.py::host_decode" }
-      ] }
-  ],
-  "requirements": { "pattern": "CX-[0-9]+" },
-  "errors": { "catalog": { "file": "docs/errors.yaml", "pattern": "^\\s*- code: (\\w+)$" } }
-}
-```
 
 ## uv (K54)
 

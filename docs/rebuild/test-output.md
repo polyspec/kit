@@ -3,9 +3,8 @@
 
 [한국어](test-output.ko.md)
 
-Verdict: **none fits** for the libtest, unittest and TeamCity readers. Measured on 2026-10-13. No tool of kit reads TAP: the
-node runner of parity reports through `parity-node-reporter.mts`, a node:test reporter (K75), so the tap-parser reader of
-K125 was removed.
+Verdict: **none fits** for the libtest, unittest and TeamCity readers. Measured on 2026-10-13. No tool of kit reads TAP, so the
+tap-parser reader of K125 was removed.
 
 ## Covers
 
@@ -13,7 +12,7 @@ K125 was removed.
 
 ## Requirement
 
-run-tests prints each test as it starts, keeps running and ends, and parity reads the outcome of each test. Both need the
+run-tests prints each test as it starts, keeps running and ends. It needs the
 events of a run as they happen, from the standard runners of S3.
 
 | Item | Format | Requirement |

@@ -10,7 +10,6 @@ import { wrapBody, commitItem, editItem, newItem, newPlan, setState, splitPlan, 
 import { readChecklist, trackersOf } from '../../scripts/kit/checklist.mts';
 import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import { typeErrors } from '../../scripts/kit/ts-typecheck.mts';
-import { schemaFile, validate } from '../../scripts/kit/schema-validate.mts';
 import { put, tree } from './tree.mts';
 import { KIT_MAKEFILE } from './kit-tools.mts';
 import { initRepository } from './sandbox-repository.mts';
@@ -50,31 +49,6 @@ test('K1089: plan-new applies the name pattern that the caller declares, and onl
   const run = spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url)), 'plan-new'], { cwd: root, env: { ...process.env, NAME: 'Tokens', TITLE: 'T', TITLE_KO: 'T', NAME_PATTERN: '^[a-z]+$' }, encoding: 'utf8' });
   assert.equal(run.status, 1);
   assert.match(run.stderr, /does not match/);
-});
-
-// K1089: parity --make-targets checks the implementation names against the NAME_PATTERN of the caller, as plan-new does; without one
-// only what a make target name cannot hold is refused.
-test('K1089: parity --make-targets applies the name pattern that the caller declares, and only the make word rule without one', (t) => {
-  const root = tree(t, { 'config/parity.json': JSON.stringify({ implementations: [{ name: 'Go_ext' }, { name: 'ts' }] }) });
-  const parity = fileURLToPath(new URL('../../scripts/kit/parity.mts', import.meta.url));
-  const run = (env: Record<string, string>) => spawnSync(process.execPath, [parity, '--make-targets'], { cwd: root, env: { ...process.env, ...env }, encoding: 'utf8' });
-  const bare = run({});
-  assert.equal(bare.status, 0, bare.stderr);
-  assert.equal(bare.stdout, 'Go_ext ts\n');
-  const declared = run({ NAME_PATTERN: '^[a-z][a-z0-9-]*$' });
-  assert.equal(declared.status, 1);
-  assert.match(declared.stderr, /Go_ext.*does not match/);
-  put(root, { 'config/parity.json': JSON.stringify({ implementations: [{ name: 'a:b' }] }) });
-  const word = run({});
-  assert.equal(word.status, 1);
-  assert.match(word.stderr, /a:b.*no make target name/);
-  const invalid = run({ NAME_PATTERN: '(' });
-  assert.equal(invalid.status, 2, 'a NAME_PATTERN that is no regular expression is a usage error');
-  // The schema fixes no name pattern: the implementation names, the shared one and an owner part of the caller's naming pass it.
-  const declaration = { implementations: [{ name: 'Go_ext', runner: 'go', roots: ['go'], shares: 'Rust_ext' }] };
-  assert.deepEqual(validate(declaration, schemaFile('parity.schema.json')).filter(line => /\/implementations\/0\/(?:name|shares)/.test(line)), []);
-  const owner = /\^owner\/\[a-z\]/;
-  assert.doesNotMatch(readFileSync(fileURLToPath(new URL('../../scripts/kit/schema/parity.schema.json', import.meta.url)), 'utf8'), owner, 'no owner part pattern of fixed names');
 });
 
 /** A checkout with the plans `names`, each made by newPlan. */

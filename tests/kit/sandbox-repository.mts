@@ -36,7 +36,7 @@ function create(directory: string, options: string[]) {
 }
 
 // The .git folder of a configured repository, made once per process (K301): a repository without options is a copy of it, since six
-// git processes for each of the hundreds of repositories of a run were most of the time of the parity and link tests.
+// git processes for each of the hundreds of repositories of a run were most of the time of the link tests.
 let template: string | undefined;
 function templateGit(): string {
   if (template !== undefined) return template;

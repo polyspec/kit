@@ -1,4 +1,4 @@
-// The syntax tree of a script for the checks that read its code (language-check.mts, test-markers.mts, K268): oxc-parser
+// The syntax tree of a script for the checks that read its code (language-check.mts, K268): oxc-parser
 // reads JavaScript, TypeScript, JSX and TSX as they are, with their comments, so no type stripping changes the text first. The
 // tree is ESTree with the nodes of TypeScript and JSX; walk visits every node by its `type`, whatever its kind.
 import { parseSync } from 'oxc-parser';

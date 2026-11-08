@@ -36,6 +36,6 @@ test('K1069: no schema of kit requires a key that its tool does not read', () =>
   const schema = (name: string) => schemaFile(`${name}.schema.json`);
   assert.deepEqual(validate({ exclude: [{ glob: 'tests/**' }] }, schema('duplication')), [], 'duplication-check reads no reason');
   assert.deepEqual(validate({ paths: [], exceptions: [{ path: 'a.bin' }], tracked: [{ path: 'b.bin' }] }, schema('generated')), [], 'generated-files reads no reason');
-  assert.deepEqual(validate({ setup: { shared: [], parity: [], runtimes: { ts: [] } } }, schema('ci')), [], 'ci-setup reads the setup of the runtimes of the repository only');
+  assert.deepEqual(validate({ setup: { shared: [], runtimes: { ts: [] } } }, schema('ci')), [], 'ci-setup reads the setup of the runtimes of the repository only');
   assert.deepEqual(validate({ owners: [{ paths: ['a'], targets: ['t'] }], ciExempt: [{ target: 't' }] }, schema('owner-checks')), [], 'owner-check reads no ciExempt');
 });

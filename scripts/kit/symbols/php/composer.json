@@ -1,6 +1,6 @@
 {
     "name": "polyspec/kit-symbols-php",
-    "description": "The PHP symbol extractor of the polyspec kit parity check",
+    "description": "The PHP programs of the polyspec kit: nikic/php-parser for lint-php",
     "type": "project",
     "license": "MIT",
     "require": {

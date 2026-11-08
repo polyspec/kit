@@ -3,8 +3,7 @@
 //     install`, which judges them; without a channel rustup installs the active toolchain (K840): rustup's active toolchain may already exist without a requested component such as clippy.
 //     rustup 1.28 no longer installs a missing toolchain as cargo first runs, so a cargo of CI failed with
 //     "toolchain '<channel>-<host>' is not installed" (K151). An installed toolchain is kept by rustup itself.
-//   - the Rust channels that config/toolchain.json exceptions declare, such as the nightly whose rustdoc JSON the parity check
-//     reads, with `rustup toolchain install <channel>` and the profile of rustup's own settings (K1097); rustup keeps an
+//   - the Rust channels that config/toolchain.json exceptions declare, with `rustup toolchain install <channel>` and the profile of rustup's own settings (K1097); rustup keeps an
 //     installed channel itself (K861).
 // The flags of `rustup toolchain install`, such as --no-self-update, are the caller's `flags`; kit passes none of its own (K1097).
 // A missing rustup fails with its install and with what needs it; nothing else of the machine changes.

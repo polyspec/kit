@@ -602,7 +602,7 @@ test('a go test that outlives the timeout stops the tool and fails the run', asy
 const COMPOSER_PROJECT = { 'composer.json': '{}\n', 'var/tools/bin/php': '#!/bin/sh\n' };
 
 // A package of a Composer monorepo has no vendor directory of its own; the root project requires it through a path
-// repository and installs one vendor directory, as for parity and lint-php (K178, K186).
+// repository and installs one vendor directory, as for lint-php (K178, K186).
 test('phpunit with --cwd of a package of a Composer monorepo runs the PHPUnit of the root project (K186)', async (t) => {
   const pass = "console.log(\"##teamcity[testStarted name='test_a' flowId='1']\"); console.log(\"##teamcity[testFinished name='test_a' duration='1' flowId='1']\");";
   const root = tree(t, { 'composer.json': '{}\n', 'vendor/bin/phpunit': `#!/usr/bin/env node\n${pass}\n`, 'packages/a/composer.json': '{}\n' });

@@ -104,35 +104,22 @@ test('consumer kit.mk exposes the selective symbol installer', () => {
   const dry = (target: string, ...args: string[]) => spawnSync('make', [
     '-n', '--no-print-directory', '-f', KIT_MK, target, 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs', ...args,
   ], { cwd: ROOT, encoding: 'utf8' });
-  const symbols = dry('kit-install-symbols', 'EXTRACTORS=go');
+  const symbols = dry('kit-install-symbols', 'EXTRACTORS=php');
   assert.equal(symbols.status, 0, symbols.stderr);
-  assert.equal(symbols.stdout.trim(), `${path.join(ROOT, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/install-symbols.mjs go`);
+  assert.equal(symbols.stdout.trim(), `${path.join(ROOT, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/install-symbols.mjs php`);
 });
 
-// K861: the parity tools are kit's, so kit-install-declared installs them from the declarations of the repository.
-test('K861: kit-install-declared installs the declared symbol extractors; without declarations none', (t) => {
+// K861: kit-install-declared installs the PHP programs of kit from the declarations of the repository.
+test('K861: kit-install-declared installs the declared PHP programs; without declarations none', (t) => {
   const makefile = `KIT := ${path.join(ROOT, 'scripts/kit')}\nKIT_EXT := mts\ninclude ${KIT_MK}\n`;
   const dry = (root: string) => spawnSync('make', ['-n', '--no-print-directory', 'kit-install-declared', `NODE=${process.execPath}`], { cwd: root, encoding: 'utf8' });
-  const declared = tree(t, { Makefile: makefile, 'config/toolchain.json': JSON.stringify({ schema: 1, symbolExtractors: ['go', 'php'] }), 'packages/php-ext/src/config.m4': '' });
+  const declared = tree(t, { Makefile: makefile, 'config/toolchain.json': JSON.stringify({ schema: 1, symbolExtractors: ['php'] }), 'packages/php-ext/src/config.m4': '' });
   const both = dry(declared);
   assert.equal(both.status, 0, both.stderr);
   assert.match(both.stdout, /install-symbols\.mts --declared$/m, 'install-symbols installs the declared extractors');
   const bare = tree(t, { Makefile: makefile, 'config/toolchain.json': JSON.stringify({ schema: 1 }) });
   const none = dry(bare);
   assert.equal(none.status, 0, none.stderr);
-});
-
-test('kit.mk accepts a parity declaration with no implementation targets and still rejects unreadable names', (t) => {
-  const root = tree(t, { 'config/parity.json': JSON.stringify({ implementations: [] }) });
-  const args = ['--no-print-directory', '-n', '-f', KIT_MK, 'parity-api-check', `KIT=${path.join(ROOT, 'scripts/kit')}`, 'KIT_EXT=mts', `NODE=${process.execPath}`];
-  const empty = spawnSync('make', args, { cwd: root, encoding: 'utf8' });
-  assert.equal(empty.status, 0, empty.stdout + empty.stderr);
-  assert.match(empty.stdout, /parity\.mts --phase api/);
-
-  writeFileSync(path.join(root, 'config/parity.json'), '{ invalid json');
-  const unreadable = spawnSync('make', args, { cwd: root, encoding: 'utf8' });
-  assert.notEqual(unreadable.status, 0, unreadable.stdout + unreadable.stderr);
-  assert.match(unreadable.stderr, /implementation names could not be read safely/);
 });
 
 test('link and link-check take the providers from the link declaration, not from arguments (K383, K869)', () => {

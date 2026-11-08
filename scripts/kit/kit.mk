@@ -56,18 +56,17 @@ ALINT := $(KIT_TOOLS)/mise/shims/alint
 BOOTSTRAP_NODE := node
 
 .PHONY: kit-install-symbols
-kit-install-symbols: ## Install selected declared symbol extractors with EXTRACTORS="go php"; their pinned tools must be installed first; ONLINE
+kit-install-symbols: ## Install the PHP programs of kit (nikic/php-parser for lint-php) with EXTRACTORS="php"; PHP and Composer must be installed first; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/install-symbols.$(KIT_EXT) $(EXTRACTORS)
 
-# The tools of the parity rules that every repository shares are kit's, so install-kit installs them from the declarations of the
-# repository through their targets (K861): the symbolExtractors of config/toolchain.json. Reading a declaration judges nothing; each
+# install-kit installs the PHP programs of kit when the repository declares them (K861): the symbolExtractors of config/toolchain.json. Reading a declaration judges nothing; each
 # target's tool judges its install. cargo fetches the crates of a Cargo.lock itself (K1014).
 .PHONY: kit-install-declared
-kit-install-declared: ## Install the declared symbol extractors (install-symbols --declared) through their targets; ONLINE
+kit-install-declared: ## Install the declared PHP programs of kit (install-symbols --declared) through their targets; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/install-symbols.$(KIT_EXT) --declared
 # Toolchains (K8.2, K127): the bootstrap (TOOLS=npm) installs mise, and the node and npm of mise.toml; install-tools installs every
 # tool of mise.toml at the digests of mise.lock with mise, then what mise does not install (the wheel backend and the Composer
-# projects; the symbol extractors have their own targets, K861); toolchain-lock writes mise.lock. All three download, so they run ONLINE. Nothing outside
+# projects; the PHP programs of kit have their own targets, K861); toolchain-lock writes mise.lock. All three download, so they run ONLINE. Nothing outside
 # the checkout changes. A missing tool fails the target that runs it, so no target checks the installed tools (K854).
 .PHONY: install-tools toolchain-lock
 
@@ -151,20 +150,18 @@ test-php-ext: build-php-ext ## Compare the declarations of the built extension w
 .PHONY: kit-gates
 # The gates of every repository, whose partitions below the CI pipeline (workflows/ci-pipeline.yml) runs past failures, so that one run shows every failure
 # (K270): each make target that a rule of PRINCIPLES.md is enforced by.
-kit-gates: layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check parity-check suppression-check divergence-check lint-ts lint-php lint-python lint-go lint-rust lint-php-ext test-php-ext ## Run every gate of kit; the CI pipeline runs its partitions in CI
+kit-gates: layout-check docs-check rules-check owner-validate rebuild-check language-check duplication-check suppression-check lint-ts lint-php lint-python lint-go lint-rust lint-php-ext test-php-ext ## Run every gate of kit; the CI pipeline runs its partitions in CI
 
 # CI partitions the same gate set so each job installs only the tools it uses. `kit-gates` remains the complete local/consumer
-# entry point above; these targets are only the disjoint workflow partitions, and the parity job checks every implementation in
-# one run.
-.PHONY: kit-gates-static kit-gates-parity kit-gates-runtime-ts kit-gates-runtime-php kit-gates-runtime-python kit-gates-runtime-go kit-gates-runtime-rust kit-gates-runtime-php-ext
+# entry point above; these targets are only the disjoint workflow partitions.
+.PHONY: kit-gates-static kit-gates-runtime-ts kit-gates-runtime-php kit-gates-runtime-python kit-gates-runtime-go kit-gates-runtime-rust kit-gates-runtime-php-ext
 # kit-gates-static is also the self-diagnosis of a repository before a push (K998): wherever it is a goal, a push or the shared
 # job of CI, it runs each gate past a failure, so one run names every gate that fails, and ends with a line when every gate passed.
 ifneq ($(filter kit-gates-static,$(MAKECMDGOALS)),)
 MAKEFLAGS += -k
 endif
-kit-gates-static: layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check suppression-check divergence-check ## Run the shared gates; the self-diagnosis of a repository before a push, past failures
+kit-gates-static: layout-check docs-check rules-check owner-validate rebuild-check language-check duplication-check suppression-check ## Run the shared gates; the self-diagnosis of a repository before a push, past failures
 	@echo "[kit-gates-static] every shared gate passed"
-kit-gates-parity: parity-check ## Run the full parity gate in its own job
 kit-gates-runtime-ts: lint-ts ## Run the TypeScript gate
 kit-gates-runtime-php: lint-php ## Run the PHP gate
 kit-gates-runtime-python: lint-python ## Run the Python gate
@@ -176,8 +173,8 @@ kit-gates-runtime-php-ext: lint-php-ext test-php-ext ## Run the PHP extension ga
 kit-ci-plan: ## Validate config/ci.json and write the runtime, tool and target plan to GITHUB_OUTPUT for the CI pipeline
 	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --plan
 
-kit-ci-setup: ## Run the locked setup targets declared by config/ci.json; GROUP=shared|parity|parity-binding|runtime, RUNTIME=<runtime> or IMPLEMENTATION=<name>
-	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --setup $(GROUP) $(if $(filter parity-binding,$(GROUP)),$(IMPLEMENTATION),$(RUNTIME))
+kit-ci-setup: ## Run the locked setup targets declared by config/ci.json; GROUP=shared|runtime, RUNTIME=<runtime>
+	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --setup $(GROUP) $(RUNTIME)
 
 kit-ci-context-prepare: ## Run the optional repository context preparation target for GROUP and RUNTIME
 	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --context-prepare $(GROUP) $(RUNTIME)
@@ -199,19 +196,9 @@ text-absent: export KIT_TEXT_ABSENT_TEXT = $(value TEXT)
 text-absent: ## Fail while the tracked file FILE holds the stale text TEXT, naming each line: the red of a row whose whole change is text (K431); offline
 	$(NODE) $(KIT)/text-absent.$(KIT_EXT)
 
-.PHONY: divergence-check
-# The rules of kit for divergence-check (K1079): the kinds of reason of a configuration exception and the refused feature states.
-DIVERGENCE_RULES := --reason-kind generated --reason-kind fixture --reason-kind test --reason-kind harness --reason-kind ecosystem --reason-kind external --feature-state partial --feature-state unsupported
-divergence-check: ## Fail on an implementation that diverges through a branch on the runtime, a narrowing of its run, a partial or unsupported feature, or an exception without a kind of reason (K315, K1079); offline
-	$(NODE) $(KIT)/divergence-check.$(KIT_EXT) $(DIVERGENCE_RULES) --roots
-
 .PHONY: language-check
 language-check: ## Fail on Hangul in a comment, an identifier, an error or log message or a test name of the code (K252, K1088); offline
 	$(NODE) $(KIT)/language-check.$(KIT_EXT) --forbid '\p{Script=Hangul}'
-
-.PHONY: test-markers-check
-test-markers-check: ## Fail on a test that a marker skips or narrows: test.skip, it.only, t.Skip, unittest.skip, markTestSkipped, #[ignore] (K255); offline
-	$(NODE) $(KIT)/test-markers.$(KIT_EXT)
 
 .PHONY: duplication-check
 duplication-check: ## Fail while a piece of code exists twice, by the formats, minimum lines, ignore-patterns and exclusions of config/duplication.json (jscpd, K248-3, K1104); offline
@@ -430,41 +417,3 @@ lint-go: ## Lint the Go of the checkout: golangci-lint with .golangci.yml, and d
 
 lint-ts: ## Lint the TypeScript of the checkout: oxlint and knip with the configuration of the repository, and API Extractor in each package with an api-extractor.json; offline
 	$(NODE) $(KIT)/lint-ts.$(KIT_EXT)
-# --- language parity: config/parity.json declares the implementations and the units that each of them holds.
-# Without UNITS the check is a full run.
-.PHONY: parity-check parity-declarations-check
-parity-check: ## Run every parity binding and check every rule; UNITS="<id>..." selects units and IMPLEMENTATIONS="<name>..." selects runtime bindings and support files (support files run when UNITS is empty), while static declaration checks stay global; offline
-	$(NODE) $(KIT)/parity.$(KIT_EXT) $(foreach unit,$(UNITS),--unit $(unit)) $(foreach implementation,$(IMPLEMENTATIONS),--implementation $(implementation)) --roots
-
-# The parity declaration is the source of the native implementation list. Generate an explicit phony target per implementation so
-# repository setup prerequisites, existing files and a consumer's `.PHONY` declarations cannot bypass the provider recipe.
-# The first install goals run before the checkout's Node wrapper exists. They do not need generated phase targets; defer their
-# declaration read until a later gate invocation, after the conventional `TOOLS=npm` bootstrap has installed Node. Any mixed
-# bootstrap and gate invocation, and every ordinary target, still validates and enumerates the declaration here.
-KIT_BOOTSTRAP_GOALS := install install-kit kit-install install-packages toolchain-lock install-tools
-KIT_BOOTSTRAP_ONLY := $(if $(strip $(MAKECMDGOALS)),$(if $(filter-out $(KIT_BOOTSTRAP_GOALS),$(MAKECMDGOALS)),,1),)
-ifneq ($(filter install-tools,$(MAKECMDGOALS)),)
-ifneq ($(TOOLS),npm)
-KIT_BOOTSTRAP_ONLY :=
-endif
-endif
-ifneq ($(KIT_BOOTSTRAP_ONLY),1)
-ifneq ($(wildcard config/parity.json),)
-KIT_PARITY_IMPLEMENTATIONS := $(shell NAME_PATTERN='^[a-z][a-z0-9-]*$$' $(NODE) $(KIT)/parity.$(KIT_EXT) --make-targets || echo __KIT_PARITY_TARGETS_ERROR__)
-ifneq ($(filter __KIT_PARITY_TARGETS_ERROR__,$(KIT_PARITY_IMPLEMENTATIONS)),)
-$(error config/parity.json implementation names could not be read safely; fix the parity declaration)
-endif
-endif
-endif
-KIT_PARITY_BINDING_TARGETS := $(addprefix parity-bindings-,$(addsuffix -check,$(KIT_PARITY_IMPLEMENTATIONS)))
-.PHONY: parity-api-check $(KIT_PARITY_BINDING_TARGETS)
-parity-api-check: ## Run the global API and static parity phase
-	$(NODE) $(KIT)/parity.$(KIT_EXT) --phase api
-define KIT_PARITY_BINDING_RULE
-parity-bindings-$(1)-check: ## Run native bindings for implementation $(1)
-	$$(NODE) $$(KIT)/parity.$$(KIT_EXT) --phase bindings --implementation $(1)
-endef
-$(foreach implementation,$(KIT_PARITY_IMPLEMENTATIONS),$(eval $(call KIT_PARITY_BINDING_RULE,$(implementation))))
-
-parity-declarations-check: ## Check the parity rules of config/parity.json that need no run: symbols, bindings, tests, error codes, lists, documents; UNITS="<id>..." reports only the findings of the named units, their schema findings included, and of config/parity.json itself (K400, K400-1); RULES="<rule>..." reports only the findings of the named rules, by id or name, and of config/parity.json itself (K414); IDS="<requirement>..." reports only the findings that name one of the requirement ids, and of config/parity.json itself (K414-1); offline
-	$(NODE) $(KIT)/parity.$(KIT_EXT) --declarations $(foreach unit,$(UNITS),--unit $(unit)) $(foreach rule,$(RULES),--rule $(rule)) $(foreach id,$(IDS),--id $(id)) --roots

@@ -68,15 +68,11 @@ rules:
       # The layout rules name PYTHONPATH to forbid it.
       - "!config/layout.kit.yml"
       - "!config/layout.yml"
-      # The parity API tests hold PYTHONPATH as data while checking the declaration validator.
-      - "!tests/kit/parity-api.test.mts"
       # The real layout test of kit plants PYTHONPATH into a fixture repository to see the rule fail.
       - "!tests/source/layout-real.test.mts"
-      # The parity schema names PYTHONPATH to refuse it as a variable of an implementation (K75).
-      - "!scripts/kit/schema/parity.schema.json"
 
-  # S9 exception: the symbol extractors of the parity check (K75) read the public API of a language with the standard tool of
-  # that language (go/packages, nikic/php-parser, Python's ast), which only a program of that language can call.
+  # S9 exception: the PHP programs of kit (K75) read PHP with nikic/php-parser and the Reflection API, which only a program of
+  # that language can call.
   - id: layout-infrastructure-typescript
     paths:
       - "scripts/**/*.{js,mjs,cjs,py,sh,bash,zsh,rb,pl,php,go,rs,ps1,bat,cmd}"
@@ -86,8 +82,6 @@ rules:
       # The extension of the PHP extension tests (S10): its stub is PHP, which gen_stub.php reads, as data of the tests.
       - "!tests/kit/php-ext-fixture/**"
       - "!scripts/kit/symbols/**"
-      # The marker check reads a Python test with the ast module of the Python of the checkout (K345), which only Python can call.
-      - "!scripts/kit/markers/**"
       # PHPUnit prepends the deadline file into the PHP of its run, so only a PHP file can be it.
       - "!scripts/kit/php-library/**"
       # The runner of the python tests runs unittest inside the Python of the tests, which only a program of that language can do (K371).

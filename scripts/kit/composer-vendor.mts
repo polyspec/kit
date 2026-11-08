@@ -1,5 +1,5 @@
-// The vendor directory of a Composer project, shared by run-tests (PHPUnit of the vendor directory), lint-php (the
-// autoloader of PHPStan) and the php runner of parity (PHPUnit of the package). Composer decides it, not kit (K184):
+// The vendor directory of a Composer project, shared by run-tests (PHPUnit of the vendor directory) and lint-php (the
+// autoloader of PHPStan). Composer decides it, not kit (K184):
 // `composer config vendor-dir`, run in the folder of the composer.json with the Composer of mise.toml of the checkout, applies
 // Composer's own rule (the folder `vendor`, COMPOSER_VENDOR_DIR, config.vendor-dir of the composer.json or of the global
 // configuration, with ~ and the environment expanded), offline. Without --absolute it answers relative to that folder, which
@@ -24,7 +24,7 @@ export function composerVendor(project: string, composer?: { command: string; en
 /**
  * The file `file` of the vendor directory that Composer gives the package `folder` (relative to `root`): that of the nearest
  * project that is `folder` or a folder above it, is a Composer project (`isProject`, given a folder relative to `root`; by
- * default a folder with a composer.json) and has the file. run-tests, lint-php and parity resolve through it (K186). A library of a Composer monorepo commits no lock and has no vendor directory; the development project at the
+ * default a folder with a composer.json) and has the file. run-tests and lint-php resolve through it (K186). A library of a Composer monorepo commits no lock and has no vendor directory; the development project at the
  * root requires it through a path repository and installs one vendor directory for both. Returns the path relative to
  * `root`, or undefined when no such project has the file.
  */

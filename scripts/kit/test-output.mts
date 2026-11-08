@@ -1,7 +1,5 @@
 // The parsers of the output of the test tools: go test -json, cargo test (libtest), python unittest (verbose) and PHPUnit
-// (TeamCity messages), and the lines of the node:test reporter of the language-parity check (parity-node-reporter.mts).
-// run-tests reads a run's output with them into its progress lines, and the language-parity check (parity-runners.mts)
-// reads a binding's output with the same functions into the outcome of each native test. Each
+// (TeamCity messages). run-tests reads a run's output with them into its progress lines. Each
 // parser reports to a sink with the methods `start(test, options)`, `pass(test, ms)`, `fail(test, ms, text)`, `skip(test)`,
 // `todo(test)`, `line(text)` and `raw(text)`, where `test` is `{ id, name }`: `id` is the name that the progress shows and
 // `name` is the name that the tool reports for the test. `todo` is a test that the tool expects to fail (a unittest expected
@@ -275,30 +273,6 @@ export function pythonEvents(sink: Sink): (data: string) => void {
       if (text.trim()) sink.line(`  ${text}`);
     },
   });
-}
-
-/** One line of parity-node-reporter.mts: the name of a node:test case that ends and its outcome (K158). */
-type NodeCase = { name: string; outcome: 'pass' | 'fail' | 'skip' };
-
-/**
- * Read the lines of parity-node-reporter.mts, which node --test prints for each test that ends (`--test-reporter`), into the
- * sink: each case starts and then takes its outcome. A todo test is a fail there, as the reporter writes it. A zero-match name
- * pattern prints no line, so a run of no case reads no case. A line that is no case is printed through `line`.
- */
-export function nodeEvents(sink: Sink): (line: string) => unknown {
-  return line => {
-    if (!line) return undefined;
-    let event: NodeCase;
-    try {
-      event = parseJson<NodeCase>(line, 'parity-node-case.schema.json', 'the parity node reporter');
-    } catch (error) {
-      if (!(error instanceof ConfigError)) throw error;
-      return sink.line(line);
-    }
-    const test: TestRef = { id: event.name, name: event.name };
-    sink.start(test);
-    return sink[event.outcome](test);
-  };
 }
 
 // The object holds two of the characters that the pattern matches; any other is looked up as undefined.

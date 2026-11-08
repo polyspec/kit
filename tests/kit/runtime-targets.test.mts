@@ -1,4 +1,4 @@
-// Tests of scripts/kit/runtime-targets.mts: `runtime-targets test --runner <runner> --roots <folder>...` (or `--parity <path>`) runs the
+// Tests of scripts/kit/runtime-targets.mts: `runtime-targets test --runner <runner> --roots <folder>...` runs the
 // unit tests of each root that the caller selects with the name filter of its runner, in the folder of the root; kit sets no runtime,
 // package layout, test folder or build command (K244, K1106).
 import assert from 'node:assert/strict';
@@ -7,7 +7,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { buildRuns, caseSensitiveSmokeRuns, infrastructureRuns, nothingRan, parityRunnerRoots, selectionOf, testRuns, type Run } from '../../scripts/kit/runtime-targets.mts';
+import { buildRuns, caseSensitiveSmokeRuns, infrastructureRuns, nothingRan, selectionOf, testRuns, type Run } from '../../scripts/kit/runtime-targets.mts';
 import { withCaseSensitiveDirectory } from '../../scripts/kit/case-sensitive-directory.mts';
 import { tool } from './kit-tools.mts';
 import { tree } from './tree.mts';
@@ -225,55 +225,30 @@ test('a PHP package of type project runs its tests as a root of its own (K433)',
   ]);
 });
 
-// K1074: a parity declaration is read only for the name, roots, runner and shares of its implementations, so a key it does not read
-// never fails it, and a field of them that is malformed fails with its place.
-const declaration = (implementations: unknown[]) => JSON.stringify({ schema: 1, requirements: { pattern: '^R-[0-9]+$' }, units: [], implementations });
-test('K1074 runtime-targets reads only the fields it needs from a parity declaration and fails on a malformed one', () => {
-  const unknown = declaration([{ name: 'php', runner: 'php', roots: ['packages/php'], extra: true }, { name: 'php-ext', runner: 'php', roots: ['packages/php-ext'], unread: { any: 1 } }]);
-  assert.deepEqual(parityRunnerRoots(unknown, 'config/parity.json', 'php'), ['packages/php', 'packages/php-ext']);
-  assert.throws(() => parityRunnerRoots('{', 'config/parity.json', 'php'), /config\/parity\.json is no JSON/);
-  const malformed: [unknown, RegExp][] = [
-    [{ schema: 1 }, /implementations is no array/],
-    [{ implementations: [{ runner: 'php', roots: ['packages/php-ext'] }] }, /implementations\[0\]\.name is no name/],
-    [{ implementations: [{ name: 'php-ext', runner: 'php', roots: 'packages/php-ext' }] }, /implementations\[0\]\.roots is no list of folders/],
-    [{ implementations: [{ name: 'php-ext', runner: 'php', roots: ['packages/php-ext', 3] }] }, /implementations\[0\]\.roots is no list of folders/],
-    [{ implementations: [{ name: 'php-ext', roots: ['packages/php-ext'] }] }, /implementations\[0\]\.runner is no runner/],
-    [{ implementations: [{ name: 'php-ext', runner: 'php', roots: ['packages/php-ext'], shares: 1 }] }, /implementations\[0\]\.shares is no name/],
-  ];
-  for (const [value, message] of malformed) assert.throws(() => parityRunnerRoots(JSON.stringify(value), 'config/parity.json', 'php'), message);
-});
-
 test('K1106 several go roots run in one go test from the root with their ./<root>/... patterns', () => {
   assert.deepEqual(testRuns([], 'go', ['packages/go', 'examples'], 'TestA'), [{ cwd: '.', tool: 'go', args: ['-run', 'TestA', './examples/...', './packages/go/...'] }]);
   assert.deepEqual(testRuns([], 'go', ['packages/go', 'examples'], undefined), [{ cwd: '.', tool: 'go', args: ['./examples/...', './packages/go/...'] }]);
   assert.equal(testRuns([], 'cargo', ['crates/a', 'crates/b'], undefined).length, 2, 'cargo runs each root on its own');
 });
 
-// K1106: the caller names the runner and the roots, or a parity declaration whose implementations of the runner give them; kit reads
+// K1106: the caller names the runner and the roots; kit reads
 // no layout, and a call without a selection is a usage error.
 test('K1106 the runner and the roots are the caller\'s, inside or outside packages/', (t) => {
   assert.equal(selectionOf([]), undefined);
   assert.equal(selectionOf(['--runner', 'go']), undefined);
-  assert.equal(selectionOf(['--runner', 'go', '--roots', 'a', '--parity', 'p']), undefined);
+  assert.equal(selectionOf(['--runner', 'go', '--roots', 'a', '--parity', 'p']), undefined, 'kit takes no declaration of roots');
   assert.equal(selectionOf(['--runner', 'ruby', '--roots', 'a']), undefined);
   assert.deepEqual(selectionOf(['--runner', 'go', '--roots', 'lib/go', 'tools']), { runner: 'go', roots: ['lib/go', 'tools'], command: [] });
-  assert.deepEqual(selectionOf(['--parity', 'config/parity.json', '--runner', 'cargo', '--', 'cargo', 'build', '--locked']), { parity: 'config/parity.json', runner: 'cargo', command: ['cargo', 'build', '--locked'] });
-  const text = declaration([{ name: 'lib', runner: 'go', roots: ['lib/go', 'tools'] }, { name: 'rs', runner: 'cargo', roots: ['crates/a'] }]);
-  assert.deepEqual(parityRunnerRoots(text, 'parity.json', 'go'), ['lib/go', 'tools']);
-  assert.deepEqual(parityRunnerRoots(text, 'parity.json', 'node'), []);
+  assert.deepEqual(selectionOf(['--roots', 'crates/a', '--runner', 'cargo', '--', 'cargo', 'build', '--locked']), { roots: ['crates/a'], runner: 'cargo', command: ['cargo', 'build', '--locked'] });
   assert.deepEqual(testRuns(['lib/go/go.mod', 'lib/go/a_test.go'], 'go', ['lib/go'], undefined), [{ cwd: 'lib/go', tool: 'go', args: ['./...'] }]);
   const cli = tool(import.meta.resolve('../../scripts/kit/runtime-targets.mts'));
-  // A broken config/parity.json that the caller does not name is never read.
-  const root = tree(t, { 'README.md': 'a\n', 'config/parity.json': '{', 'src/helper.mts': 'x\n' });
+  const root = tree(t, { 'README.md': 'a\n', 'src/helper.mts': 'x\n' });
   const bare = spawnSync(process.execPath, [cli], { cwd: root, encoding: 'utf8' });
   assert.equal(bare.status, 2, bare.stderr);
-  assert.match(bare.stderr, /--roots <folder>\.\.\. \| --parity <path>/);
+  assert.match(bare.stderr, /--roots <folder>\.\.\. \[--php-extension/);
   const unselected = spawnSync(process.execPath, [cli, 'test', '--runner', 'node'], { cwd: root, encoding: 'utf8' });
   assert.equal(unselected.status, 2, unselected.stderr);
   const empty = spawnSync(process.execPath, [cli, 'test', '--runner', 'php', '--roots', 'src', '--php-extension', 'x.so'], { cwd: root, encoding: 'utf8' });
   assert.equal(empty.status, 1, empty.stderr);
   assert.match(empty.stderr, /test found nothing to run/);
-  const named = spawnSync(process.execPath, [cli, 'test', '--runner', 'node', '--parity', 'config/parity.json'], { cwd: root, encoding: 'utf8' });
-  assert.equal(named.status, 1, named.stderr);
-  assert.match(named.stderr, /config\/parity\.json is no JSON/);
 });

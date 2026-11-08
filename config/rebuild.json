@@ -82,10 +82,6 @@
       "kind": "ecosystem",
       "tool": "jscpd finds the pieces of code that exist twice; the tool passes it the code formats of the runtimes and the excluded folders (K248-3)"
     },
-    "scripts/kit/test-markers.mts": {
-      "kind": "policy",
-      "reason": "the rule of PRINCIPLES.md that no standard is lowered while testing: no runner of kit refuses its own skip and focus markers, so kit reads them in the tracked tests (K255)"
-    },
     "scripts/kit/language-check.mts": {
       "kind": "policy",
       "reason": "the rule of PRINCIPLES.md that comments, identifiers, logs, error messages and test names are English: no lint of the runtimes reads the language of a comment, so kit reads them with the parser of each script (K252)"
@@ -160,7 +156,7 @@
     },
     "scripts/kit/install-symbols.mts": {
       "kind": "ecosystem",
-      "tool": "go build of scripts/kit/symbols/go at its go.mod and go.sum, and composer install of the scripts/kit/symbols/php lock (K75)"
+      "tool": "composer install of the scripts/kit/symbols/php lock (K75)"
     },
     "scripts/kit/install-tools.mts": {
       "kind": "ecosystem",
@@ -237,46 +233,6 @@
     "scripts/kit/owner-check.mts": {
       "kind": "policy",
       "reason": "the owner rules of config/owner-checks.json are polyspec's; the targets, prerequisites and recipes come from GNU make's database, make -pRrq (K121), and the imports of the import graph from module-imports.mts (K191)"
-    },
-    "scripts/kit/parity-declaration.mts": {
-      "kind": "policy",
-      "reason": "the language-parity check of polyspec, classified with K75"
-    },
-    "scripts/kit/parity-errors.mts": {
-      "kind": "policy",
-      "reason": "the language-parity check of polyspec, classified with K75"
-    },
-    "scripts/kit/parity-ledger.mts": {
-      "kind": "policy",
-      "reason": "the language-parity check of polyspec, classified with K75"
-    },
-    "scripts/kit/parity-node-reporter.mts": {
-      "kind": "ecosystem",
-      "tool": "node:test reporter API"
-    },
-    "scripts/kit/parity-runners.mts": {
-      "kind": "policy",
-      "reason": "the language-parity check of polyspec, classified with K75"
-    },
-    "scripts/kit/parity-symbols.mts": {
-      "kind": "ecosystem",
-      "tool": "the standard library's ast of Python, API Extractor, golang.org/x/tools/go/packages, nikic/php-parser and rustdoc JSON read the public symbols (K75)"
-    },
-    "scripts/kit/parity-requirements.mts": {
-      "kind": "policy",
-      "reason": "the requirement trace of the language-parity check of polyspec, K273"
-    },
-    "scripts/kit/parity-text.mts": {
-      "kind": "policy",
-      "reason": "the language-parity check of polyspec, classified with K75"
-    },
-    "scripts/kit/parity-units.mts": {
-      "kind": "policy",
-      "reason": "the language-parity check of polyspec, classified with K75"
-    },
-    "scripts/kit/parity.mts": {
-      "kind": "policy",
-      "reason": "the language-parity check of polyspec, classified with K75"
     },
     "scripts/kit/paths.mts": {
       "kind": "ecosystem",
@@ -380,7 +336,7 @@
     },
     "scripts/kit/toolchain-exceptions.mts": {
       "kind": "policy",
-      "reason": "the declared Rust nightly exception that parity reads for rustdoc JSON, with its scope, reason and retry condition (S4, S8, K78, K953)"
+      "reason": "the declared Rust toolchain exceptions, with their scope, reason and retry condition (S4, S8, K78, K953)"
     },
     "scripts/kit/toolchain-files.mts": {
       "kind": "ecosystem",
@@ -406,29 +362,13 @@
       "kind": "policy",
       "reason": "polyspec runs every tool with the php of PATH, which the machine provides, through exec wrappers, so a later PATH does not change it (K283, K862, S8); mise would compile PHP from source"
     },
-    "scripts/kit/symbols/php/PublicSymbols.php": {
-      "kind": "ecosystem",
-      "tool": "nikic/php-parser reads the syntax of the PHP sources (K75)"
-    },
-    "scripts/kit/symbols/php/extract.php": {
-      "kind": "ecosystem",
-      "tool": "nikic/php-parser reads the syntax of the PHP sources (K75)"
-    },
     "scripts/kit/symbols/php/reflection.php": {
       "kind": "ecosystem",
       "tool": "the Reflection API of PHP (K75)"
     },
-    "scripts/kit/symbols/python.py": {
-      "kind": "ecosystem",
-      "tool": "ast of the Python standard library on the installed file list of importlib.metadata (K75, K788)"
-    },
     "scripts/kit/ci-setup.mts": {
       "kind": "policy",
       "reason": "the shared CI gate contract partitions required jobs and validates each declared repository setup prerequisite; ecosystems execute the selected Make targets"
-    },
-    "scripts/kit/divergence-check.mts": {
-      "kind": "policy",
-      "reason": "the rule of P32 and K315 that no implementation diverges from the contract through an escape hatch, a branch on the language, runtime or platform in a test; the patterns are polyspec's"
     },
     "scripts/kit/kit-assets.mts": {
       "kind": "policy",
@@ -453,10 +393,6 @@
     "scripts/kit/php-library/phpunit-deadline-subscriber.php": {
       "kind": "ecosystem",
       "tool": "PHPUnit 13.4 PreparationStarted events expose the test metadata used to report its configured timeout"
-    },
-    "scripts/kit/markers/python.py": {
-      "kind": "ecosystem",
-      "tool": "ast of the Python standard library, which reads the markers of the test files (K345)"
     },
     "scripts/kit/run-command.mts": {
       "kind": "ecosystem",

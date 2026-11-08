@@ -15,7 +15,7 @@ The allow-remote case shows the chain:
 
 ## What kit provides
 
-1. **Utilities.** A utility is a script whose behaviour is set by the arguments and files it is given: a tool installer, a checker, a parity tool, a release tool. Some utilities run a repository's recipes: they run the targets that the repository names, such as the CI target runner (`ci-targets`), the worktree setup that runs the repository's own install, and the test runner. A repository runs the utilities it wants, from its own recipes. A utility runs a recipe as it is written: a wrong recipe runs wrong, and the utility does not judge it. A utility stops only when it cannot do its own job, such as a missing tool, or land on a main checkout with uncommitted changes.
+1. **Utilities.** A utility is a script whose behaviour is set by the arguments and files it is given: a tool installer, a checker, a release tool. Some utilities run a repository's recipes: they run the targets that the repository names, such as the CI target runner (`ci-targets`), the worktree setup that runs the repository's own install, and the test runner. A repository runs the utilities it wants, from its own recipes. A utility runs a recipe as it is written: a wrong recipe runs wrong, and the utility does not judge it. A utility stops only when it cannot do its own job, such as a missing tool, or land on a main checkout with uncommitted changes.
 2. **Examples.** `docs/examples/` shows how the repositories commonly do their work, one working example per topic:
    - how to lay out a row's worktree and work in it
    - how to write recipes: install, build, test, lint and release targets in a Makefile that run the utilities
@@ -32,7 +32,6 @@ A native event parser preserves the framework's complete test identity. For PHPU
 `TestRef.id` is the fully qualified class, method and data set from `locationHint`, without its leading namespace
 separator; `TestRef.name` retains the native display name. The parser keeps simultaneous event flows separate.
 Two classes in different namespaces remain distinct even when their class basename, method and data set are equal.
-A qualified parity binding is compared with that qualified identity; another namespace is never treated as its alias.
 Repositories own their explicit invocation, selection and expected case inventory. This utility adds none of those policies.
 
 ## What kit does not do
@@ -66,6 +65,7 @@ kit removes what it forces, each change as a checklist row with its Red, Green a
   - `item-state` refused done without a changelog line, and a move to verifying or done without a passing Verification.
   - `ci-setup` refused a setup target that ran `kit-ci-setup` again.
   - `run-tests --venv` refused an environment whose Python was not the checkout's.
+- **Parity.** Until K1129 kit read `config/parity.json` and checked how the implementations of a repository relate: shared units, requirement citations, test names and ids, public symbols, divergence and test markers (parity-check, parity-declarations-check, divergence-check, test-markers-check), with parity jobs in the CI pipeline. Delete parity: kit does not check how implementations relate; each repository runs its own tests.
 - **Rule texts.** The `Enforced by:` lines of PRINCIPLES named these checks (S11, S12, S13 and S15 among them) and changed with each removal; until K1055 the text of PRINCIPLES also bound every repository to kit's pipeline (S12), to the gates of kit (P31) and to changes made only in kit. The shipped PRINCIPLES now claims no check that kit no longer forces.
 
 A part that works becomes an example in `docs/examples/` in the same change that removes it from kit. The removal ships in a new patch release of kit. A repository pins the kit release it installs, so it keeps its current release until it adopts the new one, and then writes its own recipes from the examples.

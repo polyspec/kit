@@ -351,7 +351,6 @@ test('K930 an npm package that declares a make entry is refused, pointing to its
 // untracked or outside-linked path. The stale output of an earlier run is ignored by Git, as a generated directory is.
 test('K939 a make entry whose Makefile includes its copy of the example bootstrap, which runs the kit that npm installs, packs the output (K1054)', { timeout: 15 * 60_000 }, (t) => {
   const box = releaseSandbox(t, { mutate(root) {
-    writeFileSync(path.join(root, 'config/parity.json'), '{"schema":1,"units":[],"implementations":[]}\n');
     const makefile = path.join(root, 'Makefile');
     mkdirSync(path.join(root, 'make'), { recursive: true });
     cpSync(path.join(CHECKOUT, 'docs/examples/bootstrap.mk'), path.join(root, 'make/bootstrap.mk'));
@@ -362,9 +361,8 @@ test('K939 a make entry whose Makefile includes its copy of the example bootstra
       packages: config.packages.map(item => (item.directory === 'packages/fixture-php' ? { ...item, generated: [{ kind: 'make', target: 'fixture-gen', outputs: ['src/gen/out.txt'] }] } : item)),
     }));
   } });
-  // The parse-time parity read of kit.mk runs the node of var/tools/bin, which make install installs; the test uses the node of this
-  // process for it. The test proves that the Makefile runs the installed packed kit and that its parse-time read succeeds; the
-  // pinned node of mise.toml is not proved here.
+  // kit.mk runs the node of var/tools/bin, which make install installs; the test uses the node of this process for it. The test
+  // proves that the Makefile runs the installed packed kit; the pinned node of mise.toml is not proved here.
   writeFileSync(path.join(box.root, 'var/tools/bin/node'), `#!/bin/sh\nexec '${process.execPath}' "$@"\n`);
   chmodSync(path.join(box.root, 'var/tools/bin/node'), 0o755);
   cpSync(installedPackedKit(t), path.join(box.root, 'node_modules'), { recursive: true });

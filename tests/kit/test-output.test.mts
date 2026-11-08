@@ -1,21 +1,8 @@
-// Tests of the node:test reader of scripts/kit/test-output.mts (nodeEvents) and of its package export. The reader reads the
-// lines of parity-node-reporter.mts, which node --test prints for each test that ends; a run of node --test over a fixture
-// test file in a temporary folder gives those lines. The export of the built package is tested in tests/source/package.test.mts.
+// Tests of the readers of scripts/kit/test-output.mts. The export of the built package is tested in tests/source/package.test.mts.
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
 import test from 'node:test';
-import { cargoEvents, goEvents, nodeEvents, toProgress, type Sink, type TestRef } from '../../scripts/kit/test-output.mts';
-import { outcomesOf, runOf } from '../../scripts/kit/parity-runners.mts';
-import { tool } from './kit-tools.mts';
+import { cargoEvents, goEvents, toProgress, type Sink, type TestRef } from '../../scripts/kit/test-output.mts';
 import { createProgress } from '../../scripts/kit/test-progress.mts';
-
-const ROOT = path.resolve(import.meta.dirname, '../..');
-const NODE_REPORTER = tool(import.meta.resolve('../../scripts/kit/parity-node-reporter.mts'));
-// A child started from inside node --test must not join that run as its child (parity-runners.mts), so the variable is removed.
-const { NODE_TEST_CONTEXT: _joined, ...ENV } = process.env;
 
 /** A sink that counts the calls of each kind and keeps the lines that it receives. */
 function counting(): Sink & { counts: Record<string, number>; lines: string[]; raws: string[] } {
@@ -34,77 +21,6 @@ function counting(): Sink & { counts: Record<string, number>; lines: string[]; r
     raw: text => { raws.push(text); },
   };
 }
-
-/** The events of a run: each line of the output of the stream goes through nodeEvents into the sink. */
-function readAll(output: string, sink: Sink): void {
-  const read = nodeEvents(sink);
-  output.split('\n').forEach(line => read(line));
-}
-
-test('nodeEvents counts 2 passing and 1 failing node:test case as pass=2 and fail=1 (K217)', () => {
-  const sink = counting();
-  readAll([
-    '{"name":"adds","outcome":"pass"}',
-    '{"name":"subtracts","outcome":"pass"}',
-    '{"name":"divides","outcome":"fail"}',
-    '',
-  ].join('\n'), sink);
-  assert.equal(sink.counts.pass, 2);
-  assert.equal(sink.counts.fail, 1);
-  assert.equal(sink.counts.skip, 0);
-  assert.deepEqual(sink.lines, []);
-});
-
-test('nodeEvents reports a line that is no case through the line path, and counts no case of it (K217)', () => {
-  const sink = counting();
-  readAll('not json\n{"name":"adds","outcome":"maybe"}\n', sink);
-  assert.equal(sink.counts.pass, 0);
-  assert.equal(sink.counts.fail, 0);
-  assert.deepEqual(sink.lines, ['not json', '{"name":"adds","outcome":"maybe"}']);
-});
-
-test('a node:test run with a zero-match name pattern gives 0 cases through nodeEvents (K217)', () => {
-  const folder = mkdtempSync(path.join(tmpdir(), 'node-events-'));
-  try {
-    writeFileSync(path.join(folder, 'cases.test.mjs'), [
-      "import test from 'node:test';",
-      "test('adds', () => {});",
-      "test('subtracts', () => {});",
-      '',
-    ].join('\n'));
-    const run = spawnSync(process.execPath, ['--test', `--test-reporter=${NODE_REPORTER}`, '--test-name-pattern=no such case', path.join(folder, 'cases.test.mjs')], { cwd: folder, encoding: 'utf8', env: ENV });
-    const sink = counting();
-    readAll(run.stdout, sink);
-    assert.equal(sink.counts.pass, 0);
-    assert.equal(sink.counts.fail, 0);
-    assert.equal(sink.counts.skip, 0);
-    assert.deepEqual(sink.lines, []);
-  } finally {
-    rmSync(folder, { recursive: true, force: true });
-  }
-});
-
-test('a node:test run of 2 passing and 1 failing case gives pass=2 and fail=1 through nodeEvents (K217)', () => {
-  const folder = mkdtempSync(path.join(tmpdir(), 'node-events-'));
-  try {
-    writeFileSync(path.join(folder, 'cases.test.mjs'), [
-      "import test from 'node:test';",
-      "import assert from 'node:assert/strict';",
-      "test('adds', () => {});",
-      "test('subtracts', () => {});",
-      "test('divides', () => assert.equal(1, 2));",
-      '',
-    ].join('\n'));
-    const run = spawnSync(process.execPath, ['--test', `--test-reporter=${NODE_REPORTER}`, path.join(folder, 'cases.test.mjs')], { cwd: folder, encoding: 'utf8', env: ENV });
-    assert.equal(run.status, 1);
-    const sink = counting();
-    readAll(run.stdout, sink);
-    assert.equal(sink.counts.pass, 2);
-    assert.equal(sink.counts.fail, 1);
-  } finally {
-    rmSync(folder, { recursive: true, force: true });
-  }
-});
 
 // A Go package without test files is a group with no cases, not a skipped named case.
 test('goEvents treats no-test packages as groups while preserving named skips, empty-run failure, and build failure', () => {
@@ -253,13 +169,4 @@ postgres: case database
 ok
 `);
   assert.deepEqual(outcomes, ['identity_load::restart_identity_takes_only_entity pass', 'identity_load::execute_load_then_restart fail', 'identity_load::execute_restart_after_delete pass']);
-});
-
-test('a malformed line of the parity node reporter fails the parity run and shows the line (K217)', () => {
-  const run = runOf({ runner: 'node' }, ROOT, { test: 'tests/kit/example.test.mts' }, 'feature', ENV);
-  if (run.error) assert.fail(run.error);
-  assert.throws(
-    () => outcomesOf(run, { stdout: '{"name":"adds","outcome":"pass"}\nnot a case\n', stderr: '' }),
-    /not a case/,
-  );
 });

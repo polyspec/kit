@@ -98,14 +98,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: make owner-validate
       # Every rule of PRINCIPLES.md and AGENTS.md names a check that this workflow, a Git hook or the Claude Code hook runs
-      # (K248); the parity declarations hold, and a checkout with one implementation needs none (K248-2).
+      # (K248).
       - name: rules check
         if: ${{ !cancelled() }}
         run: make rules-check
-      # No implementation diverges through a branch, a narrowing, a feature state or an exception without a kind (K315).
-      - name: divergence check
-        if: ${{ !cancelled() }}
-        run: make divergence-check
       # Every suppression of a lint finding states the need of the code in the form of its tool (P8, K334).
       - name: suppression check
         if: ${{ !cancelled() }}
@@ -114,16 +110,6 @@ jobs:
       - name: language check
         if: ${{ !cancelled() }}
         run: make language-check
-      # No test is skipped or narrowed by a marker (K255).
-      - name: test markers check
-        if: ${{ !cancelled() }}
-        run: make test-markers-check
-      - name: parity declarations check
-        if: ${{ !cancelled() }}
-        run: make parity-declarations-check
-      - name: parity
-        if: ${{ !cancelled() }}
-        run: make parity-check
       # Every package file classified in config/release.json (K183). Each make target of config/owner-checks.json runs in a
       # step here, or its ciExempt entry gives the reason it cannot.
       - name: release coverage
@@ -236,7 +222,7 @@ jobs:
       - name: install common tool-record tools
         if: ${{ matrix.group == 'common-1' && !cancelled() }}
         run: make install-tools TOOLS="go php composer"
-      - name: install common parity tools
+      - name: install common-2 tools
         if: ${{ matrix.group == 'common-2' && !cancelled() }}
         run: make install-tools TOOLS="go python uv php phpunit rust"
       - name: install common runtime tools

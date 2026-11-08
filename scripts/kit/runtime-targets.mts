@@ -1,16 +1,15 @@
 #!/usr/bin/env node
 // The unit test and build runs of the roots that the caller selects (K244, K1106): kit sets no runtime, no package layout, no test
-// folder and no build command. The caller names the runner and the roots, or a parity declaration whose implementations of that
-// runner give the roots:
+// folder and no build command. The caller names the runner and the roots:
 //
-//   runtime-targets test --runner <runner> (--roots <folder>... | --parity <path>) [--php-extension <library>] [--venv <folder>]
+//   runtime-targets test --runner <runner> --roots <folder>... [--php-extension <library>] [--venv <folder>]
 //                        [-- <runner argument>...]
 //                        the tests of each root with its runner through run-tests.mts, with the name filter CASES=<pattern> and the
 //                        runner arguments of the caller, such as -count=1 for go: go test ./... (one go test over the ./<root>/...
 //                        patterns of several roots), cargo test, node --test, which finds the test files of the root itself, vitest,
 //                        phpunit (with the built library of a PHP extension loaded, in each root that holds a test), python unittest
 //                        (with the interpreter of the environment <root>/<folder> that --venv names, or the python of PATH)
-//   runtime-targets build [--runner <runner>] (--roots <folder>... | --parity <path>) -- <command> [<argument>...]
+//   runtime-targets build [--runner <runner>] --roots <folder>... -- <command> [<argument>...]
 //                        the build command of the caller in each root, as the caller writes it
 //   runtime-targets infrastructure <path>... [-- <runner argument>...]
 //                        node --test in each path, which finds its test files itself
@@ -20,14 +19,12 @@
 // A call without a selection is a usage error (exit 2), and a selection that runs nothing fails: it has tested nothing. That holds
 // for a root too: each run records the counts of its tests (run-tests --results), and a run that reports no test that ran fails
 // with "found nothing to run", so a node or vitest root without a test file never passes (K1074, K1106).
-// config/parity.json is read only when the caller passes its path.
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { isJsonObject } from './bootstrap/files.mts';
 import { isTestFile } from './check-commits.mts';
-import { RUNNERS, type SharingImplementation } from './parity-declaration.mts';
 import { isMain, repositoryRoot, siblingTool } from './paths.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { listedTests } from './run-tests.mts';
@@ -36,36 +33,8 @@ import { withCaseSensitiveDirectory } from './case-sensitive-directory.mts';
 /** A run of run-tests.mts: the folder, relative to the root, the tool, the options of run-tests and the arguments of the tool. */
 export type Run = { cwd: string; tool: string; options?: string[]; args: string[] };
 
-/**
- * The implementations of the config/parity.json text `text` with the fields that the runs read (K1074): name, roots, runner and
- * shares. Only those fields are read, so the rest of the declaration is the repository's own; a field of them that is malformed
- * fails with its place, and no implementation is left out.
- */
-function parityRoots(text: string, place: string): SharingImplementation[] {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch (error) {
-    throw new Error(`${place} is no JSON: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
-  }
-  if (!isJsonObject(parsed) || !Array.isArray(parsed.implementations)) throw new Error(`${place}: implementations is no array`);
-  return parsed.implementations.map((entry: unknown, index: number) => {
-    const where = `${place}: implementations[${index}]`;
-    if (!isJsonObject(entry)) throw new Error(`${where} is no object`);
-    if (typeof entry.name !== 'string' || entry.name === '') throw new Error(`${where}.name is no name`);
-    if (!Array.isArray(entry.roots) || !entry.roots.every((root): root is string => typeof root === 'string' && root !== '')) throw new Error(`${where}.roots is no list of folders`);
-    if (typeof entry.runner !== 'string' || entry.runner === '') throw new Error(`${where}.runner is no runner`);
-    if (entry.shares !== undefined && typeof entry.shares !== 'string') throw new Error(`${where}.shares is no name`);
-    const implementation: SharingImplementation = { name: entry.name, roots: entry.roots, runner: entry.runner };
-    if (typeof entry.shares === 'string') implementation.shares = entry.shares;
-    return implementation;
-  });
-}
-
-/** The roots of the implementations of the parity declaration `text` at `place` whose runner is `runner` (K1106), sorted. */
-export function parityRunnerRoots(text: string, place: string, runner: string): string[] {
-  return [...new Set(parityRoots(text, place).filter(entry => entry.runner === runner).flatMap(entry => entry.roots))].sort();
-}
+/** The runners of the test calls. */
+export const RUNNERS = ['go', 'cargo', 'node', 'vitest', 'php', 'python'] as const;
 
 /**
  * The tests that a run selects, as PHPUnit lists them with --list-tests (K390-1); the main of this file passes the real listing, and
@@ -155,15 +124,15 @@ export function nothingRan(cwd: string, record: unknown): string | undefined {
   return `${cwd}: found nothing to run (${ran === undefined ? 'the run reported no test count' : '0 tests ran'})`;
 }
 
-const USAGE = 'usage: runtime-targets.mts test --runner <runner> (--roots <folder>... | --parity <path>) [--php-extension <library>] [--venv <folder>] [-- <runner argument>...], build [--runner <runner>] (--roots <folder>... | --parity <path>) -- <command> [<argument>...], infrastructure <path>... [-- <runner argument>...], or case-sensitive-smoke <file>...';
+const USAGE = 'usage: runtime-targets.mts test --runner <runner> --roots <folder>... [--php-extension <library>] [--venv <folder>] [-- <runner argument>...], build [--runner <runner>] --roots <folder>... -- <command> [<argument>...], infrastructure <path>... [-- <runner argument>...], or case-sensitive-smoke <file>...';
 
 /**
- * The selection of a test or build call (K1106): its runner, its roots or parity path, the library of an extension, the environment
+ * The selection of a test or build call (K1106): its runner, its roots, the library of an extension, the environment
  * folder of python and what follows --: the command of a build, or the runner arguments of a test.
  */
-export type Selection = { runner?: string; roots?: string[]; parity?: string; extension?: string; venv?: string; command: string[] };
+export type Selection = { runner?: string; roots?: string[]; extension?: string; venv?: string; command: string[] };
 
-/** The selection that the arguments `args` name; undefined for a call that names neither --roots nor --parity, or anything else. */
+/** The selection that the arguments `args` name; undefined for a call that names no --roots, or anything else. */
 export function selectionOf(args: readonly string[]): Selection | undefined {
   const separator = args.indexOf('--');
   const options = separator === -1 ? args : args.slice(0, separator);
@@ -176,8 +145,8 @@ export function selectionOf(args: readonly string[]): Selection | undefined {
       while (index + 1 < options.length && !(options[index + 1] ?? '').startsWith('--')) roots.push(options[++index] ?? '');
       if (roots.length === 0 || selection.roots !== undefined) return undefined;
       selection.roots = roots;
-    } else if ((option === '--runner' || option === '--parity' || option === '--php-extension' || option === '--venv') && value !== undefined && !value.startsWith('--')) {
-      const key = option === '--runner' ? 'runner' : option === '--parity' ? 'parity' : option === '--php-extension' ? 'extension' : 'venv';
+    } else if ((option === '--runner' || option === '--php-extension' || option === '--venv') && value !== undefined && !value.startsWith('--')) {
+      const key = option === '--runner' ? 'runner' : option === '--php-extension' ? 'extension' : 'venv';
       if (selection[key] !== undefined) return undefined;
       selection[key] = value;
       index += 1;
@@ -185,7 +154,7 @@ export function selectionOf(args: readonly string[]): Selection | undefined {
       return undefined;
     }
   }
-  if ((selection.roots === undefined) === (selection.parity === undefined)) return undefined;
+  if (selection.roots === undefined) return undefined;
   if (selection.runner !== undefined && !(RUNNERS as readonly string[]).includes(selection.runner)) return undefined;
   return selection;
 }
@@ -197,21 +166,13 @@ if (isMain(import.meta.url)) {
     console.error(`[runtime-targets] ${USAGE}`);
     process.exit(2);
   };
-  // The roots of a selection: the caller's, or those of the implementations of its runner in the parity declaration it names.
-  const rootsOf = (selection: Selection): string[] => {
-    if (selection.roots !== undefined) return selection.roots;
-    const place = selection.parity ?? '';
-    const file = path.resolve(root, place);
-    if (!existsSync(file)) throw new Error(`${place} is missing: the parity declaration that --parity names`);
-    return parityRunnerRoots(readFileSync(file, 'utf8'), place, selection.runner ?? '');
-  };
   if (mode === 'build') {
     const selection = selectionOf(args);
-    if (selection === undefined || selection.command.length === 0 || selection.extension !== undefined || selection.venv !== undefined || (selection.parity !== undefined && selection.runner === undefined)) usage();
+    if (selection === undefined || selection.command.length === 0 || selection.extension !== undefined || selection.venv !== undefined) usage();
     let builds: Build[];
     try {
       const [command = '', ...commandArgs] = selection?.command ?? [];
-      builds = buildRuns(selection === undefined ? [] : rootsOf(selection), command, commandArgs);
+      builds = buildRuns(selection?.roots ?? [], command, commandArgs);
     } catch (error) {
       console.error(`[runtime-targets] ${error instanceof Error ? error.message : String(error)}`);
       process.exit(1);
@@ -249,7 +210,7 @@ if (isMain(import.meta.url)) {
     else if (mode === 'case-sensitive-smoke') runs = caseSensitiveSmokeRuns(args);
     else if (selection !== undefined) {
       const extension = selection.extension === undefined ? undefined : path.resolve(root, selection.extension);
-      runs = testRuns(files, selection.runner ?? '', rootsOf(selection), process.env.CASES || undefined, extension, selection.venv, listed, notes, selection.command);
+      runs = testRuns(files, selection.runner ?? '', selection.roots ?? [], process.env.CASES || undefined, extension, selection.venv, listed, notes, selection.command);
     }
   } catch (error) {
     if (!(error instanceof Error)) throw error;

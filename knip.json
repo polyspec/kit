@@ -13,10 +13,10 @@
     "rustup",
     "taskkill.exe",
     "shasum",
-    "php",
     "openssl"
   ],
   "ignoreDependencies": [
+    "@microsoft/api-extractor",
     "oxlint",
     "oxlint-tsgolint",
     "jscpd"

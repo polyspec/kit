@@ -16,7 +16,6 @@
     "version": "11.5.57"
   },
   "symbolExtractors": [
-    "go",
     "php"
   ],
   "exceptions": [
@@ -24,7 +23,7 @@
       "tool": "rust",
       "channel": "nightly-2026-10-01",
       "scope": ".",
-      "reason": "parity extracts the Rust symbols with rustdoc JSON, which needs nightly",
+      "reason": "a crate of the repository reads rustdoc JSON, which needs nightly",
       "retry": "rustdoc JSON is stable (rust-lang/rust#76578)"
     }
   ]

@@ -17,13 +17,8 @@ This is the procedure of an agent or a person who works in a repository that tak
 
 ## Scope
 
-- A contract behaviour exists in every implementation (S6, S10) and is implemented with its tests (P32).
-- A language- or runtime-native integration is written once as a neutral rule in `docs/spec`; each implementation binds its
-  native form (P32).
-- A test of the internals of one implementation is a plain package test that no parity unit names and that cites no
-  requirement; a symbol that is public by accident becomes non-public (P32).
-- A rule the work needs and `docs/spec` lacks is written there first. A unit is never dropped, a requirement is never cited
-  without a test, and nothing is renamed to escape a check (P33).
+- kit does not check how implementations relate; each repository runs its own tests (K1129).
+- A rule the work needs and `docs/spec` lacks is written there first, and nothing is renamed to escape a check (P33).
 - Repeated code is restructured, a tool source is classified and generated output is untracked except a tracked generated source that a consumer installs as the tagged tree itself, declared in config/generated.json (P34).
 
 ## Providers

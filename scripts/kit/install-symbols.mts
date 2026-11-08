@@ -1,24 +1,17 @@
-// Installs the symbol extractors of the language-parity check (parity-symbols.mts) that the EXTRACTORS argument names, or with
-// --declared those of config/toolchain.json symbolExtractors, into var/tools/symbols-<extractor> (K1071):
-//   go   the Go program of scripts/kit/symbols/go, which reads the types of a module with golang.org/x/tools/go/packages at
-//        the release that its go.mod and go.sum pin, built with `go build` of the Go of mise.toml into bin/kit-symbols-go (the
-//        go of the install that `mise where go` prints in the checkout, not the shim, which would read the mise.toml of a
-//        linked kit checkout, K199), in the environment of the caller with the tools of the checkout (K1092) and with
-//        GOWORK=off: the extractor is a module of its own, which lies under node_modules of the consumer, so a go.work of the
-//        consumer does not list it (`go help environment`)
-//   php  the Composer project of scripts/kit/symbols/php, whose composer.lock pins nikic/php-parser, installed into vendor
-//        with the Composer of mise.toml, with the environment of the caller and no flag of kit (K1095)
-// Each install builds the extractor again, and go and Composer keep their own caches (K861); the build goes into a temporary
+// Installs the PHP programs of kit (scripts/kit/symbols/php) that lint-php and php-extension run, when the EXTRACTORS argument
+// names php, or with --declared when config/toolchain.json symbolExtractors names it, into var/tools/symbols-php (K1071): the
+// Composer project of scripts/kit/symbols/php, whose composer.lock pins nikic/php-parser, installed into vendor with the
+// Composer of mise.toml, with the environment of the caller and no flag of kit (K1095).
+// Each install builds the extractor again, and Composer keeps its own cache (K861); the build goes into a temporary
 // directory beside the target and is renamed into place (install-tool.mts); nothing is installed into the machine.
-import { copyFileSync, existsSync } from 'node:fs';
+import { copyFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { replaceInstall } from './bootstrap/install-tool.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
-import { miseWhere } from './bootstrap/install-mise.mts';
 import { toolCommand } from './mise-tools.mts';
 import { declaredToolchain, type InstalledExtractor } from './bootstrap/toolchain-declared.mts';
-import { declaredMiseTools, MISE_TOOLS } from './toolchain-mise.mts';
+import { declaredMiseTools } from './toolchain-mise.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 
 // The extractor programs that kit ships beside its tools (the build copies scripts/kit/symbols into dist/symbols).
@@ -27,35 +20,12 @@ export const SYMBOLS = path.join(path.dirname(fileURLToPath(import.meta.url)), '
 /** The installation directory of the extractor `extractor` under `root`. */
 export const symbolsPrefix = (root: string, extractor: InstalledExtractor): string => toolsPath(root, `symbols-${extractor}`);
 
-const GO_MISSING = 'the go symbol extractor needs the Go of mise.toml; declare go in mise.toml and run make install-tools';
-
-/** The go of the install of the Go of mise.toml of `root`, which `mise where go` names in `root`. */
-function goCommand(root: string): string {
-  let directory: string;
-  try {
-    directory = miseWhere(root, MISE_TOOLS.go.key);
-  } catch (error) {
-    if (!(error instanceof Error)) throw error;
-    throw new Error(`${GO_MISSING}: ${error.message}`, { cause: error });
-  }
-  const go = path.join(directory, 'bin', MISE_TOOLS.go.command);
-  if (!existsSync(go)) throw new Error(`${GO_MISSING}: ${go} does not exist`);
-  return go;
-}
-
 // How each extractor is built into the temporary directory `next` for the checkout `root`.
 const BUILDS: Record<InstalledExtractor, (root: string, next: string, print: (text: string) => void) => void> = {
   php: (root, next, print) => {
     const composer = toolCommand(root, 'composer');
     for (const file of ['composer.json', 'composer.lock']) copyFileSync(path.join(SYMBOLS, 'php', file), path.join(next, file));
     run(composer, ['install'], { cwd: next, env: process.env }, print);
-  },
-  // The Go of mise.toml of the checkout by its absolute path, never a go of the machine nor the shim: the build runs in the
-  // extractor sources, which a linked kit puts in the kit checkout, whose mise.toml the shim would read and the checkout does not
-  // trust (K199).
-  go: (root, next, print) => {
-    const go = goCommand(root);
-    run(go, ['build', '-trimpath', '-o', path.join(next, 'bin', 'kit-symbols-go'), '.'], { cwd: path.join(SYMBOLS, 'go'), env: { ...process.env, GOWORK: 'off' } }, print);
   },
 };
 
@@ -75,17 +45,16 @@ export function installDeclaredExtractors({
   print?: (text: string) => void;
   install?: typeof installExtractor;
 }) {
-  if (extractors.length === 0 || extractors.some(name => name.trim() === '')) throw new Error('EXTRACTORS must name one or more symbol extractors; run make kit-install-symbols EXTRACTORS="go" or EXTRACTORS="php"');
+  if (extractors.length === 0 || extractors.some(name => name.trim() === '')) throw new Error('EXTRACTORS must name one or more symbol extractors; run make kit-install-symbols EXTRACTORS="php"');
   if (new Set(extractors).size !== extractors.length) throw new Error(`EXTRACTORS repeats a symbol extractor: ${extractors.join(', ')}`);
-  const isExtractor = (name: string): name is InstalledExtractor => name === 'go' || name === 'php';
+  const isExtractor = (name: string): name is InstalledExtractor => name === 'php';
   const selected = extractors.filter(isExtractor);
   const unknown = extractors.filter(name => !isExtractor(name));
-  if (unknown.length) throw new Error(`unknown symbol extractor${unknown.length === 1 ? '' : 's'} ${unknown.join(', ')}; choose go, php`);
+  if (unknown.length) throw new Error(`unknown symbol extractor${unknown.length === 1 ? '' : 's'} ${unknown.join(', ')}; choose php`);
   // The EXTRACTORS argument names what to install; config/toolchain.json need not repeat it (K1071).
   const toolchain = declaredToolchain(root);
 
   const mise = declaredMiseTools(root);
-  if (selected.includes('go') && !mise.go) throw new Error('the Go symbol extractor needs go in mise.toml; run make install-tools TOOLS=go');
   if (selected.includes('php')) {
     if (!mise.composer) throw new Error('the PHP symbol extractor needs http:composer in mise.toml; run make install-tools TOOLS=php composer');
     if (!toolchain.php) throw new Error('the PHP symbol extractor needs PHP declared by .php-version or config/toolchain.json php; run make install-tools TOOLS=php composer');

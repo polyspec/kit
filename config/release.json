@@ -19,8 +19,7 @@
   },
   "notReleased": {
     "config/php-lint/composer.json": "the private Composer tool project that installs PHP lint dependencies, not a released package",
-    "scripts/kit/symbols/go/go.mod": "the Go module of the go symbol extractor of parity, which make kit-install-symbols builds and the package @polyspec/kit ships in dist/symbols",
-    "scripts/kit/symbols/php/composer.json": "the Composer project of the php symbol extractor of parity, which make kit-install-symbols installs and the package @polyspec/kit ships in dist/symbols"
+    "scripts/kit/symbols/php/composer.json": "the Composer project of the PHP programs of kit, which make kit-install-symbols installs and the package @polyspec/kit ships in dist/symbols"
   },
   "goModules": {},
   "packageFiles": [

@@ -1,6 +1,6 @@
 // The files that the modules of kit read beside their own module, and those that the kit-build recipe of the Makefile of kit ships
 // into dist (K421). A consumer holds no scripts/kit: a module that reads a file beside itself reads it from dist, so kit-build ships
-// each such file or folder, or every consumer fails as test-markers-check did until K345-1. A module that tsc compiles beside the
+// each such file or folder, or every consumer fails to read it (K345-1). A module that tsc compiles beside the
 // reader is no asset.
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

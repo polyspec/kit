@@ -1,5 +1,5 @@
 <!-- doc-id: spec-utilities-and-recipes -->
-<!-- source-sha256: bed94729d3727dbcd7735960fb5730054d68c9fa29aa11f3c1a332dceac2186b -->
+<!-- source-sha256: cadf08d3719d578e1468728918f5878e88cada3447e8373f98910e81d56c148c -->
 # 유틸리티와 예제
 
 [English](utilities-and-recipes.md)
@@ -16,7 +16,7 @@ allow-remote 사례가 그 연쇄를 보여 준다.
 
 ## kit이 제공하는 것
 
-1. **유틸리티.** 유틸리티는 받은 인자와 파일로 동작이 정해지는 스크립트다. 도구 설치기, 검사기, parity 도구, 릴리즈 도구가 여기에 든다. 일부 유틸리티는 저장소의 레시피를 실행한다. 저장소가 이름을 대는 target을 실행하는 것으로, CI target 실행기(`ci-targets`), 저장소 자신의 설치를 실행하는 worktree 설정, 테스트 실행기가 그 예다. 저장소는 원하는 유틸리티를 자기 레시피에서 실행한다. 유틸리티는 레시피를 적힌 그대로 실행한다. 잘못된 레시피는 잘못된 대로 실행되며, 유틸리티는 그것을 판정하지 않는다. 유틸리티가 멈추는 것은 자기 일을 할 수 없을 때뿐이다. 도구가 없을 때, 커밋하지 않은 변경이 있는 main checkout에서 land할 때가 그 예다.
+1. **유틸리티.** 유틸리티는 받은 인자와 파일로 동작이 정해지는 스크립트다. 도구 설치기, 검사기, 릴리즈 도구가 여기에 든다. 일부 유틸리티는 저장소의 레시피를 실행한다. 저장소가 이름을 대는 target을 실행하는 것으로, CI target 실행기(`ci-targets`), 저장소 자신의 설치를 실행하는 worktree 설정, 테스트 실행기가 그 예다. 저장소는 원하는 유틸리티를 자기 레시피에서 실행한다. 유틸리티는 레시피를 적힌 그대로 실행한다. 잘못된 레시피는 잘못된 대로 실행되며, 유틸리티는 그것을 판정하지 않는다. 유틸리티가 멈추는 것은 자기 일을 할 수 없을 때뿐이다. 도구가 없을 때, 커밋하지 않은 변경이 있는 main checkout에서 land할 때가 그 예다.
 2. **예제.** `docs/examples/`는 저장소들이 보편적으로 일하는 방법을 주제마다 작동하는 예제 하나로 보여 준다.
    - row의 worktree를 어떻게 짜고 그 안에서 어떻게 일하는가
    - 레시피를 어떻게 짜는가: 유틸리티를 실행하는 Makefile의 설치, 빌드, 테스트, lint, 릴리즈 target
@@ -33,7 +33,6 @@ Native event parser는 framework의 완전한 test identity를 보존한다. PHP
 `TestRef.id`는 `locationHint`의 fully qualified class, method, data set이며 맨 앞 namespace separator만 제외한다.
 `TestRef.name`은 native display name을 유지한다. Parser는 동시에 진행되는 event flow를 구분한다.
 서로 다른 namespace의 class는 class basename, method, data set이 같아도 구별된다.
-Qualified parity binding은 qualified identity와 비교하며 다른 namespace를 alias로 취급하지 않는다.
 명시적 invocation, selection, expected case inventory는 repository가 소유하며 이 utility는 해당 정책을 추가하지 않는다.
 
 ## kit이 하지 않는 것
@@ -67,6 +66,7 @@ kit은 자기가 강제하는 것을 지운다. 각 변경은 Red, Green, 커밋
   - `item-state`는 changelog 줄 없는 완료와, Verification이 통과하지 않은 검증 중 또는 완료로의 이동을 거부했다.
   - `ci-setup`은 `kit-ci-setup`을 다시 실행하는 설정 target을 거부했다.
   - `run-tests --venv`는 Python이 checkout의 것이 아닌 환경을 거부했다.
+- **Parity.** K1129 전까지 kit은 `config/parity.json`을 읽고 저장소의 구현들이 서로 어떻게 관계되는지 검사했다. 공유 unit, requirement 인용, test 이름과 id, public symbol, divergence, test marker(parity-check, parity-declarations-check, divergence-check, test-markers-check)이며, CI 파이프라인에 parity job이 있었다. parity 삭제: kit은 구현들이 서로 어떻게 관계되는지 검사하지 않으며, 각 저장소가 자기 테스트를 실행한다.
 - **규칙 문장.** PRINCIPLES의 `Enforced by:` 줄은 이 검사들(S11, S12, S13, S15 등)을 적었고 각 삭제와 함께 바뀌었다. K1055 전까지 PRINCIPLES의 본문은 모든 저장소를 kit의 파이프라인(S12), kit의 gate(P31), kit에서만 하는 변경에도 묶었다. 이제 배포되는 PRINCIPLES는 kit이 더는 강제하지 않는 검사를 주장하지 않는다.
 
 작동하는 부분은 kit에서 지우는 바로 그 변경에서 `docs/examples/`의 예제가 된다. 삭제는 kit의 새 패치 릴리즈로 나간다. 저장소는 자기가 설치하는 kit 릴리즈를 고정하므로, 새 릴리즈를 받을 때까지 지금 릴리즈를 유지하고, 받을 때 예제를 보고 자기 레시피를 쓴다.

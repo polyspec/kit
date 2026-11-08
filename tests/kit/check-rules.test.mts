@@ -222,7 +222,7 @@ test('a target is expanded for each set of variables it is called with, so every
 // reached, and config/ci.json, which kit's example pipeline reads, reaches nothing by itself.
 test('the CI pipeline of a repository is read as one of its workflows, and config/ci.json reaches no target (K1057)', (t) => {
   const agents = rules('- Own: Docs.\n  Enforced by: `make own-docs`', '- Own: Go tests.\n  Enforced by: `make test-go`');
-  const config = JSON.stringify({ schema: 1, parityMode: 'none', setup: { shared: [], parity: [], runtimes: { go: [], php: [], 'php-ext': [], python: [], rust: [], ts: [] } }, targets: { shared: [], runtimes: { go: ['test-go'] } } });
+  const config = JSON.stringify({ schema: 1, setup: { shared: [], runtimes: { go: [], php: [], 'php-ext': [], python: [], rust: [], ts: [] } }, targets: { shared: [], runtimes: { go: ['test-go'] } } });
   const root = tree(t, {
     Makefile: 'test-go:\n\t@echo go\nown-docs:\n\t@echo docs\n',
     'config/ci.json': config,

@@ -27,7 +27,7 @@ function goShim(root: string) {
 test('go workspace discovery runs with the mise environment that the caller passes (K476, K1093)', () => {
   const root = repositoryRoot();
   const environment = { ...miseEnvironment(root), PATH: process.env.PATH ?? '' };
-  const workspace = goWorkFile(root, 'scripts/kit/symbols/go', environment);
+  const workspace = goWorkFile(root, 'tests/kit/fixture/packages/fixture-go', environment);
   assert.ok(workspace === null || path.isAbsolute(workspace), `unexpected go env GOWORK output ${JSON.stringify(workspace)}`);
 });
 

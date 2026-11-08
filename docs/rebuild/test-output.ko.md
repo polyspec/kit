@@ -1,12 +1,11 @@
 <!-- doc-id: rebuild-test-output -->
-<!-- source-sha256: 8dfdd5ea5fd477e77802349c1222629b44aa1eea29799f3b204d9c5f3679040d -->
+<!-- source-sha256: ec17536fc7a9c7b2b27d6c16fd273432f22260b75260f1dfcf4e263cd5e1d27e -->
 # 재구현 기록: test-output
 
 [English](test-output.md)
 
 판정: libtest, unittest, TeamCity 읽기는 **맞는 도구 없음**입니다. 2026-10-13에 측정했습니다. kit의 어떤 도구도 TAP을 읽지
-않습니다: parity의 node runner는 node:test reporter인 `parity-node-reporter.mts`로 보고하므로(K75), K125의 tap-parser
-reader를 제거했습니다.
+않으므로 K125의 tap-parser reader를 제거했습니다.
 
 ## 대상
 
@@ -14,7 +13,7 @@ reader를 제거했습니다.
 
 ## 요구사항
 
-run-tests는 각 test가 시작하고, 계속 실행되고, 끝나는 것을 출력하며, parity는 각 test의 결과를 읽습니다. 둘 다 S3의
+run-tests는 각 test가 시작하고, 계속 실행되고, 끝나는 것을 출력합니다. 이를 위해 S3의
 표준 runner에서 실행 중의 event를 그때그때 받아야 합니다.
 
 | 항목 | 형식 | 요구사항 |

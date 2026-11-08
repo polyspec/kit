@@ -3,7 +3,6 @@
   "runtimes": [],
   "setup": {
     "shared": [],
-    "parity": [],
     "runtimes": {
       "go": [],
       "php": [],

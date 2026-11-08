@@ -1,20 +1,11 @@
 {
   "schema": 1,
-  "comment": "The toolchains of the kit itself that mise does not install. The bootstrap installs mise (its archive of each platform by sha256) first, then with it the node and npm of mise.toml; mise installs the tools of mise.toml at the digests of mise.lock. install-tools then installs the Composer project of config/phpunit (phpunit), and make kit-install-symbols the declared symbol extractors used by parity and PHP lint; with rustup it also installs the Rust nightly of exceptions, which the rust symbol extractor of parity-real runs.",
+  "comment": "The toolchains of the kit itself that mise does not install. The bootstrap installs mise (its archive of each platform by sha256) first, then with it the node and npm of mise.toml; mise installs the tools of mise.toml at the digests of mise.lock. install-tools then installs the Composer project of config/phpunit (phpunit), and make kit-install-symbols the PHP programs of kit that PHP lint reads.",
   "phpunit": {
     "version": "13.4.2"
   },
   "symbolExtractors": [
     "php"
-  ],
-  "exceptions": [
-    {
-      "tool": "rust",
-      "channel": "nightly-2026-10-01",
-      "scope": ".",
-      "reason": "the rust symbol extractor of parity, kit's own tool, reads rustdoc JSON, which only a nightly writes (rust-lang/rust#76578)",
-      "retry": "rustdoc JSON is stable"
-    }
   ],
   "mise": {
     "version": "2026.10.10",

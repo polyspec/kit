@@ -16,7 +16,7 @@ const KIT_FILES = ['config/layout.kit.yml', 'config/composer.schema.json'];
 // The alint binary that mise installed for this checkout, which the shim of a sandbox runs.
 const ALINT = installedBinary('alint');
 
-// The map of the repository demo: the component codec has ports, and the root tests/ holds the parity runner.
+// The map of the repository demo: the component codec has ports, and the root tests/ holds an end-to-end runner.
 const LAYOUT = `version: 1
 extends:
   - layout.kit.yml
@@ -33,7 +33,7 @@ rules:
   - id: layout-packages
     paths: ["packages/*", "!packages/go", "!packages/php", "!packages/php-ext", "!packages/python", "!packages/rust", "!packages/ts", "!packages/js", "!packages/codec"]
   - id: layout-root-tests
-    paths: ["tests/*", "!tests/kit", "!tests/parity"]
+    paths: ["tests/*", "!tests/kit", "!tests/e2e"]
 `;
 
 // The autoload of a library (S2): PSR-4 for the package, autoload-dev PSR-4 for its tests, files for namespaced functions.
@@ -51,7 +51,7 @@ const GOOD: Record<string, string> = {
   '.gitignore': 'var/\nnode_modules/\nvendor/\n.venv/\n',
   'config/layout.yml': LAYOUT,
   'config/generated.json': JSON.stringify({ schema: 1, paths: [], exceptions: [] }),
-  'config/parity.json': JSON.stringify({ implementations: [{ name: 'go', roots: ['packages/go'] }] }),
+  'config/example.json': JSON.stringify({ roots: ['packages/go'] }),
   // The modules of the repository resolve each other through its go.work.
   'go.work': 'go 1.27.2\n\nuse (\n\t./packages/codec/go\n\t./packages/go\n)\n',
   'packages/go/go.mod': 'module github.com/polyspec/demo/packages/go\n\ngo 1.27.2\n\nrequire github.com/polyspec/demo/packages/codec/go/v2 v2.0.0\n',
@@ -69,7 +69,7 @@ const GOOD: Record<string, string> = {
   'packages/php-ext/composer.json': JSON.stringify({ name: 'polyspec/demo-ext', type: 'php-ext' }),
   'tests/kit/consumer/composer.json': JSON.stringify({ name: 'polyspec/demo-consumer', type: 'project', require: { 'polyspec/demo': '0.0.1' } }),
   'scripts/build.mts': '#!/usr/bin/env node\nconsole.log("build");\n',
-  'tests/parity/run.mts': 'console.log("parity");\n',
+  'tests/e2e/run.mts': 'console.log("e2e");\n',
   'docs/spec/a.md': '# a\n',
   'docs/features.md': '# Features\n',
   'contracts/vectors.json': '{}\n',
@@ -86,8 +86,8 @@ const VIOLATIONS: { rule: string; files: Record<string, string> }[] = [
   { rule: 'layout-no-repository-prefix', files: { 'packages/codec/demo-go/go.mod': 'module github.com/polyspec/demo/packages/codec/demo-go\n' } },
   { rule: 'layout-go-module-path', files: { 'packages/go/go.mod': 'module github.com/polyspec/demo-go\n\ngo 1.27.2\n' } },
   { rule: 'layout-root-tests', files: { 'tests/unit/a.test.mts': 'x\n' } },
-  { rule: 'layout-no-pythonpath', files: { 'config/parity.json': JSON.stringify({ implementations: [{ name: 'python', env: [{ name: 'PYTHONPATH', value: 'packages/python/src' }] }] }) } },
-  { rule: 'layout-config-paths', files: { 'config/parity.json': JSON.stringify({ implementations: [{ name: 'go', roots: ['../other/packages/go'] }] }) } },
+  { rule: 'layout-no-pythonpath', files: { 'config/example.json': JSON.stringify({ env: [{ name: 'PYTHONPATH', value: 'packages/python/src' }] }) } },
+  { rule: 'layout-config-paths', files: { 'config/example.json': JSON.stringify({ roots: ['../other/packages/go'] }) } },
   { rule: 'layout-go-replace', files: { 'packages/go/go.mod': `module github.com/polyspec/demo/packages/go\n\nreplace example.com/x => ${OUTSIDE}\n` } },
   { rule: 'layout-python-path', files: { 'packages/python/pyproject.toml': `[project]\nname = "polyspec-demo"\n\n[tool.uv.sources]\nx = { path = "${OUTSIDE}" }\n` } },
   { rule: 'layout-cargo-path', files: { 'packages/rust/Cargo.toml': `[package]\nname = "demo"\n\n[lints]\nworkspace = true\n\n[dependencies]\nx = { path = "${OUTSIDE}" }\n` } },
@@ -150,20 +150,6 @@ test('make layout-check passes on a repository that follows the layout', (t) => 
   const result = layoutCheck(repository(t));
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   assert.match(result.stdout, /all rules passed/);
-});
-
-test('the PYTHONPATH validator fixture is excluded while a real declaration is rejected', (t) => {
-  assert.ok(existsSync(ALINT), 'the alint of mise.toml is missing; make install-tools installs it');
-  const fixture = layoutCheck(repository(t, {
-    'tests/kit/parity-api.test.mts': "const forbiddenName = 'PYTHONPATH';\n",
-  }));
-  assert.equal(fixture.status, 0, `${fixture.stdout}${fixture.stderr}`);
-
-  const declaration = layoutCheck(repository(t, {
-    'config/parity.json': JSON.stringify({ implementations: [{ name: 'python', env: [{ name: 'PYTHONPATH', value: 'packages/python/src' }] }] }),
-  }));
-  assert.notEqual(declaration.status, 0, declaration.stdout + declaration.stderr);
-  assert.match(declaration.stdout, /config\/parity\.json:\d+:\d+: error: layout-no-pythonpath:/);
 });
 
 test('make layout-check fails on each planted violation with the rule that names it', (t) => {
