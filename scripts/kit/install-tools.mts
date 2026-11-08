@@ -90,10 +90,10 @@ export function installTools({ root = repositoryRoot(), tools, print = () => {} 
   if (!existsSync(mise)) throw new Error(`${path.relative(root, mise)} is missing; run make install-tools TOOLS=npm, the bootstrap that installs mise`);
   // The trusted-configs of mise keep the trust of this checkout only: the entries of the home directory, of other checkouts and of removed worktrees go (K397).
   removeForeignTrusts(root);
-  // The Rust channels that the exceptions declare; a malformed exception fails here.
-  const exceptions = readExceptions(root);
+  // The Rust channels that the exceptions of rust declare, read only when rust is installed (K1072).
+  const exceptions = selection.rust ? readExceptions(root, 'rust') : { exceptions: [], findings: [] };
   if (exceptions.findings.length > 0) throw new Error(exceptions.findings.join('\n'));
-  const rustChannels = selection.rust ? [...new Set(exceptions.exceptions.filter(exception => exception.tool === 'rust').map(exception => exception.channel))] : [];
+  const rustChannels = [...new Set(exceptions.exceptions.map(exception => exception.channel))];
   const { phpunit, php } = declaredToolchain(root);
   const { phpLint } = declaredLintTools(root);
   // var/tools/bin comes first on PATH, so a wrapper that kit no longer writes would shadow the shims of mise in this run too.

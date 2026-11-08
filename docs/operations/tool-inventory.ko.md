@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 26ac1da3ee55acf0f1f10a7838a130954860523ca41adffb6c471063a453a79c -->
+<!-- source-sha256: e998cdc5f33a097abee9050e566ba62a5257266bfa577d44ba1b5a7fb392274f -->
 
 # 도구 목록
 
@@ -121,11 +121,11 @@ PIE는 저장소가 자기 recipe에서 실행하는 도구입니다. 저장소�
 
 kit은 toolchain의 version pin을 두지 않고 어떤 version과도 비교하지 않습니다(S4). 각 도구의 version은 저장소가 `mise.toml`,
 `rust-toolchain.toml`, `package.json`, `go.mod` 또는 lock에 선언한 것이며, 판단은 package manager가 합니다.
-선언되는 예외는 Rust nightly 하나뿐입니다. `config/toolchain.json`의 `exceptions`는
-`{ tool: "rust", channel: "nightly-<yyyy-mm-dd>", scope, reason, retry }`를 선언하며(S8), scope는 `.` 또는 checkout의 directory입니다.
-`make install-tools`는 선언된 channel마다 설치합니다. parity는 rustdoc JSON을 위해 nightly를 읽으며, 이 형식은 nightly만 씁니다.
-다른 도구의 예외, nightly가 아닌 channel, checkout의 directory가 아닌 scope는 finding입니다. Rust nightly는 parity가 읽으므로
-stale이 되지 않습니다.
+`config/toolchain.json`의 `exceptions`는 `{ tool, channel, scope }` 항목을 선언하며(S8), scope는 `.`(기본값) 또는 checkout의
+directory입니다. kit은 호출자가 이름 붙인 도구의 항목만 읽습니다(K1072). `make install-tools`는 rust를 설치할 때 rust 항목마다
+channel을 설치하고, parity는 rustdoc JSON을 위해 Rust nightly를 읽으며, 이 형식은 nightly만 씁니다. 다른 도구의 항목, kit이 읽지
+않는 필드, channel의 형식은 저장소의 것이며, channel이 없는 그 도구의 항목은 그것을 설치할 호출자의 finding입니다. Rust nightly는
+parity가 읽으므로 stale이 되지 않습니다.
 
 - TOML은 kit의 유일한 TOML reader인 `toml.mts`의 `readToml`로, smol-toml이 읽습니다(K73).
 - signal로 끝난 version 명령은 `exit status null`이 아니라 `ended by signal SIGKILL`처럼 signal로 보고합니다(K118).

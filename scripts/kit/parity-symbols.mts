@@ -228,10 +228,10 @@ export function rustdocSymbols(doc: Rustdoc): string[] {
 
 /** The Rust nightly of config/toolchain.json exceptions whose scope holds `entry`, or why there is none. */
 function rustNightly(root: string, entry: string): { channel: string; error?: never } | { error: string } {
-  const covering = readExceptions(root).exceptions.filter(exception => exception.tool === 'rust' && exception.channel.startsWith('nightly-') && (exception.scope === '.' || entry.startsWith(`${exception.scope}/`)));
+  const covering = readExceptions(root, 'rust').exceptions.filter(exception => exception.channel.startsWith('nightly-') && (exception.scope === '.' || entry.startsWith(`${exception.scope}/`)));
   if (covering.length === 1) return { channel: present(covering[0], 'covering[0]').channel };
   if (covering.length > 1) return { error: `config/toolchain.json exceptions holds ${covering.length} Rust nightlies whose scope holds ${entry}: ${covering.map(exception => exception.channel).join(', ')}; keep one` };
-  return { error: `rustdoc JSON needs a Rust nightly (rust-lang/rust#76578), and config/toolchain.json exceptions declares none whose scope holds ${entry}; declare { tool: "rust", channel: "nightly-<yyyy-mm-dd>", scope, reason, retry: "rustdoc JSON is stable" }` };
+  return { error: `rustdoc JSON needs a Rust nightly (rust-lang/rust#76578), and config/toolchain.json exceptions declares none whose scope holds ${entry}; declare { tool: "rust", channel: "nightly-<yyyy-mm-dd>", scope }` };
 }
 
 /** The public symbols of the library of the Cargo.toml `entry`, with its declared Cargo features, from rustdoc JSON. */

@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K1072: install-tools reads the toolchain exceptions only of rust, and only when it installs rust, and kit reads of an entry only its channel and scope: an entry of another tool, a field that kit does not read and the form of a channel refuse no install (K1072).
 - K1071: install-symbols installs the extractors that its EXTRACTORS argument names, and config/toolchain.json need not repeat them in symbolExtractors (K1071).
 - kit-check validates no config/<name>.json of a repository against the schema of kit of that name: scripts/kit/kit-check.mts, its make target `kit-check`, its place in `kit-gates` and `kit-gates-static`, and its CI steps are gone; `PACKAGE` and `isSource` move to manifests.mts and `writtenByKit` into release.mts. Each tool validates the configuration it reads; a repository whose recipe still runs kit-check fails, since the tool is gone, until it removes the call (K1070).
 - Each schema of kit checks only the keys its tool reads: no schema refuses a key it does not describe (additionalProperties false is gone) or requires the version key schema, a reason that its tool does not read (duplication exclude, generated exceptions and tracked, parity internal), the setup of every runtime in config/ci.json, or describes ciExempt, which no tool of kit reads (K1069).

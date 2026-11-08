@@ -127,11 +127,12 @@ file, which `rustup` reads; CI's `setup-node` reads the node of `mise.toml` only
 
 kit states no version pin of a toolchain and compares no version with one (S4): each tool's version is the one that its
 repository declares in `mise.toml`, `rust-toolchain.toml`, `package.json`, `go.mod` or its lock, and the package manager judges it.
-The one declared exception is a Rust nightly. `exceptions` of `config/toolchain.json` declares
-`{ tool: "rust", channel: "nightly-<yyyy-mm-dd>", scope, reason, retry }` (S8), where scope is `.` or a directory of the checkout;
-`make install-tools` installs each declared channel. Parity reads the nightly for rustdoc JSON, which only a nightly writes, so it
-fails without one where it needs one. An exception of another tool, a channel that is no nightly, or a scope that is no directory
-of the checkout is a finding. A Rust nightly is never stale: parity reads it.
+`exceptions` of `config/toolchain.json` declares entries `{ tool, channel, scope }` (S8), where scope is `.` (the default) or a
+directory of the checkout. kit reads the entries of the tool its caller names and nothing else (K1072): `make install-tools`
+installs the channel of each rust entry when it installs rust, and parity reads the Rust nightly for rustdoc JSON, which only a
+nightly writes, so it fails without one where it needs one. An entry of another tool, a field that kit does not read and the form
+of a channel are the repository's own; an entry of the tool without a channel is a finding of the caller that would install it.
+A Rust nightly is never stale: parity reads it.
 
 - TOML is read by smol-toml through `readToml` of `toml.mts`, the one TOML reader of kit (K73).
 - A version command ended by a signal is reported with the signal, for example `ended by signal SIGKILL`, not

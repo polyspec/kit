@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: d03bdf532b06666626f47fb89b92f07dfe1d164a9776bdd8798c5e7b6276a800 -->
+<!-- source-sha256: 4d796e9652fca53c6d875f8b74b9944589c7424842c49897ef92119a6b8cedc2 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -199,7 +199,7 @@
 | K1069 | kit 스키마는 그 도구가 읽는 키만 검사한다: additionalProperties false도, 도구가 쓰지 않는 필수 키도 없다 | scripts/kit/schema/*.schema.json, scripts/kit/schema-validate.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1069 tests/kit/schema-validate.test.mts` | [ ] |
 | K1070 | kit-check는 저장소의 config/<name>.json을 같은 이름의 kit 스키마로 검사하지 않는다 | scripts/kit/kit-check.mts, tests/kit, docs, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1070 tests/kit/kit-check.test.mts` | [ ] |
 | K1071 | install-symbols는 EXTRACTORS 인수가 이름 붙인 추출기를 설치하며, config/toolchain.json이 그것을 되풀이하기를 요구하지 않는다 | scripts/kit/install-symbols.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1071 tests/kit/install-symbols.test.mts` | [o] |
-| K1072 | install-tools는 설치하는 도구의 toolchain 예외만 읽으므로, 선택되지 않은 도구의 예외가 실행을 거부하지 않는다 | scripts/kit/install-tools.mts, scripts/kit/toolchain-exceptions.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1072 tests/kit/install-tools.test.mts` | [ ] |
+| K1072 | install-tools는 설치하는 도구의 toolchain 예외만 읽으므로, 선택되지 않은 도구의 예외가 실행을 거부하지 않는다 | scripts/kit/install-tools.mts, scripts/kit/toolchain-exceptions.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1072 tests/kit/install-tools.test.mts` | [o] |
 | K1073 | generated-files staged는 config/generated.json을 요구하지 않고 stage된 경로를 읽는다 | scripts/kit/generated-files.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1073 tests/kit/generated-files.test.mts` | [ ] |
 | K1074 | runtime-targets는 config/parity.json에서 roots만 읽고 배치를 강제하지 않는다: 엄격한 parity 스키마, roots의 테스트 요구, __init__.py 규칙, packages/<runtime> 배치, 추적된 smoke fixture, go.work 모듈 규칙이 없다 | scripts/kit/runtime-targets.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1074 tests/kit/runtime-targets.test.mts` | [ ] |
 | K1075 | php-extension은 packages/php-ext가 선언한 확장을 빌드하며, Composer 이름과 확장 이름에 대한 이름 규칙을 두지 않는다 | scripts/kit/php-extension.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1075 tests/kit/php-extension.test.mts` | [ ] |

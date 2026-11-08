@@ -181,6 +181,15 @@ test('K861: install-tools installs no symbol extractor; their make targets are t
   for (const prefix of ['symbols-php']) assert.equal(existsSync(path.join(root, 'var/tools', prefix)), false, `install-tools installs no var/tools/${prefix}`);
 });
 
+// K1072: install-tools reads the exceptions of the tools it installs; another tool's exception refuses nothing.
+test('K1072: an exception of a tool that is not selected, in any form, refuses no install', (t) => {
+  const exceptions = [{ tool: 'typescript', channel: '6.0.3', scope: 'packages/gone' }, { tool: 'rust', channel: 'nightly' }];
+  const { root, stubs } = checkout(t, '[tools]\nruff = "0.17.0"\n', { 'config/toolchain.json': JSON.stringify({ schema: 1, exceptions }) });
+  const result = start(INSTALL_TOOLS, root, stubs.env, 'ruff');
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(stubs.calls(), ['mise install --locked ruff']);
+});
+
 test('a declared Rust channel without rustup fails with the one prerequisite of the machine', (t) => {
   const { root, stubs } = checkout(t, '[tools]\n', NIGHTLY_FILES);
   // PATH holds the stubs, the node of the stub of mise and the system commands, and no rustup.
