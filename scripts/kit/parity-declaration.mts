@@ -67,14 +67,11 @@ export interface ParityImplementation {
 export type SharingImplementation = Pick<ParityImplementation, 'name' | 'roots' | 'shares'> & { runner: string };
 
 /**
- * The roots of the implementations whose test files `entry` runs in its own runtime: the one it declares with `shares`, or, by
- * the layout of S10, the roots of the implementations of the PHP libraries, `packages/php` and `packages/<component>/php`, for
- * the extension `packages/php-ext` of the same runner (K285, K293).
+ * The roots of the implementation whose test files `entry` runs in its own runtime: the one it declares with `shares`, or none
+ * (K285, K1103: kit reads no layout for it; an extension that runs the tests of several libraries names their folders as its roots).
  */
 export function sharedRoots(entry: SharingImplementation, implementations: ReadonlyMap<string, SharingImplementation>): string[] {
-  if (entry.shares !== undefined) return implementations.get(entry.shares)?.roots ?? [];
-  if (!entry.roots.includes('packages/php-ext')) return [];
-  return [...implementations.values()].filter(other => other.runner === entry.runner && other.name !== entry.name && other.roots.some(root => /^packages\/(?:[^/]+\/)?php$/.test(root))).flatMap(other => other.roots);
+  return entry.shares === undefined ? [] : implementations.get(entry.shares)?.roots ?? [];
 }
 
 /** The native test of an implementation in a suite unit. */

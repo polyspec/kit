@@ -265,9 +265,9 @@ tool lands, a standard binds the work as written here.
   Reflection what it registers with the libraries, each name with the library that declares it, before its unit tests, which
   are the PHPUnit files run with the extension loaded and none of the sources of the library (its dependencies and autoload-dev
   are loaded, its own autoload is not, so the library has no guard against the extension) of the folders that config/parity.json
-  declares for it: the roots of its implementation and of the PHP implementations whose tests it shares by this layout, with no
+  declares for it: the roots of its implementation and of the PHP implementations whose tests it shares by `shares` (K1103), with no
   relative path in a configuration, as parity-check reads them (K905). A Composer package of type `project` is an application:
-  it is outside the S10 library checks and is run with the extension only when config/parity.json declares it as a PHP
+  it is not an S10 library and is run with the extension only when config/parity.json declares it as a PHP
   implementation, and `make test-php` runs its tests as its own package.
   Enforced by: `make lint-php-ext` (the stub hash of each arginfo header), `make test-php-ext` (the build, the declarations and the
   unit tests); the names and the single stub are a guided rule that each repository enforces with its own check, if it has one (K1075)

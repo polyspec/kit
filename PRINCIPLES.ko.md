@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 7d0434013f31f746493716b86273308059f2c556ada2303571ebfeb9713f38c8 -->
+<!-- source-sha256: 3c08ee4bbf23ba485114ab531408708df8ede18c592eaf58b8e3b3cb53cbdda2 -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -237,9 +237,9 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
   `config.m4`가 extension의 version을 `../composer.json`에서 가져온다. `make test-php-ext`는 unit test 전에 등록한 것을
   Reflection으로 library와 비교하되 이름마다 그것을 선언한 library와 비교하며, unit test는 extension을 load하고 library의 source는 하나도 load하지 않고
   (dependency와 autoload-dev는 load하고 library 자신의 autoload는 load하지 않으므로 library에는 extension에 대한 guard가 없다) 실행하는,
-  config/parity.json이 extension에 선언한 폴더의 PHPUnit 파일이다. 곧 extension 구현의 root와, 이 layout으로 test를 공유하는 PHP
+  config/parity.json이 extension에 선언한 폴더의 PHPUnit 파일이다. 곧 extension 구현의 root와, `shares`로(K1103) test를 공유하는 PHP
   구현의 root이며, 설정에 상대 경로를 두지 않고, parity-check가 읽는 것과 같다(K905). Composer type이 `project`인 package는
-  application이다. S10 library 검사 밖에 있고 config/parity.json이 PHP 구현으로 선언할 때만 extension과 함께 실행되며,
+  application이다. S10 library가 아니며 config/parity.json이 PHP 구현으로 선언할 때만 extension과 함께 실행되며,
   `make test-php`는 그 test를 자기 package로 실행한다.
   Enforced by: `make lint-php-ext`(각 arginfo header의 stub hash), `make test-php-ext`(build, 선언, unit test). 이름과 하나의 stub은
   각 저장소가 자기 검사가 있으면 그것으로 지키는 안내 규칙이다(K1075)

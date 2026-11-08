@@ -9,7 +9,6 @@ import path from 'node:path';
 import test from 'node:test';
 import { buildRuns, caseSensitiveSmokeRuns, goWorkspaceBuilds, goWorkspaceRuns, infrastructureRuns, runtimeRuns, suiteRuns, taskTargets, type Run } from '../../scripts/kit/runtime-targets.mts';
 import { withCaseSensitiveDirectory } from '../../scripts/kit/case-sensitive-directory.mts';
-import { libraryFolders } from '../../scripts/kit/php-extension.mts';
 import { tool } from './kit-tools.mts';
 import { tree } from './tree.mts';
 
@@ -35,10 +34,11 @@ test('each package of a runtime runs its runner with the name filter of CASES in
 const phpunitList = (tests: Record<string, string[]>) => (run: Run) => (tests[run.cwd] ?? []).filter(name => new RegExp(run.args[1] ?? '').test(name));
 
 // K905: the folders of the extension run come from config/parity.json: the extension's implementation and the PHP implementations
-// whose tests it shares (sharedRoots), as parity-check reads them. `parity` declares the PHP implementations of `roots` beside it.
+// whose tests it shares (sharedRoots), as parity-check reads them. `parity` declares the PHP implementations of `roots` beside it,
+// which the extension runs as roots of its own (K1103: kit reads no layout for the libraries of an extension).
 const declaration = (implementations: unknown[]) => JSON.stringify({ schema: 1, requirements: { pattern: '^R-[0-9]+$' }, units: [], implementations });
 const parity = (...roots: string[]) => {
-  const text = declaration([...roots.map((root, index) => ({ name: `php${index}`, runner: 'php', roots: [root] })), { name: 'php-ext', runner: 'php', roots: ['packages/php-ext'] }]);
+  const text = declaration([...roots.map((root, index) => ({ name: `php${index}`, runner: 'php', roots: [root] })), { name: 'php-ext', runner: 'php', roots: ['packages/php-ext', ...roots] }]);
   return (file: string) => (file === 'config/parity.json' ? text : undefined);
 };
 
@@ -304,10 +304,6 @@ test('test-php runs the tests of a PHP package of type project as a package of i
     { cwd: 'packages/cli/php', tool: 'phpunit', args: [] },
     { cwd: 'packages/php', tool: 'phpunit', args: [] },
   ]);
-});
-
-test('libraryFolders leaves out a PHP package of type project (K433)', () => {
-  assert.deepEqual(libraryFolders(K433_FILES, k433Read), ['packages/php']);
 });
 
 // A task with no target fails unless config/ci.json declares that the repository has no runtime (K955): a consumer whose

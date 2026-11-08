@@ -10,8 +10,8 @@
 //                                         tsc with the tsconfig.build.json of the package, uv build; a PHP library has none
 //   make build, make test, make lint      the target of each runtime that packages/ holds
 //
-// The PHP extension of packages/php-ext has targets of its own (php-extension.mts, S10): its unit tests run on PHPUnit with
-// the extension that build-php-ext published loaded, in the folders that config/parity.json declares for it (K905).
+// The PHP extension has targets of its own (php-extension.mts, S10): its unit tests run on PHPUnit with the library that the
+// caller names loaded (`runtime-targets php-ext <library>`, K1103), in the folders that config/parity.json declares for it (K905).
 //
 // A unit test stays where the runner of its ecosystem finds it (S1): beside the code in Go, in src or tests of a crate, in the
 // tests of a package elsewhere. The integration and conformance suites cross packages, so they live at the root, where a run
@@ -24,7 +24,6 @@ import { isTestFile } from './check-commits.mts';
 import { DECLARATION as PARITY, implementationFolders, sharedRoots, type SharingImplementation } from './parity-declaration.mts';
 import { parseJson } from './schema-validate.mts';
 import { isMain, repositoryRoot, siblingTool } from './paths.mts';
-import { extensionNames } from './php-extension.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { listedTests } from './run-tests.mts';
 import { toolCommand } from './mise-tools.mts';
@@ -241,15 +240,6 @@ function usesVitest(root: string, folder: string): boolean {
   });
 }
 
-/** The library of the PHP extension of `root` that build-php-ext publishes; throws when it is missing. */
-function builtExtension(root: string, files: readonly string[]): string {
-  const names = extensionNames(files, file => (files.includes(file) ? readFileSync(path.join(root, file), 'utf8') : undefined));
-  if ('finding' in names) throw new Error(names.finding);
-  const library = path.join(root, 'var/php-ext', `${names.extension}.so`);
-  if (!existsSync(library)) throw new Error(`${path.relative(root, library)} is missing. Fix: make build-php-ext`);
-  return library;
-}
-
 /** The virtual environment of the Python package `folder` under `root`: the nearest `.venv` at or above it, up to the root. */
 function environmentOf(root: string, folder: string): string | undefined {
   for (let place = folder; ; place = path.posix.dirname(place)) {
@@ -312,7 +302,8 @@ if (isMain(import.meta.url)) {
   let runs: Run[];
   const notes: string[] = [];
   try {
-    const extension = target === 'php-ext' ? builtExtension(root, files) : undefined;
+    // The library of the extension is the caller's argument: php-extension test passes the one that build published (K1103).
+    const extension = target === 'php-ext' && name !== '' ? path.resolve(root, name) : undefined;
     // The selection of CASES in a PHP library is PHPUnit's own listing of the run.
     const listed: Listed = run => listedTests([run.tool, '--cwd', run.cwd, ...(run.options ?? []), '--', ...run.args], root);
     // The parity declaration of the extension run (K905) is read from the checkout.

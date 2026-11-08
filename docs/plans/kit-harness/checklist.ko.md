@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: ec53067ef48f47afed7ca867798cac80313d03f0c37b9e263478acfda1f89c21 -->
+<!-- source-sha256: 8dfc8e05ac9757f6b83f57ec33c186ab28cd4c6ecc3757ae9e54d1c415afb6a0 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -230,7 +230,7 @@
 | K1100 | land는 호출자가 이름 붙인 대상 브랜치에 브랜치를 병합하며, 충돌을 고쳐 쓰지 않고 git add -u로 파일을 stage하지 않으며 documents-stamp를 요구하지 않는다 | scripts/kit/land.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1100 tests/kit/land.test.mts` | [ ] |
 | K1101 | parity-runners는 호출자가 지정한 곳에만 vitest 설정을 쓴다 | scripts/kit/parity-runners.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1101 tests/kit/parity.test.mts` | [ ] |
 | K1102 | release와 release-run은 main ref와 asset 폴더를 호출자에게서 받으며, GITHUB_REPOSITORY가 config/release.json과 달라도 실행을 거부하지 않는다 | scripts/kit/release.mts, scripts/kit/release-run.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1102 tests/kit/release.test.mts` | [ ] |
-| K1103 | php-extension은 경로를 호출자에게서 받으며 kit에 고정된 경로가 없다 | scripts/kit/php-extension.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1103 tests/kit/php-ext.test.mts` | [~] |
+| K1103 | php-extension은 경로를 호출자에게서 받으며 kit에 고정된 경로가 없다 | scripts/kit/php-extension.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1103 tests/kit/php-ext.test.mts` | [o] |
 | K1104 | duplication-check는 형식, 최소 줄 수, 제외 대상을 저장소에서 읽으며 kit에 고정된 것은 없다 | scripts/kit/duplication-check.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1104 tests/kit/duplication-check.test.mts` | [ ] |
 | K1105 | generated-files는 생성 경로 조각, 바이너리 종류, 도구 폴더를 저장소에서 읽으며 kit에 고정된 것은 없다 | scripts/kit/generated-files.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1105 tests/kit/generated-files.test.mts` | [~] |
 | K1106 | runtime-targets는 런타임, 빌드 명령, 테스트 경로, 플래그를 저장소에서 읽으며 kit에 고정된 것은 없다 | scripts/kit/runtime-targets.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1106 tests/kit/runtime-targets.test.mts` | [~] |

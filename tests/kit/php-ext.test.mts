@@ -10,12 +10,16 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { execute } from '../../scripts/kit/process.mts';
 import * as phpExtension from '../../scripts/kit/php-extension.mts';
-import { declarationFindings, declarations, declarationsOf, extensionFindings, extensionNames, stubHash, type Declarations } from '../../scripts/kit/php-extension.mts';
+import { declarationFindings, declarations, declarationsOf, extensionFiles, extensionFindings, extensionNames, layoutOptions, stubHash, type Declarations, type Layout } from '../../scripts/kit/php-extension.mts';
 import { put, tree } from './tree.mts';
 import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
+import { sharedRoots } from '../../scripts/kit/parity-declaration.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const FIXTURE = path.join(ROOT, 'tests/kit/php-ext-fixture');
+// The paths that the caller names (K1103): the extension folder and the build folder of the fixtures.
+const LAYOUT = ['--extension', 'packages/php-ext', '--build-dir', 'var/php-ext'];
+const layout = (...libraries: string[]): Layout => ({ extension: 'packages/php-ext', build: 'var/php-ext', libraries, skip: ['vendor'] });
 const STUB = readFileSync(path.join(FIXTURE, 'polyspec_demo.stub.php'), 'utf8');
 const HEADER = readFileSync(path.join(FIXTURE, 'polyspec_demo_arginfo.h'), 'utf8');
 
@@ -41,7 +45,7 @@ const good = (): Record<string, string> => ({
   'packages/php-ext/src/polyspec_demo_arginfo.h': HEADER,
 });
 
-const findings = (files: Record<string, string>) => extensionFindings(Object.keys(files), file => files[file]);
+const findings = (files: Record<string, string>) => extensionFindings(Object.keys(files), file => files[file], 'packages/php-ext');
 
 test('K670-1: the build keeps the PHP configuration that loads tokenizer', { timeout: 10000 }, (t) => {
   const root = tree(t, { ...good(), '.gitignore': 'var/\n' });
@@ -51,12 +55,12 @@ test('K670-1: the build keeps the PHP configuration that loads tokenizer', { tim
   const php = path.join(root, 'var/tools/bin/php');
   const real = toolsPath(ROOT, 'bin', 'php');
   writeFileSync(php, `#!/bin/sh\nif [ "$1" = -n ]; then echo 'The "tokenizer" extension is not available' >&2; exit 93; fi\nexec '${real}' "$@"\n`);
-  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
+  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', ...LAYOUT], { cwd: root, encoding: 'utf8' });
   assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
 });
 
 test('the names of an extension are what config.m4 and the stubs of src/ declare (K1075)', () => {
-  assert.deepEqual(extensionNames(Object.keys(good()), file => good()[file]), { extension: 'polyspec_demo', stubs: ['packages/php-ext/src/polyspec_demo.stub.php'] });
+  assert.deepEqual(extensionNames(Object.keys(good()), file => good()[file], 'packages/php-ext'), { extension: 'polyspec_demo', stubs: ['packages/php-ext/src/polyspec_demo.stub.php'] });
   assert.equal(stubHash(STUB), /Stub hash: ([0-9a-f]+)/.exec(HEADER)?.[1], 'the hash of gen_stub.php');
   assert.equal(stubHash('a\r\nb\n'), stubHash('a\nb\n'));
 });
@@ -85,7 +89,7 @@ test('K1075 an extension of any name, with libraries of any name and several stu
     'packages/php-ext/src/other.stub.php': '<?php\n',
   };
   assert.deepEqual(findings(renamed), []);
-  assert.deepEqual(extensionNames(Object.keys(renamed), file => renamed[file]), { extension: 'demo', stubs: ['packages/php-ext/src/other.stub.php', 'packages/php-ext/src/polyspec_demo.stub.php'] });
+  assert.deepEqual(extensionNames(Object.keys(renamed), file => renamed[file], 'packages/php-ext'), { extension: 'demo', stubs: ['packages/php-ext/src/other.stub.php', 'packages/php-ext/src/polyspec_demo.stub.php'] });
   const { 'packages/php/composer.json': _, ...bed } = good();
   assert.deepEqual(findings({ ...bed, 'packages/php/composer.json': '{"name": "polyspec/demo", "type": "project"}', 'packages/php-ext/composer.json': '{"name": "polyspec/demo-extension"}' }), []);
   const parts = { ...bed, 'packages/validator/php/composer.json': '{"name": "polyspec/demo-validator"}', 'packages/generator/php/composer.json': '{"name": "polyspec/other-generator"}' };
@@ -155,7 +159,7 @@ test('the build publishes the extension, which reports the version of its compos
   cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
   phpWrappers(root);
-  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
+  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', ...LAYOUT], { cwd: root, encoding: 'utf8' });
   assert.equal(built.status, 0, built.stderr);
   const extension = path.join(root, 'var/php-ext/polyspec_demo.so');
   assert.ok(existsSync(extension), 'the library is published');
@@ -189,7 +193,7 @@ test('the arginfo comes from the gen_stub.php that phpize copies, whatever prefi
   const real = toolsPath(ROOT, 'bin', 'php-config');
   writeFileSync(path.join(root, 'var/tools/bin/php-config'), `#!/bin/sh\nif [ "$1" = "--prefix" ]; then echo /nonexistent/prefix; else exec '${real}' "$@"; fi\n`);
   chmodSync(path.join(root, 'var/tools/bin/php-config'), 0o755);
-  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
+  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', ...LAYOUT], { cwd: root, encoding: 'utf8' });
   assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
   assert.ok(existsSync(path.join(root, 'var/php-ext/polyspec_demo.so')));
 });
@@ -203,7 +207,7 @@ test('a second build in the same checkout fetches no PHP-Parser, since gen_stub 
   cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
   phpWrappers(root);
-  const build = (env: NodeJS.ProcessEnv) => spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8', env });
+  const build = (env: NodeJS.ProcessEnv) => spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', ...LAYOUT], { cwd: root, encoding: 'utf8', env });
   const first = build(process.env);
   assert.equal(first.status, 0, `${first.stdout}\n${first.stderr}`);
   // Every fetch of the second build calls wget or curl; both record the call and fail, so a fetch fails the build as well.
@@ -236,7 +240,7 @@ test('a second build that starts while the parser is extracting waits for it, an
   for (const name of ['wget', 'tar']) chmodSync(path.join(bin, name), 0o755);
   const env = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}` };
   const build = () => new Promise<{ status: number | null; output: string }>((resolve) => {
-    const child = spawn(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, env });
+    const child = spawn(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', ...LAYOUT], { cwd: root, env });
     let output = '';
     child.stdout.on('data', (chunk: Buffer) => { output += chunk; });
     child.stderr.on('data', (chunk: Buffer) => { output += chunk; });
@@ -267,7 +271,7 @@ test('a failing PHP-Parser fetch leaves no PHP-Parser directory, so the next bui
     writeFileSync(path.join(bin, name), '#!/bin/sh\nexit 1\n');
     chmodSync(path.join(bin, name), 0o755);
   }
-  const failed = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8', env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}` } });
+  const failed = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', ...LAYOUT], { cwd: root, encoding: 'utf8', env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}` } });
   assert.notEqual(failed.status, 0, `${failed.stdout}\n${failed.stderr}`);
   assert.deepEqual(parsersIn(path.join(root, 'var/php-ext/gen-stub')), [], 'the failed build leaves no PHP-Parser directory');
 });
@@ -281,12 +285,12 @@ test('a stub syntax error after an earlier good fetch keeps the parser that the 
   cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
   phpWrappers(root);
-  const firstBuild = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
+  const firstBuild = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', ...LAYOUT], { cwd: root, encoding: 'utf8' });
   assert.equal(firstBuild.status, 0, `${firstBuild.stdout}\n${firstBuild.stderr}`);
   const fetched = parsersIn(path.join(root, 'var/php-ext/gen-stub'));
   assert.equal(fetched.length, 1, 'the good build fetched one PHP-Parser');
   writeFileSync(path.join(root, 'packages/php-ext/src/polyspec_demo.stub.php'), '<?php\nfunction broken(: int {}\n');
-  const broken = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
+  const broken = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', ...LAYOUT], { cwd: root, encoding: 'utf8' });
   assert.notEqual(broken.status, 0, `${broken.stdout}\n${broken.stderr}`);
   assert.deepEqual(parsersIn(path.join(root, 'var/php-ext/gen-stub')), fetched, 'the earlier parser stays');
 });
@@ -302,7 +306,7 @@ test('a failed configure keeps its config.log under var/ and names it, and a suc
   cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
   phpWrappers(root);
-  const failed = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
+  const failed = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', ...LAYOUT], { cwd: root, encoding: 'utf8' });
   assert.notEqual(failed.status, 0, `${failed.stdout}\n${failed.stderr}`);
   const copied = path.join(root, 'var/php-ext/config.log');
   assert.match(failed.stdout + failed.stderr, /config\.log is kept at .*var\/php-ext\/config\.log/, 'the message names the copied config.log');
@@ -312,7 +316,7 @@ test('a failed configure keeps its config.log under var/ and names it, and a suc
   // A successful build removes the copy: the fixture no longer fails configure.
   writeFileSync(path.join(root, 'packages/php-ext/src/config.m4'), config);
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
-  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
+  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', ...LAYOUT], { cwd: root, encoding: 'utf8' });
   assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
   assert.equal(existsSync(copied), false, 'a successful build removes the failure log');
 });
@@ -336,7 +340,7 @@ test('a build finds php, php-config and phpize on the PATH of its caller when it
   cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
   const external = externalPhp(root);
-  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8', env: { ...process.env, PATH: `${external}${path.delimiter}${process.env.PATH ?? ''}` } });
+  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', ...LAYOUT], { cwd: root, encoding: 'utf8', env: { ...process.env, PATH: `${external}${path.delimiter}${process.env.PATH ?? ''}` } });
   assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
   assert.ok(existsSync(path.join(root, 'var/php-ext/polyspec_demo.so')));
 });
@@ -349,7 +353,7 @@ test('the build generates arginfo from the stub in its temporary source when no 
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
   const before = spawnSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }).stdout;
   phpWrappers(root);
-  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
+  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', ...LAYOUT], { cwd: root, encoding: 'utf8' });
   assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
   assert.ok(existsSync(path.join(root, 'var/php-ext/polyspec_demo.so')));
   assert.equal(existsSync(path.join(root, 'packages/php-ext/src/polyspec_demo_arginfo.h')), false, 'generation stays out of package source');
@@ -378,7 +382,7 @@ test('the extension build stages declared sources and accepts an explicit output
   phpWrappers(root);
   const outputPath = path.join(root, 'var/custom-run/polyspec_demo.so');
   const built = spawnSync(process.execPath, [
-    path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', '--output', outputPath,
+    path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', ...LAYOUT, '--output', outputPath,
     '--source-copy', 'packages/php-ext/testing/mermaid/module.c', 'src/mermaid_test.c',
     '--source-copy', 'packages/php/src/native/shared.c', 'src/native/shared.c',
     '--configure-arg', '--enable-polyspec-demo-offset',
@@ -411,7 +415,7 @@ test('a failed extension build keeps compiler warnings and the make cause withou
     PATH: `${bin}${path.delimiter}${path.join(root, 'var/tools/bin')}${path.delimiter}${process.env.PATH ?? ''}`,
     TMPDIR: path.join(root, 'var/tmp'),
   };
-  const result = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', '--output', output], {
+  const result = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', ...LAYOUT, '--output', output], {
     cwd: root, env, encoding: 'utf8',
   });
 
@@ -437,11 +441,11 @@ test('the declarations of the extension are compared with the library that decla
   cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
   phpWrappers(root);
-  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
+  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', ...LAYOUT], { cwd: root, encoding: 'utf8' });
   assert.equal(built.status, 0, built.stderr);
-  assert.deepEqual(declarations(root), []);
+  assert.deepEqual(declarations(root, layout('packages/generator/php', 'packages/validator/php')), []);
   put(root, { 'packages/generator/php/src/Adder.php': adder('string') });
-  assert.deepEqual(declarations(root), ['function Polyspec\\Demo\\add returnType: extension "int", library "string"']);
+  assert.deepEqual(declarations(root, layout('packages/generator/php', 'packages/validator/php')), ['function Polyspec\\Demo\\add returnType: extension "int", library "string"']);
 });
 
 test('the build copy holds the sources of the extension only, so a stale build product of src/ is never built (K302)', (t) => {
@@ -460,7 +464,7 @@ test('the build copy holds the sources of the extension only, so a stale build p
   const broken = path.join(source, 'polyspec_demo.c');
   writeFileSync(broken, 'this is not C\n');
   utimesSync(broken, new Date(0), new Date(0));
-  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
+  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', ...LAYOUT], { cwd: root, encoding: 'utf8' });
   assert.equal(built.status, 1, built.stdout);
   assert.equal(existsSync(path.join(root, 'var/php-ext/polyspec_demo.so')), false, 'nothing is published');
 });
@@ -472,11 +476,11 @@ test('the sources of the extension are read from the working tree, so generated 
   const root = tree(t, { ...tracked, '.gitignore': 'packages/php-ext/src/\n' });
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
   put(root, generated);
-  const checked = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'check'], { cwd: root, encoding: 'utf8' });
+  const checked = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'check', ...LAYOUT], { cwd: root, encoding: 'utf8' });
   assert.equal(checked.status, 0, checked.stderr);
   // A stale header among the generated sources is a finding as well.
   put(root, { 'packages/php-ext/src/polyspec_demo.stub.php': `${STUB}\nfunction more(): void {}\n` });
-  const stale = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'check'], { cwd: root, encoding: 'utf8' });
+  const stale = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'check', ...LAYOUT], { cwd: root, encoding: 'utf8' });
   assert.equal(stale.status, 1);
   assert.match(stale.stderr, /polyspec_demo_arginfo\.h: the stub hash is/);
 });
@@ -484,7 +488,7 @@ test('the sources of the extension are read from the working tree, so generated 
 test('the build refuses an extension with a finding before phpize runs', (t) => {
   const root = tree(t, { ...good(), 'packages/php-ext/src/config.m4': 'dnl none\n' });
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
-  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
+  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', ...LAYOUT], { cwd: root, encoding: 'utf8' });
   assert.equal(built.status, 1);
   assert.match(built.stderr, /config\.m4 declares no PHP_NEW_EXTENSION/);
   assert.equal(existsSync(path.join(root, 'var/php-ext')), false);
@@ -512,7 +516,7 @@ test('the build of an extension fails on a dropped result that must be checked, 
     const root = tree(t, { ...good(), 'packages/php-ext/composer.json': '{"name": "polyspec/demo-php-ext", "version": "1.2.3"}', 'packages/php/src/Demo.php': library('int'), 'packages/php-ext/src/polyspec_demo.c': injected });
     assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
     phpWrappers(root);
-    return spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
+    return spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', ...LAYOUT], { cwd: root, encoding: 'utf8' });
   };
   const dropped = build('checked();');
   assert.notEqual(dropped.status, 0, 'a dropped result fails the build');
@@ -531,6 +535,34 @@ test('the compare of test-php-ext fails on a class, function or constant that th
   const root = tree(t, { ...good(), 'packages/php-ext/composer.json': '{"name": "polyspec/demo-php-ext", "version": "1.2.3"}', 'packages/php/src/Demo.php': library('int'), 'packages/php/vendor/autoload.php': autoload, 'packages/php-ext/src/polyspec_demo.c': extra });
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
   phpWrappers(root);
-  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
+  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', ...LAYOUT], { cwd: root, encoding: 'utf8' });
   assert.equal(built.status, 0, built.stderr);
-  assert.deepEqual(declarations(root), ['class Polyspec\\Native\\Extra: the extension registers it, and the PHP library declares none', 'constant Polyspec\\Native\\EXTRA: the extension registers it, and the PHP library declares none']);});
+  assert.deepEqual(declarations(root, layout('packages/php')), ['class Polyspec\\Native\\Extra: the extension registers it, and the PHP library declares none', 'constant Polyspec\\Native\\EXTRA: the extension registers it, and the PHP library declares none']);});
+
+// K1103: the caller names every path of the extension; kit fixes none, so another folder works and a call without them is a usage error.
+test('K1103 the extension, build and library folders are the caller\'s', (t) => {
+  assert.deepEqual(layoutOptions(['--extension', 'ext', '--build-dir', 'out', '--library', 'lib/a', '--skip', 'vendor', '--output', '/x.so']), { layout: { extension: 'ext', build: 'out', libraries: ['lib/a'], skip: ['vendor'] }, rest: ['--output', '/x.so'] });
+  assert.throws(() => layoutOptions(['--extension', 'ext']), /names the extension and build folders/);
+  assert.throws(() => layoutOptions(['--build-dir']), /--build-dir needs a folder/);
+  const moved: Record<string, string> = { 'ext/src/config.m4': 'PHP_NEW_EXTENSION([demo], [demo.c])\n', 'ext/src/demo.stub.php': '<?php\n' };
+  assert.deepEqual(extensionNames(Object.keys(moved), file => moved[file], 'ext'), { extension: 'demo', stubs: ['ext/src/demo.stub.php'] });
+  assert.deepEqual(extensionFindings(Object.keys(moved), file => moved[file], 'packages/php-ext'), []);
+  // The extension shares the tests of the implementation that it names, and of no folder by layout (K1103).
+  const php = { name: 'php', runner: 'php', roots: ['packages/php'] };
+  const extension = { name: 'php-ext', runner: 'php', roots: ['packages/php-ext'] };
+  const declared = new Map([[php.name, php], [extension.name, extension]]);
+  assert.deepEqual(sharedRoots(extension, declared), []);
+  assert.deepEqual(sharedRoots({ ...extension, shares: 'php' }, declared), ['packages/php']);
+  const root = tree(t, { 'README.md': 'x\n', 'ext/vendor/a/b.stub.php': '<?php\n', 'ext/src/vendor.c': 'x\n' });
+  // The folders that the caller skips hold no source; a file named like one is still a source (K1103).
+  assert.deepEqual(extensionFiles(root, 'ext', ['vendor']), ['README.md', 'ext/src/vendor.c']);
+  assert.ok(extensionFiles(root, 'ext').includes('ext/vendor/a/b.stub.php'), 'kit skips no folder of its own');
+  for (const args of [[], ['check'], ['check', '--extension', 'ext']]) {
+    const bare = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), ...args], { cwd: root, encoding: 'utf8' });
+    assert.equal(bare.status, 2, bare.stderr);
+    assert.match(bare.stderr, /usage: php-extension\.mts check\|build\|test --extension <folder> --build-dir <folder>/);
+  }
+  const absent = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'check', '--extension', 'ext', '--build-dir', 'out'], { cwd: root, encoding: 'utf8' });
+  assert.equal(absent.status, 0, absent.stderr);
+  assert.match(absent.stdout, /ext holds no file/);
+});

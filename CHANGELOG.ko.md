@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0ade4e2f6ab81d933a6928cb3023daa30fd7854f447666c2100aee0888382d12 -->
+<!-- source-sha256: ab26589e9770a67b65d28d92d84528e83c237c9aeec51c089bdd9e9721b7e91a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -36,6 +36,7 @@
 - K1083: generated-files installs는 인수가 선언한 설치 폴더를 검사한다. root의 폴더 이름 그대로, 또는 추적된 manifest마다 그 옆의 <manifest>=<directory>이다. 선언이 없거나 a=b=c처럼 다른 형식의 항목이 있으면 사용법 오류(exit 2)이며, kit의 layout-check는 var, package.json=node_modules, pyproject.toml=.venv, composer.json=vendor를 선언한다. checkedFiles는 설치 폴더 목록을 두지 않는다. Git이 그 폴더를 무시한다(K1083).
 - K1075: php-extension은 이름 규칙을 두지 않는다. extension은 packages/php-ext/src/config.m4의 PHP_NEW_EXTENSION이 선언한 것이고, stub은 src/*.stub.php 파일이며, 각 arginfo header는 자기 stub과 대조하고, extension과 library의 Composer 이름은 저장소가 정한다(K1075).
 - K1074: runtime-targets는 config/parity.json에서 roots만 읽고 배치를 강제하지 않는다. package가 없는 runtime은 아무것도 실행하지 않고, Python test 폴더에 __init__.py가 필요 없으며, go.work module은 선언대로 넘기고, test 파일이 없는 선언된 root는 아무것도 실행하지 않으며, case-sensitive-smoke는 recipe가 이름 붙인 파일을 실행한다. 읽는 선언 field가 잘못되면 그 위치와 함께 실패하고, 아무것도 실행하지 않는 test target은 여전히 실패한다(K1074).
+- K1103: php-extension은 모든 경로를 호출자에게서 받는다. --extension은 extension 폴더, --build-dir은 library와 gen-stub와 작업 사본의 build 폴더, --library는 extension이 선언을 맞출 PHP library 하나씩, --skip은 extension 폴더 아래 source가 없는 폴더 이름 하나씩이며(kit이 vendor와 node_modules를 스스로 건너뛰던 것), 두 폴더가 없는 호출은 사용법 오류(exit 2)다. extension은 `shares`로 이름 붙인 구현이나 자기 root가 이름 붙인 library의 test를 공유하고, layout으로 정해지는 폴더는 없다. runtime-targets php-ext는 build된 library를 인수로 받는다. K433의 application 거르기는 library 탐색과 함께 없어진다(K1103).
 - PHPUnit event의 fully qualified identity와 독립된 flow를 보존하고 parity mapping의 namespace aliasing을 제거한다(K1091).
 
 ## 0.0.98

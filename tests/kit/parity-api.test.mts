@@ -651,10 +651,10 @@ test('R6: a binding of an implementation that shares the tests of another lies i
   assert.deepEqual(findings.filter(finding => finding.rule === 'R5' && finding.implementation === 'gonative'), []);
 });
 
-test('R6: the tests of the PHP extension are those of packages/php, with no shares declared (K285)', () => {
+test('R6: the tests of the PHP extension are those of the implementation it shares (K285, K1103)', () => {
   const implementations: ParityImplementation[] = [
     { name: 'php', runner: 'php', roots: ['packages/php'] },
-    { name: 'php-ext', runner: 'php', roots: ['packages/php-ext'] },
+    { name: 'php-ext', runner: 'php', roots: ['packages/php-ext'], shares: 'php' },
   ];
   const config: ParityConfig = {
     implementations, requirements: { pattern: 'CX-[0-9]+' },
@@ -664,11 +664,11 @@ test('R6: the tests of the PHP extension are those of packages/php, with no shar
   assert.deepEqual(misplacedTests(model, []).map(finding => finding.implementation), []);
 });
 
-test('R6: the tests of the PHP extension are those of every PHP library, packages/<component>/php too (K293)', () => {
+test('R6: the tests of the PHP extension are those of every PHP library that its roots name (K293, K1103)', () => {
   const implementations: ParityImplementation[] = [
     { name: 'validator', runner: 'php', roots: ['packages/validator/php'] },
     { name: 'generator', runner: 'php', roots: ['packages/generator/php'] },
-    { name: 'php-ext', runner: 'php', roots: ['packages/php-ext'] },
+    { name: 'php-ext', runner: 'php', roots: ['packages/php-ext', 'packages/validator/php', 'packages/generator/php'] },
   ];
   const tests = ['packages/validator/php/tests/AT.php', 'packages/generator/php/tests/BT.php'];
   const config: ParityConfig = {

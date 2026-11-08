@@ -137,14 +137,17 @@ lint-js: lint-ts
 # The PHP extension of packages/php-ext (php-extension.mts, S10): one build with phpize, the check that src/config.m4 names the
 # extension and that the arginfo header of each stub, when present, carries its stub hash, the generated headers during the
 # temporary build, and the declaration test before its unit tests. A repository without an extension passes them, so every CI runs them.
+# The paths of the extension are the recipe's arguments (K1103): the extension folder, the build folder and, with --library, each
+# PHP library whose declarations it matches; kit has none.
+PHP_EXTENSION_LAYOUT := --extension packages/php-ext --build-dir var/php-ext --skip vendor --skip node_modules
 build-php-ext: ## Build packages/php-ext with phpize into var/php-ext/<extension>.so, the extension of src/config.m4, after the arginfo check; ONLINE (gen_stub.php may fetch its PHP-Parser once)
-	$(ONLINE) $(NODE) $(KIT)/php-extension.$(KIT_EXT) build
+	$(ONLINE) $(NODE) $(KIT)/php-extension.$(KIT_EXT) build $(PHP_EXTENSION_LAYOUT)
 
 lint-php-ext: ## Check that src/config.m4 names the extension and the stub hash of each arginfo header that is present (S10, K1075); offline
-	$(NODE) $(KIT)/php-extension.$(KIT_EXT) check
+	$(NODE) $(KIT)/php-extension.$(KIT_EXT) check $(PHP_EXTENSION_LAYOUT)
 
 test-php-ext: build-php-ext ## Compare the declarations of the built extension with the PHP library, then run its unit tests with CASES=<pattern>; offline
-	$(NODE) $(KIT)/php-extension.$(KIT_EXT) test
+	$(NODE) $(KIT)/php-extension.$(KIT_EXT) test $(PHP_EXTENSION_LAYOUT)
 
 .PHONY: test-go test-js test-php test-python test-rust test-ts test-integration test-conformance
 # The unit tests of a runtime with CASES=<pattern>, the name filter of its runner; without CASES, every unit test.

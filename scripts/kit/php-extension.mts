@@ -1,18 +1,19 @@
 #!/usr/bin/env node
 // The PHP extension of a repository (S10): one model and one build for every repository.
 //
-//   node scripts/kit/php-extension.mts check          the extension that config.m4 declares and, when present, the arginfo stub hash of each stub
-//   node scripts/kit/php-extension.mts build [--output <absolute-path>] [--source-copy <source> <output>] [--configure-arg <arg>]
-//                                                     the check, then phpize in a temporary source copy, the arginfo from the gen_stub.php of
-//                                                     var/php-ext/gen-stub (K941), configure and make; publish the library by a rename
-//   node scripts/kit/php-extension.mts test           the classes and functions that the built extension registers, compared
-//                                                     by Reflection with those of the PHP library (symbols/php/reflection.php),
-//                                                     then the unit tests of runtime-targets.mts with the extension loaded
+//   node scripts/kit/php-extension.mts <command> --extension <folder> --build-dir <folder> [--library <folder>]... [--skip <name>]... [build options]
+//   check   the extension that config.m4 declares and, when present, the arginfo stub hash of each stub
+//   build [--output <absolute-path>] [--source-copy <source> <output>] [--configure-arg <arg>]
+//           the check, then phpize in a temporary source copy under the build folder, the arginfo from the gen_stub.php of
+//           <build-dir>/gen-stub (K941), configure and make; publish <build-dir>/<extension>.so, or --output, by a rename
+//   test    the classes and functions that the built extension registers, compared by Reflection with those of the PHP libraries
+//           that --library names (symbols/php/reflection.php), then the unit tests of runtime-targets.mts with the extension loaded
 //
-// In a repository without packages/php-ext, check, build and test say so and pass: every repository runs them in its CI.
-// The extension lies in packages/php-ext with its sources in src/; its name is the one that PHP_NEW_EXTENSION of src/config.m4
-// declares, and its stubs are the src/*.stub.php files, each with its <stub>_arginfo.h (K1075: kit sets no naming rule). The PHP
-// libraries are packages/php and packages/<component>/php. phpize, php-config and php are the wrappers of var/tools/bin that install-tools wrote for
+// The caller names every path (K1103): the folder of the extension with its sources in src/, the build folder, which Git ignores,
+// the PHP libraries whose declarations the extension matches, and the folder names under the extension folder that hold no source
+// (--skip, such as vendor). A call without the extension and build folders is a usage error (exit 2). When the extension folder
+// holds no file, check, build and test say so and pass. The name of the extension is the one that PHP_NEW_EXTENSION of src/config.m4 declares, and its stubs are the
+// src/*.stub.php files, each with its <stub>_arginfo.h (K1075: kit sets no naming rule). phpize, php-config and php are the wrappers of var/tools/bin that install-tools wrote for
 // the php of PATH (K862), never whatever PATH holds later (K393-1).
 import { createHash } from 'node:crypto';
 import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync, statSync, lstatSync } from 'node:fs';
@@ -28,49 +29,40 @@ import { toolCommand } from './mise-tools.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { git } from './git.mts';
 
-export const LIBRARY = 'packages/php';
-export const EXTENSION = 'packages/php-ext';
-const OUTPUT = 'var/php-ext';
-// The folder of gen_stub.php in a checkout (K941): its PHP-Parser is fetched once there, and it is git-ignored with var/.
-const GEN_STUB = `${OUTPUT}/gen-stub`;
+/**
+ * The paths that the caller names (K1103): the extension folder, the build folder, the PHP library folders and the folder names
+ * under the extension folder whose files are no sources.
+ */
+export type Layout = { extension: string; build: string; libraries: string[]; skip: string[] };
+
+/** A call that the usage does not allow (exit 2). */
+class Usage extends Stop {}
+
+// The folder of gen_stub.php in the build folder (K941): its PHP-Parser is fetched once there.
+const genStub = (build: string) => `${build}/gen-stub`;
 
 /** The arginfo header that gen_stub.php writes beside the stub `stub`. */
 export const arginfoOf = (stub: string): string => stub.replace(/\.stub\.php$/, '_arginfo.h');
 
 /**
- * The names of the extension among `files` as packages/php-ext declares them (K1075): the extension that PHP_NEW_EXTENSION of
- * src/config.m4 names, which the build enables and loads, and the stubs of src/; or the finding that config.m4 names none.
+ * The names of the extension in the folder `folder` among `files` as it declares them (K1075): the extension that PHP_NEW_EXTENSION
+ * of src/config.m4 names, which the build enables and loads, and the stubs of src/; or the finding that config.m4 names none.
  */
-export function extensionNames(files: readonly string[], read: (file: string) => string | undefined): { extension: string; stubs: string[] } | { finding: string } {
-  const config = read(`${EXTENSION}/src/config.m4`);
+export function extensionNames(files: readonly string[], read: (file: string) => string | undefined, folder: string): { extension: string; stubs: string[] } | { finding: string } {
+  const config = read(`${folder}/src/config.m4`);
   const extension = config === undefined ? undefined : /PHP_NEW_EXTENSION\(\s*\[?([A-Za-z0-9_]+)/.exec(config)?.[1];
-  if (extension === undefined) return { finding: `${EXTENSION}/src/config.m4 declares no PHP_NEW_EXTENSION, which names the extension that the build enables` };
-  const stubs = files.filter(file => path.posix.dirname(file) === `${EXTENSION}/src` && file.endsWith('.stub.php')).sort();
+  if (extension === undefined) return { finding: `${folder}/src/config.m4 declares no PHP_NEW_EXTENSION, which names the extension that the build enables` };
+  const stubs = files.filter(file => path.posix.dirname(file) === `${folder}/src` && file.endsWith('.stub.php')).sort();
   return { extension, stubs };
 }
 
 /** The stub hash that gen_stub.php writes into the arginfo header: the sha1 of the stub with its line ends as LF. */
 export const stubHash = (stub: string): string => createHash('sha1').update(stub.replaceAll('\r\n', '\n')).digest('hex');
 
-/** Whether the Composer manifest `text` is an application (K433): a package of type project, which is no library of S10. */
-export function isApplication(text: string | undefined): boolean {
-  if (text === undefined) return false;
-  const manifest: unknown = JSON.parse(text);
-  return isJsonObject(manifest) && manifest.type === 'project';
-}
-
-/**
- * The folders of the PHP libraries among `files` (S10): packages/php, and packages/<component>/php for each component, except an
- * application; `read` gives the text of a file or undefined.
- */
-export function libraryFolders(files: readonly string[], read: (file: string) => string | undefined): string[] {
-  return files.flatMap(file => (/^packages\/(?:[^/]+\/)?php\/composer\.json$/.test(file) && !isApplication(read(file)) ? [path.posix.dirname(file)] : [])).sort();
-}
-
-/** The findings of the extension among the `files`; none when the repository has no packages/php-ext. */
-export function extensionFindings(files: readonly string[], read: (file: string) => string | undefined): string[] {
-  if (!files.some(file => file.startsWith(`${EXTENSION}/`))) return [];
-  const names = extensionNames(files, read);
+/** The findings of the extension in the folder `folder` among the `files`; none when the folder holds no file. */
+export function extensionFindings(files: readonly string[], read: (file: string) => string | undefined, folder: string): string[] {
+  if (!files.some(file => file.startsWith(`${folder}/`))) return [];
+  const names = extensionNames(files, read, folder);
   if ('finding' in names) return [names.finding];
   return names.stubs.flatMap((stubFile) => {
     const stub = read(stubFile);
@@ -200,17 +192,17 @@ function selfTypes(value: unknown, className: string): unknown {
 }
 
 /**
- * The files of the repository `root` that the extension reads: the tracked files, and the files of packages/php-ext on the disk,
- * since a repository that never tracks generated output generates the sources of its extension (K297); the vendor and
- * node_modules folders are no sources.
+ * The files of the repository `root` that the extension reads: the tracked files, and the files of the extension folder `extension` on the disk,
+ * since a repository that never tracks generated output generates the sources of its extension (K297); a file in a folder named
+ * by `skip`, such as vendor, is no source.
  */
-export function extensionFiles(root: string): string[] {
-  const folder = path.join(root, EXTENSION);
+export function extensionFiles(root: string, extension: string, skip: readonly string[] = []): string[] {
+  const folder = path.join(root, extension);
   const disk = existsSync(folder)
     ? readdirSync(folder, { recursive: true, withFileTypes: true })
       .filter(entry => entry.isFile())
       .map(entry => path.relative(root, path.join(entry.parentPath, entry.name)).split(path.sep).join('/'))
-      .filter(file => !/(?:^|\/)(?:vendor|node_modules)\//.test(file))
+      .filter(file => !file.slice(extension.length + 1).split('/').slice(0, -1).some(part => skip.includes(part)))
     : [];
   return [...new Set([...trackedFiles(root), ...disk])].sort();
 }
@@ -218,15 +210,15 @@ export function extensionFiles(root: string): string[] {
 /** The text of the file `file` of `root` on the disk, or undefined when there is none. */
 const reader = (root: string) => (file: string) => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined);
 
-/** The names of the extension of `root` and its PHP libraries, after its check; throws with the findings. */
-function checked(root: string): { extension: string; stubs: string[]; libraries: string[] } {
-  const files = extensionFiles(root);
-  if (!files.some(file => file.startsWith(`${EXTENSION}/`))) throw new Stop(`${EXTENSION} holds no file; the repository has no PHP extension`);
-  const found = extensionFindings(files, reader(root));
+/** The names of the extension of `layout` in `root`, after its check; throws with the findings. */
+function checked(root: string, layout: Layout): { extension: string; stubs: string[] } {
+  const files = extensionFiles(root, layout.extension, layout.skip);
+  if (!files.some(file => file.startsWith(`${layout.extension}/`))) throw new Stop(`${layout.extension} holds no file; the repository has no PHP extension there`);
+  const found = extensionFindings(files, reader(root), layout.extension);
   if (found.length) throw new Stop(found.join('\n'));
-  const names = extensionNames(files, reader(root));
+  const names = extensionNames(files, reader(root), layout.extension);
   if ('finding' in names) throw new Stop(names.finding);
-  return { ...names, libraries: libraryFolders(files, reader(root)) };
+  return names;
 }
 
 // What phpize, configure and make write into a folder that is built in place: a stale one in src/ must never reach a build (K302).
@@ -244,30 +236,29 @@ function isSource(entry: string): boolean {
 }
 
 /**
- * A copy of the package of the extension in a new directory under var/php-ext: its composer.json beside src/, as in the package,
+ * A copy of the package of the extension in a new directory under the build folder: its composer.json beside src/, as in the package,
  * so that config.m4 reads the version of the package from ../composer.json (K295). src/ is prepared by phpize; returns the
  * copy (`work`, to remove) and its src/ (`source`, where the build runs).
  */
 // The lock of the gen-stub folder (K941): one build at a time copies and runs the generator. It sits beside the folder, since a
 // failed run removes the folder, and a lock inside it would be removed under its holder.
-const GEN_STUB_LOCK = `${GEN_STUB}.lock`;
 const GEN_STUB_LOCK_POLL_MS = 500;
 const GEN_STUB_LOCK_WAIT_MS = 10 * 60 * 1000;
 
 /** Takes the lock of the gen-stub folder and returns its release; a running build is waited for (K941). */
-function takeGenStubLock(root: string): () => void {
-  return waitForHolderLock(path.join(root, GEN_STUB_LOCK), { checkout: root, command: 'php-extension build', timeoutMs: GEN_STUB_LOCK_WAIT_MS, pollMs: GEN_STUB_LOCK_POLL_MS }).release;
+function takeGenStubLock(root: string, build: string): () => void {
+  return waitForHolderLock(path.join(root, `${genStub(build)}.lock`), { checkout: root, command: 'php-extension build', timeoutMs: GEN_STUB_LOCK_WAIT_MS, pollMs: GEN_STUB_LOCK_POLL_MS }).release;
 }
 
-function generateArginfo(root: string, source: string, stub: string): string {
+function generateArginfo(root: string, build: string, source: string, stub: string): string {
   const php = toolCommand(root, 'php');
   // phpize copies the gen_stub.php of the PHP into build/ of the source (K941), which names the PHP build directory by itself, so
   // php-config --prefix is not used. gen_stub keeps the PHP-Parser that it fetches for its own release in its own directory, so it
   // runs from one folder per checkout: PHP's tool fetches its parser once, and a later build finds it there (K941). Its check
   // for that directory is not under gen_stub's own lock, so the folder is used under this build's lock (K941).
-  const release = takeGenStubLock(root);
+  const release = takeGenStubLock(root, build);
   try {
-    const folder = path.join(root, GEN_STUB);
+    const folder = path.join(root, genStub(build));
     mkdirSync(folder, { recursive: true });
     // The PHP-Parser directories that an earlier build fetched stay; a failed run removes only the ones it created (K941).
     const before = new Set(readdirSync(folder));
@@ -303,7 +294,7 @@ function safeRelativePath(value: string): boolean {
 }
 
 /** Copy a tracked repository source to the declared `src/` path of the temporary phpize package. */
-function stageSourceCopies(root: string, source: string, copies: readonly SourceCopy[]): void {
+function stageSourceCopies(root: string, extension: string, source: string, copies: readonly SourceCopy[]): void {
   const tracked = new Set(git(root, 'ls-files', '--cached', '-z').split('\0').filter(Boolean));
   for (const item of copies) {
     if (!safeRelativePath(item.source)) throw new Stop(`--source-copy: source ${JSON.stringify(item.source)} is not a repository-relative path`);
@@ -326,25 +317,25 @@ function stageSourceCopies(root: string, source: string, copies: readonly Source
         if (!parent.isDirectory() || parent.isSymbolicLink()) throw new Stop(`--source-copy: output ${item.output} crosses a non-directory or symbolic link`);
       } else mkdirSync(directory);
     }
-    if (existsSync(destination)) throw new Stop(`--source-copy: output ${item.output} collides with a file already in ${EXTENSION}/src`);
+    if (existsSync(destination)) throw new Stop(`--source-copy: output ${item.output} collides with a file already in ${extension}/src`);
     copyFileSync(input, destination);
   }
 }
 
-function phpized(root: string, label: string, stubs: readonly string[], sourceCopies: readonly SourceCopy[] = []): { work: string; source: string } {
-  const work = path.join(root, OUTPUT, `${label}.${process.pid}`);
+function phpized(root: string, layout: Layout, label: string, stubs: readonly string[], sourceCopies: readonly SourceCopy[] = []): { work: string; source: string } {
+  const work = path.join(root, layout.build, `${label}.${process.pid}`);
   const source = path.join(work, 'src');
   rmSync(work, { recursive: true, force: true });
   mkdirSync(work, { recursive: true });
   try {
-    cpSync(path.join(root, EXTENSION, 'composer.json'), path.join(work, 'composer.json'));
-    cpSync(path.join(root, EXTENSION, 'src'), source, { recursive: true, filter: isSource });
-    stageSourceCopies(root, source, sourceCopies);
+    cpSync(path.join(root, layout.extension, 'composer.json'), path.join(work, 'composer.json'));
+    cpSync(path.join(root, layout.extension, 'src'), source, { recursive: true, filter: isSource });
+    stageSourceCopies(root, layout.extension, source, sourceCopies);
     for (const stub of stubs) rmSync(path.join(source, path.basename(arginfoOf(stub))), { force: true });
     // The tools of the PHP of the checkout are its wrappers, never the ones on PATH.
     console.log(`[php-extension] phpize (${run(toolCommand(root, 'php-config'), ['--version']).trim()})`);
     run(toolCommand(root, 'phpize'), [], { cwd: source });
-    for (const stub of stubs) generateArginfo(root, source, stub);
+    for (const stub of stubs) generateArginfo(root, layout.build, source, stub);
     return { work, source };
   } catch (error) {
     rmSync(work, { recursive: true, force: true });
@@ -352,14 +343,14 @@ function phpized(root: string, label: string, stubs: readonly string[], sourceCo
   }
 }
 
-/** Builds the extension of `root` into var/php-ext/<extension>.so; returns its path. */
-export function build(root: string, options: BuildOptions = {}): string {
-  const names = checked(root);
+/** Builds the extension of `layout` in `root` into <build>/<extension>.so, or the --output path; returns its path. */
+export function build(root: string, layout: Layout, options: BuildOptions = {}): string {
+  const names = checked(root, layout);
   if (options.output !== undefined && !path.isAbsolute(options.output)) throw new Stop('php-extension build --output must be an absolute module path');
   for (const argument of options.configureArgs ?? []) {
     if (!/^--[A-Za-z0-9][A-Za-z0-9_-]*(?:=[A-Za-z0-9._-]+)?$/.test(argument)) throw new Stop(`php-extension build: invalid configure argument ${JSON.stringify(argument)}`);
   }
-  const library = path.resolve(options.output ?? path.join(root, OUTPUT, `${names.extension}.so`));
+  const library = path.resolve(options.output ?? path.join(root, layout.build, `${names.extension}.so`));
   const outputDirectory = path.dirname(library);
   mkdirSync(outputDirectory, { recursive: true });
   if (existsSync(library)) {
@@ -368,12 +359,12 @@ export function build(root: string, options: BuildOptions = {}): string {
   }
   const temporaryLibrary = `${library}.tmp.${process.pid}`;
   const sourceCopies = options.sourceCopies ?? [];
-  const { work, source } = phpized(root, 'build', names.stubs, sourceCopies);
+  const { work, source } = phpized(root, layout, 'build', names.stubs, sourceCopies);
   try {
     // P8 for C (K334): the flags of php-config do not fail a call whose result must be checked; the compiler's check does.
     const env = { ...process.env, CFLAGS: `${process.env.CFLAGS ?? ''} -Werror=unused-result`.trim() };
     console.log('[php-extension] configure');
-    // configure finds a php-config on PATH by itself; the PHP of the checkout builds the module that its php loads (K632).
+    // configure takes the php-config of the checkout, so it builds the module for the php that loads it (K632).
     try {
       run('./configure', [`--enable-${names.extension.replaceAll('_', '-')}`, `--with-php-config=${toolCommand(root, 'php-config')}`, ...(options.configureArgs ?? [])], { cwd: source, env });
     } catch (error) {
@@ -382,7 +373,7 @@ export function build(root: string, options: BuildOptions = {}): string {
       const message = error instanceof Error ? error.message : String(error);
       const log = path.join(source, 'config.log');
       if (!existsSync(log)) throw new Stop(message);
-      const kept = path.join(root, OUTPUT, 'config.log');
+      const kept = path.join(root, layout.build, 'config.log');
       copyFileSync(log, kept);
       throw new Stop(`${message}\nconfig.log is kept at ${kept}`);
     }
@@ -393,7 +384,7 @@ export function build(root: string, options: BuildOptions = {}): string {
     renameSync(path.join(source, 'modules', `${names.extension}.so`), temporaryLibrary);
     renameSync(temporaryLibrary, library);
     // A successful build leaves no failure log of an earlier build behind (K946).
-    rmSync(path.join(root, OUTPUT, 'config.log'), { force: true });
+    rmSync(path.join(root, layout.build, 'config.log'), { force: true });
     console.log(`[php-extension] built ${path.relative(root, library)}`);
     return library;
   } finally {
@@ -408,42 +399,74 @@ function buildOptions(args: readonly string[]): BuildOptions {
     const option = args[index];
     if (option === '--output') {
       const value = args[++index];
-      if (!value || options.output !== undefined) throw new Stop('usage: php-extension.mts build [--output <absolute-path>] [--source-copy <source> <output>] [--configure-arg <arg>]');
+      if (!value || options.output !== undefined) throw new Usage('usage: php-extension.mts build [--output <absolute-path>] [--source-copy <source> <output>] [--configure-arg <arg>]');
       options.output = value;
     } else if (option === '--source-copy') {
       const source = args[++index];
       const output = args[++index];
-      if (!source || !output) throw new Stop('usage: --source-copy requires a tracked repository source and package-relative output');
+      if (!source || !output) throw new Usage('usage: --source-copy requires a tracked repository source and package-relative output');
       options.sourceCopies?.push({ source, output });
     } else if (option === '--configure-arg') {
       const value = args[++index];
-      if (!value) throw new Stop('usage: --configure-arg requires one configure option');
+      if (!value) throw new Usage('usage: --configure-arg requires one configure option');
       options.configureArgs?.push(value);
     } else {
-      throw new Stop(`unknown PHP extension build option ${JSON.stringify(option)}`);
+      throw new Usage(`unknown PHP extension build option ${JSON.stringify(option)}`);
     }
   }
   return options;
 }
 
-/**
- * The findings of the declarations of the built extension of `root` against the PHP libraries: each name that the extension
- * registers is compared with the library that declares it (S10).
- */
-export function declarations(root: string): string[] {
-  const names = checked(root);
-  // A repository without a PHP library has no library declaration to match (K616).
-  if (!names.libraries.length) return [];
-  const library = path.join(root, OUTPUT, `${names.extension}.so`);
+/** The library that build published for the extension `extension` of `layout`; throws when it is missing. */
+function builtLibrary(root: string, layout: Layout, extension: string): string {
+  const library = path.join(root, layout.build, `${extension}.so`);
   if (!existsSync(library)) throw new Stop(`${path.relative(root, library)} is missing. Fix: make build-php-ext`);
+  return library;
+}
+
+const USAGE = 'usage: php-extension.mts check|build|test --extension <folder> --build-dir <folder> [--library <folder>]... [--skip <name>]... [build options]';
+
+/** The layout that the arguments `args` name with --extension, --build-dir, --library and --skip (K1103), and the other arguments. */
+export function layoutOptions(args: readonly string[]): { layout: Layout; rest: string[] } {
+  let extension: string | undefined;
+  let build: string | undefined;
+  const libraries: string[] = [];
+  const skip: string[] = [];
+  const rest: string[] = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const option = args[index];
+    if (option !== '--extension' && option !== '--build-dir' && option !== '--library' && option !== '--skip') {
+      rest.push(option ?? '');
+      continue;
+    }
+    const value = args[++index];
+    if (!value) throw new Usage(`${option} needs a folder; ${USAGE}`);
+    if (option === '--extension') extension = value;
+    else if (option === '--build-dir') build = value;
+    else if (option === '--skip') skip.push(value);
+    else libraries.push(value);
+  }
+  if (extension === undefined || build === undefined) throw new Usage(`the caller names the extension and build folders; ${USAGE}`);
+  return { layout: { extension, build, libraries, skip }, rest };
+}
+
+/**
+ * The findings of the declarations of the built extension of `layout` in `root` against the PHP libraries that it names: each name
+ * that the extension registers is compared with the library that declares it (S10).
+ */
+export function declarations(root: string, layout: Layout): string[] {
+  const names = checked(root, layout);
+  // A caller that names no PHP library has no library declaration to match (K616, K1103).
+  if (!layout.libraries.length) return [];
+  const library = builtLibrary(root, layout, names.extension);
   const script = path.join(SYMBOLS, 'php', 'reflection.php');
   const php = toolCommand(root, 'php');
   const extension = declarationsOf(run(php, ['-d', `extension=${library}`, script, 'extension', names.extension]));
-  const request = path.join(root, OUTPUT, `names.${process.pid}.json`);
+  const request = path.join(root, layout.build, `names.${process.pid}.json`);
   writeFileSync(request, JSON.stringify({ classes: Object.keys(extension.classes), functions: Object.keys(extension.functions), constants: Object.keys(extension.constants) }));
   try {
     const own: Declarations = { classes: {}, functions: {}, constants: {} };
-    for (const folder of names.libraries) {
+    for (const folder of layout.libraries) {
       const autoloader = packageVendorFile(root, folder, 'autoload.php');
       if (!autoloader) throw new Stop(`${folder} has no Composer autoloader, which the declarations of the library are read through: run composer install in ${folder}, or in the project that requires it`);
       const found = declarationsOf(run(php, [script, 'library', path.join(root, autoloader), request]));
@@ -461,28 +484,31 @@ export function declarations(root: string): string[] {
 if (isMain(import.meta.url)) {
   const root = repositoryRoot();
   const command = process.argv[2] ?? '';
-  const files = extensionFiles(root);
-  const present = files.some(file => file.startsWith(`${EXTENSION}/`));
   try {
-    if (!['check', 'build', 'test'].includes(command)) throw new Stop('usage: php-extension.mts check | build | test');
-    if (!present) {
-      console.log(`[php-extension] the repository has no PHP extension: ${EXTENSION} holds no file`);
+    if (!['check', 'build', 'test'].includes(command)) throw new Usage(USAGE);
+    const { layout, rest } = layoutOptions(process.argv.slice(3));
+    if (command !== 'build' && rest.length) throw new Usage(USAGE);
+    const files = extensionFiles(root, layout.extension, layout.skip);
+    if (!files.some(file => file.startsWith(`${layout.extension}/`))) {
+      console.log(`[php-extension] the repository has no PHP extension: ${layout.extension} holds no file`);
     } else if (command === 'check') {
-      const found = extensionFindings(files, reader(root));
+      const found = extensionFindings(files, reader(root), layout.extension);
       if (found.length) throw new Stop(found.join('\n'));
       console.log('[php-extension] the extension is declared and the arginfo header of each stub matches it');
     } else if (command === 'build') {
-      build(root, buildOptions(process.argv.slice(3)));
+      build(root, layout, buildOptions(rest));
     } else {
-      const found = declarations(root);
+      const found = declarations(root, layout);
       if (found.length) throw new Stop(`the extension differs from the PHP library:\n${found.join('\n')}`);
       console.log('[php-extension] the extension registers the classes and functions of the PHP library as it declares them');
-      const tests = spawnSync(process.execPath, [siblingTool(import.meta.url, 'runtime-targets'), 'php-ext'], { cwd: root, stdio: 'inherit' });
+      // The unit tests load the library that build published, which runtime-targets takes as its argument (K1103).
+      const names = checked(root, layout);
+      const tests = spawnSync(process.execPath, [siblingTool(import.meta.url, 'runtime-targets'), 'php-ext', builtLibrary(root, layout, names.extension)], { cwd: root, stdio: 'inherit' });
       if (tests.status !== 0) process.exit(1);
     }
   } catch (error) {
     if (!(error instanceof Stop)) throw error;
     for (const line of error.message.split('\n')) console.error(`[php-extension] ${line}`);
-    process.exit(1);
+    process.exit(error instanceof Usage ? 2 : 1);
   }
 }
