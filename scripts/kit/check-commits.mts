@@ -6,9 +6,12 @@
 //   commit-red         a commit that moves a row to done states Red: <command> exit <n>, or No-Red: <reason> (K624, K875)
 //   commit-fix-test    a fix commit changes a test file, or states its red (K257)
 //
-//   node scripts/kit/check-commits.mts --message <file>           the message rules of the message being committed (the commit-msg hook)
-//   node scripts/kit/check-commits.mts --range <base>..<head>     the diff rules of each finished commit of the range
+//   node scripts/kit/check-commits.mts --message <file> --rules <rule>,...
+//                                                                the message rules that --rules names, on the message being committed
+//   node scripts/kit/check-commits.mts --range <base>..<head> --rules <rule>,...
+//                                                                the diff rules that --rules names, on each finished commit of the range
 //
+// Every rule applies as the caller declares it (K1087): no rule is always on, and a call without --rules is a usage error.
 // The diff rules, commit-red and commit-fix-test, judge a finished commit against its parent (K892): an unfinished commit has no
 // change that is known, since an amend replaces HEAD and git names no amend to a hook. make commit, which never amends, judges the
 // index against HEAD. Each finding is one line `<rule>: <message>`; the command exits with status 1 when there is one.
@@ -167,7 +170,35 @@ const commitOf = (root: string, rev: string) => {
  * The findings of the diff rules (K624, K257) of the change from the commit `base` (undefined: the empty tree of a root commit) to
  * `side`, a commit or `''` for the index, made with `message`.
  */
-function changeFindings(root: string, message: string, base: string | undefined, side: string) {
+/** The message rules and the diff rules, which a caller names to apply them (K1087). */
+export const MESSAGE_RULES = ['commit-ai-footer', 'commit-ai-identity'] as const;
+export const DIFF_RULES = ['commit-red', 'commit-fix-test'] as const;
+export type MessageRule = (typeof MESSAGE_RULES)[number];
+export type DiffRule = (typeof DIFF_RULES)[number];
+
+/** The names that `names` lists; throws on a name that is no commit rule. */
+function listedRules(names: string | undefined): string[] {
+  const listed = (names ?? '').split(',').map(name => name.trim()).filter(Boolean);
+  const known: readonly string[] = [...MESSAGE_RULES, ...DIFF_RULES];
+  const unknown = listed.filter(name => !known.includes(name));
+  if (unknown.length) throw new Error(`--rules names ${unknown.join(', ')}, which is no commit rule; the commit rules are ${known.join(', ')}`);
+  return listed;
+}
+
+/** The diff rules that `names` declares; throws on a name that is no commit rule. */
+export function diffRules(names: string | undefined): DiffRule[] {
+  const listed = listedRules(names);
+  return DIFF_RULES.filter(rule => listed.includes(rule));
+}
+
+/** The message rules that `names` declares; throws on a name that is no commit rule. */
+export function messageRules(names: string | undefined): MessageRule[] {
+  const listed = listedRules(names);
+  return MESSAGE_RULES.filter(rule => listed.includes(rule));
+}
+
+function changeFindings(root: string, message: string, base: string | undefined, side: string, rules: readonly DiffRule[]) {
+  if (rules.length === 0) return [];
   const against = base ?? EMPTY_TREE;
   const sides = side === '' ? ['--cached', against] : [against, side];
   const changed = git(root, 'diff', '--name-only', ...sides).split('\n').filter(Boolean);
@@ -181,28 +212,28 @@ function changeFindings(root: string, message: string, base: string | undefined,
   const stated = statedRed(message);
   if (stated !== undefined) return [];
   // The commit that moves a row to done states its red in its body (K624). Only the line is checked.
-  const found: CommitFinding[] = done.map(id => ({ rule: 'commit-red', message: `the commit moves ${id} to done and its body states no red; add a line Red: <command> exit <n>, the failing run of its Verification before the change, or No-Red: <reason> for a change that no test can show` }));
+  const found: CommitFinding[] = !rules.includes('commit-red') ? [] : done.map(id => ({ rule: 'commit-red', message: `the commit moves ${id} to done and its body states no red; add a line Red: <command> exit <n>, the failing run of its Verification before the change, or No-Red: <reason> for a change that no test can show` }));
   // A fix starts with a test that reproduces the defect, unless its body states why none can (K624).
   const changedLines = (file: string) => changedLineNumbers(git(root, 'diff', '-U0', ...sides, '--', file));
-  if (message.startsWith('fix(') && done.length === 0 && !changed.some(file => changesATest(file, name => fileAt(root, side, name), changedLines))) {
+  if (rules.includes('commit-fix-test') && message.startsWith('fix(') && done.length === 0 && !changed.some(file => changesATest(file, name => fileAt(root, side, name), changedLines))) {
     found.push({ rule: 'commit-fix-test', message: `the fix commit changes no test file (${TEST_FILES}); a fix starts with a test that reproduces the defect, or states No-Red: <reason> when no test can show it` });
   }
   return found;
 }
 
 /** The findings of the diff rules of the index of `root` against HEAD, committed with `message` by make commit, which never amends. */
-export const indexItemFindings = (root: string, message: string) => changeFindings(root, message, commitOf(root, 'HEAD'), '');
+export const indexItemFindings = (root: string, message: string, rules: readonly DiffRule[]) => changeFindings(root, message, commitOf(root, 'HEAD'), '', rules);
 
 /**
  * The findings of the diff rules of each commit of `range` (`<base>..<head>`) in `root`, oldest first, each judged against its parent
  * (K892) and named by its short sha; a merge commit is left out.
  */
-export function rangeFindings(root: string, range: string): CommitFinding[] {
+export function rangeFindings(root: string, range: string, rules: readonly DiffRule[]): CommitFinding[] {
   if (!range.includes('..') || range.includes('...')) throw new Error(`the range ${range} is not <base>..<head>`);
   return git(root, 'rev-list', '--reverse', '--no-merges', range).split('\n').filter(Boolean).flatMap(sha => {
     const message = git(root, 'log', '-1', '--format=%B', sha);
     const short = sha.slice(0, 8);
-    return changeFindings(root, message, commitOf(root, `${sha}^`), sha).map(found => ({ rule: found.rule, message: `${short} ${message.split('\n')[0]}: ${found.message}` }));
+    return changeFindings(root, message, commitOf(root, `${sha}^`), sha, rules).map(found => ({ rule: found.rule, message: `${short} ${message.split('\n')[0]}: ${found.message}` }));
   });
 }
 
@@ -212,19 +243,43 @@ export function fileMessage(text: string) {
   return message.startsWith('Merge ') ? null : message;
 }
 
+/** Ends the run with a usage error (exit 2): the call declares nothing to check, or a rule that does not exist (K1087). */
+function usage(text: string): never {
+  console.error(`[check-commits] ${text}; usage: node scripts/kit/check-commits.mts --message <file> | --range <base>..<head> --rules <rule>,...`);
+  process.exit(2);
+}
+
 if (isMain(import.meta.url)) {
   const root = repositoryRoot();
-  const { values } = parseArgs({ options: { message: { type: 'string' }, range: { type: 'string' } } });
+  const { values } = parseArgs({ options: { message: { type: 'string' }, range: { type: 'string' }, rules: { type: 'string' } } });
+  // A call that declares nothing to check, or a rule that does not exist, is a usage error (exit 2), not a finding (K1087).
+  if (values.range === undefined && values.message === undefined) usage('no --message and no --range');
+  if (values.rules === undefined) usage(`${values.range === undefined ? '--message' : '--range'} needs --rules, the commit rules that the repository declares`);
+  // A rule of the other mode, or a --rules that keeps no rule of this one (an empty value, a lone comma), checks nothing (K1087).
+  const mode = values.range === undefined ? '--message' : '--range';
+  const ofMode: readonly string[] = values.range === undefined ? MESSAGE_RULES : DIFF_RULES;
+  let listed: string[] = [];
+  try {
+    listed = listedRules(values.rules);
+  } catch (error) {
+    if (!(error instanceof Error)) throw error;
+    usage(error.message);
+  }
+  const foreign = listed.filter(name => !ofMode.includes(name));
+  if (foreign.length > 0) usage(`${foreign.join(', ')} is no rule of ${mode}; its rules are ${ofMode.join(', ')}`);
+  if (listed.length === 0) usage(`--rules names no rule of ${mode}; its rules are ${ofMode.join(', ')}`);
+  const rules = diffRules(values.rules);
+  const messageRuleList = messageRules(values.rules);
   let findings: string[] = [];
   let subject = 'the message being committed';
   try {
     if (values.range !== undefined) {
       subject = `the commits of ${values.range}`;
-      findings = rangeFindings(root, values.range).map(found => `${found.rule}: ${found.message}`);
-    } else {
-      if (values.message === undefined) throw new Error('Usage: node scripts/kit/check-commits.mts --message <file> | --range <base>..<head>');
+      findings = rangeFindings(root, values.range, rules).map(found => `${found.rule}: ${found.message}`);
+    } else if (values.message !== undefined) {
       const message = fileMessage(readFileSync(values.message, 'utf8'));
-      findings = message === null ? [] : [...messageFindings(message), ...nextIdentityFindings(root)].map(found => `${found.rule}: ${found.message}`);
+      const found = message === null ? [] : [...(messageRuleList.includes('commit-ai-footer') ? messageFindings(message) : []), ...(messageRuleList.includes('commit-ai-identity') ? nextIdentityFindings(root) : [])];
+      findings = found.map(entry => `${entry.rule}: ${entry.message}`);
     }
   } catch (error) {
     if (!(error instanceof Error)) throw error;

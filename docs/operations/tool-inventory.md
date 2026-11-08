@@ -611,7 +611,9 @@ Dropped behaviors:
 and ordered-json state the same message format in their rules but have no check. The constant `COMMIT_RULES` of
 check-commits.mts holds the types and the body width that make commit writes, the same for every repository (K243). Since K1053
 neither a hook of kit, make commit nor land runs it: `check-commits --range <base>..<head>` and `--message <file>` report the
-findings of its rules where a repository's own recipe runs them.
+findings of its rules where a repository's own recipe runs them; no rule is always on: a message applies only the message rules
+(`commit-ai-footer`, `commit-ai-identity`) and a range only the diff rules that `--rules` names, and a call without `--rules` or
+with a rule name that does not exist, a rule of the other mode or no rule at all is a usage error, exit 2 (K1087).
 
 Merged behaviors:
 

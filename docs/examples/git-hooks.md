@@ -34,7 +34,7 @@ The message rules of kit on the message being committed:
 ```sh
 #!/bin/sh
 cd "$(git rev-parse --show-toplevel)" || exit 1
-exec var/tools/bin/node node_modules/@polyspec/kit/dist/check-commits.mjs --message "$1"
+exec var/tools/bin/node node_modules/@polyspec/kit/dist/check-commits.mjs --message "$1" --rules commit-ai-footer,commit-ai-identity
 ```
 
 In the checkout of kit itself the sources are `scripts/kit/generated-files.mts` and `scripts/kit/check-commits.mts`.

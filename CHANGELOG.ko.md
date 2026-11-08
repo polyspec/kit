@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 397735d1c72ef749224e72dcf8b2e703981a146bb1e1a1a04a73734177f87f0e -->
+<!-- source-sha256: 2bf0218c997fdba889675351dce945de614dc8c94b21db7d941455c7b9c62f67 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1087: check-commits --range는 --rules 인수가 이름 붙인 diff 규칙(commit-red, commit-fix-test)만 적용하고, 인수가 없으면 아무 규칙도 적용하지 않습니다. 규칙은 호출자가 선언한 대로 적용됩니다(K1087).
+- K1087: check-commits는 --message도 --range도 없는 호출, --rules 없는 --range, diff 규칙이 아닌 --rules 이름에 사용 오류인 exit 2로 끝납니다(K1087).
+- K1087: 항상 켜진 commit 규칙은 없습니다. check-commits --message는 --rules가 이름 붙인 메시지 규칙 commit-ai-footer와 commit-ai-identity만 적용하며, --rules 없는 --message, 그 mode의 규칙이 하나도 없는 --rules(빈 값, 쉼표 하나), 다른 mode의 규칙은 exit 2로 끝납니다. 그 규칙을 쓰던 commit-msg hook은 --rules commit-ai-footer,commit-ai-identity를 넘깁니다(K1087).
 - K1068: ci-setup은 config/ci.json이 선언한 것을 계획하고 준비하며 다른 파일과 대조하지 않습니다. parityBindings가 config/parity.json의 implementation을 모두 이름할 필요가 없고, binding이 없는 implementation은 binding job을 받지 않으며 선언된 binding은 job 하나를 받습니다. parityMode는 선택 항목이며(없으면 config/parity.json이 있을 때 full, 없을 때 none), binding의 setup은 parityMode phases를 요구하지 않습니다. implementation에 binding이 없어도 되는지는 저장소 자신의 규칙입니다. 선언된 setup·binding·context target과 기본 deps-<runtime> target은 Makefile과 먼저 대조하지 않고 선언대로 실행하며, 없는 target은 실행될 때 make가 알립니다(K1068).
 - kit-check는 저장소의 config/<name>.json을 그 이름의 kit schema로 검증하지 않습니다. scripts/kit/kit-check.mts, make target `kit-check`, `kit-gates`와 `kit-gates-static`의 자리, CI step이 사라졌고, `PACKAGE`와 `isSource`는 manifests.mts로, `writtenByKit`는 release.mts로 옮겼습니다. 각 도구가 자기가 읽는 설정을 검증합니다. 레시피가 아직 kit-check를 실행하는 저장소는 도구가 없으므로 그 호출을 지울 때까지 실패합니다(K1070).
 - kit의 각 schema는 그 도구가 읽는 key만 검사합니다. 어떤 schema도 기술하지 않은 key를 거부하지 않고(additionalProperties false 삭제), version key schema, 그 도구가 읽지 않는 reason(duplication exclude, generated exceptions와 tracked, parity internal), config/ci.json의 모든 runtime의 setup을 요구하지 않으며, kit의 어떤 도구도 읽지 않는 ciExempt를 기술하지 않습니다(K1069).

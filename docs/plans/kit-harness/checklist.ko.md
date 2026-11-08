@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 4f4a4b0451cf76095d5f586aaee3bdf7a6a9c3d206bad5fdb41d806e53e576f6 -->
+<!-- source-sha256: 6074db4b2b10ad9879b6401e161055803a2014c9ed27c99bcefb387855279d0f -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -214,7 +214,7 @@
 | K1084 | release는 태그와 변경 기록에서 파싱하는 것만 요구하며, 그 이상으로 kit에 고정된 태그 형식이나 변경 기록 형식이 없다 | scripts/kit/release.mts, scripts/kit/release-run.mts, scripts/kit/changelog.mts, scripts/kit/check-documents.mts, scripts/kit/schema/release.schema.json, scripts/kit/schema/documents.schema.json, config/release.json, config/documents.json, tests/kit/release-tag.test.mts, tests/kit/release-run.test.mts, tests/kit/documents.test.mts, docs/operations/release(.ko).md, docs/operations/tool-inventory(.ko).md, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1084 tests/kit/release-tag.test.mts tests/kit/release-run.test.mts tests/kit/documents.test.mts` | [o] |
 | K1085 | parity-declaration은 저장소가 그 규칙을 선언할 때만 owner를 config/release.json과 contracts/features.json에 대조한다 | scripts/kit/parity-declaration.mts, scripts/kit/schema/parity.schema.json, tests/kit/parity-api.test.mts, docs/operations/tool-inventory(.ko).md, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1085 tests/kit/parity-api.test.mts` | [o] |
 | K1086 | release coverage는 저장소가 그 규칙을 선언할 때만 추적된 모든 manifest를 분류한다 | scripts/kit/release.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1086 tests/kit/release-coverage.test.mts` | [-] 원인: release coverage는 저장소가 자신의 recipe에서 make release-coverage를 호출할 때 도는 release.mts coverage mode에서만 실행됩니다. 그 호출이 규칙의 선언이며 coverage는 다른 어디에서도 돌지 않고, package 파일의 분류는 이 도구가 하는 일 전부이므로 조건으로 바꿀 것이 없습니다 |
-| K1087 | check-commits는 fix 커밋의 No-Red 규칙을 저장소가 선언한 대로만 적용한다 | scripts/kit/check-commits.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1087 tests/kit/check-commits.test.mts` | [ ] |
+| K1087 | check-commits는 fix 커밋의 No-Red 규칙을 저장소가 선언한 대로만 적용한다 | scripts/kit/check-commits.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1087 tests/kit/check-commits.test.mts` | [o] |
 | K1088 | language-check는 언어 규칙을 저장소가 선언한 대로만 적용한다 | scripts/kit/language-check.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1088 tests/kit/language-check.test.mts` | [ ] |
 | K1089 | plan은 plan slug 패턴을 저장소가 선언한 대로만 적용한다 | scripts/kit/plan.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1089 tests/kit/plan.test.mts` | [ ] |
 | K1090 | plan item-state는 저장소가 요청한 상태로 항목을 옮기며, 저장소 자신의 상태 변경을 거부하는 kit 고정 전이표가 없다 | scripts/kit/plan.mts, scripts/kit/checklist.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1090 tests/kit/plan.test.mts` | [ ] |

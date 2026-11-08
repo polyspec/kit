@@ -6,7 +6,7 @@ import { chmodSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
-import { fileMessage, identityFindings, indexItemFindings, messageFindings, rustTestLines } from '../../scripts/kit/check-commits.mts';
+import { DIFF_RULES, fileMessage, identityFindings, indexItemFindings, messageFindings, rustTestLines } from '../../scripts/kit/check-commits.mts';
 import { put, tree } from './tree.mts';
 import { tool } from './kit-tools.mts';
 
@@ -24,7 +24,7 @@ function staged(t: TestContext, base: Record<string, string>, change: Record<str
   assert.equal(git('commit', '-q', '-m', 'feat(core): Start (#S1)').status, 0);
   put(root, change);
   git('add', '-A');
-  return indexItemFindings(root, message).map(found => found.rule);
+  return indexItemFindings(root, message, DIFF_RULES).map(found => found.rule);
 }
 
 test('commit-ai-footer: a message holds no co-author or session trailer of an AI tool (K264)', () => {
@@ -148,13 +148,54 @@ test('the command checks a message file and exits with the findings', (t) => {
   const command = (...args: string[]) => spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-commits.mts')), ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } });
   const file = path.join(root, 'MSG');
   writeFileSync(file, '# comment\nwip\n');
-  const good = command('--message', file);
+  const good = command('--message', file, '--rules', 'commit-ai-footer,commit-ai-identity');
   assert.equal(good.status, 0, good.stderr);
   writeFileSync(file, 'wip\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n');
-  const refused = command('--message', file);
+  const refused = command('--message', file, '--rules', 'commit-ai-footer,commit-ai-identity');
   assert.equal(refused.status, 1);
   assert.match(refused.stderr, /\[check-commits\] commit-ai-footer: line 3 of the message is the footer of an AI tool/);
-  assert.equal(command('--range', 'HEAD').status, 1);
+  assert.equal(command('--range', 'HEAD', '--rules', 'commit-red').status, 1);
+  assert.equal(command().status, 2, 'a call without --message or --range is a usage error');
+});
+
+// K1087: no commit rule is always on: --message applies only the message rules that --rules names, and a --message without --rules is
+// a usage error, as a --range without it is.
+test('K1087: check-commits --message applies only the message rules that --rules names', (t) => {
+  const root = tree(t, { 'config/checklist.json': JSON.stringify(CHECKLIST) });
+  spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'feat(core): Start (#S1)'], { cwd: root });
+  const command = (env: Record<string, string>, ...args: string[]) => spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-commits.mts')), ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, ...env } });
+  const person = { GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
+  const tool_ = { GIT_AUTHOR_NAME: 'Claude', GIT_AUTHOR_EMAIL: 'noreply@anthropic.com', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
+  const file = path.join(root, 'MSG');
+  writeFileSync(file, 'wip\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n');
+  assert.equal(command(person, '--message', file).status, 2, 'a --message without --rules is a usage error');
+  assert.equal(command(person, '--message', file, '--rules', 'commit-ai-identity').status, 0, 'the footer rule applies only when named');
+  assert.equal(command(person, '--message', file, '--rules', 'commit-ai-footer').status, 1);
+  writeFileSync(file, 'wip\n');
+  assert.equal(command(tool_, '--message', file, '--rules', 'commit-ai-footer').status, 0, 'the identity rule applies only when named');
+  const identity = command(tool_, '--message', file, '--rules', 'commit-ai-identity');
+  assert.equal(identity.status, 1);
+  assert.match(identity.stderr, /commit-ai-identity: /);
+});
+
+// K1087: a --rules that keeps no rule of the chosen mode checks nothing, and a rule of the other mode is none of this one: each is a
+// usage error (exit 2), as an empty value or a lone comma is.
+test('K1087: check-commits refuses a --rules that names no rule of the mode, or a rule of the other mode (exit 2)', (t) => {
+  const root = tree(t, { 'config/checklist.json': JSON.stringify(CHECKLIST) });
+  spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'feat(core): Start (#S1)'], { cwd: root });
+  const check = tool(import.meta.resolve('../../scripts/kit/check-commits.mts'));
+  const command = (...args: string[]) => spawnSync(process.execPath, [check, ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } });
+  const file = path.join(root, 'MSG');
+  writeFileSync(file, 'wip\n');
+  for (const rules of ['', ',', 'commit-red', 'commit-ai-footer,commit-fix-test']) {
+    const message = command('--message', file, '--rules', rules);
+    assert.equal(message.status, 2, `--message --rules ${JSON.stringify(rules)} is a usage error: ${message.stderr}`);
+  }
+  for (const rules of ['', ',', 'commit-ai-footer', 'commit-red,commit-ai-identity']) {
+    const range = command('--range', 'HEAD..HEAD', '--rules', rules);
+    assert.equal(range.status, 2, `--range --rules ${JSON.stringify(rules)} is a usage error: ${range.stderr}`);
+  }
+  assert.match(command('--range', 'HEAD..HEAD', '--rules', 'commit-ai-footer').stderr, /commit-ai-footer is no rule of --range/);
 });
 
 // K892: the diff rules judge each finished commit of a range against its parent, so no amend is guessed: the commit-msg hook keeps the
@@ -162,7 +203,7 @@ test('the command checks a message file and exits with the findings', (t) => {
 test('K892: the hook keeps the message rules and the range judges the diff rules of each finished commit by its sha', (t) => {
   const root = tree(t, { 'config/checklist.json': JSON.stringify(CHECKLIST), [PLAN]: plan([['S1', '[ ]']]) });
   const check = tool(import.meta.resolve('../../scripts/kit/check-commits.mts'));
-  put(root, { '.git/hooks/commit-msg': `#!/bin/sh\nexec '${process.execPath}' '${check}' --message "$1"\n` });
+  put(root, { '.git/hooks/commit-msg': `#!/bin/sh\nexec '${process.execPath}' '${check}' --message "$1" --rules commit-ai-footer,commit-ai-identity\n` });
   chmodSync(path.join(root, '.git/hooks/commit-msg'), 0o755);
   const git = (...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, GIT_EDITOR: 'true' } });
   git('add', '-A');
@@ -179,11 +220,35 @@ test('K892: the hook keeps the message rules and the range judges the diff rules
   git('add', '-A');
   const reused = git('commit', '-q', '-C', 'HEAD');
   assert.equal(reused.status, 0, `the hook judges only the message: ${reused.stderr}`);
-  const range = spawnSync(process.execPath, [check, '--range', `${start}..HEAD`], { cwd: root, encoding: 'utf8' });
+  const range = spawnSync(process.execPath, [check, '--range', `${start}..HEAD`, '--rules', 'commit-red,commit-fix-test'], { cwd: root, encoding: 'utf8' });
   assert.equal(range.status, 1, range.stderr);
   const sha = git('rev-parse', '--short=8', 'HEAD').stdout.trim();
   const fix = git('rev-parse', '--short=8', 'HEAD^').stdout.trim();
   assert.match(range.stderr, new RegExp(`commit-fix-test: ${sha} fix\\(core\\): Keep the state \\(#S1\\): the fix commit changes no test file`));
   assert.doesNotMatch(range.stderr, new RegExp(fix), 'the amended fix commit holds its test');
-  assert.equal(spawnSync(process.execPath, [check, '--range', `${start}..HEAD^`], { cwd: root, encoding: 'utf8' }).status, 0, 'a range of correct commits passes');
+  assert.equal(spawnSync(process.execPath, [check, '--range', `${start}..HEAD^`, '--rules', 'commit-red,commit-fix-test'], { cwd: root, encoding: 'utf8' }).status, 0, 'a range of correct commits passes');
+});
+
+// K1087: the diff rules apply as the caller declares them: a range checks the rules that --rules names, and none without it.
+test('K1087: check-commits --range applies only the diff rules that --rules names, and a range without --rules is a usage error', (t) => {
+  const root = tree(t, { 'config/checklist.json': JSON.stringify(CHECKLIST), [PLAN]: plan([['S1', '[ ]']]) });
+  const check = tool(import.meta.resolve('../../scripts/kit/check-commits.mts'));
+  const git = (...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
+  git('add', '-A');
+  assert.equal(git('commit', '-q', '--no-verify', '-m', 'feat(core): Start (#S1)').status, 0);
+  const start = git('rev-parse', 'HEAD').stdout.trim();
+  put(root, { 'machine.go': 'package machine\n' });
+  git('add', '-A');
+  assert.equal(git('commit', '-q', '--no-verify', '-m', 'fix(core): Keep the state (#S1)').status, 0);
+  const run = (...args: string[]) => spawnSync(process.execPath, [check, '--range', `${start}..HEAD`, ...args], { cwd: root, encoding: 'utf8' });
+  const bare = run();
+  assert.equal(bare.status, 2, 'a range without --rules is a usage error');
+  assert.match(bare.stderr, /--range needs --rules/);
+  const declared = run('--rules', 'commit-fix-test');
+  assert.equal(declared.status, 1, declared.stderr);
+  assert.match(declared.stderr, /commit-fix-test: /);
+  assert.equal(run('--rules', 'commit-red').status, 0, 'only the named rule applies');
+  const unknown = run('--rules', 'commit-blue');
+  assert.equal(unknown.status, 2, 'an unknown rule is a usage error');
+  assert.match(unknown.stderr, /commit-blue/);
 });

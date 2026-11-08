@@ -1,5 +1,5 @@
 <!-- doc-id: rebuild-check-commits -->
-<!-- source-sha256: e787f3669f03be3ad4e177eb3625d157357559ccceda1a151accc039cf2bf634 -->
+<!-- source-sha256: a250c235a79b33b96c4cd1e4467a81fe26480b05ad25c35fef2a74b252db9458 -->
 # 재구현 기록: check-commits
 
 [English](check-commits.md)
@@ -19,6 +19,7 @@ VERDICTS 6절). commitlint와 비교했던 message 형식 규칙은 K805가 지�
 | A2 | commit-ai-identity: author와 committer는 AI 도구가 아닙니다 |
 | R1 | commit-red: checklist 행을 done으로 옮기는 commit은 Red 또는 No-Red 줄을 적습니다 |
 | R2 | commit-fix-test: fix commit은 test 파일을 바꾸거나 그 red를 적습니다 |
+| R3 | diff 규칙 R1과 R2는 호출자가 `--rules`에 이름 붙인 대로만 적용됩니다 |
 
 ## 평가한 도구
 

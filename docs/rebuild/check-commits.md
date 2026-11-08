@@ -18,6 +18,7 @@ form rules of the message that commitlint was measured against were deleted by K
 | A2 | commit-ai-identity: no AI tool is the author or the committer |
 | R1 | commit-red: a commit that moves a checklist row to done states a Red or No-Red line |
 | R2 | commit-fix-test: a fix commit changes a test file, or states its red |
+| R3 | the diff rules R1 and R2 apply only as the caller names them in `--rules` |
 
 ## Tools evaluated
 

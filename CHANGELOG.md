@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- K1087: check-commits --range applies only the diff rules that its --rules argument names, commit-red and commit-fix-test, and none without it; the rules apply as the caller declares them (K1087).
+- K1087: check-commits exits 2, a usage error, for a call without --message or --range, a --range without --rules and a --rules name that is no diff rule (K1087).
+- K1087: no commit rule is always on: check-commits --message applies only the message rules commit-ai-footer and commit-ai-identity that --rules names, and a --message without --rules, a --rules that names no rule of its mode (an empty value, a lone comma) and a rule of the other mode exit 2; a commit-msg hook that kept them passes --rules commit-ai-footer,commit-ai-identity (K1087).
 - K1115: release publish writes the record of its draft release and undraft reads it in the folder that the caller names in RELEASE_RECORDS, not in a var/release fixed by kit; a call that names none exits 2, and kit.mk names var/release for kit (K1115).
 - K1084: release-tag passes an existing tag at the commit whatever its kind, and refuses a lightweight one only where config/release.json names annotatedTags; check-documents judges a declared changelog by the format rules that changelogRules of config/documents.json names (unreleased-first, unreleased-once, versions-only, newest-first) and by none without it; release-tag refuses a commit with entries under ## Unreleased only where those changelogRules name unreleased-empty-at-release; kit names annotatedTags and all five rules for itself (K1084).
 - K1111: ci-passed passes a skipped job unless the caller sets FAIL_SKIPPED=1; kit's own ci.yml sets it (K1111).

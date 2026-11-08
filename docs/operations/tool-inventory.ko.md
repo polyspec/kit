@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 8d5fccb587b04351db6b729fa513dfd6839914be42d80a5e5be881937df43764 -->
+<!-- source-sha256: f3588b1a73fdc2051485c9ba38a15c7d5b14199e0d4415775a826872debcc30c -->
 
 # 도구 목록
 
@@ -559,6 +559,7 @@ Export된 `runCommand`는 자신이 시작한 command만 소유한다. 긴 comma
 ordered-json은 규칙에 같은 메시지 형식을 적었지만 검사는 없습니다. 모든 저장소에 같은 check-commits.mts의 상수 `COMMIT_RULES`는
 make commit이 쓰는 type과 body 폭입니다(K243). K1053부터 kit의 hook, make commit, land 어느 것도 이를 실행하지 않습니다.
 `check-commits --range <base>..<head>`와 `--message <file>`은 저장소 자신의 레시피가 실행하는 곳에서 그 규칙의 finding을 보고합니다.
+항상 켜진 규칙은 없습니다. 메시지는 `--rules`가 이름 붙인 메시지 규칙(`commit-ai-footer`, `commit-ai-identity`)만, 범위는 diff 규칙만 적용하며, `--rules` 없는 호출, 없는 규칙 이름, 다른 mode의 규칙, 규칙이 하나도 없는 `--rules`는 사용 오류(exit 2)입니다(K1087).
 
 합친 동작:
 

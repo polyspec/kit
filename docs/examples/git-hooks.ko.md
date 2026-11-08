@@ -1,5 +1,5 @@
 <!-- doc-id: example-git-hooks -->
-<!-- source-sha256: d2ab322ed7bf3a2945abb3b21618e2626f6b5b80bd419e7bfc5a508e48c8eebe -->
+<!-- source-sha256: 376718df243ac495cdca147faee94737b5487c9b091df1a7a3208265bee4eb95 -->
 # 예제: Git hook
 
 [English](git-hooks.md)
@@ -35,7 +35,7 @@ commit되는 메시지에 대한 kit의 메시지 규칙:
 ```sh
 #!/bin/sh
 cd "$(git rev-parse --show-toplevel)" || exit 1
-exec var/tools/bin/node node_modules/@polyspec/kit/dist/check-commits.mjs --message "$1"
+exec var/tools/bin/node node_modules/@polyspec/kit/dist/check-commits.mjs --message "$1" --rules commit-ai-footer,commit-ai-identity
 ```
 
 kit 자신의 checkout에서는 소스가 `scripts/kit/generated-files.mts`와 `scripts/kit/check-commits.mts`다.
