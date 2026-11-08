@@ -121,7 +121,8 @@ repository.
   (P28).
   Enforced by: `make docs-check`
 - P25 An item is `[ ]` waiting, `[~]` active, `[v]` verification, `[o]` done, `[!] cause: <cause>; retry: <condition>` bypassed or
-  `[-] cause: <cause>` impossible, and moves only along the transitions of `make item-state`. Verification means the implementation is
+  `[-] cause: <cause>` impossible. `make item-state` moves an item from any state to any other; it refuses only a state that is none
+  of these and a bypassed or impossible state without its cause (K1090). Verification means the implementation is
   committed and its declared unit tests passed. It permits a push, but blocks tag creation and release until it is done; a failed
   verification returns it to active. A new finding on a done item is a sub-item of its own; the done item keeps its state.
   Enforced by: `make docs-check`

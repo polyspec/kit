@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 26694d5e7bba6628b3dcebb824c0f9e69dafd9000725d55fb2dd4bbd51291d6a -->
+<!-- source-sha256: 5d06a5c81b7f544ebc757fa2e6a79014b4f2a76e060bf2fa66b7bda1d88b9916 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1090: plan item-state는 항목을 어떤 상태에서든 저장소가 요청한 상태로 옮깁니다. kit은 전이표를 고정하지 않으며, 도구가 적는 원인이 필요한 bypassed와 impossible 상태만 원인을 요구합니다(K1090).
 - K1089: parity --make-targets는 plan-new처럼 호출자의 NAME_PATTERN으로 구현 이름을 검사하며, 없으면 make target이 담을 수 없는 이름만 거부합니다. 정규식이 아닌 NAME_PATTERN은 exit 2로 끝나며, parity.schema.json은 구현 이름, 공유 이름, owner part의 패턴을 더는 고정하지 않습니다. kit의 레시피는 NAME_PATTERN='^[a-z][a-z0-9-]*$'를 넘깁니다(K1089).
 - K1089: plan-new는 plan 이름을 호출자가 선언한 NAME_PATTERN으로 검사하고, 선언이 없으면 이름이 폴더 이름 하나인지만 검사합니다. kit 자신의 레시피는 `^[a-z][a-z0-9-]*$`를 선언합니다(K1089).
 - K1088: language-check는 --forbid 없는 호출과 정규식이 아닌 --forbid에 사용 오류인 exit 2로 끝납니다(K1088).

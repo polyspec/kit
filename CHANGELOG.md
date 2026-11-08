@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K1090: plan item-state moves an item to the state the repository asks for, from any state; kit fixes no transition table, and only a bypassed or impossible state still needs its cause, which the tool writes (K1090).
 - K1089: parity --make-targets checks the implementation names against the NAME_PATTERN of its caller, as plan-new does, and without one refuses only a name that a make target cannot hold; a NAME_PATTERN that is no regular expression exits 2, and parity.schema.json fixes no pattern of an implementation name, a shared name or an owner part any more; kit's recipe passes NAME_PATTERN='^[a-z][a-z0-9-]*$' (K1089).
 - K1089: plan-new checks a plan name against the NAME_PATTERN that its caller declares, and without one only that the name is a single folder name; kit's own recipe declares `^[a-z][a-z0-9-]*$` (K1089).
 - K1088: language-check exits 2, a usage error, for a call without --forbid and for a --forbid that is no regular expression (K1088).

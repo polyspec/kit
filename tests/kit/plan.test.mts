@@ -181,27 +181,20 @@ test('item-state moves an item in both languages and refuses an unknown item and
   assert.throws(() => setState(root, { id: 'T1', state: '[x]' }), /the state "\[x\]" is none of/);
 });
 
-test('item-state refuses a move that STATE_TRANSITIONS does not allow, and writes nothing (K937)', (t) => {
+// K1090: item-state moves an item to the state the repository asks for; no transition table of kit refuses the move.
+test('K1090: item-state moves a done or impossible item to the state the repository asks for', (t) => {
   const root = committed(t, 'T1', 'T2');
-  const english = 'docs/plans/parser/checklist.md';
-  const korean = 'docs/plans/parser/checklist.ko.md';
-  const files = () => [english, korean].map(file => readFileSync(path.join(root, file), 'utf8'));
   setState(root, { id: 'T1', state: '[~]' });
   commitState(root, 'start');
-  setState(root, { id: 'T1', state: '[v]' });
-  commitState(root, 'verification');
-  writeFileSync(path.join(root, 'CHANGELOG.md'), `${CHANGELOG}- Parse (T1).\n`);
-  writeFileSync(path.join(root, 'CHANGELOG.ko.md'), `${CHANGELOG}- 파싱 (T1).\n`);
   setState(root, { id: 'T1', state: '[o]' });
   commitState(root, 'done');
-  const done = files();
-  assert.throws(() => setState(root, { id: 'T1', state: '[v]' }), /T1 is \[o\], which allows no move; \[v\] is refused/);
-  assert.deepEqual(files(), done);
+  setState(root, { id: 'T1', state: '[~]' });
+  assert.deepEqual(states(root, 'docs/plans/parser/checklist.md')[0], '[~] |');
+  commitState(root, 'reopen');
   setState(root, { id: 'T2', state: '[-]', cause: 'the feature was dropped', causeKo: '기능을 버림' });
   commitState(root, 'impossible');
-  const impossible = files();
-  assert.throws(() => setState(root, { id: 'T2', state: '[~]' }), /T2 is \[-\], which allows no move; \[~\] is refused/);
-  assert.deepEqual(files(), impossible);
+  setState(root, { id: 'T2', state: '[ ]' });
+  assert.deepEqual(states(root, 'docs/plans/parser/checklist.md')[1], '[ ] |');
 });
 
 test('item-state to the state an item already has succeeds, writes nothing and runs no Verification (K937-1)', (t) => {
@@ -223,7 +216,7 @@ test('item-state to the state an item already has succeeds, writes nothing and r
   assert.equal(done.status, 0, `a move runs no Verification (K1053): ${done.stderr}`);
 });
 
-// K1053: item-state reads no changelog and runs no test; it moves the state along STATE_TRANSITIONS.
+// K1053: item-state reads no changelog and runs no test.
 test('item-state sets done without a changelog line and without running the Verification (K1053)', (t) => {
   const root = plans(t, 'parser');
   newItem(root, item('parser', 'T1', { verification: '`node -e "process.exit(1)"`' }));

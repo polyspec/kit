@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 3c08ee4bbf23ba485114ab531408708df8ede18c592eaf58b8e3b3cb53cbdda2 -->
+<!-- source-sha256: fe56d44d08f4d2a8e7b62851f2acda7e401a4372e6d14d7b7c5c45cd4039f653 -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -116,7 +116,8 @@ repository는 자기 사본을 자기 파일로 바꿉니다(K1055).
   (P28).
   Enforced by: `make docs-check`
 - P25 item은 `[ ]` waiting, `[~]` active, `[v]` verification, `[o]` done, `[!] cause: <cause>; retry: <condition>` bypassed 또는
-  `[-] cause: <cause>` impossible이며, `make item-state`의 전이로만 움직인다. verification은 구현이 commit되었고 선언한 unit test가
+  `[-] cause: <cause>` impossible이다. `make item-state`는 item을 어느 state에서 어느 state로든 옮기며, 이 중 어느 것도 아닌 state와
+  cause 없는 bypassed 또는 impossible state만 거부한다(K1090). verification은 구현이 commit되었고 선언한 unit test가
   통과했음을 뜻한다. push는 허용하지만 done이 되기 전 tag 생성과 release를 막으며, verification이 실패하면 active로 되돌린다.
   done item에 대한 새 발견은 그 자신의 sub-item이 되고, done item은 state를 유지한다.
   Enforced by: `make docs-check`

@@ -38,18 +38,6 @@ export const statesOf = (tracker: Pick<Tracker, 'states'>): States => tracker.st
 /** The markers of `states` in their order: waiting, active, verifying, done, bypassed, impossible. */
 export const stateList = (states: States): string[] => [states.waiting, states.active, states.verifying, states.done, states.bypassed, states.impossible];
 
-/** The allowed transitions: an item may be marked done from development or verification; failed verification returns to development. */
-export function stateTransitions(states: States): Record<string, readonly string[]> {
-  return {
-    [states.waiting]: [states.active, states.impossible],
-    [states.active]: [states.verifying, states.done, states.bypassed, states.impossible, states.waiting],
-    [states.verifying]: [states.active, states.done],
-    [states.bypassed]: [states.active],
-    [states.done]: [],
-    [states.impossible]: [],
-  };
-}
-
 /** The place of the column `name` in the rows of the checklist `tracker`: among its declared columns, else those that the plan utilities write; -1 when it has none. */
 export const columnOf = (tracker: Pick<Tracker, 'columns'>, name: string): number => (tracker.columns ?? CHECKLIST_COLUMNS).indexOf(name);
 

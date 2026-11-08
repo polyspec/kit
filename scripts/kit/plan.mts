@@ -12,7 +12,7 @@
 //              replaces the Task, Deliverables or Verification cells of the item in both languages, or rewrites the cause and the
 //              retry of a bypassed item (the cause alone of an impossible one) with the checks of item-state
 //   item-state ID=<id> STATE=<state> [CAUSE= RETRY= CAUSE_KO= RETRY_KO=]
-//              moves the item to STATE in both languages along an allowed transition; the bypassed state needs a cause and a
+//              moves the item to STATE in both languages from any state (K1090); the bypassed state needs a cause and a
 //              retry condition, the impossible state a cause; it runs no test and reads no changelog (K1053)
 //   item-test  ID=<id>
 //              runs each command of the Verification cell of the item in order, in the root, and fails on the first that
@@ -32,7 +32,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { sha256 } from './bootstrap/digest.mts';
-import { CHECKLIST_HEADER, loadConfig, PLANS, readChecklist, stateList, statesOf, stateTransitions, trackersOf, workingPlanFiles } from './checklist.mts';
+import { CHECKLIST_HEADER, loadConfig, PLANS, readChecklist, stateList, statesOf, trackersOf, workingPlanFiles } from './checklist.mts';
 import { COMMIT_RULES } from './check-commits.mts';
 import { itemCommands } from './verification.mts';
 import { spawnSync } from 'node:child_process';
@@ -329,8 +329,8 @@ function withState(text: string, id: string, state: string): string {
 }
 
 /**
- * The item `change.id` with its checklist and the trackers of the checkout; throws on a state that is not declared and on a move
- * from the current state of the item that stateTransitions does not allow (K937). `already` is true when the item holds
+ * The item `change.id` with its checklist and the trackers of the checkout; throws on a state that is none of the checklist
+ * states. The item moves to the state the repository asks for, from any state (K1090). `already` is true when the item holds
  * `change.state`, which is no move (K937-1).
  */
 function movableItem(root: string, change: NewState) {
@@ -341,15 +341,13 @@ function movableItem(root: string, change: NewState) {
   if (!markers.includes(change.state)) throw new Error(`the state ${JSON.stringify(change.state)} is none of ${markers.join(', ')}`);
   const from = entry.item.state;
   const already = from === change.state;
-  const allowed = stateTransitions(states)[from] ?? [];
-  if (!already && !allowed.includes(change.state)) throw new Error(`${change.id} is ${from}, which allows ${allowed.length === 0 ? 'no move' : `only ${allowed.join(', ')}`}; ${change.state} is refused`);
   return { trackers, entry, already };
 }
 
 /**
  * Moves the item `change.id` to `change.state` in its checklist and the Korean twin and returns the two files as
- * { path: text }, none when the item already holds the state. Throws, writing nothing, on a state that is not declared, a transition
- * that stateTransitions does not allow, and a missing cause or retry condition.
+ * { path: text }, none when the item already holds the state. Throws, writing nothing, on a state that is not declared and a
+ * missing cause or retry condition.
  */
 export function setState(root: string, change: NewState): Record<string, string> {
   const { trackers, entry, already } = movableItem(root, change);
