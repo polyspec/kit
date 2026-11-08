@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 05a0501698e0432dad484474cc4b439d7f9ddaa1e46ee981cacb014fe7a5df59 -->
+<!-- source-sha256: 084f33c554b1a2309890e28292f1ea93ce7ee8d827c97c8eb8a1e6143f286d33 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+## 0.0.99
+
+- Release: K1068–K1085, K1087–K1118 행을 담은 kit 0.0.99로, 각 도구가 자신이 쓰는 것과 저장소나 호출자가 선언한 것만 읽는다. K1086은 담지 않는다(K1119).
 - K1118: 각 checkout은 자기 `.links`만 읽습니다. worktree는 더 이상 main checkout의 선언을 읽지 않으므로, 자기 `.links`가 없는 worktree는 릴리즈 상태이며 그 설치(uv-install, npm, make install)는 lock이 지정한 package를 받고 link-check는 그 릴리즈 상태와 비교합니다. 자기 `.links`가 있는 worktree는 선언대로 link합니다. 쓰이지 않는 link-providers의 `mainCheckout` export를 지웁니다(K1118).
 - 테스트 sandbox에서 호출자의 GIT_DIR, GIT_WORK_TREE 등 저장소 위치를 정하는 git 변수를 지워, `git rebase -x`나 hook 아래의 kit-test 실행이 그것을 시작한 저장소에 쓰지 않게 한다(K1113).
 - K1116: item-edit은 호출자가 DONE_STAYS=1을 선언할 때만 done item의 Verification이나 Deliverables 수정을 거부합니다. kit의 item-edit 레시피는 이를 선언하며, 그 거부를 유지하려는 저장소는 자기 레시피에서 DONE_STAYS=1을 넘깁니다(K1116).
