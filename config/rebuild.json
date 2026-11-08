@@ -92,7 +92,7 @@
     },
     "scripts/kit/runtime-targets.mts": {
       "kind": "policy",
-      "reason": "the rule of PRINCIPLES.md that each item is verified by its own unit tests: one command per runtime that runs each package's runner with its name filter, and the suites only in CI (K244)"
+      "reason": "the rule of PRINCIPLES.md that each item is verified by its own unit tests: one command that runs the runner of each root that the caller selects with its name filter (K244, K1106)"
     },
     "scripts/kit/checklist.mts": {
       "kind": "policy",

@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 127ee462e98663e8cc58c332f7a79a17843f4e38f729fb186da66783b637b63e -->
+<!-- source-sha256: 748ce9470ccf89edf043b1eb5bdb0f0e71c259940d762b74cf2b149fe61e9fd2 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -233,7 +233,7 @@
 | K1103 | php-extension은 경로를 호출자에게서 받으며 kit에 고정된 경로가 없다 | scripts/kit/php-extension.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1103 tests/kit/php-ext.test.mts` | [o] |
 | K1104 | duplication-check는 형식, 최소 줄 수, 제외 대상을 저장소에서 읽으며 kit에 고정된 것은 없다 | scripts/kit/duplication-check.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1104 tests/kit/duplication-check.test.mts` | [ ] |
 | K1105 | generated-files는 생성 경로 조각, 바이너리 종류, 도구 폴더를 저장소에서 읽으며 kit에 고정된 것은 없다 | scripts/kit/generated-files.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1105 tests/kit/generated-files.test.mts` | [o] |
-| K1106 | runtime-targets는 런타임, 빌드 명령, 테스트 경로, 플래그를 저장소에서 읽으며 kit에 고정된 것은 없다 | scripts/kit/runtime-targets.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1106 tests/kit/runtime-targets.test.mts` | [~] |
+| K1106 | runtime-targets는 런타임, 빌드 명령, 테스트 경로, 플래그를 저장소에서 읽으며 kit에 고정된 것은 없다 | scripts/kit/runtime-targets.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1106 tests/kit/runtime-targets.test.mts` | [o] |
 | K1107 | worktree-setup은 worktree 폴더와 기준 브랜치를 호출자에게서 받으며 kit에 고정된 것은 없다 | scripts/kit/worktree-setup.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1107 tests/kit/worktree-setup.test.mts` | [ ] |
 | K1108 | link-check는 링크를 링크 선언과만 대조하며 kit에 고정된 다른 규칙이 없다 | scripts/kit/link-check.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1108 tests/kit/link-check.test.mts` | [ ] |
 | K1109 | check-documents는 건너뛰는 private 경로를 저장소에서 읽고 kit에 고정된 것은 없으며, kit 항목을 이름 붙이는 행은 저장소가 그 규칙을 선언할 때만 요구한다 | scripts/kit/check-documents.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1109 tests/kit/check-documents.test.mts` | [ ] |

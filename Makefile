@@ -117,8 +117,8 @@ source-test-group: ## Run one declared source-test group; CI supplies GROUP=ts|p
 kit-tool-record: ## Write tests/kit/tool-records.json, what the pinned go and Composer print for the requests of the stubs; offline after make install-tools
 	$(NODE) tests/kit/record-tools.mts
 
-.PHONY: typecheck
-# kit holds no runtime of packages/; its build, tests and lints join the tasks of kit.mk as prerequisites (K246).
+.PHONY: typecheck build test lint
+# kit holds no runtime of packages/; its tasks build, test and lint are its own builds, tests and lints (K246, K1106).
 build: kit-build
 test: kit-test source-test
 lint: lint-ts lint-php lint-python lint-go

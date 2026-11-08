@@ -122,14 +122,9 @@ hooks-check: ## Fail while a hook that config/checklist.json lists is not instal
 	$(NODE) $(KIT)/git-hooks.$(KIT_EXT) check
 
 # --- Rules: every tool has its class (S1) and every rule names the check that enforces it (K248) --------------------------
-.PHONY: build test lint build-go build-js build-php build-python build-rust build-ts lint-js build-php-ext lint-php-ext test-php-ext
-# The fixed tasks of a repository (K246): each runs its target for every runtime that packages/ holds; a repository adds its
-# own steps to a task as prerequisites, never under another name.
-build test lint: ## Run build-<runtime>, test-<runtime> or lint-<runtime> for every runtime that packages/ holds; offline
-	$(NODE) $(KIT)/runtime-targets.$(KIT_EXT) task $@
-
-build-go build-js build-php build-python build-rust build-ts: ## Build each package of the runtime with the build of its ecosystem; offline
-	$(NODE) $(KIT)/runtime-targets.$(KIT_EXT) build $(@:build-%=%)
+.PHONY: lint-js build-php-ext lint-php-ext test-php-ext
+# The tasks build, test and lint and the runs of each runtime are the repository's own targets (K246, K1106): its Makefile calls
+# runtime-targets.mts with the runner and the roots it selects, and kit's Makefile gives the tasks their prerequisites.
 
 # oxlint lints the JavaScript as it lints the TypeScript.
 lint-js: lint-ts
@@ -147,23 +142,11 @@ lint-php-ext: ## Check that src/config.m4 names the extension and the stub hash 
 	$(NODE) $(KIT)/php-extension.$(KIT_EXT) check $(PHP_EXTENSION_LAYOUT)
 
 test-php-ext: build-php-ext ## Compare the declarations of the built extension with the PHP library, then run its unit tests with CASES=<pattern>; offline
-	$(NODE) $(KIT)/php-extension.$(KIT_EXT) test $(PHP_EXTENSION_LAYOUT)
-
-.PHONY: test-go test-js test-php test-python test-rust test-ts test-integration test-conformance
-# The unit tests of a runtime with CASES=<pattern>, the name filter of its runner; without CASES, every unit test.
-test-go test-js test-php test-python test-rust test-ts: ## Run the unit tests of each package of the runtime with the name filter CASES=<pattern>; offline
-	CASE_SENSITIVE_ENV="$(CASE_SENSITIVE_ENV)" $(NODE) $(KIT)/runtime-targets.$(KIT_EXT) $(@:test-%=%)
-
-.PHONY: test-infrastructure
-test-infrastructure: ## Run every tracked root Node infrastructure test through the standard runner; offline
-	CASE_SENSITIVE_ENV="$(CASE_SENSITIVE_ENV)" $(NODE) $(KIT)/runtime-targets.$(KIT_EXT) infrastructure
+	$(NODE) $(KIT)/php-extension.$(KIT_EXT) test $(PHP_EXTENSION_LAYOUT) -- --roots packages/php-ext
 
 .PHONY: case-sensitive-runner-smoke
 case-sensitive-runner-smoke: ## Smoke the standard Node runner with a temporary verified case-sensitive directory; offline
 	CASE_SENSITIVE_ENV=KIT_CASE_SENSITIVE_SMOKE_DIR $(NODE) $(KIT)/runtime-targets.$(KIT_EXT) case-sensitive-smoke tests/kit/standard-case-sensitive-smoke.mts
-
-test-integration test-conformance: ## Run the suite of each runtime under tests/integration or tests/conformance of the root
-	$(NODE) $(KIT)/runtime-targets.$(KIT_EXT) $(@:test-%=%)
 
 .PHONY: kit-gates
 # The gates of every repository, whose partitions below the CI pipeline (workflows/ci-pipeline.yml) runs past failures, so that one run shows every failure

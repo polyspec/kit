@@ -2,12 +2,14 @@
 // The PHP extension of a repository (S10): one model and one build for every repository.
 //
 //   node scripts/kit/php-extension.mts <command> --extension <folder> --build-dir <folder> [--library <folder>]... [--skip <name>]... [build options]
+//                                      [-- <the selection of runtime-targets test: --roots <folder>... | --parity <path>> [-- <runner argument>...]]
 //   check   the extension that config.m4 declares and, when present, the arginfo stub hash of each stub
 //   build [--output <absolute-path>] [--source-copy <source> <output>] [--configure-arg <arg>]
 //           the check, then phpize in a temporary source copy under the build folder, the arginfo from the gen_stub.php of
 //           <build-dir>/gen-stub (K941), configure and make; publish <build-dir>/<extension>.so, or --output, by a rename
 //   test    the classes and functions that the built extension registers, compared by Reflection with those of the PHP libraries
-//           that --library names (symbols/php/reflection.php), then the unit tests of runtime-targets.mts with the extension loaded
+//           that --library names (symbols/php/reflection.php), then the unit tests of the roots that the caller selects after --
+//           with runtime-targets.mts test --runner php and the extension loaded (K1106)
 //
 // The caller names every path (K1103): the folder of the extension with its sources in src/, the build folder, which Git ignores,
 // the PHP libraries whose declarations the extension matches, and the folder names under the extension folder that hold no source
@@ -424,7 +426,7 @@ function builtLibrary(root: string, layout: Layout, extension: string): string {
   return library;
 }
 
-const USAGE = 'usage: php-extension.mts check|build|test --extension <folder> --build-dir <folder> [--library <folder>]... [--skip <name>]... [build options]';
+const USAGE = 'usage: php-extension.mts check|build|test --extension <folder> --build-dir <folder> [--library <folder>]... [--skip <name>]... [build options] [-- <test selection>]';
 
 /** The layout that the arguments `args` name with --extension, --build-dir, --library and --skip (K1103), and the other arguments. */
 export function layoutOptions(args: readonly string[]): { layout: Layout; rest: string[] } {
@@ -486,8 +488,14 @@ if (isMain(import.meta.url)) {
   const command = process.argv[2] ?? '';
   try {
     if (!['check', 'build', 'test'].includes(command)) throw new Usage(USAGE);
-    const { layout, rest } = layoutOptions(process.argv.slice(3));
+    const args = process.argv.slice(3);
+    const separator = args.indexOf('--');
+    const { layout, rest } = layoutOptions(separator === -1 ? args : args.slice(0, separator));
+    // The roots of the unit tests are the caller's selection after --, which runtime-targets test reads with the runner arguments
+    // after its own -- (K1106).
+    const selection = separator === -1 ? [] : args.slice(separator + 1);
     if (command !== 'build' && rest.length) throw new Usage(USAGE);
+    if (command === 'test' && selection.length === 0) throw new Usage(`test needs the selection of its unit tests after --; ${USAGE}`);
     const files = extensionFiles(root, layout.extension, layout.skip);
     if (!files.some(file => file.startsWith(`${layout.extension}/`))) {
       console.log(`[php-extension] the repository has no PHP extension: ${layout.extension} holds no file`);
@@ -501,9 +509,9 @@ if (isMain(import.meta.url)) {
       const found = declarations(root, layout);
       if (found.length) throw new Stop(`the extension differs from the PHP library:\n${found.join('\n')}`);
       console.log('[php-extension] the extension registers the classes and functions of the PHP library as it declares them');
-      // The unit tests load the library that build published, which runtime-targets takes as its argument (K1103).
+      // The unit tests load the library that build published, which runtime-targets takes with --php-extension (K1103, K1106).
       const names = checked(root, layout);
-      const tests = spawnSync(process.execPath, [siblingTool(import.meta.url, 'runtime-targets'), 'php-ext', builtLibrary(root, layout, names.extension)], { cwd: root, stdio: 'inherit' });
+      const tests = spawnSync(process.execPath, [siblingTool(import.meta.url, 'runtime-targets'), 'test', '--runner', 'php', '--php-extension', builtLibrary(root, layout, names.extension), ...selection], { cwd: root, stdio: 'inherit' });
       if (tests.status !== 0) process.exit(1);
     }
   } catch (error) {
