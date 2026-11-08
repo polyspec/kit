@@ -1,5 +1,5 @@
-// Installs the symbol extractors of the language-parity check (parity-symbols.mts) that config/toolchain.json
-// symbolExtractors declares, into var/tools/symbols-<extractor>:
+// Installs the symbol extractors of the language-parity check (parity-symbols.mts) that the EXTRACTORS argument names, or with
+// --declared those of config/toolchain.json symbolExtractors, into var/tools/symbols-<extractor> (K1071):
 //   go   the Go program of scripts/kit/symbols/go, which reads the types of a module with golang.org/x/tools/go/packages at
 //        the release that its go.mod and go.sum pin, built with `go build` of the Go of mise.toml into bin/kit-symbols-go (the
 //        go of the install that `mise where go` prints in the checkout, not the shim, which would read the mise.toml of a
@@ -77,17 +77,14 @@ export function installDeclaredExtractors({
   print?: (text: string) => void;
   install?: typeof installExtractor;
 }) {
-  if (extractors.length === 0 || extractors.some(name => name.trim() === '')) throw new Error('EXTRACTORS must name one or more declared symbol extractors; run make kit-install-symbols EXTRACTORS="go" or EXTRACTORS="php"');
+  if (extractors.length === 0 || extractors.some(name => name.trim() === '')) throw new Error('EXTRACTORS must name one or more symbol extractors; run make kit-install-symbols EXTRACTORS="go" or EXTRACTORS="php"');
   if (new Set(extractors).size !== extractors.length) throw new Error(`EXTRACTORS repeats a symbol extractor: ${extractors.join(', ')}`);
   const isExtractor = (name: string): name is InstalledExtractor => name === 'go' || name === 'php';
   const selected = extractors.filter(isExtractor);
   const unknown = extractors.filter(name => !isExtractor(name));
   if (unknown.length) throw new Error(`unknown symbol extractor${unknown.length === 1 ? '' : 's'} ${unknown.join(', ')}; choose go, php`);
+  // The EXTRACTORS argument names what to install; config/toolchain.json need not repeat it (K1071).
   const toolchain = declaredToolchain(root);
-  const declared = toolchain.symbolExtractors?.extractors;
-  if (!declared) throw new Error('config/toolchain.json does not declare symbolExtractors; declare the requested extractor before installing it');
-  const undeclared = selected.filter(name => !declared.includes(name));
-  if (undeclared.length) throw new Error(`${undeclared.join(', ')} is not declared in config/toolchain.json symbolExtractors; declare it before installing it`);
 
   const mise = declaredMiseTools(root);
   if (selected.includes('go') && !mise.go) throw new Error('the Go symbol extractor needs go in mise.toml; run make install-tools TOOLS=go');

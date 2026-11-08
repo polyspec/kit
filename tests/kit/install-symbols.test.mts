@@ -96,7 +96,15 @@ test('K861: --declared installs every declared extractor, and nothing without a 
   assert.deepEqual(calls, ['go'], 'nothing is installed without a declaration');
 });
 
-test('the shared symbols installer rejects unknown, undeclared and unpinned extractors before installing any', (t) => {
+// K1071: the EXTRACTORS argument names what to install; config/toolchain.json need not repeat it.
+test('K1071: an extractor that EXTRACTORS names installs without a symbolExtractors declaration', (t) => {
+  const root = toolchainCheckout(t, { 'mise.toml': '[tools]\ngo = "1.27.3"\n', 'config/toolchain.json': JSON.stringify({ schema: 1 }) });
+  const calls: string[] = [];
+  installDeclaredExtractors({ root, extractors: ['go'], install: ({ extractor }) => { calls.push(extractor); } });
+  assert.deepEqual(calls, ['go']);
+});
+
+test('the shared symbols installer rejects unknown and unpinned extractors before installing any', (t) => {
   const root = toolchainCheckout(t, {
     'mise.toml': '[tools]\ngo = "1.27.3"\n',
     'config/toolchain.json': JSON.stringify({ schema: 1, symbolExtractors: ['go', 'php'] }),
