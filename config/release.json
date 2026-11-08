@@ -37,5 +37,6 @@
   ],
   "fixtures": [
     "tests/kit/fixture/**"
-  ]
+  ],
+  "annotatedTags": true
 }

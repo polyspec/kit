@@ -1176,6 +1176,8 @@ test('K566 rejects component scope for a shared SQL requirement and an unowned c
   assert.ok(absentOwner.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('does not name a coverage owner in contracts/features.json')));
   const unlistedTest = await check(t, { ...makeChange({ kind: 'coverage-part', feature: 'roundtrip', part: 'owner/go' }), edit: config => {
     config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
+    // The feature tests are a back-reference, which a repository judges by naming ownerCrossChecks (K1085).
+    config.ownerCrossChecks = true;
     config.units.push({ id: 'go-native-roundtrip', kind: 'feature', requirements: ['RX-2'], owner: { kind: 'coverage-part', feature: 'roundtrip', part: 'owner/go' }, bindings: [{ implementation: 'go', test: 'go/unlisted_test.go', id: 'TestRoundtrip/bytes' }] });
     return config;
   } }, { execute: false });
@@ -1191,8 +1193,29 @@ test('K650: a coverage part may contain one implementation’s multiple roots', 
 test('K650: a coverage part spanning implementations or excluding its bound test is rejected', TIMEOUT, async (t) => {
   const ambiguous = await check(t, coveragePartChange('go', 'go/orm/roundtrip_test.go', true), { execute: false });
   assert.ok(ambiguous.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('resolves to 2 implementation roots')));
-  const outside = await check(t, coveragePartChange('go/orm', 'go/engine/roundtrip_test.go'), { execute: false });
+  // The owner part holding every bound test is a back-reference, which a repository judges by naming ownerCrossChecks (K1085).
+  const excluded = coveragePartChange('go/orm', 'go/engine/roundtrip_test.go');
+  const outside = await check(t, { ...excluded, edit: config => {
+    const edited = excluded.edit?.(config) ?? config;
+    edited.ownerCrossChecks = true;
+    return edited;
+  } }, { execute: false });
   assert.ok(outside.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('does not contain every bound test')));
+});
+
+// K1085: an owner resolves through contracts/features.json or config/release.json, which the parity checker needs; whether the
+// feature also lists the unit and its tests, and the owner part holds every bound test, is the repository's own rule, judged
+// only where config/parity.json names ownerCrossChecks.
+test('K1085: the owner back-references are judged only where config/parity.json names ownerCrossChecks', TIMEOUT, async (t) => {
+  const outside = coveragePartChange('go/orm', 'go/engine/roundtrip_test.go');
+  const unchecked = await check(t, outside, { execute: false });
+  assert.ok(!unchecked.findings.some(finding => finding.message.includes('does not contain every bound test')), JSON.stringify(unchecked.findings));
+  const declared = await check(t, { ...outside, edit: config => {
+    const edited = outside.edit?.(config) ?? config;
+    edited.ownerCrossChecks = true;
+    return edited;
+  } }, { execute: false });
+  assert.ok(declared.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('does not contain every bound test')));
 });
 
 test('K635 resolves an explicit multi-owner feature without narrowing it to every implementation', TIMEOUT, async (t) => {

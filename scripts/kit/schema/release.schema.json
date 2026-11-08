@@ -116,6 +116,7 @@
       "description": "Globs of the tracked fixtures of the tests, whose manifests and locks belong to the tests: the checks and release coverage leave them out (K1114). Read by picomatch with dot: true.",
       "type": "array",
       "items": { "type": "string", "minLength": 1 }
-    }
+    },
+    "annotatedTags": {"description": "The repository's own rule that an existing release tag is annotated (K1084); without it a tag at the commit passes whatever its kind.", "type": "boolean"}
   }
 }

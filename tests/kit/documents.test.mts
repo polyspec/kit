@@ -10,7 +10,7 @@ import { check } from '../../scripts/kit/check-documents.mts';
 import { kitItemIds } from '../../scripts/kit/kit-items.mts';
 import { readConfigFindings } from '../../scripts/kit/schema-validate.mts';
 import { readStatusTable } from '../../scripts/kit/status-table.mts';
-import { changelogFindings, sections } from '../../scripts/kit/changelog.mts';
+import { CHANGELOG_RULES, changelogFindings, sections } from '../../scripts/kit/changelog.mts';
 import { pair, put, tree } from './tree.mts';
 import { tool } from './kit-tools.mts';
 
@@ -257,9 +257,9 @@ test('status-table: a bad value, a missing evidence link, a wrong cell count, an
   hasPart(run(withTable(t, 'no table here\n'), { ...CONFIG, statusTables: [FEATURES] }), 'status-table: the table has no row');
 });
 
-test('changelog: Unreleased first, versions newest first', (t) => {
+test('changelog: Unreleased first, versions newest first, where changelogRules names those rules', (t) => {
   const log = '# Changes\n\n## Unreleased\n\n## 1.2.0\n\n- x\n\n## 1.1.0\n';
-  const config = { ...CONFIG, changelogs: ['CHANGELOG.md'] };
+  const config = { ...CONFIG, changelogs: ['CHANGELOG.md'], changelogRules: [...CHANGELOG_RULES] };
   assert.deepEqual(run(tree(t, pair('CHANGELOG.md', 'changelog', log.replace('# Changes\n\n', ''))), config), []);
   const bad = '## 1.1.0\n\n## 1.2.0\n\n## Unreleased\n\n## Unreleased\n\n## next\n';
   const found = run(tree(t, pair('CHANGELOG.md', 'changelog', bad)), config);
@@ -269,11 +269,22 @@ test('changelog: Unreleased first, versions newest first', (t) => {
   hasPart(found, 'changelog: the section ## next is neither ## Unreleased nor a released version');
 });
 
+// K1084: the format of a changelog is the repository's own rule; a changelog that config/documents.json declares without
+// changelogRules is read for its sections and judged by no format rule of kit.
+test('K1084: a declared changelog without changelogRules is judged by no format rule', (t) => {
+  const bad = '## 1.1.0\n\n## 1.2.0\n\n## Unreleased\n\n## Unreleased\n\n## next\n';
+  assert.deepEqual(run(tree(t, pair('CHANGELOG.md', 'changelog', bad)), { ...CONFIG, changelogs: ['CHANGELOG.md'] }), []);
+  const one = run(tree(t, pair('CHANGELOG.md', 'changelog', bad)), { ...CONFIG, changelogs: ['CHANGELOG.md'], changelogRules: ['newest-first'] });
+  // The one finding of the rule it names, in the English file and in its Korean twin.
+  assert.deepEqual(one.filter(line => line.includes('changelog:')).length, 2);
+  hasPart(one, 'changelog: the section ## 1.2.0 follows ## 1.1.0');
+});
+
 test('changelog: the sections are the level-2 headings of the Markdown tree, not ## lines of comments or closing hashes (K130)', () => {
   // A heading in an HTML comment is no heading, a closing sequence of # is no part of the title, and a setext heading of level 2 is one.
   const text = '## Unreleased\n\n<!--\n## 9.9.9\n-->\n\n## 1.2.0 ##\n\n- x\n\n1.1.0\n-----\n';
   assert.deepEqual(sections(text), [{ title: 'Unreleased', line: 1 }, { title: '1.2.0', line: 7 }, { title: '1.1.0', line: 11 }]);
-  assert.deepEqual(changelogFindings(text), []);
+  assert.deepEqual(changelogFindings(text, CHANGELOG_RULES), []);
 });
 
 test('the command reads config/documents.json and exits with the findings', (t) => {

@@ -54,6 +54,7 @@
       "description": "The English changelogs; their Korean twins are read too.",
       "type": "array",
       "items": { "type": "string" }
-    }
+    },
+    "changelogRules": {"description": "The rules of the changelogs that the repository keeps (K1084): the format rules unreleased-first, unreleased-once, versions-only and newest-first, which check-documents judges, and unreleased-empty-at-release, under which release-tag refuses a commit whose ## Unreleased holds an entry; a rule it does not name is not judged.", "type": "array", "uniqueItems": true, "items": {"enum": ["unreleased-first", "unreleased-once", "versions-only", "newest-first", "unreleased-empty-at-release"]}}
   }
 }

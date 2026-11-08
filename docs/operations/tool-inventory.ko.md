@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 699ac45a527e11dc56fe51288628b5c6452f200b111731eb33d934d612de40eb -->
+<!-- source-sha256: 5cdb1c9d6a76dfb55bf3d92673ca5ce55270022f9b80228d0baeb682e88f646d -->
 
 # 도구 목록
 
@@ -378,7 +378,7 @@ K809가 쌍의 규칙을 지웠습니다: `pair-missing`, `doc-id`, `revision`, 
 | checklist 쌍 | template, hyper: 마지막 cell 전체 비교; orm: ID와 state 비교 | task ID와 state marker를 비교; bypass는 각 언어에서 cause와 retry 조건을 적고, 그 글은 번역함 |
 | 중복과 빈 checklist | orm, ordered-json | 반복된 task ID와 task가 없는 checklist는 실패 |
 | status table | template (두 형식), crudui (6 cell), ordered-json (7 cell) | 설정의 `statusTables`: cell 수, cell별 닫힌 값과 pattern; 영어와 한국어 row는 ID와 닫힌 값이 같음 |
-| changelog | orm | `## Unreleased`가 맨 처음에 한 번, 버전 `X.Y.Z`는 최신이 위에 한 번씩, 두 언어의 section이 같음 |
+| changelog | orm | 두 언어의 section이 같음; `## Unreleased`가 맨 처음에 한 번, 버전은 `X.Y.Z`만, 최신이 위에 한 번씩이라는 형식 규칙은 config/documents.json의 `changelogRules`가 정한 만큼(K1084) |
 
 버린 동작:
 
@@ -1093,7 +1093,7 @@ consumer는 sibling을 polyspec wheel과 같이 설치합니다: uv가 쓴 자�
 
 `scripts/kit/parity.mts`는 repository의 모든 implementation이 적용되는 shared unit을 갖추는지 검사합니다. `config/parity.json`은
 implementation(repository의 language 집합의 유일한 원천)과 unit을 선언합니다. scope가 없는 unit은 모든 implementation에 적용합니다(S6).
-feature unit과 case가 한 implementation에만 있는 suite unit(K961)은 기존 `contracts/features.json` coverage part 또는 `config/release.json`의 archive package, `goModules` module, `manifests`의 `git-tag` Cargo.toml(이름은 그 `[package].name`)에서 owner를 도출할 수 있습니다. release owner는 `artifact`로 source 유형을 명시하고 source의 package 이름을 정확히 가리킵니다. component나 artifact에만 해당하는 requirement가 owner scope 대상이며, requirement가 owner를 주어로 명시하고 native test가 그 requirement를 이름으로 인용해야 합니다. 공유 client requirement와 SQL 규칙은 계속 모든 implementation에 적용됩니다. API unit은 release package만 owner가 될 수 있습니다. 임의 profile, implementation 허용 목록, exclusion, native-only symbol은 scope가 아니며, 완료나 예정 같은 상태도 선언에 담지 않습니다. 검사기는 모든 사실을 tree에서 가져옵니다.
+feature unit과 case가 한 implementation에만 있는 suite unit(K961)은 기존 `contracts/features.json` coverage part 또는 `config/release.json`의 archive package, `goModules` module, `manifests`의 `git-tag` Cargo.toml(이름은 그 `[package].name`)에서 owner를 도출할 수 있습니다. release owner는 `artifact`로 source 유형을 명시하고 source의 package 이름을 정확히 가리킵니다. feature가 unit id와 각 binding test를 나열하고 owner part가 모든 bound test를 담으며 release package에 manifest가 있다는 역참조는 config/parity.json이 `ownerCrossChecks`를 정할 때만 판단합니다(K1085). component나 artifact에만 해당하는 requirement가 owner scope 대상이며, requirement가 owner를 주어로 명시하고 native test가 그 requirement를 이름으로 인용해야 합니다. 공유 client requirement와 SQL 규칙은 계속 모든 implementation에 적용됩니다. API unit은 release package만 owner가 될 수 있습니다. 임의 profile, implementation 허용 목록, exclusion, native-only symbol은 scope가 아니며, 완료나 예정 같은 상태도 선언에 담지 않습니다. 검사기는 모든 사실을 tree에서 가져옵니다.
 
 - 각 implementation에서 각 suite와 feature의 binding을 직접 실행하고, 실행과 각 실행이 보고한 case와 test id의 ledger를 memory에
   둡니다. 저장된 report는 읽지 않습니다. binding 명령은 native case 전의 조용한 compile과 초기화를 포함해 시간 제한이 없는 처리입니다.

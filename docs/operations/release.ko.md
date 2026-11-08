@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: 2cdabc6242d4ed98f27897fa39de982825e23ae49e34663866ceb6b0c9ac5956 -->
+<!-- source-sha256: 39a76ae4f3a49b6fa17cb3f9fab6fc8cdc82d8fa116e440bcd151a226abbdf0c -->
 # 릴리스
 
 [English](release.md)
@@ -28,10 +28,11 @@ composer.json의 버전 변경은 그 directory에서 `composer update --lock`�
 dispatch합니다(`gh workflow run release.yml -f run=<id>`, 또는 GitHub API의 workflow dispatch). tag push는 이 workflow를 시작하지
 않습니다. 그 `make release-tag`(`release-run tag RUN`)는 run id의 형식과 config/release.json의 저장소를 검사하고, `gh api`로 run을 읽어
 개발 branch 또는 `main` 위 저장소 CI workflow의 push 또는 dispatch run이 성공으로 끝났고 그 commit이 `origin/main`에 있는지를 요구하고, 그 commit에서 config/release.json의 `changelog`와 `goModules`(그 두 field만 검사합니다)와
-그 change log의 첫 section `## X.Y.Z`로 X.Y.Z를 읽은 뒤(`git show`, 그런 section이 없거나 `## Unreleased` 아래 항목이 있는 commit은 거부합니다) 그 commit에 tag를 달고, 뒤 step을
+그 change log의 첫 section `## X.Y.Z`로 X.Y.Z를 읽은 뒤(`git show`, 그런 section이 없는 commit, 그리고 그 commit의 config/documents.json이 changelog 규칙 `unreleased-empty-at-release`를 정할 때 `## Unreleased` 아래 항목이 있는 commit은 거부합니다(K1084)) 그 commit에 tag를 달고, 뒤 step을
 위해 `TAG=vX.Y.Z`와 `VERSION=X.Y.Z`를 `GITHUB_ENV`에 덧붙입니다(K924). 먼저 `vX.Y.Z`와 root 아래 모든 Go module의 tag `<directory>/vX.Y.Z`를 검사해 하나라도 다른 commit에 있으면
 멈추고, 없는 tag를 annotated tag(`git tag -a vX.Y.Z -m vX.Y.Z`)로 만들어 한 번의 push로 올립니다. 이미 그 commit에 있는 tag는
-통과합니다(K911). 테스트는 다시 돌지 않습니다: 근거는 id가 가리키는 CI run입니다. (3) 이어서 `.github/workflows/release.yml`, 곧
+통과하며(K911), lightweight tag도 config/release.json의 `annotatedTags`가 release tag는 annotated라는 저장소의 규칙을 정하지 않는 한
+통과합니다(K1084). 테스트는 다시 돌지 않습니다: 근거는 id가 가리키는 CI run입니다. (3) 이어서 `.github/workflows/release.yml`, 곧
 vendor되는 `workflows/release.yml` 그대로의 run이 tag를 checkout하고, publication의 유일한 source인 `make release-assets TAG=vX.Y.Z`로
 그 tag에서 공식 asset을 만들고, GitHub Release에 draft로 게시한 뒤 공개합니다. 저장소는 그 asset의 URL과 integrity를 pin합니다.
 게시된 tag는 옮기지 않습니다.

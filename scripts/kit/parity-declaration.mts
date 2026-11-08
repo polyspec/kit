@@ -155,6 +155,12 @@ export interface ParityConfig {
   errors?: { catalog: { file: string; pattern: string } };
   languageLists?: { file: string; pattern: string }[];
   documents?: { globs: string[]; nouns: string[] };
+  /**
+   * The repository's own rule that a unit owner's registry lists the unit back (K1085): the feature names the unit in `parity` and
+   * each bound test in `tests`, the owner part holds every bound test, and a release package has a manifest. Without it an owner
+   * only resolves to its implementation.
+   */
+  ownerCrossChecks?: boolean;
 }
 
 /** The declaration resolved against the tree; readDeclaration describes it. */
@@ -752,6 +758,8 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
   const unitOwnerArtifacts = new Map<string, 'archive' | 'go-module' | 'git-tag'>();
   let featureOwners: unknown;
   let releaseOwners: unknown;
+  // The back-references of an owner are judged only where the repository names ownerCrossChecks (K1085).
+  const cross = config.ownerCrossChecks === true;
   const readOwnerRegistry = (file: string, label: string): unknown => {
     const value = readTrackedJson(root, files, file, label, errors);
     if (value === undefined) return undefined;
@@ -796,7 +804,7 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
         return undefined;
       }
       const part = present(candidates[0], 'candidates[0]').directory;
-      if (!files.has(`${part}/package.json`) && !files.has(`${part}/composer.json`) && !files.has(`${part}/pyproject.toml`) && !files.has(`${part}/Cargo.toml`) && !files.has(`${part}/go.mod`)) {
+      if (cross && !files.has(`${part}/package.json`) && !files.has(`${part}/composer.json`) && !files.has(`${part}/pyproject.toml`) && !files.has(`${part}/Cargo.toml`) && !files.has(`${part}/go.mod`)) {
         fail(`unit owner release package ${scope.package} has no package manifest under ${part}`);
         return undefined;
       }
@@ -807,7 +815,7 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
         fail(`unit owner release package ${scope.package} resolves to ${owners.length} implementation roots; a native package has one owner`);
         return undefined;
       }
-      if (checkBindingPaths && (unit.bindings ?? []).some(binding => binding.test !== part && !within(part, binding.test))) fail(`unit owner release package ${scope.package} does not contain every bound test`);
+      if (cross && checkBindingPaths && (unit.bindings ?? []).some(binding => binding.test !== part && !within(part, binding.test))) fail(`unit owner release package ${scope.package} does not contain every bound test`);
       const owner = present(owners[0], 'owners[0]');
       return { implementation: owner, markers: [scope.package], root: part };
     }
@@ -818,7 +826,7 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
       fail(`unit owner feature ${scope.feature} does not exist in contracts/features.json`);
       return undefined;
     }
-    if (!isJsonList(feature.parity) || !feature.parity.includes(unit.id)) fail(`unit owner feature ${scope.feature} does not name parity unit ${unit.id} in its parity list`);
+    if (cross && (!isJsonList(feature.parity) || !feature.parity.includes(unit.id))) fail(`unit owner feature ${scope.feature} does not name parity unit ${unit.id} in its parity list`);
     const ownerKey = scope.part.slice('owner/'.length);
     const coverage = isJsonObject(feature.coverage) ? feature.coverage : undefined;
     const coverageOwners = coverage && isJsonObject(coverage.owners) ? coverage.owners : undefined;
@@ -833,13 +841,14 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
       fail(`unit owner ${scope.feature}/${scope.part} resolves to ${owners.length} implementation roots; a coverage part has one owner`);
       return undefined;
     }
+    const owner = present(owners[0], 'owners[0]');
+    if (!cross) return { implementation: owner, markers: [owner.name, ...(owner.prose ?? [])], root: part };
     if (!isJsonList(feature.tests)) {
       fail(`unit owner ${scope.feature}/${scope.part} does not declare feature tests`);
       return undefined;
     }
     const featureTests = feature.tests;
     if (!(unit.bindings ?? []).every(binding => featureTests.includes(binding.test))) fail(`unit owner ${scope.feature}/${scope.part} does not declare each bound test in its feature tests`);
-    const owner = present(owners[0], 'owners[0]');
     if (checkBindingPaths && (unit.bindings ?? []).some(binding => binding.test !== part && !within(part, binding.test))) fail(`unit owner ${scope.feature}/${scope.part} does not contain every bound test`);
     return { implementation: owner, markers: [owner.name, ...(owner.prose ?? [])], root: part };
   };

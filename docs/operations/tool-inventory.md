@@ -415,7 +415,7 @@ Merged behaviors (the wider behavior is taken):
 | Checklist pair | template and hyper compare the whole last cell; orm compares IDs and states | task IDs and state markers are compared; a bypass names its cause and retry condition in each language, and the text is translated |
 | Duplicate and empty | orm, ordered-json | a repeated task ID and a checklist without tasks fail |
 | Status tables | template (two shapes), crudui (6 cells), ordered-json (7 cells) | `statusTables` in the configuration: cells, closed values and patterns per cell; the English and Korean rows agree on the ID and on the closed values |
-| Changelog | orm | `## Unreleased` first and once, versions `X.Y.Z` newest first and once, the same sections in both languages |
+| Changelog | orm | the same sections in both languages; the format rules `## Unreleased` first and once, versions `X.Y.Z` only, newest first and once, as far as `changelogRules` of config/documents.json names them (K1084) |
 
 Dropped behaviors:
 
@@ -1356,9 +1356,9 @@ root of any runner whose convention selects it.
 A unit of kind `feature` names one native test of each applicable implementation: `bindings` of `{ implementation, test,
 id }`, where `id` is the native test id as the runner reports it (see Feature ids above). It has no vector file. Without `owner`,
 every implementation applies. With `owner.kind: "coverage-part"`, `owner.feature` and `owner.part` must resolve to an existing feature and
-coverage owner in `contracts/features.json`; the feature must list the unit id in `parity`, list each binding test in `tests`, and the
-test must lie under the declared part. With `owner.kind: "release-package"`, `owner.artifact` selects `archive`, `go-module` or `git-tag`,
-and `owner.package` must exactly match the name in the corresponding `config/release.json` section. The binding test must lie under its package directory. The owner source resolves to exactly one declared
+coverage owner in `contracts/features.json`; where config/parity.json names `ownerCrossChecks` (K1085), the feature must also list the unit id
+in `parity`, list each binding test in `tests`, and the test must lie under the declared part. With `owner.kind: "release-package"`, `owner.artifact` selects `archive`, `go-module` or `git-tag`,
+and `owner.package` must exactly match the name in the corresponding `config/release.json` section; where `ownerCrossChecks` is named, the binding test must lie under its package directory, which holds a package manifest. The owner source resolves to exactly one declared
 implementation, and each requirement must name that owner as its subject; shared client requirements therefore stay unscoped.
 `parity-check` runs the native test id of each feature binding once. Cargo runs only the exact libtest id; file-based runners run the
 whole file. The binding holds when the run exits with 0 and its `id` passed once. A missing, failed, skipped or repeated id

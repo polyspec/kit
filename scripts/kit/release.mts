@@ -36,6 +36,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createDraft, deleteRelease, makePublic, releaseById, releaseOf, repositoryParts, type GitHubRelease } from './github-release.mts';
 import { headings } from './markdown.mts';
+import type { ChangelogRule } from './changelog.mts';
 import { fileDigest } from './bootstrap/digest.mts';
 import { writeJson } from './bootstrap/files.mts';
 import { type ComposerManifest, type NpmManifest, PACKAGE } from './manifests.mts';
@@ -103,6 +104,8 @@ export interface ReleaseConfig {
   packageFiles?: string[];
   writtenFiles?: string[];
   fixtures?: string[];
+  /** The repository's own rule that an existing release tag is annotated (K1084); without it a tag at the commit passes. */
+  annotatedTags?: boolean;
 }
 
 /** config/release.json as the schema admits it: the values of the maps are not checked yet, two lists may be absent. */
@@ -245,7 +248,8 @@ const taggedCommit = (ctx: Context, tag: string) => run('git', ['rev-parse', '--
 /**
  * Creates the annotated tag vX.Y.Z and the tag `<directory>/vX.Y.Z` of every Go module of config/release.json at `commit`, the
  * commit of a successful CI run, and pushes them (K269, K911); returns what it did per tag. A tag that names `commit` already
- * passes; a tag at another commit stops before any tag is created, since a published tag is never moved. In GitHub Actions the
+ * passes, a lightweight one too unless config/release.json names annotatedTags (K1084); a tag at another commit stops before any
+ * tag is created, since a published tag is never moved. In GitHub Actions the
  * tagger is the actor of the run.
  */
 export function createTags(ctx: Context, version: string, commit: string): string[] {
@@ -253,8 +257,9 @@ export function createTags(ctx: Context, version: string, commit: string): strin
   const existing = new Map(tags.map(tag => [tag, execute('git', ['rev-parse', '--verify', '--quiet', `refs/tags/${tag}^{commit}`], at(ctx))]));
   for (const [tag, found] of existing) {
     if (found.status === 0 && found.stdout.trim() !== commit) throw new Stop(`the tag ${tag} is at ${found.stdout.trim()}, not at ${commit}; a published tag is never moved`);
-    const kind = found.status === 0 ? run('git', ['cat-file', '-t', `refs/tags/${tag}`], at(ctx)).trim() : 'tag';
-    if (kind !== 'tag') throw new Stop(`the tag ${tag} is a lightweight tag (${kind}); a release tag is annotated, so delete it with git tag -d ${tag} and release again`);
+    if (found.status !== 0 || ctx.config.annotatedTags !== true) continue;
+    const kind = run('git', ['cat-file', '-t', `refs/tags/${tag}`], at(ctx)).trim();
+    if (kind !== 'tag') throw new Stop(`the tag ${tag} is a lightweight tag (${kind}); config/release.json names annotatedTags, so delete it with git tag -d ${tag} and release again`);
   }
   const actor = ctx.env.GITHUB_ACTOR;
   const identity = actor ? ['-c', `user.name=${actor}`, '-c', `user.email=${actor}@users.noreply.github.com`] : [];
@@ -266,13 +271,14 @@ export function createTags(ctx: Context, version: string, commit: string): strin
 
 /**
  * The version of the release that the change log `text` of `file` records: the title of its first level-2 heading that is X.Y.Z,
- * the section that the version-bump commit wrote below ## Unreleased (K924). A change log without one names no release, and one
- * with an entry under ## Unreleased holds a change that the release would not carry.
+ * the section that the version-bump commit wrote below ## Unreleased (K924). A change log without one names no release; one with an
+ * entry under ## Unreleased is refused only where the repository names `unreleased-empty-at-release` in `rules`, its changelogRules
+ * (K1084).
  */
-export function releasedVersion(text: string, file: string): string {
+export function releasedVersion(text: string, file: string, rules: readonly string[] = []): string {
   const version = topVersion(text);
   if (version === undefined) throw new Stop(`${file} has no section ## X.Y.Z; the version-bump commit renames ## Unreleased to the version it releases`);
-  if (hasUnreleasedEntries(text)) throw new Stop(`${file} has unreleased entries; the version-bump commit moves every entry of ## Unreleased into the section of the version`);
+  if (rules.includes('unreleased-empty-at-release' satisfies ChangelogRule) && hasUnreleasedEntries(text)) throw new Stop(`${file} has unreleased entries; the version-bump commit moves every entry of ## Unreleased into the section of the version`);
   return version;
 }
 

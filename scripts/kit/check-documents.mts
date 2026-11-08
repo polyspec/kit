@@ -17,7 +17,7 @@
 //                   the kit hold none of (K374); the kit is this checkout, or else the item list dist/kit-items.json of the installed
 //                   kit package, which a missing list fails (K957)
 //   status-table    the status tables have the declared cells and values
-//   changelog       the changelogs start with ## Unreleased, then the versions newest first
+//   changelog       the changelogs keep the format rules that changelogRules names (K1084); none when it names none
 //   missing         a file that config/documents.json names exists
 //
 // Each finding is one line `<file>:<line>:<column>: <rule>: <message>` (line and column are left out where the finding
@@ -50,6 +50,8 @@ export type DocumentsConfig = {
   interpolation?: string[];
   statusTables?: { path: string; idPattern: string; cells: number; columns: { index: number; enum?: string[]; pattern?: string }[] }[];
   changelogs?: string[];
+  /** The rules of the changelogs that the repository keeps (changelog.mts CHANGELOG_RULES, K1084); release-run reads unreleased-empty-at-release. */
+  changelogRules?: string[];
 };
 
 /** The rules that the caller declares with the arguments of its recipe; a rule that is not declared finds nothing (K1081). */
@@ -324,7 +326,7 @@ export function check(root: string, config: DocumentsConfig, progress?: (line: s
   }
   for (const changelog of config.changelogs ?? []) {
     both([changelog, koreanOf(changelog)], CONFIG, (name, text) => {
-      for (const entry of changelogFindings(text)) add(name, entry);
+      for (const entry of changelogFindings(text, config.changelogRules ?? [])) add(name, entry);
     });
   }
   progress?.(`step status tables and changelogs: ${found.length === beforeStatus ? 'passed' : `${found.length - beforeStatus} findings`} (${compactSeconds(performance.now() - statusStarted)})`);

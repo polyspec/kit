@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0cb867d6570188c3f0b4e186d4e96fd32cef63becdbef02b2f1d06b05a533500 -->
+<!-- source-sha256: 5d8a812a7bbcb1afef23d7c4ed48c4d45ac3fcc034dfe224cfe661d4178b4e1a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -50,6 +50,9 @@
 - K1081: check-documents는 호출자가 `--checklist-place`를 넘길 때만 plan 폴더 밖의 checklist 항목을 찾는다. kit의 recipe가 그것을 넘긴다(K1081).
 - K1080: rebuild-check는 호출자가 `--source <glob>`로 선언한 tool source를 고르고, `--exclude <glob>`로 선언한 파일(test와 `.d.ts` 등)은 뺀다. kit에 고정된 layout은 없다. --source가 없으면 config/rebuild.json이 선언한 class만 검사한다. kit의 recipe는 자신의 source와 exclude를 선언하므로 kit은 전과 같은 파일을 고르고, 이전 선택을 유지하려는 저장소는 같은 `--exclude` glob을 넘긴다(K1080).
 - K1079: divergence-check는 호출자가 선언한 규칙으로만 거부한다: 설정 예외의 reason kind는 `--reason-kind <kind>`, contracts/features.json에서 거부할 상태는 `--feature-state <state>`로 받고, 둘 다 없으면 그 종류는 찾지 않으며, kit의 recipe가 자신의 kind와 상태를 선언한다(K1079).
+- K1084: release-tag는 그 commit에 이미 있는 tag를 종류와 관계없이 통과시키며, lightweight tag는 config/release.json이 annotatedTags를 정할 때만 거부합니다. check-documents는 선언된 changelog를 config/documents.json의 changelogRules가 정한 형식 규칙(unreleased-first, unreleased-once, versions-only, newest-first)으로만 판단하며, 정하지 않으면 판단하지 않습니다. release-tag는 그 changelogRules가 unreleased-empty-at-release를 정할 때만 ## Unreleased 아래 항목이 있는 commit을 거부합니다. kit은 자신을 위해 annotatedTags와 다섯 규칙을 모두 정합니다(K1084).
+- K1085: parity-check는 unit owner를 contracts/features.json이나 config/release.json으로 resolve하며, 그 역참조(feature가 unit과 bound test를 나열함, owner part가 모든 bound test를 담음, release package에 manifest가 있음)는 config/parity.json이 ownerCrossChecks를 정할 때만 판단합니다(K1085).
+
 - PHPUnit event의 fully qualified identity와 독립된 flow를 보존하고 parity mapping의 namespace aliasing을 제거한다(K1091).
 
 ## 0.0.98

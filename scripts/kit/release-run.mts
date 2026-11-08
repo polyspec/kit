@@ -5,6 +5,30 @@ import semver from 'semver';
 import { candidateAssets, CONFIG, context, createTags, hasUnreleasedEntries, MAIN, newestReleaseTag, parseTag, releasedVersion, taggedRelease, topVersion, type CommandOptions, type Context } from './release.mts';
 import { repositoryParts } from './github-release.mts';
 import { execute, run, Stop } from './process.mts';
+import { isJsonObject } from './bootstrap/files.mts';
+import type { ChangelogRule } from './changelog.mts';
+
+/** The rule of changelogRules under which a release refuses a commit whose ## Unreleased holds an entry (K1084). */
+const UNRELEASED_EMPTY: ChangelogRule = 'unreleased-empty-at-release';
+
+/**
+ * The changelogRules that config/documents.json of `commit` names (K1084), read tolerantly: none when the commit has no such file,
+ * the file is no JSON object or it names none; check-documents judges the file itself.
+ */
+function changelogRulesAt(ctx: Context, commit: string): string[] {
+  const shown = execute('git', ['show', `${commit}:config/documents.json`], { cwd: ctx.root, env: ctx.env });
+  if (shown.status !== 0) return [];
+  let value: unknown;
+  try {
+    value = JSON.parse(shown.stdout);
+  } catch (error) {
+    // JSON.parse throws only a SyntaxError; a file that is no JSON names no rule.
+    if (!(error instanceof SyntaxError)) throw error;
+    return [];
+  }
+  const rules = isJsonObject(value) ? value.changelogRules : undefined;
+  return Array.isArray(rules) ? rules.filter((rule): rule is string => typeof rule === 'string') : [];
+}
 
 export type CandidateRun = { id: number; workflow_id: number; path: string; head_sha: string; event: string; status: string; conclusion: string | null; head_branch: string };
 
@@ -46,7 +70,8 @@ export function prepare(ctx: Context, version: string): { sha: string; assets: s
 /**
  * The release tags at the commit of the successful CI run `runId` (`make release-tag RUN`, K911, K924): the run is a completed
  * successful push or workflow_dispatch run of a workflow of the repository (K1059), its commit is on origin/main, the version is the
- * newest section ## X.Y.Z of the change log of that commit, whose ## Unreleased holds no entry, and createTags puts vX.Y.Z and the
+ * newest section ## X.Y.Z of the change log of that commit, whose ## Unreleased holds no entry where config/documents.json of that
+ * commit names the changelog rule unreleased-empty-at-release (K1084), and createTags puts vX.Y.Z and the
  * tag of every Go module that config/release.json of that commit declares there. Returns the version and what it did per tag.
  *
  * With `auto`, the run started the release by itself, as the workflow_run of a green push run of CI does (K987), so the commit
@@ -72,11 +97,12 @@ export function tagRun(ctx: Context, runId: number, auto = false): { version: st
   const show = (file: string) => run('git', ['show', `${commit}:${file}`], { cwd: ctx.root, env: ctx.env });
   const tagged = { ...ctx, config: { ...ctx.config, ...taggedRelease(show(CONFIG), `${CONFIG} at ${commit}`) } };
   const { changelog } = tagged.config;
+  const rules = changelogRulesAt(ctx, commit);
   if (auto) {
-    const decided = autoDecision(ctx, commit, changelog, runId, runInfo.workflow_id, repo);
+    const decided = autoDecision(ctx, commit, changelog, runId, runInfo.workflow_id, repo, rules.includes(UNRELEASED_EMPTY));
     if (decided !== undefined) return decided;
   }
-  const version = releasedVersion(show(changelog), `${changelog} at ${commit}`);
+  const version = releasedVersion(show(changelog), `${changelog} at ${commit}`, rules);
   // A release is newer than every release tag of the repository (K941); a tag that already exists is left to createTags, which
   // passes it at the same commit and refuses it elsewhere.
   const newest = newestReleaseTag(tagged, false);
@@ -114,9 +140,10 @@ function versionCommit(ctx: Context, commit: string, file: string, version: stri
 /**
  * The decision of a release that the run started by itself (K987), from the change log `file` at `commit`, with the one parser of
  * the change log: undefined when the commit releases its top version, as a dispatch does; otherwise the result of nothing to
- * release, or a Stop that names the version commit that did not release.
+ * release, or a Stop that names the version commit that did not release. Entries under ## Unreleased hold a release back only
+ * with `unreleasedEmpty`, the changelog rule unreleased-empty-at-release of the repository (K1084).
  */
-function autoDecision(ctx: Context, commit: string, file: string, runId: number, workflowId: number, repo: string): { version: string; lines: string[]; release: boolean } | undefined {
+function autoDecision(ctx: Context, commit: string, file: string, runId: number, workflowId: number, repo: string, unreleasedEmpty: boolean): { version: string; lines: string[]; release: boolean } | undefined {
   const text = run('git', ['show', `${commit}:${file}`], { cwd: ctx.root, env: ctx.env });
   const version = topVersion(text);
   if (version === undefined) return { version: '', lines: [`nothing to release: ${file} at ${commit} has no section ## X.Y.Z`], release: false };
@@ -137,8 +164,8 @@ function autoDecision(ctx: Context, commit: string, file: string, runId: number,
   }
   // The version commit, or a later green commit whose ## Unreleased is empty, carries the version and nothing else, so it releases
   // it at once, whatever the CI run of the version commit does (K988, K990); a run of the version commit that ends later finds the
-  // tag on its line.
-  if (!hasUnreleasedEntries(text)) return undefined;
+  // tag on its line. Without the rule unreleased-empty-at-release (K1084), entries under ## Unreleased hold no release back.
+  if (!unreleasedEmpty || !hasUnreleasedEntries(text)) return undefined;
   const origin = versionCommit(ctx, commit, file, version);
   if (origin === commit) throw new Stop(`v${version} is not released: ${file} at ${commit} has entries under ## Unreleased; the version commit moves every entry into the section of the version`);
   // A later commit with unreleased entries would release changes that its version does not name: the CI run of the version

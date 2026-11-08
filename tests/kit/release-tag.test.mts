@@ -41,11 +41,19 @@ test('release-tag creates the annotated tags of the version and of each Go modul
   assert.equal(git(box.root, 'tag', '--list', 'v0.0.1'), '');
 });
 
-test('release-tag refuses a lightweight tag at the commit, since a release tag is annotated (K911)', (t) => {
+// K1084: release reads a tag by its name and commit; whether an existing tag at the commit is annotated is the repository's own
+// rule, kept only where config/release.json names annotatedTags.
+test('K1084: release-tag passes a lightweight tag at the commit, and refuses it only where config/release.json names annotatedTags', (t) => {
   const { box } = remoteBox(t);
-  const ctx = release.context(box.root, { env: box.env });
   git(box.root, 'tag', 'v0.0.1', box.commit);
-  assert.throws(() => release.createTags(ctx, '0.0.1', box.commit), error => error instanceof Stop && /the tag v0\.0\.1 is a lightweight tag \(commit\); a release tag is annotated/.test(error.message));
+  const ctx = release.context(box.root, { env: box.env });
+  assert.deepEqual(release.createTags(ctx, '0.0.1', box.commit), [
+    `the tag v0.0.1 is at ${box.commit} already`,
+    `created the tag packages/fixture-go/v0.0.1 at ${box.commit} and pushed it`,
+  ]);
+  git(box.root, 'tag', '-d', 'packages/fixture-go/v0.0.1');
+  const declared = release.context(box.root, { env: box.env, config: { ...ctx.config, annotatedTags: true } });
+  assert.throws(() => release.createTags(declared, '0.0.1', box.commit), error => error instanceof Stop && /the tag v0\.0\.1 is a lightweight tag \(commit\); config\/release\.json names annotatedTags/.test(error.message));
   assert.equal(git(box.root, 'tag', '--list', 'packages/fixture-go/v0.0.1'), '', 'no tag is created');
 });
 

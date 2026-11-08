@@ -290,6 +290,7 @@
         "globs": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" } },
         "nouns": { "description": "The words that a count of implementations precedes, such as languages or 언어.", "type": "array", "minItems": 1, "items": { "type": "string" } }
       }
-    }
+    },
+    "ownerCrossChecks": {"description": "The repository's own rule that a unit owner's registry lists the unit back (K1085): the feature of a coverage part names the unit in parity and each bound test in tests, the owner part holds every bound test, and a release package has a manifest. Without it an owner only resolves to its implementation.", "type": "boolean"}
   }
 }

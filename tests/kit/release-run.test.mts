@@ -16,8 +16,11 @@ const candidate = (overrides: Partial<CandidateRun> = {}): CandidateRun => ({ id
 // The change log of a version-bump commit: ## Unreleased is empty above the section of the release.
 const RELEASED = '# Changelog\n\n## Unreleased\n\n## 0.0.1\n\n- The first entry of 0.0.1.\n';
 
-function runBox(t: Parameters<typeof releaseSandbox>[0], run: (commit: string) => CandidateRun, { changelog = RELEASED } = {}) {
-  const box = releaseSandbox(t, { changelog });
+// The changelog rule of the fixture: release-tag refuses a commit whose ## Unreleased holds an entry (K1084).
+const UNRELEASED_EMPTY = { changelogs: ['CHANGELOG.md'], changelogRules: ['unreleased-empty-at-release'] };
+
+function runBox(t: Parameters<typeof releaseSandbox>[0], run: (commit: string) => CandidateRun, { changelog = RELEASED, documents = UNRELEASED_EMPTY as object | null } = {}) {
+  const box = releaseSandbox(t, { changelog, mutate: root => { if (documents !== null) writeJson(root, 'config/documents.json', documents); } });
   const remote = path.join(box.root, '.stubs/remote.git');
   initRepository(remote, '--bare');
   git(box.root, 'remote', 'add', 'origin', remote);
@@ -161,6 +164,17 @@ test('release-tag refuses a commit whose change log has entries under ## Unrelea
   assert.match(refused.errors.join('\n'), /CHANGELOG\.md at [0-9a-f]{40} has unreleased entries/);
   assert.equal(git(box.root, 'tag', '--list'), '');
   assert.equal(spawnSync('git', ['--git-dir', remote, 'show-ref', '--tags', '--quiet']).status, 1, 'the remote has no tag');
+});
+
+test('K1084: release-tag tags a commit whose ## Unreleased holds an entry where config/documents.json names no unreleased-empty-at-release', (t) => {
+  const changelog = '# Changelog\n\n## Unreleased\n\n- A change after the release.\n\n## 0.0.1\n\n- The first entry of 0.0.1.\n';
+  // No config/documents.json, and one that names no changelog rule.
+  for (const documents of [null, { changelogs: ['CHANGELOG.md'] }]) {
+    const { box, remote, env } = runBox(t, commit => candidate({ head_sha: commit }), { changelog, documents });
+    const run = tagRun(box.root, env);
+    assert.equal(run.result, 0, run.errors.join('\n'));
+    assert.equal(execFileSync('git', ['--git-dir', remote, 'rev-parse', 'refs/tags/v0.0.1^{commit}'], { encoding: 'utf8' }).trim(), box.commit);
+  }
 });
 
 test('release-tag reads config/release.json of the commit of the run, so its change log and Go modules are those of the tagged tree (K924)', (t) => {
