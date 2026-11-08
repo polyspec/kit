@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: dcf34d96a14f5efbd6a4c2011ec551a19aeae0eef24bb0f3c7dc10a36ca1dcd5 -->
+<!-- source-sha256: d9233d9d1617adb28b9e915efad78ccea7ce5d48da25c156fb0a0d8dba3a26cb -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.102
+
+- 릴리즈: K1134 행을 담아 kit 0.0.102를 낸다. 이 행은 uv sync나 pip install이 실패할 때 uv-install이 그 전에 지운 provider 링크를 되돌린다(K1135).
 
 - K1134: uv-install은 uv sync나 pip install이 실패하면 설치 전에 지운 provider 링크를 되돌린다. 그래서 실패한 설치가 더는 환경을 링크 없이 남기지 않는다(K1134).
 

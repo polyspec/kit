@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+## 0.0.102
+
+- Release: kit 0.0.102 with the row K1134, which puts back the provider links that uv-install removed before a uv sync or pip install that fails (K1135).
+
 - K1134: uv-install puts back the provider links that it removed before the uv sync or pip install when that install fails, so a failed install no longer leaves the environment without its links (K1134).
 
 ## 0.0.101

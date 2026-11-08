@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 676dd88d579025f1dd6f10a8b4bb868fceb2fac67271a89a7a0eaac92dae7192 -->
+<!-- source-sha256: 73cf016ebcb64712e9d11bb3027d82e97f12ab457bec01afcbe6e88f63d4619f -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -262,3 +262,4 @@
 | K1132 | docs-check 규칙 checklist-verification 삭제: docs-check는 열린 item의 Verification cell에 command를 요구하지 않는다. 이 규칙은 저장소가 뺄 수 있는 flag 없이 실행되었다 | `scripts/kit/verification.mts`, `scripts/kit/check-documents.mts` | `tests/kit/verification.test.mts`, `tests/kit/documents.test.mts` | [o] |
 | K1133 | K1131, K1132 행을 담아 kit 0.0.101을 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |
 | K1134 | uv-install의 uv sync나 pip install이 실패하면, 설치 전에 지운 provider 링크 가운데 다른 것으로 바뀌지 않은 것을 모두 되돌린 뒤 실패를 보고한다. 그래서 실패한 설치는 환경의 링크를 찾은 그대로 남긴다 | `scripts/kit/uv-install.mts`, `scripts/kit/link-folders.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1134 tests/kit/uv-install.test.mts` | [o] |
+| K1135 | K1134 행을 담아 kit 0.0.102를 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |
