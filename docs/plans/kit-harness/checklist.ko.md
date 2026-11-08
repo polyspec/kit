@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 1fe61965af4e62bab4938954434244f381ce515e64dcf9b3f524e3094c53d989 -->
+<!-- source-sha256: c1c0e63927817646f08da23c94b14683ded213e029a34920410b924157987b98 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -248,7 +248,7 @@
 | K1111 | ci-passed는 저장소가 그 규칙을 선언할 때만 건너뛴 job을 실패로 본다 | scripts/kit/ci-passed.mts, scripts/kit/kit.mk, .github/workflows/ci.yml, tests/kit/ci.test.mts, docs/operations/tool-inventory(.ko).md, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1111 tests/kit/ci.test.mts` | [o] |
 | K1112 | owner-check는 저장소가 그 규칙을 선언할 때만 추적된 모든 경로에 owner를 요구한다 | scripts/kit/owner-check.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1112 tests/kit/owner-check.test.mts` | [o] |
 | K1119 | K1068–K1085, K1087–K1118 행을 담아 kit 0.0.99를 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` passes | [o] |
-| K1120 | CI가 추적되는 시험 파일을 선언한다: kit shard에 mise-tools.test.mts를 넣고 go group에서 지워진 tools-go-mod-real.test.mts를 뺀다. php group은 phpunit-identity를 위해 PHPUnit을 설치하고, Windows bootstrap 단계는 make database가 없는 node recipe인 release-coverage를 실행한다 | `Makefile`, `.github/workflows/ci.yml` | the ci workflow passes | [ ] |
+| K1120 | CI가 추적되는 시험 파일을 선언한다: kit shard에 mise-tools.test.mts를 넣고 go group에서 지워진 tools-go-mod-real.test.mts를 뺀다. php group은 phpunit-identity를 위해 PHPUnit을 설치하고, Windows bootstrap 단계는 make database가 없는 node recipe인 release-coverage를 실행한다 | `Makefile`, `.github/workflows/ci.yml` | the ci workflow passes | [o] |
 | K1121 | kit.mk는 kit 시험 파일을 이름 짓지 않는다: kit 자신의 smoke 파일을 실행하는 case-sensitive-runner-smoke는 kit Makefile의 target이다 | `scripts/kit/kit.mk`, `Makefile` | the ci workflow passes | [ ] |
 | K1122 | runtime-targets는 끝에 slash가 붙은 root를 그 folder로 읽는다: tools/와 tools는 tools에서 한 번 실행된다 | `scripts/kit/runtime-targets.mts` | the ci workflow passes | [ ] |
 | K1123 | php-extension은 호출자가 건너뛰는 folder 아래 파일을 추적되든 disk에만 있든 뺀다 | `scripts/kit/php-extension.mts` | the ci workflow passes | [ ] |

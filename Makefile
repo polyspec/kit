@@ -18,7 +18,7 @@ KIT_TEST_FILES_1 := \
 	tests/kit/bootstrap-platform.test.mts \
 	tests/kit/install-idempotent.test.mts \
 	tests/kit/checklist.test.mts \
-	tests/kit/gate-targets.test.mts tests/kit/install-mise.test.mts \
+	tests/kit/gate-targets.test.mts tests/kit/install-mise.test.mts tests/kit/mise-tools.test.mts \
 	tests/kit/install-vscode.test.mts tests/kit/isolation.test.mts tests/kit/lint-python.test.mts \
 	tests/kit/parity.test.mts tests/kit/paths.test.mts tests/kit/php-platform.test.mts \
 	tests/kit/process.test.mts tests/kit/test-exit-deadline.test.mts \
@@ -69,7 +69,7 @@ SOURCE_TEST_GROUPS := ts php rust go python common-1 common-2 common-3
 SOURCE_TEST_FILES_ts := tests/source/lint-ts-real.test.mts tests/source/node-real.test.mts tests/source/symbols-ts-real.test.mts
 SOURCE_TEST_FILES_php := tests/source/phpunit-identity.test.mts tests/source/link-composer-real.test.mts tests/source/lint-php-real.test.mts tests/source/symbols-php-real.test.mts
 SOURCE_TEST_FILES_rust := tests/source/link-cargo-real.test.mts tests/source/lint-rust-real.test.mts
-SOURCE_TEST_FILES_go := tests/source/parity-go.test.mts tests/source/go-bench-output-real.test.mts tests/source/lint-go-real.test.mts tests/source/tools-go-mod-real.test.mts
+SOURCE_TEST_FILES_go := tests/source/parity-go.test.mts tests/source/go-bench-output-real.test.mts tests/source/lint-go-real.test.mts
 SOURCE_TEST_FILES_python := tests/source/lint-python-real.test.mts tests/source/python-real.test.mts tests/source/python-venv-real.test.mts tests/source/symbols-python-real.test.mts tests/source/uv-link-real.test.mts tests/source/wheel-metadata-real.test.mts
 SOURCE_TEST_FILES_common-1 := tests/source/package.test.mts tests/source/npm-audit-online-real.test.mts tests/source/tool-records-real.test.mts tests/source/ci-workflow.test.mts
 SOURCE_TEST_FILES_common-2 := tests/source/consumer-layout.test.mts tests/source/parity-real.test.mts
@@ -113,6 +113,11 @@ source-test-group: ## Run one declared source-test group; CI supplies GROUP=ts|p
 	@case " $(SOURCE_TEST_GROUPS) " in *" $(GROUP) "*) ;; *) echo "source-test-group: unknown or empty GROUP='$(GROUP)'; choose one of $(SOURCE_TEST_GROUPS)" >&2; exit 2;; esac
 	@test -n "$(SOURCE_TEST_FILES_$(GROUP))" || { echo "source-test-group: GROUP=$(GROUP) has no declared test files" >&2; exit 2; }
 	$(NODE) scripts/kit/run-tests.mts node --timeout 30 -- --test-concurrency=1 $(SOURCE_TEST_FILES_$(GROUP))
+
+.PHONY: case-sensitive-runner-smoke
+# The smoke of kit's own CI (K1121): the standard Node runner in a temporary verified case-sensitive directory, with kit's own smoke file.
+case-sensitive-runner-smoke: ## Smoke the standard Node runner with a temporary verified case-sensitive directory; offline
+	CASE_SENSITIVE_ENV=KIT_CASE_SENSITIVE_SMOKE_DIR $(NODE) scripts/kit/runtime-targets.mts case-sensitive-smoke tests/kit/standard-case-sensitive-smoke.mts
 
 kit-tool-record: ## Write tests/kit/tool-records.json, what the pinned go and Composer print for the requests of the stubs; offline after make install-tools
 	$(NODE) tests/kit/record-tools.mts

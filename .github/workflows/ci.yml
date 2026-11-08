@@ -220,7 +220,7 @@ jobs:
       # Each source group installs only the declared tools its files exercise.
       - name: install PHP source tools
         if: ${{ matrix.group == 'php' && !cancelled() }}
-        run: make install-tools TOOLS="php composer phpcs phpstan"
+        run: make install-tools TOOLS="php composer phpcs phpstan phpunit"
       - name: install PHP extension source tools
         if: ${{ matrix.group == 'php-ext' && !cancelled() }}
         run: make install-tools TOOLS="php phpunit"
@@ -286,7 +286,7 @@ jobs:
       - name: verify Git Bash Make uses pinned Node.js on Windows
         if: matrix.runner == 'windows-2025'
         shell: bash
-        run: make --no-print-directory owner-validate
+        run: make --no-print-directory release-coverage
       - name: smoke the standard runner with a case-sensitive test directory
         run: make case-sensitive-runner-smoke
       - name: install pinned Go and Rust toolchains

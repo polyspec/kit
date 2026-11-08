@@ -7,7 +7,8 @@
 
 ## 0.0.99
 
-- Release: kit 0.0.99 with the rows K1068–K1085 and K1087–K1118, which make each tool read only what it uses and what the repository or its caller declares; K1086 is not part of it (K1119).
+- Release: kit 0.0.99 with the rows K1068–K1085, K1087–K1118 and K1120–K1125, which make each tool read only what it uses and what the repository or its caller declares; K1086 is not part of it (K1119).
+- K1120: the CI declarations follow the tracked tests: the kit shards hold mise-tools.test.mts, the go source group no longer names the deleted tools-go-mod-real.test.mts, the php group installs PHPUnit for phpunit-identity, and the Windows bootstrap step runs release-coverage, a node recipe that reads no make database (K1120).
 - K1118: each checkout reads only its own `.links`: a worktree no longer reads the declaration of its main checkout, so a worktree without one is in its release state and its installs (uv-install, npm, make install) take the packages its locks name, and link-check compares that release state; a worktree with its own `.links` links as declared. The unused `mainCheckout` export of link-providers goes (K1118).
 - Drop the caller's GIT_DIR, GIT_WORK_TREE and the other repository-locating git variables in the test sandbox, so a kit-test run under `git rebase -x` or a hook never writes into the repository that started it (K1113).
 - K1116: item-edit refuses the Verification or the Deliverables of a done item only when its caller declares DONE_STAYS=1; kit's item-edit recipe declares it, and a repository that kept the refusal passes DONE_STAYS=1 in its own recipe (K1116).
