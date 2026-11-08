@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: acd8e034f5f532b9a417996060cfffc6045e64d967e5d66638dcd9204cdee244 -->
+<!-- source-sha256: 4895efa4521c4a94569ad6e1d4207e2dc8b89f084806848fcbad72ef428e5347 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -247,3 +247,4 @@
 | K1110 | checklist는 항목 상태와 표 형식을 저장소에서 읽으며 kit에 고정된 것은 없다 | scripts/kit/checklist.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1110 tests/kit/checklist.test.mts` | [o] |
 | K1111 | ci-passed는 저장소가 그 규칙을 선언할 때만 건너뛴 job을 실패로 본다 | scripts/kit/ci-passed.mts, scripts/kit/kit.mk, .github/workflows/ci.yml, tests/kit/ci.test.mts, docs/operations/tool-inventory(.ko).md, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1111 tests/kit/ci.test.mts` | [o] |
 | K1112 | owner-check는 저장소가 그 규칙을 선언할 때만 추적된 모든 경로에 owner를 요구한다 | scripts/kit/owner-check.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1112 tests/kit/owner-check.test.mts` | [o] |
+| K1119 | K1068–K1085, K1087–K1118 행을 담아 kit 0.0.99를 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` passes | [ ] |
