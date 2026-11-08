@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 99c13e49ba1aadb5544c883fdcf2614d8be33be15677fba1b092feafea8f6286 -->
+<!-- source-sha256: 7f0cbdaeb224a004d03df8c897ee60c1ee350be3eb0e880bc9ff695c9cc7514c -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -254,4 +254,4 @@
 | K1123 | php-extension은 호출자가 건너뛰는 folder 아래 파일을 추적되든 disk에만 있든 뺀다 | `scripts/kit/php-extension.mts` | the ci workflow passes | [o] |
 | K1124 | checklist.schema.json은 states에서 설명하지 않는 key를 거부하지 않는다(K1069) | `scripts/kit/schema/checklist.schema.json` | the ci workflow passes | [o] |
 | K1125 | 시험은 K1069-K1118 이후 호출자가 선언하는 것을 넘긴다: 호출자의 private path, 문서 규칙, rebuild source, packageFiles, fixture, extension layout, mise 환경, PATH와 concurrency, hook 설치 없음, 중첩 실행의 NODE_TEST_CONTEXT 없음, 모든 저장소의 initRepository, K958 reason 시험 삭제 | `tests/kit`, `tests/source` | the ci workflow passes | [o] |
-| K1126 | Windows에서 owner-check가 빈 make target 목록을 받는다: Git Bash의 make는 database를 CRLF 줄 끝으로 출력하므로 parseMakeDatabase가 Files 절을 찾지 못하고 owner-validate는 config/owner-checks.json의 모든 target을 없다고 한다(오류 42개, CI run 42446319516, bootstrap windows-2025) | `scripts/kit/owner-check.mts`, `.github/workflows/ci.yml` | the ci workflow passes | [ ] |
+| K1126 | Windows에서 owner-check가 빈 make target 목록을 받는다: Git Bash의 make는 database를 CRLF 줄 끝으로 출력하므로 parseMakeDatabase가 Files 절을 찾지 못하고 owner-validate는 config/owner-checks.json의 모든 target을 없다고 한다(오류 42개, CI run 42446319516, bootstrap windows-2025) | `scripts/kit/owner-check.mts`, `.github/workflows/ci.yml` | the ci workflow passes | [o] |

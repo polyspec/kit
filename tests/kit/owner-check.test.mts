@@ -189,6 +189,18 @@ test('the database of GNU make 4.x, which prints a target-specific variable as a
   assert.equal(make.variables.get('STEP'), 'compile');
 });
 
+// K1126: the make of Git Bash on Windows prints its database with CRLF line ends, which the read takes as the same lines.
+test('K1126 the database that make prints with CRLF line ends gives the same targets and variables', () => {
+  const database = ['# Make data base, printed by GNU make 4.4.1', '', '# makefile (from \'Makefile\', line 1)', 'STEP := compile', '', '# Files', 'compile:',
+    '#  File does not exist.', '#  recipe to execute (from \'Makefile\', line 3):', '\t@echo compile', '', 'unit-test: compile', '\t@echo unit', '', '# files hash-table stats:', ''].join('\r\n');
+  const make = parseMakeDatabase(database);
+  assert.deepEqual(Object.fromEntries([...make.targets].map(([name, { prerequisites, recipe }]) => [name, { prerequisites, recipe }])), {
+    compile: { prerequisites: [], recipe: '@echo compile' },
+    'unit-test': { prerequisites: ['compile'], recipe: '@echo unit' },
+  });
+  assert.equal(make.variables.get('STEP'), 'compile');
+});
+
 test('select: a changed path selects its owners; always, $path, variables and the suite order apply', () => {
   const declaration = {
     always: ['tests/always.test.mjs'],

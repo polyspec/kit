@@ -156,7 +156,9 @@ export function makeDatabase(root: string): MakeDatabase {
 }
 
 /** The targets and the makefile variables of the database text that `make -pRrq` prints. */
-export function parseMakeDatabase(text: string): MakeDatabase {
+export function parseMakeDatabase(printed: string): MakeDatabase {
+  // The make of Git Bash on Windows ends its lines with CRLF; the sections and lines below are read on LF (K1126).
+  const text = printed.replaceAll('\r\n', '\n');
   const variables = new Map<string, string>();
   const lines = text.split('\n');
   lines.forEach((line, index) => {

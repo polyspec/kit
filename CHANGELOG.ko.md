@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e28cb8d5ad9bfdfe5325d5deaca95b09f7a25844aa4ba0565dda07c1653dec12 -->
+<!-- source-sha256: c989db619f742ab8c89e0b853d9d3bfba1bfd190486a416d37e61bced042a31d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -8,7 +8,8 @@
 
 ## 0.0.99
 
-- Release: K1068–K1085, K1087–K1118, K1120–K1125 행을 담은 kit 0.0.99로, 각 도구가 자신이 쓰는 것과 저장소나 호출자가 선언한 것만 읽는다. K1086은 담지 않는다(K1119).
+- Release: K1068–K1085, K1087–K1118, K1120–K1126 행을 담은 kit 0.0.99로, 각 도구가 자신이 쓰는 것과 저장소나 호출자가 선언한 것만 읽는다. K1086은 담지 않는다(K1119).
+- K1126: owner-check는 Windows의 Git Bash make처럼 CRLF 줄 끝으로 출력된 database를 읽으므로, Windows의 owner-validate가 Makefile의 target을 찾습니다. Windows bootstrap 단계는 owner-validate를 실행합니다(K1126).
 - K1125: kit 시험은 K1069–K1118 이후 호출자가 선언하는 것(private path, 문서 규칙, rebuild source, packageFiles, fixture, extension layout, mise 환경, PATH와 concurrency)을 넘기고, hook을 설치하지 않으며, 중첩 실행을 NODE_TEST_CONTEXT 없이 시작하고, 모든 저장소를 initRepository로 만들며, 어떤 도구도 reason을 읽지 않으므로 K958 reason 시험을 지웁니다(K1125).
 - K1124: checklist.schema.json은 kit의 어느 schema와도 같이 states에서 설명하지 않는 key를 거부하지 않습니다(K1069, K1124).
 - K1123: php-extension은 호출자가 건너뛰는 folder 아래 파일을 추적되든 disk에만 있든 뺍니다(K1123).
