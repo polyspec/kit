@@ -3,10 +3,8 @@
   "title": "config/rebuild.json",
   "description": "The class of each tool of the repository, read by scripts/kit/rebuild-check.mts (S1); kit finds the tool sources by the layout of the repository and the file only classifies them (K286): ecosystem, replaced, record or policy, each with the field it needs.",
   "type": "object",
-  "required": ["schema", "tools"],
-  "additionalProperties": false,
+  "required": ["tools"],
   "properties": {
-    "schema": { "type": "integer", "const": 1 },
     "comment": { "type": "string" },
     "tools": { "description": "Each tool, by its path, with { kind, tool | reason | record }; rebuild-check checks the field of each kind.", "type": "object" }
   }

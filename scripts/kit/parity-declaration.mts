@@ -141,7 +141,6 @@ export interface ParityTool {
 
 /** config/parity.json as parity.schema.json describes it. */
 export interface ParityConfig {
-  schema: 1;
   comment?: string;
   implementations: ParityImplementation[];
   suites?: string[];

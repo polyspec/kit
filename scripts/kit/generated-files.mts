@@ -27,10 +27,9 @@ export const GENERATED_SEGMENTS = ['node_modules', 'vendor', '.venv', 'venv', '_
 
 /** config/generated.json as generated.schema.json describes it. */
 export interface GeneratedConfig {
-  schema: 1;
   paths: string[];
-  exceptions: { path: string; reason: string }[];
-  tracked?: { path: string; reason: string }[];
+  exceptions: { path: string; reason?: string }[];
+  tracked?: { path: string; reason?: string }[];
 }
 
 /** The globs of the exceptions of `config`, each with its reason (K958). */

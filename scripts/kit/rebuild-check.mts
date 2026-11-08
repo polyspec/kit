@@ -23,7 +23,7 @@ export const DECLARATION = 'config/rebuild.json';
 export type RebuildClass = { kind: string; tool?: string; reason?: string; record?: string };
 
 /** The declaration of config/rebuild.json (scripts/kit/schema/rebuild.schema.json). */
-export type RebuildDeclaration = { schema: 1; comment?: string; tools: Record<string, RebuildClass> };
+export type RebuildDeclaration = { comment?: string; tools: Record<string, RebuildClass> };
 
 // The field that each class needs, with the words of its finding.
 const NEEDS = { ecosystem: ['tool', 'the tool it uses'], replaced: ['reason', 'its reason'], record: ['record', 'its record'], policy: ['reason', 'its reason'] } as const;

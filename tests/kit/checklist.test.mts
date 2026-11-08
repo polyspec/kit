@@ -165,7 +165,7 @@ test('loadConfig accepts the configuration of the fixture and names each rule th
   const write = (value: unknown) => writeFileSync(path.join(root, 'config/checklist.json'), JSON.stringify(value));
   const config = parseJson<ChecklistConfig>(good, 'checklist.schema.json', 'config/checklist.json');
   write({ ...config, trackers: [] });
-  assert.throws(() => loadConfig(root), /must NOT have additional properties \{"additionalProperty":"trackers"\}/);
+  assert.equal(loadConfig(root).idPattern, 'T[0-9]+(?:[.-][0-9]+)*', 'a key that no tool reads is no finding (K1069)');
   write({ schema: 1, hooks: [] });
   assert.throws(() => loadConfig(root), /must have required property 'idPattern'/);
   rmSync(path.join(root, 'config/checklist.json'));
@@ -176,7 +176,7 @@ test('kit-check validates config/checklist.json against its schema', (t) => {
   const root = checkout(t, { 'config/checklist.json': JSON.stringify({ schema: 1, hooks: [], idPattern: 'T[0-9]+', states: ['[ ]'] }) });
   mkdirSync(path.join(root, 'scripts/kit/schema'), { recursive: true });
   cpSync(path.join(HERE, '../../scripts/kit/schema/checklist.schema.json'), path.join(root, 'scripts/kit/schema/checklist.schema.json'));
-  assert.deepEqual(checkConfig(root), ['config/checklist.json: / must NOT have additional properties {"additionalProperty":"states"}. Rule: the schema checklist.schema.json of @polyspec/kit']);
+  assert.deepEqual(checkConfig(root), [], 'a key that no tool reads is no finding (K1069)');
 });
 
 test('undeclaredChecklists names each document under docs/ with checklist items that is no checklist of a plan folder', () => {

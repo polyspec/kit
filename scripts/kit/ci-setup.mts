@@ -27,7 +27,7 @@ type CIConfig = {
   parityMode?: ParityMode;
   parityBindings?: Record<string, BindingSetup>;
   runner?: Runner;
-  setup: { shared: string[]; parity: string[]; runtimes: Record<Runtime, string[]> };
+  setup: { shared: string[]; parity: string[]; runtimes: Partial<Record<Runtime, string[]>> };
   tools?: Partial<Record<CIJob, string[]>>;
   contexts?: Partial<Record<CIJob, { prepare: string; cleanup: string }>>;
   targets?: { shared?: string[]; parity?: string[]; runtimes?: Partial<Record<Runtime, string[]>> };
@@ -165,7 +165,7 @@ export function ciPlan(root: string = repositoryRoot()): CIPlan { return plan(ro
 
 /** The setup of `runtime`: its declared targets or its deps target. */
 function runtimeSetup(runtime: Runtime, config: CIConfig): { target: string; args: string[] }[] {
-  const configured = config.setup.runtimes[runtime];
+  const configured = config.setup.runtimes[runtime] ?? [];
   return configured.length ? configured.map(target => ({ target, args: [] })) : defaultSetup(runtime);
 }
 

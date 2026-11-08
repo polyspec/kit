@@ -25,8 +25,7 @@ test('the schemas accept the configuration of the fixture', (t) => {
   const policy = path.join(root, 'config/checklist.json');
   writeFileSync(policy, JSON.stringify({ schema: 2, hooks: ['pre-push'], idPattern: 'K[0-9]+', extra: true }));
   const findings = checkConfig(root);
-  assert.ok(findings.some(line => line === 'config/checklist.json: /schema must be equal to constant {"allowedValue":1}, value 2. Rule: the schema checklist.schema.json of @polyspec/kit'), findings.join('\n'));
-  assert.ok(findings.some(line => line.startsWith('config/checklist.json: / must NOT have additional properties {"additionalProperty":"extra"}')), findings.join('\n'));
+  assert.deepEqual(findings, [], 'a key that no tool reads and the version key are no finding (K1069)');
   rmSync(policy);
   assert.deepEqual(checkConfig(root), [], 'a repository without a declared configuration file has no finding');
 });

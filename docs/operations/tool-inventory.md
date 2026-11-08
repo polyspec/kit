@@ -1387,9 +1387,9 @@ snapshot, and `parity-declarations-check` runs no extractor.
 `config/parity.json` declares language parity and nothing else. A consumer's other contract data, such as the rules, records
 and owners of its interface manifest, stays in the consumer's own file and is not a key of this schema. kit reads no reference to such a file.
 
-Decision (K227): kit adds no schema key for a consumer's interface manifest, neither typed nor opaque, and
-`parity.schema.json` keeps `additionalProperties: false`. Reasons: (1) the parity reader never reads such data, so a key for it
-would validate facts that no check of kit evaluates; (2) a typed key would make kit's schema encode one consumer's data model,
+Decision (K227, K1069): kit adds no schema key for a consumer's interface manifest, neither typed nor opaque, and
+`parity.schema.json`, like every schema of kit, describes only the keys its reader reads and refuses no other key. Reasons: (1) the parity reader never reads such data, so a key for it
+would validate facts that no check of kit evaluates, and refusing it would judge a declaration that is the consumer's own; (2) a typed key would make kit's schema encode one consumer's data model,
 and an opaque key would let any content pass the declaration check; (3) with no profile or native-only entry (S6), no coupling remains between kit and a consumer's file. A consumer that wants one parity source keeps its language facts
 in `config/parity.json` and its other contract data in its own file.
 

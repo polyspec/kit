@@ -6,7 +6,6 @@
   "items": {
     "type": "object",
     "required": ["path", "markers", "error"],
-    "additionalProperties": false,
     "properties": {
       "path": { "type": "string" },
       "markers": {
@@ -14,7 +13,6 @@
         "items": {
           "type": "object",
           "required": ["line", "marker"],
-          "additionalProperties": false,
           "properties": {
             "line": { "type": "integer", "minimum": 1 },
             "marker": { "type": "string" }
@@ -27,7 +25,6 @@
           {
             "type": "object",
             "required": ["line", "message"],
-            "additionalProperties": false,
             "properties": {
               "line": { "type": "integer", "minimum": 1 },
               "message": { "type": "string" }

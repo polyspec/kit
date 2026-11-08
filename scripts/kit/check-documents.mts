@@ -42,7 +42,6 @@ const PRIVATE_PATH = /(?:\/(?:Users|home)\/[^/\s"'<>`)]+\/|[A-Za-z]:\\Users\\[^\
 
 /** The configuration of config/documents.json (scripts/kit/schema/documents.schema.json). */
 export type DocumentsConfig = {
-  schema?: number;
   include: string[];
   exclude?: string[];
   siteLinks?: boolean;

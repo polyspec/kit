@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e04b1069e915299e07a6e4b567a206dbfc74460ddb24e2c568f12c845b1314eb -->
+<!-- source-sha256: 3fe413a4f99c4e36c93e16ee015d1524aff852829776a46019df3d9e94441832 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -7,6 +7,7 @@
 ## Unreleased
 
 - K1068: ci-setup은 config/ci.json이 선언한 것을 계획하고 준비하며 다른 파일과 대조하지 않습니다. parityBindings가 config/parity.json의 implementation을 모두 이름할 필요가 없고, binding이 없는 implementation은 binding job을 받지 않으며 선언된 binding은 job 하나를 받습니다. parityMode는 선택 항목이며(없으면 config/parity.json이 있을 때 full, 없을 때 none), binding의 setup은 parityMode phases를 요구하지 않습니다. implementation에 binding이 없어도 되는지는 저장소 자신의 규칙입니다. 선언된 setup·binding·context target과 기본 deps-<runtime> target은 Makefile과 먼저 대조하지 않고 선언대로 실행하며, 없는 target은 실행될 때 make가 알립니다(K1068).
+- kit의 각 schema는 그 도구가 읽는 key만 검사합니다. 어떤 schema도 기술하지 않은 key를 거부하지 않고(additionalProperties false 삭제), version key schema, 그 도구가 읽지 않는 reason(duplication exclude, generated exceptions와 tracked, parity internal), config/ci.json의 모든 runtime의 setup을 요구하지 않으며, kit의 어떤 도구도 읽지 않는 ciExempt를 기술하지 않습니다(K1069).
 - PHPUnit event의 fully qualified identity와 독립된 flow를 보존하고 parity mapping의 namespace aliasing을 제거한다(K1091).
 
 ## 0.0.98

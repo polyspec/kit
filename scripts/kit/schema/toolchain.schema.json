@@ -3,15 +3,7 @@
   "title": "config/toolchain.json",
   "description": "The toolchains that no other file of the checkout declares. npm is declared in devEngines.packageManager of package.json, Rust in rust-toolchain.toml, and the tools that mise installs (Node.js, Go, Python, uv, ruff, alint, golangci-lint, deadcode, govulncheck, cargo-audit, cargo-nextest, cargo-deny, Composer, vulture) in mise.toml with their digests in mise.lock; php may also be declared in .php-version.",
   "type": "object",
-  "required": [
-    "schema"
-  ],
-  "additionalProperties": false,
   "properties": {
-    "schema": {
-      "type": "integer",
-      "const": 1
-    },
     "comment": {
       "type": "string"
     },
@@ -30,7 +22,6 @@
       "required": [
         "version"
       ],
-      "additionalProperties": false,
       "properties": {
         "version": {
           "type": "string",
@@ -45,7 +36,6 @@
         "version",
         "sha256"
       ],
-      "additionalProperties": false,
       "properties": {
         "version": {
           "type": "string",
@@ -81,7 +71,6 @@
           "reason",
           "retry"
         ],
-        "additionalProperties": false,
         "properties": {
           "tool": {
             "type": "string",

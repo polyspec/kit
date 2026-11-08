@@ -20,7 +20,6 @@ const FILES = {
   'docs/rebuild/lock.md': RECORD,
 };
 const DECLARATION: RebuildDeclaration = {
-  schema: 1,
   tools: {
     'scripts/kit/lint.mts': { kind: 'ecosystem', tool: 'ruff' },
     'scripts/kit/lock.mts': { kind: 'record', record: 'docs/rebuild/lock.md' },

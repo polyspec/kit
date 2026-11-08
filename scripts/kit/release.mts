@@ -93,7 +93,6 @@ export type ReleaseGeneratedArtifact = {
 
 /** config/release.json after loadConfig: the schema and the checks of loadConfig hold every value to its form. */
 export interface ReleaseConfig {
-  schema: 1;
   repositoryUrl: string;
   changelog: string;
   changelogTranslations: string[];

@@ -43,7 +43,7 @@ const HEADER_PATTERNS = [
 const COMMAND = 'jscpd';
 
 /** config/duplication.json as duplication.schema.json describes it. */
-type DuplicationConfig = { schema: 1; exclude: { glob: string; reason: string }[] };
+type DuplicationConfig = { exclude: { glob: string; reason?: string }[] };
 
 /** The command of jscpd that the package depends on, by the bin of its package.json. */
 function jscpd(): string {

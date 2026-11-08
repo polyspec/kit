@@ -3,16 +3,13 @@
   "title": "config/duplication.json",
   "description": "The folders that the duplication check (duplication-check.mts, K248-3) does not read, each with the reason that the rule of separated concerns does not apply to it.",
   "type": "object",
-  "required": ["schema", "exclude"],
-  "additionalProperties": false,
+  "required": ["exclude"],
   "properties": {
-    "schema": { "type": "integer", "const": 1 },
     "exclude": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["glob", "reason"],
-        "additionalProperties": false,
+        "required": ["glob"],
         "properties": {
           "glob": { "description": "A glob of jscpd, relative to the root, such as tests/**.", "type": "string", "minLength": 1 },
           "reason": { "description": "Why the folder is no component whose concerns the check separates.", "type": "string", "pattern": "\\S" }

@@ -273,7 +273,7 @@ test('the python symbols declare only the entry, and an implementation without a
   } }, { execute: false })).findings.filter(finding => finding.rule === 'declaration').length;
   assert.equal(await declaration({ extractor: 'python', entry: 'python' }), 0);
   assert.equal(await declaration({ extractor: 'python', entries: [{ entry: 'python' }] }), 0);
-  assert.ok(await declaration({ extractor: 'python', entry: 'python', distribution: 'codec' }) > 0, 'distribution is no field');
+  assert.equal(await declaration({ extractor: 'python', entry: 'python', distribution: 'codec' }), 0, 'distribution is a key that no tool reads, so no finding (K1069)');
   const loose = await check(t, { files: { 'python/pyproject.toml': null, 'python/src/codec/__init__.py': '' } });
   assert.ok(loose.findings.some(finding => /implementation python: no root of python holds a pyproject\.toml/.test(finding.message)), JSON.stringify(loose.findings));
   // A consumer names the package folder below its project, such as packages/python/src/<package>: the src folder beside the
@@ -375,7 +375,6 @@ test('K719 scopes API symbols to a release package entry without narrowing share
   const apiSymbols = implementations.map(implementation => ({ implementation: implementation.name, symbol: `${implementation.name}::Builder` }));
   const model: ParityModel = {
     config: {
-      schema: 1,
       implementations,
       requirements: { pattern: 'CX-[0-9]+' },
       units: [{ id: 'shared-builder-api', kind: 'api', requirements: [], symbols: apiSymbols }],
@@ -408,7 +407,7 @@ test('K719 scopes API symbols to a release package entry without narrowing share
       symbols: [{ implementation: runtime, symbol: apiSymbol }],
     };
     const scopedModel: ParityModel = {
-      config: { schema: 1, implementations: [implementation], requirements: { pattern: 'CX-[0-9]+' }, units: [unit] },
+      config: { implementations: [implementation], requirements: { pattern: 'CX-[0-9]+' }, units: [unit] },
       implementations: new Map([[runtime, implementation]]),
       cases: new Map(), tests: new Map(), testRunners: new Map(),
       unitImplementations: new Map([[unit.id, [implementation]]]),
@@ -658,7 +657,7 @@ test('R6: the tests of the PHP extension are those of packages/php, with no shar
     { name: 'php-ext', runner: 'php', roots: ['packages/php-ext'] },
   ];
   const config: ParityConfig = {
-    schema: 1, implementations, requirements: { pattern: 'CX-[0-9]+' },
+    implementations, requirements: { pattern: 'CX-[0-9]+' },
     units: [{ id: 'width', kind: 'feature', requirements: [], bindings: implementations.map(entry => ({ implementation: entry.name, test: 'packages/php/tests/WidthTest.php' })) }],
   };
   const model: ParityModel = { config, implementations: new Map(implementations.map(entry => [entry.name, entry])), cases: new Map(), tests: new Map(), testRunners: new Map(), unitImplementations: new Map(), unitOwnerRoots: new Map(), unitOwnerArtifacts: new Map() };
@@ -673,7 +672,7 @@ test('R6: the tests of the PHP extension are those of every PHP library, package
   ];
   const tests = ['packages/validator/php/tests/AT.php', 'packages/generator/php/tests/BT.php'];
   const config: ParityConfig = {
-    schema: 1, implementations, requirements: { pattern: 'CX-[0-9]+' },
+    implementations, requirements: { pattern: 'CX-[0-9]+' },
     units: tests.map((test, index) => ({ id: `unit${index}`, kind: 'feature' as const, requirements: [], bindings: [{ implementation: 'php-ext', test }] })),
   };
   const model: ParityModel = { config, implementations: new Map(implementations.map(entry => [entry.name, entry])), cases: new Map(), tests: new Map(), testRunners: new Map(), unitImplementations: new Map(), unitOwnerRoots: new Map(), unitOwnerArtifacts: new Map() };
@@ -688,7 +687,7 @@ test('R6 leaves out a file that an internal glob of any implementation selects (
   const file = 'packages/php-ext/tests/engine/engine.test.mjs';
   const model = (declared: boolean): ParityModel => {
     const list = declared ? implementations : implementations.map(({ internal: _internal, ...entry }) => entry);
-    return { config: { schema: 1, implementations: list, requirements: { pattern: 'CX-[0-9]+' }, units: [] }, implementations: new Map(list.map(entry => [entry.name, entry])), cases: new Map(), tests: new Map(), testRunners: new Map([[file, ['node']]]), unitImplementations: new Map(), unitOwnerRoots: new Map(), unitOwnerArtifacts: new Map() };
+    return { config: { implementations: list, requirements: { pattern: 'CX-[0-9]+' }, units: [] }, implementations: new Map(list.map(entry => [entry.name, entry])), cases: new Map(), tests: new Map(), testRunners: new Map([[file, ['node']]]), unitImplementations: new Map(), unitOwnerRoots: new Map(), unitOwnerArtifacts: new Map() };
   };
   assert.deepEqual(misplacedTests(model(false), [file]).map(finding => finding.place), [file], 'without the declaration the node test outside the node roots is R6');
   assert.deepEqual(misplacedTests(model(true), [file]), []);
@@ -1080,20 +1079,14 @@ test('an implementation with no manifest of its ecosystem below its roots, or wi
   assert.match((await messages(twin, { 'php/tests/twin/a.php': 'PASS x\n' })).join('\n'), /implementation php-twin: it has the roots of php; two implementations of one package only split its tests/);
 });
 
-test('K276: free-form profiles, nativeOnly and exclusions fail; only a provenance-backed owner scope may narrow a feature', TIMEOUT, async (t) => {
+test('K276, K1069: profiles, nativeOnly and exclusions are keys that no tool reads, so they narrow nothing and give no finding', TIMEOUT, async (t) => {
   const { findings } = await check(t, { edit: (config) => { config.profiles = [{ name: 'all', implementations: ['go'] }]; config.nativeOnly = []; config.exclusions = []; return config; } }, { execute: false });
-  assert.deepEqual(findings.map(finding => `${finding.rule}: ${finding.message}`), [
-    'declaration: config/parity.json: / must NOT have additional properties {"additionalProperty":"profiles"}',
-    'declaration: config/parity.json: / must NOT have additional properties {"additionalProperty":"nativeOnly"}',
-    'declaration: config/parity.json: / must NOT have additional properties {"additionalProperty":"exclusions"}',
-  ]);
+  assert.deepEqual(findings.map(finding => `${finding.rule}: ${finding.message}`), []);
 });
 
-test('K276-1: a suite that declares admit fails the schema, since every implementation runs every case', TIMEOUT, async (t) => {
+test('K276-1, K1069: admit is a key that no tool reads, so every implementation still runs every case and it gives no finding', TIMEOUT, async (t) => {
   const { findings } = await check(t, { edit: (config) => { itemWhere(config.units, (unit: { id: string }) => unit.id === 'codec').admit = 'kinds'; return config; } }, { execute: false });
-  assert.deepEqual(findings.map(finding => `${finding.rule}: ${finding.message}`), [
-    'declaration: config/parity.json: /units/0 must NOT have additional properties {"additionalProperty":"admit"}',
-  ]);
+  assert.deepEqual(findings.map(finding => `${finding.rule}: ${finding.message}`), []);
 });
 
 test('K566: a feature owner scope derives its implementation from a declared coverage part and runs its native case', TIMEOUT, async (t) => {
@@ -1344,7 +1337,7 @@ test('K566: a release-package owner resolves its implementation from config/rele
     config.units.push({ id: 'ts-native-entry', kind: 'feature', requirements: ['RX-3'], owner: { kind: 'release-package', artifact: 'archive', package: 'codec-ts', implementations: ['ts'] }, bindings: [{ implementation: 'ts', test: 'ts/tests/roundtrip.test.mjs', id: 'native' }] });
     return config;
   } }, { execute: false });
-  assert.ok(extraOwnerOverride.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('additionalProperty')));
+  assert.ok(!extraOwnerOverride.findings.some(finding => finding.message.includes('additionalProperty')), 'a key that no tool reads is no finding (K1069)');
 });
 
 test('K566: release owners resolve Go modules and Rust git-tag crates from their declared artifacts', TIMEOUT, async (t) => {
@@ -1376,10 +1369,9 @@ test('K566: release owners resolve Go modules and Rust git-tag crates from their
   assert.deepEqual(crossArtifactSameName.findings, []);
 });
 
-test('a declaration that breaks its schema fails, and no rule runs on it', TIMEOUT, async (t) => {
+test('a declaration that breaks its schema fails, and no rule runs on it; a key that no tool reads is no finding (K1069)', TIMEOUT, async (t) => {
   const { findings } = await check(t, { edit: (config) => { config.extra = true; itemAt(config.units, 0).kind = 'vector'; return config; } });
   assert.deepEqual(findings.map(finding => `${finding.rule}: ${finding.message}`), [
-    'declaration: config/parity.json: / must NOT have additional properties {"additionalProperty":"extra"}',
     'declaration: config/parity.json: /units/0/kind must be equal to one of the allowed values {"allowedValues":["suite","feature","api"]}, value "vector"',
   ]);
 });
@@ -2015,7 +2007,7 @@ test('a deferred requirement cannot hide an active or mixed feature unit (K715)'
   assert.ok(wrongState.findings.some(item => item.rule === 'declaration' && item.message.includes('not [!]')), wrongState.findings.map(item => item.message).join('\n'));
 });
 
-test('deferred requirement entries reject unrecognized fields (K656)', TIMEOUT, async (t) => {
+test('a deferred requirement entry with a key that no tool reads gives no finding (K656, K1069)', TIMEOUT, async (t) => {
   const files = {
     'config/checklist.json': '{"schema":1,"hooks":["pre-push"],"idPattern":"K[0-9]+"}\n',
     'docs/spec/held.md': '# Held behavior\n\n- **CX-2** A requirement remains defined while its checklist item is held.\n',
@@ -2028,7 +2020,7 @@ test('deferred requirement entries reject unrecognized fields (K656)', TIMEOUT, 
       return config;
     },
   }, { execute: false })).findings.map(item => item.message);
-  assert.ok(messages.some(message => message.includes('additional properties') && message.includes('extra')), messages.join('\n'));
+  assert.ok(!messages.some(message => message.includes('additional properties')), `a key that no tool reads is no finding (K1069)\n${messages.join('\n')}`);
 });
 
 test('parity-declarations-check UNITS fails while docs/spec defines a requirement twice (K520)', TIMEOUT, async (t) => {

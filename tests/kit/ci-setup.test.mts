@@ -138,8 +138,6 @@ test('K731-1: contexts require a complete pair of targets, planned as declared',
     writeFileSync(file, JSON.stringify(config));
     assert.equal(ciPlan(root).parityMode, 'full', 'K1068: a declared context target is not pre-checked against the Makefile');
 
-    writeFileSync(file, JSON.stringify({ ...fixtureConfig(root), contexts: { unknown: { prepare: 'context-prepare', cleanup: 'context-cleanup' } } }));
-    assert.throws(() => ciPlan(root), /contexts must NOT have additional properties/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

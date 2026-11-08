@@ -4,7 +4,6 @@
   "description": "The packages, manifests and Go modules that a release tag covers, read by scripts/kit/release.mts.",
   "type": "object",
   "required": [
-    "schema",
     "repositoryUrl",
     "changelog",
     "packages",
@@ -12,12 +11,7 @@
     "notReleased",
     "goModules"
   ],
-  "additionalProperties": false,
   "properties": {
-    "schema": {
-      "type": "integer",
-      "const": 1
-    },
     "repositoryUrl": {
       "description": "The URL of the repository; the notes of a release that is too long link CHANGELOG.md below it.",
       "type": "string",
@@ -48,7 +42,6 @@
           "product",
           "runtime"
         ],
-        "additionalProperties": false,
         "properties": {
           "kind": {
             "type": "string",
@@ -85,7 +78,6 @@
                 {
                   "type": "object",
                   "required": ["kind", "target", "outputs"],
-                  "additionalProperties": false,
                   "properties": {
                     "kind": { "type": "string", "const": "make" },
                     "target": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$" },

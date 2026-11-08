@@ -15,7 +15,6 @@ export interface RetainedBranch {
 }
 
 interface RetainedBranchesConfig {
-  schema: 1;
   branches: RetainedBranch[];
 }
 

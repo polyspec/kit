@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 0989bf0640e843066681f9deba77da4021ff5364ae361624221262b38668b6ad -->
+<!-- source-sha256: 78451756e5849c6814e5673057f728fa96949d340c365b8a73ec3871f171cf73 -->
 
 # 도구 목록
 
@@ -1263,9 +1263,9 @@ implementation의 `symbols`는 `{ extractor, entry }`를 선언하며, `python`�
 `config/parity.json`은 language parity만 선언하며 그 밖은 선언하지 않습니다. consumer의 다른 contract 데이터(interface manifest의
 rule, record, owner 등)는 consumer 자신의 파일에 남고 이 schema의 key가 아닙니다. kit은 그런 파일을 가리키는 참조를 읽지 않습니다.
 
-결정(K227): kit은 consumer의 interface manifest를 위한 schema key를 추가하지 않습니다(typed든 opaque든). `parity.schema.json`은
-`additionalProperties: false`를 유지합니다. 이유: (1) parity reader는 그런 데이터를 읽지 않으므로 kit의 어떤 검사도 평가하지 않는 사실을
-검증하게 된다. (2) typed key는 kit의 schema가 한 consumer의 데이터 모델을 담게 하고, opaque key는 declaration 검사를 아무 내용이나
+결정(K227, K1069): kit은 consumer의 interface manifest를 위한 schema key를 추가하지 않습니다(typed든 opaque든). `parity.schema.json`은
+kit의 다른 모든 schema처럼 reader가 읽는 key만 기술하고 다른 key를 거부하지 않습니다. 이유: (1) parity reader는 그런 데이터를 읽지 않으므로 kit의 어떤 검사도 평가하지 않는 사실을
+검증하게 되고, 그것을 거부하면 consumer 자신의 선언을 판단하게 된다. (2) typed key는 kit의 schema가 한 consumer의 데이터 모델을 담게 하고, opaque key는 declaration 검사를 아무 내용이나
 통과시킨다. (3) profile과 native-only 항목이 없으므로(S6) kit과 consumer 파일 사이에 남는 결합이 없다. 한 spec의 language 사실을
 한 곳에 두려는 consumer는 language 사실을 `config/parity.json`에, 나머지 contract 데이터는 자기 파일에 둡니다.
 

@@ -53,7 +53,7 @@ KIT_TEST_FILES_5 := \
 	tests/kit/php-ext.test.mts tests/kit/plan.test.mts \
 	tests/kit/process-group.test.mts \
 	tests/kit/release-wheel.test.mts tests/kit/retained-branches.test.mts tests/kit/sandbox-repository.test.mts \
-	tests/kit/schema.test.mts tests/kit/test-build-first.test.mts tests/kit/twin-merge.test.mts
+	tests/kit/schema.test.mts tests/kit/schema-validate.test.mts tests/kit/test-build-first.test.mts tests/kit/twin-merge.test.mts
 KIT_TEST_FILES_6 := \
 	tests/kit/catch-check.test.mts tests/kit/ci-setup.test.mts tests/kit/commits.test.mts \
 	tests/kit/documents.test.mts tests/kit/gates-workflow.test.mts \

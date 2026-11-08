@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 6a036670fd6316aaa609d1fa28de8a023738467443a1fcb839319116acdbac1a -->
+<!-- source-sha256: d96bcd22f72c9db1c2099ba4a4bd7cee018c916b2966161edba5c4dd200653dd -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -196,7 +196,7 @@
 | K1057 | rules-check는 저장소의 CI pipeline을 그 workflow 중 하나로 읽으며 config/ci.json에서 고르지 않는다 | `scripts/kit/check-rules.mts`, `tests/kit/check-rules.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1057 tests/kit/check-rules.test.mts` passes | [o] |
 | K1066 | tests/kit/lint-steps.test.mts를 kit의 CI test shard에 넣습니다 | Makefile, CHANGELOG(.ko).md | `node --test --test-name-pattern=K718 tests/source/ci-workflow.test.mts` | [o] |
 | K1067 | release.yml에 AUTO가 top version을 그 version commit 또는 Unreleased가 빈 이후의 green commit에서 릴리즈한다고 적습니다 | workflows/release.yml, .github/workflows/release.yml, CHANGELOG(.ko).md | `make -s docs-check` | [o] |
-| K1069 | kit 스키마는 그 도구가 읽는 키만 검사한다: additionalProperties false도, 도구가 쓰지 않는 필수 키도 없다 | scripts/kit/schema/*.schema.json, scripts/kit/schema-validate.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1069 tests/kit/schema-validate.test.mts` | [ ] |
+| K1069 | kit 스키마는 그 도구가 읽는 키만 검사한다: additionalProperties false도, 도구가 쓰지 않는 필수 키도 없다 | scripts/kit/schema/*.schema.json, scripts/kit/schema-validate.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1069 tests/kit/schema-validate.test.mts` | [o] |
 | K1070 | kit-check는 저장소의 config/<name>.json을 같은 이름의 kit 스키마로 검사하지 않는다 | scripts/kit/kit-check.mts, tests/kit, docs, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1070 tests/kit/kit-check.test.mts` | [ ] |
 | K1071 | install-symbols는 EXTRACTORS 인수가 이름 붙인 추출기를 설치하며, config/toolchain.json이 그것을 되풀이하기를 요구하지 않는다 | scripts/kit/install-symbols.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1071 tests/kit/install-symbols.test.mts` | [ ] |
 | K1072 | install-tools는 설치하는 도구의 toolchain 예외만 읽으므로, 선택되지 않은 도구의 예외가 실행을 거부하지 않는다 | scripts/kit/install-tools.mts, scripts/kit/toolchain-exceptions.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1072 tests/kit/install-tools.test.mts` | [ ] |

@@ -54,7 +54,6 @@ export interface Tracker {
 
 /** config/checklist.json as checklist.schema.json describes it. */
 export interface ChecklistConfig {
-  schema: 1;
   hooks: string[];
   idPattern: string;
 }

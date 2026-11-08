@@ -3,10 +3,8 @@
   "title": "config/checklist.json",
   "description": "The Git hooks that a checkout installs and the pattern of the item IDs of the checklists. The checklists are docs/plans/<plan>/checklist.md, which kit finds itself (K241); each is a table with the six states of kit.",
   "type": "object",
-  "required": ["schema", "hooks", "idPattern"],
-  "additionalProperties": false,
+  "required": ["hooks", "idPattern"],
   "properties": {
-    "schema": { "type": "integer", "const": 1 },
     "hooks": {
       "description": "The tracked hooks of .githooks that every checkout installs beside the hooks of kit.",
       "type": "array",

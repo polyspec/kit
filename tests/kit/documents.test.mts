@@ -30,8 +30,8 @@ test('a document with anchors, fences and links passes', (t) => {
 
 test('exclude and include select the documents', (t) => {
   const root = tree(t, { 'docs/a.md': '[x](missing.md)\n', 'fixtures/b.md': '[x](missing.md)\n' });
-  assert.deepEqual(run(root, { schema: 1, include: ['docs/**'], exclude: ['docs/a.md'] }), []);
-  assert.equal(run(root, { schema: 1, include: ['docs/**'] }).length, 1);
+  assert.deepEqual(run(root, { include: ['docs/**'], exclude: ['docs/a.md'] }), []);
+  assert.equal(run(root, { include: ['docs/**'] }).length, 1);
 });
 
 test('sections: an explicit anchor appears once in its file; a twin may have other anchors (K809)', (t) => {
@@ -292,9 +292,8 @@ test('config/documents.json is validated against its schema', (t) => {
   mkdirSync(path.join(root, 'scripts/kit'), { recursive: true });
   cpSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/schema'), path.join(root, 'scripts/kit/schema'), { recursive: true });
   const found = checkConfig(root);
-  hasPart(found, 'config/documents.json: / must NOT have additional properties {"additionalProperty":"checklists"}');
   hasPart(found, '/statusTables/0/cells must be >= 1 {"comparison":">=","limit":1}, value 0');
-  hasPart(found, '/ must NOT have additional properties {"additionalProperty":"extra"}');
+  assert.ok(!found.some(line => line.includes('additionalProperty')), 'a key that no tool reads is no finding (K1069)');
 });
 
 test('link: a site reads the VitePress slug and the {#id} of a heading, a repository only the GitHub slug', (t) => {

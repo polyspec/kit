@@ -3,10 +3,8 @@
   "title": "config/documents.json",
   "description": "The documents that scripts/kit/check-documents.mts checks: which Markdown files are documents, its status tables and changelogs. Its checklists are in config/checklist.json.",
   "type": "object",
-  "required": ["schema", "include"],
-  "additionalProperties": false,
+  "required": ["include"],
   "properties": {
-    "schema": { "type": "integer", "const": 1 },
     "comment": { "type": "string" },
     "include": {
       "description": "Globs of the tracked Markdown files that are documents; every English document has a Korean twin .ko.md.",
@@ -33,7 +31,6 @@
       "items": {
         "type": "object",
         "required": ["path", "idPattern", "cells", "columns"],
-        "additionalProperties": false,
         "properties": {
           "path": { "description": "The English document with the table; its Korean twin is read too.", "type": "string" },
           "idPattern": { "description": "The source of the regular expression that the first cell of a row matches as a whole.", "type": "string" },
@@ -43,7 +40,6 @@
             "items": {
               "type": "object",
               "required": ["index"],
-              "additionalProperties": false,
               "properties": {
                 "index": { "description": "The cell, counted from 0.", "type": "integer", "minimum": 0 },
                 "enum": { "description": "The values the cell may have; the English and the Korean row must agree on it.", "type": "array", "minItems": 1, "items": { "type": "string" } },

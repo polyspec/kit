@@ -3,10 +3,8 @@
   "title": "config/owner-checks.json",
   "description": "The checks that own each tracked path, read by scripts/kit/owner-check.mts: make owner-check runs the owners of the changed paths, never the full suite.",
   "type": "object",
-  "required": ["schema", "owners"],
-  "additionalProperties": false,
+  "required": ["owners"],
   "properties": {
-    "schema": { "type": "integer", "const": 1 },
     "comment": { "type": "string" },
     "always": {
       "description": "Node test files that run for every change; they do not make a path owned.",
@@ -22,26 +20,12 @@
       "type": "array",
       "items": { "type": "string" }
     },
-    "ciExempt": {
-      "description": "Make targets of the owner rules that the CI workflow does not run, each with its reason; the CI workflow test of the repository reads it.",
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["target", "reason"],
-        "additionalProperties": false,
-        "properties": {
-          "target": { "type": "string" },
-          "reason": { "type": "string", "minLength": 1 }
-        }
-      }
-    },
     "owners": {
       "type": "array",
       "minItems": 1,
       "items": {
         "type": "object",
         "required": ["paths"],
-        "additionalProperties": false,
         "properties": {
           "paths": { "description": "Globs of repository paths: * within a segment, ** across segments, {a,b} either.", "type": "array", "minItems": 1, "items": { "type": "string" } },
           "targets": { "description": "Make targets of the Makefile or of a file it includes.", "type": "array", "items": { "type": "string" } },
@@ -61,7 +45,6 @@
       "items": {
         "type": "object",
         "required": ["check", "paths"],
-        "additionalProperties": false,
         "properties": {
           "check": { "type": "string" },
           "paths": { "type": "array", "minItems": 1, "items": { "type": "string" } }

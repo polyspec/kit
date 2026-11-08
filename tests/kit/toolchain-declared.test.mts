@@ -20,12 +20,9 @@ test('the schema accepts every representative toolchain configuration', () => {
   }
 });
 
-test('the schema names an unknown key, a wrong shape and a malformed version; a tool of mise.toml, Node.js among them, is an unknown key', () => {
+test('the schema names a wrong shape and a malformed version, and no key that no tool reads (K1069)', () => {
   const errors = validate({ schema: 1, extra: 1, php: '8.5', phpunit: { version: '11.5' }, python: '3.14', node: { 'linux-x64.tar.gz': 'x' } }, SCHEMA);
   assert.deepEqual(errors, [
-    '/ must NOT have additional properties {"additionalProperty":"extra"}',
-    '/ must NOT have additional properties {"additionalProperty":"python"}',
-    '/ must NOT have additional properties {"additionalProperty":"node"}',
     '/php must be array {"type":"array"}, value "8.5"',
     '/phpunit/version must match pattern "^\\d+\\.\\d+\\.\\d+$" {"pattern":"^\\\\d+\\\\.\\\\d+\\\\.\\\\d+$"}, value "11.5"',
   ]);
