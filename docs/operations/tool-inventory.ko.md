@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 50db8efe6d69c2d78e1b24a328a25feb92e2fb40e4e7dd81502a4d03cd80ef44 -->
+<!-- source-sha256: 9514c7fa77655395909f2326b36d1bdaf3c9e70fcc6d41f831e949db861b33b7 -->
 
 # 도구 목록
 
@@ -1390,8 +1390,8 @@ orm과 template은 둘 다 editor package를 갖습니다: language service, lan
 
 ### VS Code installer
 
-`scripts/kit/install-vscode.mts <extension package directory> <tools directory>`는 `engines.vscode`의 최소 버전(`^X.Y.Z`; 다른
-형식은 실패)을 `@vscode/test-electron`의 layout으로 설치하며, 내려받기는 그 library가 합니다. tool은 다음 동작을 더합니다:
+`scripts/kit/install-vscode.mts <extension package directory> <tools directory>`는 `engines.vscode`의 최소 버전(semver가 읽는 어떤
+범위 형식이든 그 최솟값, K1077)을 `@vscode/test-electron`의 layout으로 설치하며, 내려받기는 그 library가 합니다. tool은 다음 동작을 더합니다:
 - `installedExecutable`: integration 실행의 offline 읽기입니다. 사본이 없으면 `run make install-vscode`와 함께 실패합니다.
 - `<tools>/.next-<pid>`에 내려받아 제자리로 rename합니다. library는 최종 directory에 압축을 풀므로 두 install이 동시에 돌면 서로를
   망가뜨립니다. rename을 쓰면 먼저 끝난 install의 사본이 남습니다.

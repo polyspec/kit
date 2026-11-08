@@ -2,7 +2,7 @@
 //
 //   node scripts/kit/install-vscode.mts <extension package directory> <tools directory>
 //
-// The build is the minimum version of engines.vscode (^X.Y.Z) in the package.json of the extension, for the platform of the
+// The build is the minimum version of engines.vscode (a semver range of any form, K1077) in the package.json of the extension, for the platform of the
 // machine, in <tools>/vscode-<platform>-<version>, the layout of @vscode/test-electron (an optional peer dependency of kit:
 // a repository that installs VS Code declares it). The repository's install target runs this with the network; its
 // integration run reads the copy with installedExecutable and never downloads. An install of a complete copy does nothing.
@@ -17,11 +17,11 @@ import util from '@vscode/test-electron/out/util.js';
 import { readNpmManifestFile } from './manifests.mts';
 import { isMain } from './paths.mts';
 import { present } from './present.mts';
+import semver from 'semver';
 import { stopGroup, watchRoot } from './process-group.mts';
 
 // The file that @vscode/test-electron writes into a copy after its last file.
 const COMPLETE = 'is-complete';
-const RANGE = /^\^(\d+\.\d+\.\d+)$/;
 // The argument by which the command runs one downloadAndUnzipVSCode in its own process: --download <version> <platform> <cachePath>.
 const DOWNLOAD = '--download';
 
@@ -32,10 +32,10 @@ export type Download = (options: { version: string; platform: string; cachePath:
 export function vscodeCopy(extension: string, base: string, platform: string = util.systemDefaultPlatform): { version: string; platform: string; directory: string } {
   const manifest = path.join(extension, 'package.json');
   const range = readNpmManifestFile(manifest).engines?.vscode;
-  const match = typeof range === 'string' ? RANGE.exec(range) : null;
-  if (!match) throw new Error(`${manifest}: engines.vscode is ${JSON.stringify(range)}; the install reads the minimum of a range ^X.Y.Z`);
-  // RANGE has one group, which matched.
-  const version = present(match[1], 'match[1]');
+  // The copy is the minimum version of the range, in any form that semver reads (K1077).
+  const minimum = typeof range === 'string' && semver.validRange(range) !== null ? semver.minVersion(range) : null;
+  if (minimum === null) throw new Error(`${manifest}: engines.vscode is ${JSON.stringify(range)}, which is no semver range with a minimum version`);
+  const version = minimum.version;
   return { version, platform, directory: path.join(path.resolve(base), `vscode-${platform}-${version}`) };
 }
 

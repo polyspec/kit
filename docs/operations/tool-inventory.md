@@ -1522,7 +1522,7 @@ repository runs it from its own make target. The check of the editor boundaries 
 ### VS Code installer
 
 `scripts/kit/install-vscode.mts <extension package directory> <tools directory>` installs the minimum of `engines.vscode`
-(`^X.Y.Z`; any other form fails) in the layout of `@vscode/test-electron`, which does the download. The tool adds the following behavior:
+(the minimum version of a range of any form that semver reads, K1077) in the layout of `@vscode/test-electron`, which does the download. The tool adds the following behavior:
 - `installedExecutable`, the offline read of the integration run. It fails with `run make install-vscode` when the copy is
   missing.
 - A download into `<tools>/.next-<pid>` that is renamed into place. The library unzips into the final directory, so two

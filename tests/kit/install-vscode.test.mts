@@ -49,9 +49,18 @@ test('the copy is the minimum of engines.vscode for the platform, in the layout 
   assert.deepEqual(vscodeCopy(extension, tools, 'linux-x64'), { version: '1.138.0', platform: 'linux-x64', directory: path.join(tools, 'vscode-linux-x64-1.138.0') });
 });
 
-test('an engines.vscode that is not ^X.Y.Z fails with the value and the rule', (t) => {
-  const { extension, tools } = setup(t, '>=1.138.0');
-  assert.throws(() => vscodeCopy(extension, tools), /package\.json: engines\.vscode is ">=1\.138\.0"; the install reads the minimum of a range \^X\.Y\.Z$/);
+// K1077: the copy is the minimum version of any range that semver reads, not only ^X.Y.Z.
+test('K1077: the copy is the minimum of an engines.vscode range of any form', (t) => {
+  const ranges: [string, string][] = [['>=1.138.0', '1.138.0'], ['~1.138.2', '1.138.2'], ['1.138.x', '1.138.0'], ['^1.138.0 || ^2.0.0', '1.138.0']];
+  for (const [range, version] of ranges) {
+    const { extension, tools } = setup(t, range);
+    assert.equal(vscodeCopy(extension, tools, 'linux-x64').version, version, range);
+  }
+});
+
+test('an engines.vscode that is no range fails with the value', (t) => {
+  const { extension, tools } = setup(t, 'latest');
+  assert.throws(() => vscodeCopy(extension, tools), /package\.json: engines\.vscode is "latest", which is no semver range with a minimum version$/);
 });
 
 test('an install publishes the downloaded copy by a rename and a second install downloads nothing', async (t) => {
