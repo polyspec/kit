@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 33c40772d74a2c83735b0dfd2f57944650b874a6e01bd155df36bfc66ef05dae -->
+<!-- source-sha256: 2dc1814b2f316d83a0ab9ee9e9e3dfc2f36a754cb539c8933c83c38e1a32383f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 테스트 sandbox에서 호출자의 GIT_DIR, GIT_WORK_TREE 등 저장소 위치를 정하는 git 변수를 지워, `git rebase -x`나 hook 아래의 kit-test 실행이 그것을 시작한 저장소에 쓰지 않게 한다(K1113).
 - K1116: item-edit은 호출자가 DONE_STAYS=1을 선언할 때만 done item의 Verification이나 Deliverables 수정을 거부합니다. kit의 item-edit 레시피는 이를 선언하며, 그 거부를 유지하려는 저장소는 자기 레시피에서 DONE_STAYS=1을 넘깁니다(K1116).
 - K1107: kit 자신의 worktree-setup 레시피는 K858을 자기 선언으로 유지합니다. WORKTREE_ENVIRONMENT가 worktree-setup을 실행하기 전에 main checkout의 var/tools를 PATH에서 빼고 호출한 make의 flag를 버립니다. 첫 install 전에 package를 link하던 consumer는 --make link --make install --make link-check를 선언하며, 이는 --prepare 뒤에 주어진 순서대로 실행됩니다(K1107).
 - K1107: worktree-setup은 준비와 make target을 호출자의 환경 그대로 실행합니다. main checkout의 var/tools를 PATH에서 빼거나 호출한 make의 flag를 버리지 않으며(kit의 레시피가 env -u로 버립니다), make install 전에 설치된 kit을 checkout으로 link하지도 않습니다(저장소 자신의 make install이 합니다). 인자 없는 호출은 사용 오류인 exit 2로 끝납니다(K1107).

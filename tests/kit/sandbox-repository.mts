@@ -12,6 +12,13 @@ import { cpSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+// A test process started under `git rebase -x`, a hook or another git command inherits the variables that point git at
+// the repository of that command. Every git command of a sandbox, the commands of the tools included, would then write
+// into that repository instead of the sandbox (K1113). The test process therefore drops them before any sandbox exists.
+for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_COMMON_DIR', 'GIT_PREFIX']) {
+  Reflect.deleteProperty(process.env, name);
+}
+
 /** Runs git with `args` and fails with its status and stderr. */
 function git(args: string[]) {
   const result = spawnSync('git', args, { encoding: 'utf8' });

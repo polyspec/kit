@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: ef5a68ce7b7a387287201f4990fa6e11140be78cc1253b52a329dbd55d30e7e7 -->
+<!-- source-sha256: 4b569f887f71b722e80f264b44dd057970cb16791440972205d0fd8225e1d67d -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -235,7 +235,7 @@
 | K1105 | generated-files는 생성 경로 조각, 바이너리 종류, 도구 폴더를 저장소에서 읽으며 kit에 고정된 것은 없다 | scripts/kit/generated-files.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1105 tests/kit/generated-files.test.mts` | [o] |
 | K1106 | runtime-targets는 런타임, 빌드 명령, 테스트 경로, 플래그를 저장소에서 읽으며 kit에 고정된 것은 없다 | scripts/kit/runtime-targets.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1106 tests/kit/runtime-targets.test.mts` | [o] |
 | K1107 | worktree-setup은 worktree 폴더와 기준 브랜치를 호출자에게서 받으며 kit에 고정된 것은 없다 | scripts/kit/worktree-setup.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1107 tests/kit/worktree-setup.test.mts` | [o] |
-| K1113 | 테스트 sandbox는 호출자의 GIT_* 환경 없이 git을 실행하므로, git rebase -x나 hook 아래의 실행이 그것을 시작한 저장소에 쓰지 않는다 | tests/kit/sandbox-repository.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1113 tests/kit/sandbox-repository.test.mts` | [ ] |
+| K1113 | 테스트 sandbox는 호출자의 GIT_* 환경 없이 git을 실행하므로, git rebase -x나 hook 아래의 실행이 그것을 시작한 저장소에 쓰지 않는다 | tests/kit/sandbox-repository.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1113 tests/kit/sandbox-repository.test.mts` | [o] |
 | K1068 | ci-setup은 config/ci.json이 선언한 것만 계획하고 준비하며, config/parity.json과 대조하지 않고 parityMode나 parityBindings를 요구하지 않으며 target을 Makefile과 대조하지 않습니다 | scripts/kit/ci-setup.mts, scripts/kit/schema/ci.schema.json, tests/kit/ci-setup.test.mts, docs/operations/tool-inventory(.ko).md, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1068 tests/kit/ci-setup.test.mts` | [o] |
 | K1114 | ci-setup, divergence-check, parity는 구현 폴더를 호출자(--parity roots)에게서 받는다. release 목록 PACKAGE_FILES, PHPUNIT_MANIFEST, MISE_LOCKS, KIT_FIXTURE는 config/release.json에서 오며 kit은 자기 것을 선언한다 | scripts/kit/ci-setup.mts, scripts/kit/divergence-check.mts, scripts/kit/parity.mts, scripts/kit/release.mts, config/release.json, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1114 tests/kit/ci-setup.test.mts tests/kit/divergence-check.test.mts tests/kit/gates-workflow.test.mts tests/kit/parity-api.test.mts tests/kit/release.test.mts` | [o] |
 | K1115 | release record 경로는 호출자에게서 온다 | scripts/kit/release.mts, scripts/kit/kit.mk, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1115 tests/kit/release.test.mts` | [o] |

@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- Drop the caller's GIT_DIR, GIT_WORK_TREE and the other repository-locating git variables in the test sandbox, so a kit-test run under `git rebase -x` or a hook never writes into the repository that started it (K1113).
 - K1116: item-edit refuses the Verification or the Deliverables of a done item only when its caller declares DONE_STAYS=1; kit's item-edit recipe declares it, and a repository that kept the refusal passes DONE_STAYS=1 in its own recipe (K1116).
 - K1107: kit's own worktree-setup recipe keeps K858 as its declaration: WORKTREE_ENVIRONMENT drops the var/tools of the main checkout from PATH and the flags of the calling make before it runs worktree-setup; a consumer that linked its packages before the first install declares --make link --make install --make link-check, which run in the order given after --prepare (K1107).
 - K1107: worktree-setup runs the preparation and make targets with the environment of its caller as it is: it no longer drops the var/tools of the main checkout from PATH or the flags of the calling make, which kit's recipe now drops with env -u, and it no longer links the installed kit to its checkout before make install, which the repository's own make install does; a bare call exits 2, a usage error (K1107).

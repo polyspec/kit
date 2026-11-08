@@ -72,6 +72,24 @@ test('sandbox repositories use main independently of the machine default and ret
   }
 });
 
+test('a sandbox repository made under the GIT_DIR of another repository leaves that repository unchanged (K1113)', (t) => {
+  const root = sandbox(t, 'kit-sandbox-gitdir-');
+  const outer = path.join(root, 'outer');
+  const init = spawnSync('git', ['init', '--quiet', outer], { encoding: 'utf8' });
+  assert.equal(init.status, 0, init.stderr);
+  const config = path.join(outer, '.git', 'config');
+  const before = readFileSync(config, 'utf8');
+  const entry = new URL('./sandbox-repository.mts', import.meta.url).href;
+  const run = spawnSync(process.execPath, ['--input-type=module', '-e', `
+    import { initRepository } from ${JSON.stringify(entry)};
+    initRepository(process.argv[1]);
+  `, path.join(root, 'inner')], { encoding: 'utf8', env: { ...process.env, GIT_DIR: path.join(outer, '.git'), GIT_WORK_TREE: outer } });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(readFileSync(config, 'utf8'), before);
+  const inner = spawnSync('git', ['config', 'user.name'], { cwd: path.join(root, 'inner'), encoding: 'utf8' });
+  assert.equal(inner.stdout.trim(), 'kit test');
+});
+
 test('a commit in a sandbox repository starts no git maintenance that outlives it', (t) => {
   const trace = path.join(sandbox(t, 'kit-sandbox-trace-'), 'trace.json');
   const root = filled(t, trace);
