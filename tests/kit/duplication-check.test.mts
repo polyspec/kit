@@ -1,13 +1,14 @@
 // Tests of scripts/kit/duplication-check.mts: jscpd, a dependency of the package, fails on a piece of code that exists
 // twice in the checkout, outside the folders that config/duplication.json excludes with their reasons (K248-3).
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { readJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { duplicationCheck } from '../../scripts/kit/duplication-check.mts';
 import { put, tree } from './tree.mts';
 
 // The rule that kit declares for itself in config/duplication.json, without its exclusion of tests/ (K1104).
-const { exclude: _tests, ...KIT_RULE } = JSON.parse(readFileSync(new URL('../../config/duplication.json', import.meta.url), 'utf8')) as Record<string, unknown>;
+const { exclude: _tests, ...KIT_RULE } = readJsonObject(fileURLToPath(new URL('../../config/duplication.json', import.meta.url)));
 const kitRule = (exclude: { glob: string; reason: string }[] = []) => JSON.stringify({ ...KIT_RULE, exclude });
 
 // Eight distinct lines, a piece that jscpd reports when it exists twice.

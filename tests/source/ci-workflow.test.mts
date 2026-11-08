@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { isJsonList, isJsonObject, readJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { readFixture } from '../kit/json-fixture.mts';
 import { known } from '../kit/known.mts';
 
@@ -141,9 +142,9 @@ test('the fresh-checkout source group installs its declared PHP runtime', () => 
 test('kit declares every Rust nightly that parity-real runs, which make install-tools installs before the tests (K75)', () => {
   const used = new Set(readFileSync(path.join(ROOT, 'tests/source/parity-real.test.mts'), 'utf8').match(/nightly-\d{4}-\d{2}-\d{2}/g) ?? []);
   assert.ok(used.size > 0, 'parity-real names a nightly');
-  const { exceptions } = JSON.parse(readFileSync(path.join(ROOT, 'config/toolchain.json'), 'utf8')) as { exceptions?: { tool: string; channel: string }[]; mise: unknown };
-  assert.ok(exceptions, 'config/toolchain.json declares no exceptions');
-  const declared = new Set(exceptions.filter(entry => entry.tool === 'rust').map(entry => entry.channel));
+  const { exceptions } = readJsonObject(ROOT, 'config/toolchain.json');
+  assert.ok(isJsonList(exceptions), 'config/toolchain.json declares no exceptions');
+  const declared = new Set(exceptions.flatMap(entry => (isJsonObject(entry) && entry.tool === 'rust' ? [entry.channel] : [])));
   assert.deepEqual([...used].filter(channel => !declared.has(channel)), [], 'config/toolchain.json exceptions declare these nightlies');
   const sourceRuns = jobRuns('source_tests');
   const parityTools = sourceRuns.indexOf('make install-tools TOOLS="go python uv php phpunit rust"');

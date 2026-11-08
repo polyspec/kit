@@ -19,7 +19,7 @@ const RELEASED = '# Changelog\n\n## Unreleased\n\n## 0.0.1\n\n- The first entry 
 // The changelog rule of the fixture: release-tag refuses a commit whose ## Unreleased holds an entry (K1084).
 const UNRELEASED_EMPTY = { changelogs: ['CHANGELOG.md'], changelogRules: ['unreleased-empty-at-release'] };
 
-function runBox(t: Parameters<typeof releaseSandbox>[0], run: (commit: string) => CandidateRun, { changelog = RELEASED, documents = UNRELEASED_EMPTY as object | null } = {}) {
+function runBox(t: Parameters<typeof releaseSandbox>[0], run: (commit: string) => CandidateRun, { changelog = RELEASED, documents = UNRELEASED_EMPTY }: { changelog?: string; documents?: object | null } = {}) {
   const box = releaseSandbox(t, { changelog, mutate: root => { if (documents !== null) writeJson(root, 'config/documents.json', documents); } });
   const remote = path.join(box.root, '.stubs/remote.git');
   initRepository(remote, '--bare');

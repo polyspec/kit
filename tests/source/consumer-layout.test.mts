@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { readJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { builtCopy, commitSandbox, installedLockEntries, kitConsumer, NPM, packedKit, primeCache, run, runtimePackage } from './checkout.mts';
 import { readFixture } from '../kit/json-fixture.mts';
 import type { NpmManifest } from '../../scripts/kit/manifests.mts';
@@ -66,7 +67,7 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   cpSync(path.join(ROOT, '.mise/locks'), path.join(consumer, '.mise/locks'), { recursive: true });
   // The bootstrap installs the mise that config/toolchain.json declares, then the node of mise.toml with it; the consumer
   // declares the mise of kit.
-  const toolchain = JSON.parse(readFileSync(path.join(ROOT, 'config/toolchain.json'), 'utf8')) as { exceptions?: { tool: string; channel: string }[]; mise: unknown };
+  const toolchain = readJsonObject(ROOT, 'config/toolchain.json');
   mkdirSync(path.join(consumer, 'config'), { recursive: true });
   writeFileSync(path.join(consumer, 'config/toolchain.json'), `${JSON.stringify({ schema: 1, mise: toolchain.mise }, null, 2)}\n`);
   // Its suite runs the gates of kit, which the consumer chooses in its own Makefile.

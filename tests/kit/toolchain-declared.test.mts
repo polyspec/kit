@@ -3,6 +3,7 @@
 // the actual value.
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { isJsonObject, readJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { declaredToolchain } from '../../scripts/kit/bootstrap/toolchain-declared.mts';
 import { fixtureConfig, toolchainCheckout } from './toolchain-checkout.mts';
 
@@ -10,7 +11,8 @@ test('declaredToolchain reads each declaring file of the full shape', (t) => {
   const root = toolchainCheckout(t, {
     'config/toolchain.json': fixtureConfig('toolchain-full.json'),
   });
-  const { mise } = JSON.parse(fixtureConfig('toolchain-full.json')) as { mise: { sha256: Record<string, string> } };
+  const { mise } = readJsonObject(root, 'config/toolchain.json');
+  assert.ok(isJsonObject(mise), 'the fixture declares mise');
   assert.deepEqual(declaredToolchain(root), {
     php: { minors: ['8.2', '8.5'], source: 'config/toolchain.json php' },
     mise: { version: '2026.10.8', sha256: mise.sha256, source: 'config/toolchain.json mise' },
