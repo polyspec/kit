@@ -66,7 +66,7 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   cpSync(path.join(ROOT, '.mise/locks'), path.join(consumer, '.mise/locks'), { recursive: true });
   // The bootstrap installs the mise that config/toolchain.json declares, then the node of mise.toml with it; the consumer
   // declares the mise of kit.
-  const toolchain = readFixture<{ exceptions?: { tool: string; channel: string }[]; mise: unknown }>(ROOT, 'config/toolchain.json');
+  const toolchain = JSON.parse(readFileSync(path.join(ROOT, 'config/toolchain.json'), 'utf8')) as { exceptions?: { tool: string; channel: string }[]; mise: unknown };
   mkdirSync(path.join(consumer, 'config'), { recursive: true });
   writeFileSync(path.join(consumer, 'config/toolchain.json'), `${JSON.stringify({ schema: 1, mise: toolchain.mise }, null, 2)}\n`);
   // Its suite runs the gates of kit, which the consumer chooses in its own Makefile.

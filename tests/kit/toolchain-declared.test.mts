@@ -1,38 +1,16 @@
-// Tests of the toolchain configuration: the schema accepts each representative shape and names a wrong value, and
-// declaredToolchain reads every declaring file of the bootstrap and of the tools that mise does not install (the PHP lint:
+// Tests of the toolchain configuration, which has no schema of kit (K1076): declaredToolchain reads every declaring file of the bootstrap and of the tools that mise does not install (the PHP lint:
 // toolchain-lint.test.mts; the tools of mise.toml: toolchain-mise.test.mts) and fails with the file, the expected form and
 // the actual value.
 import assert from 'node:assert/strict';
-import { readdirSync } from 'node:fs';
 import test from 'node:test';
-import { parseJson, schemaFile, validate } from '../../scripts/kit/schema-validate.mts';
 import { declaredToolchain } from '../../scripts/kit/bootstrap/toolchain-declared.mts';
-import { FIXTURE_CONFIG, fixtureConfig, toolchainCheckout } from './toolchain-checkout.mts';
-
-const SCHEMA = schemaFile('toolchain.schema.json');
-
-test('the schema accepts every representative toolchain configuration', () => {
-  const names = readdirSync(FIXTURE_CONFIG).filter(name => name.startsWith('toolchain-'));
-  assert.deepEqual(names, ['toolchain-files-only.json', 'toolchain-full.json']);
-  for (const name of names) {
-    const config: unknown = JSON.parse(fixtureConfig(name));
-    assert.deepEqual(validate(config, SCHEMA), [], name);
-  }
-});
-
-test('the schema names a wrong shape and a malformed version, and no key that no tool reads (K1069)', () => {
-  const errors = validate({ schema: 1, extra: 1, php: '8.5', phpunit: { version: '11.5' }, python: '3.14', node: { 'linux-x64.tar.gz': 'x' } }, SCHEMA);
-  assert.deepEqual(errors, [
-    '/php must be array {"type":"array"}, value "8.5"',
-    '/phpunit/version must match pattern "^\\d+\\.\\d+\\.\\d+$" {"pattern":"^\\\\d+\\\\.\\\\d+\\\\.\\\\d+$"}, value "11.5"',
-  ]);
-});
+import { fixtureConfig, toolchainCheckout } from './toolchain-checkout.mts';
 
 test('declaredToolchain reads each declaring file of the full shape', (t) => {
   const root = toolchainCheckout(t, {
     'config/toolchain.json': fixtureConfig('toolchain-full.json'),
   });
-  const { mise } = parseJson<{ mise: { sha256: Record<string, string> } }>(fixtureConfig('toolchain-full.json'), 'toolchain.schema.json', 'toolchain-full.json');
+  const { mise } = JSON.parse(fixtureConfig('toolchain-full.json')) as { mise: { sha256: Record<string, string> } };
   assert.deepEqual(declaredToolchain(root), {
     php: { minors: ['8.2', '8.5'], source: 'config/toolchain.json php' },
     mise: { version: '2026.10.8', sha256: mise.sha256, source: 'config/toolchain.json mise' },
@@ -48,13 +26,22 @@ test('declaredToolchain reads the version files when the configuration lists not
   });
 });
 
+// K1076: a version is the text the repository declares; kit fixes no shape of it.
+test('K1076: declaredToolchain reads versions of any form as their text', (t) => {
+  const sha256 = { 'linux-x64': 'a'.repeat(64) };
+  const root = toolchainCheckout(t, { 'config/toolchain.json': JSON.stringify({ schema: 1, mise: { version: '2026.10', sha256 }, phpunit: { version: '11.5' }, php: ['8.4.1', '8'] }) });
+  const declared = declaredToolchain(root);
+  assert.equal(declared.mise?.version, '2026.10');
+  assert.equal(declared.phpunit?.version, '11.5');
+  assert.deepEqual(declared.php?.minors, ['8.4.1', '8']);
+});
+
 test('a declaration that is malformed or contradicts another fails with the file and the values', (t) => {
   const cases: [Record<string, string>, RegExp][] = [
-    [{ 'config/toolchain.json': '{ "schema": 1, "mise": { "version": "2026.10", "sha256": {} } }' }, /config\/toolchain\.json mise must record version as <major>\.<minor>\.<patch>; it records "2026\.10"/],
     [{ 'config/toolchain.json': '{ "schema": 1, "mise": { "version": "2026.10.8", "sha256": {} } }' }, /config\/toolchain\.json mise must record the sha256 of the mise archive of each platform, for example linux-x64; it records none/],
-    // A version is text: a JSON number or a list whose text matches is refused (K98).
-    [{ 'config/toolchain.json': '{ "schema": 1, "phpunit": { "version": 11.5 } }' }, /config\/toolchain\.json phpunit must record the PHPUnit release as <major>\.<minor>\.<patch>; it records 11\.5/],
-    [{ 'config/toolchain.json': `{ "schema": 1, "mise": { "version": ["2026.10.8"], "sha256": { "linux-x64": "${'a'.repeat(64)}" } } }` }, /config\/toolchain\.json mise must record version as <major>\.<minor>\.<patch>; it records \["2026\.10\.8"\]/],
+    // A version is text, which the install passes: a JSON number or a list is no version (K98, K1076).
+    [{ 'config/toolchain.json': '{ "schema": 1, "phpunit": { "version": 11.5 } }' }, /config\/toolchain\.json phpunit must record the PHPUnit release as text; it records 11\.5/],
+    [{ 'config/toolchain.json': `{ "schema": 1, "mise": { "version": ["2026.10.8"], "sha256": { "linux-x64": "${'a'.repeat(64)}" } } }` }, /config\/toolchain\.json mise must record version as text; it records \["2026\.10\.8"\]/],
   ];
   for (const [files, message] of cases) assert.throws(() => declaredToolchain(toolchainCheckout(t, files)), message);
 });
@@ -64,6 +51,4 @@ test('declaredToolchain reads the symbol extractors that make kit-install-symbol
   assert.deepEqual(declared(['go']).symbolExtractors, { extractors: ['go'], source: 'config/toolchain.json symbolExtractors' });
   assert.throws(() => declared(['cobol']), /config\/toolchain\.json symbolExtractors is \["cobol"\]; expected a list of go, php/);
   assert.throws(() => declared([]), /symbolExtractors is \[\]/);
-  assert.deepEqual(validate({ schema: 1, symbolExtractors: ['go'] }, SCHEMA), []);
-  assert.deepEqual(validate({ schema: 1, symbolExtractors: ['ts'] }, SCHEMA).length, 1);
 });

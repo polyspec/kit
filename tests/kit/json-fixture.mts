@@ -16,7 +16,6 @@ const SCHEMAS: Record<string, string> = {
   'owner-checks.json': 'owner-checks.schema.json',
   'parity.json': 'parity.schema.json',
   'release.json': 'release.schema.json',
-  'toolchain.json': 'toolchain.schema.json',
   'record.json': 'run-record.schema.json',
 };
 

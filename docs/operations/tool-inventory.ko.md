@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: e998cdc5f33a097abee9050e566ba62a5257266bfa577d44ba1b5a7fb392274f -->
+<!-- source-sha256: 50db8efe6d69c2d78e1b24a328a25feb92e2fb40e4e7dd81502a4d03cd80ef44 -->
 
 # 도구 목록
 
@@ -93,9 +93,9 @@ PIE는 저장소가 자기 recipe에서 실행하는 도구입니다. 저장소�
 | npm | `mise.toml`의 `npm:npm`(정확한 version), `mise.lock`에 lock됨; `var/tools/bin/npm`이 mise.toml의 node로 실행(K938) | mise로 bootstrap에서 설치 |
 | Go | `mise.toml`의 `go`(정확한 version); `mise.lock`이 platform별 archive의 sha256을 가짐; kit은 `go.mod`의 `go` 줄을 어떤 release와도 비교하지 않음(K953) | mise로 설치 |
 | Rust | 선언된 그대로의 `rust-toolchain.toml`의 `channel`, rustup이 판정함(K840), smol-toml(`readToml`)로 읽음(K78, K73) | 검증 |
-| PHP | `config/toolchain.json`의 `php`(minor release 목록), 없으면 `.php-version`; install-tools는 둘 중 하나가 PHP를 선언하면 PATH의 php를 wrapper로 제공 | wrapper(K283, K862) |
+| PHP | `config/toolchain.json`의 `php`(저장소가 쓴 그대로의 release 목록, K1076), 없으면 `.php-version`; install-tools는 둘 중 하나가 PHP를 선언하면 PATH의 php를 wrapper로 제공 | wrapper(K283, K862) |
 | Python | `mise.toml`의 `python`(정확한 version); `mise.lock`이 platform별 python-build-standalone build를 URL과 sha256으로 고정 | mise로 설치 |
-| mise | `config/toolchain.json`의 `mise`: 정확한 `version`과 platform별 archive `mise-v<version>-<os>-<arch>.tar.gz`의 `sha256` | bootstrap에서 설치 |
+| mise | `config/toolchain.json`의 `mise`: 저장소가 쓴 그대로의 `version`(K1076)과 platform별 archive `mise-v<version>-<os>-<arch>.tar.gz`의 `sha256` | bootstrap에서 설치 |
 | uv, ruff, golangci-lint | `mise.toml`의 `uv`, `ruff`, `golangci-lint`(aqua backend; `mise.lock`이 archive별 sha256을 가짐) | mise로 설치 |
 | alint | `mise.toml`의 `"github:asamarts/alint"`(`mise.lock`이 archive별 sha256을 가짐); `make layout-check`가 실행함(K76) | mise로 설치 |
 | Composer | `mise.toml`의 `"http:composer"`: `composer.phar`의 url과 getcomposer.org에서 가져온 `checksum`, `mise.lock`이 이를 기록 | mise로 설치 |
@@ -110,9 +110,9 @@ PIE는 저장소가 자기 recipe에서 실행하는 도구입니다. 저장소�
 `composer install`로 설치합니다(K790). Composer는 commit된 `composer.lock`이 지정한 것을 설치하고, vendor directory가 이미 그것을
 담고 있으면 아무것도 하지 않으며, 매 실행마다 `var/tools/bin`의 PHP 아래에서 lock의 platform requirement를 확인합니다.
 
-`config/toolchain.json`의 형태는 `scripts/kit/schema/toolchain.schema.json`입니다. `schema`(1), `comment`, `php`(minor release
-목록), `mise`(`version`, platform별 archive의 `sha256`), `phpunit`(`version`), `symbolExtractors`,
-`exceptions`(아래)입니다. Node.js를 포함한 `mise.toml`의 도구는 여기에 key가 없습니다.
+`config/toolchain.json`에는 kit의 schema가 없습니다(K1076). kit은 호출자가 필요로 할 때 각 key를 읽습니다: `php`(text인 release
+목록), `mise`(text인 `version`, platform별 archive의 `sha256`), `phpunit`(text인 `version`), `symbolExtractors`,
+`exceptions`(아래). Node.js를 포함한 `mise.toml`의 도구는 여기에 key가 없습니다.
 `mise.toml`은 kit이 검사하는 도구만 선언하며(`toolchain-mise.mts`의 `MISE_TOOLS`), 각각 mise가 해석하는 release로
 선언합니다. `mise.lock`은 mise의 기록이며 kit은 그것을 판정하지 않습니다(K835). Rust는 `rustup`이 읽는
 자기 파일에 두고, CI의 `setup-node`는 bootstrap을 시작하기 위해서만 `mise.toml`의 node를 읽습니다. 선언하지 않은 도구는 설치도 검증도 하지 않습니다.

@@ -100,9 +100,9 @@ has no target that runs PIE (K931).
 | npm | `npm:npm` of `mise.toml` (exact), locked in `mise.lock`; `var/tools/bin/npm` runs it with the node of `mise.toml` (K938) | install with mise, in the bootstrap |
 | Go | `go` of `mise.toml` (exact); `mise.lock` holds the sha256 of each platform's archive; kit reads no `go` line of a `go.mod` against a release (K953) | install with mise |
 | Rust | `channel` of `rust-toolchain.toml` as declared, which rustup judges (K840), read by smol-toml (`readToml`, K78, K73) | verify |
-| PHP | `config/toolchain.json` `php` (minor releases), else `.php-version`; install-tools wraps the php of PATH when either declares PHP | wrap (K283, K862) |
+| PHP | `config/toolchain.json` `php` (releases as the repository writes them, K1076), else `.php-version`; install-tools wraps the php of PATH when either declares PHP | wrap (K283, K862) |
 | Python | `python` of `mise.toml` (exact); `mise.lock` pins the python-build-standalone build of each platform by its URL and sha256 | install with mise |
-| mise | `config/toolchain.json` `mise`: the exact `version` and the `sha256` of the archive `mise-v<version>-<os>-<arch>.tar.gz` of each platform | install in the bootstrap |
+| mise | `config/toolchain.json` `mise`: the `version` as the repository writes it (K1076) and the `sha256` of the archive `mise-v<version>-<os>-<arch>.tar.gz` of each platform | install in the bootstrap |
 | uv, ruff, golangci-lint | `uv`, `ruff`, `golangci-lint` of `mise.toml` (the aqua backend; `mise.lock` holds the sha256 of each archive) | install with mise |
 | alint | `"github:asamarts/alint"` of `mise.toml` (`mise.lock` holds the sha256 of each archive); `make layout-check` runs it (K76) | install with mise |
 | Composer | `"http:composer"` of `mise.toml`, with the url of `composer.phar` and its `checksum` from getcomposer.org, which `mise.lock` records | install with mise |
@@ -117,9 +117,9 @@ A Composer project of `var/tools` (PHPUnit, the PHP lint) is installed by `compo
 `COMPOSER_VENDOR_DIR` set to `var/tools/<folder>/vendor` (K790). Composer installs what the committed `composer.lock` names, does nothing
 when the vendor directory already holds it, and checks the platform requirements of the lock under the PHP of `var/tools/bin` on each run.
 
-The shape of `config/toolchain.json` is `scripts/kit/schema/toolchain.schema.json`: `schema` (1), `comment`, `php` (list of
-minor releases), `mise` (`version`, `sha256` of each platform's archive), `phpunit` (`version`),
-`symbolExtractors` and `exceptions` (below). A tool of `mise.toml`, Node.js among them, has no key there. `mise.toml` declares only the tools that kit checks (`MISE_TOOLS` of `toolchain-mise.mts`), each
+`config/toolchain.json` has no schema of kit (K1076); kit reads its keys `php` (a list of releases as text), `mise` (`version`
+as text, `sha256` of each platform's archive), `phpunit` (`version` as text), `symbolExtractors` and `exceptions` (below), each
+when the caller needs it. A tool of `mise.toml`, Node.js among them, has no key there. `mise.toml` declares only the tools that kit checks (`MISE_TOOLS` of `toolchain-mise.mts`), each
 at the release that mise resolves; `mise.lock` is mise's record, which kit does not judge (K835). Rust stays in its own
 file, which `rustup` reads; CI's `setup-node` reads the node of `mise.toml` only to start the bootstrap. A tool that is not declared is neither installed nor checked.
 

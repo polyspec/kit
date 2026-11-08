@@ -4,10 +4,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { readExceptions } from '../../scripts/kit/toolchain-exceptions.mts';
-import { schemaFile, validate } from '../../scripts/kit/schema-validate.mts';
 import { tree } from './tree.mts';
-
-const SCHEMA = schemaFile('toolchain.schema.json');
 
 const json = (value: unknown) => JSON.stringify(value);
 const SVELTE = { tool: 'typescript', channel: '6.0.3', scope: 'packages/generator-svelte', reason: 'svelte-check and @sveltejs/package need the TypeScript 6 API', retry: 'the Svelte tools admit TypeScript 7' };
@@ -30,14 +27,3 @@ test('K1072: an entry of the tool is read by its channel and scope; a missing sc
   });
 });
 
-test('the schema of config/toolchain.json accepts only a Rust nightly exception and requires every field of it', () => {
-  assert.deepEqual(validate({ schema: 1, exceptions: [NIGHTLY] }, SCHEMA), []);
-  const { retry, ...noRetry } = NIGHTLY;
-  assert.equal(retry, 'rustdoc JSON is stable (rust-lang/rust#76578)');
-  assert.deepEqual(validate({ schema: 1, exceptions: [noRetry, { ...SVELTE, reason: '' }] }, SCHEMA), [
-    `/exceptions/0 must have required property 'retry' {"missingProperty":"retry"}`,
-    '/exceptions/1/tool must be equal to constant {"allowedValue":"rust"}, value "typescript"',
-    '/exceptions/1/channel must match pattern "^nightly-\\d{4}-\\d{2}-\\d{2}$" {"pattern":"^nightly-\\\\d{4}-\\\\d{2}-\\\\d{2}$"}, value "6.0.3"',
-    '/exceptions/1/reason must NOT have fewer than 1 characters {"limit":1}, value ""',
-  ]);
-});

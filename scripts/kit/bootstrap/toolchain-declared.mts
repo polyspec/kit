@@ -1,11 +1,11 @@
 // The toolchain versions that a checkout declares for the bootstrap and for the tools that mise does not install, read from
 // the files that declare them. Each entry names its version and the declaring file, so that an install and a check name the
 // file in a message:
-//   mise         config/toolchain.json mise: the exact version and the sha256 of the release archive of each platform, which
+//   mise         config/toolchain.json mise: the version and the sha256 of the release archive of each platform, which
 //                the bootstrap installs; mise installs the tools of mise.toml at the digests of mise.lock (toolchain-mise.mts),
 //                Node.js first, in the bootstrap (K171)
-//   php          config/toolchain.json php (minor releases), else .php-version as written
-//   phpunit      config/toolchain.json phpunit: the exact release, installed from the composer.json and composer.lock of config/phpunit
+//   php          config/toolchain.json php (releases as written), else .php-version as written
+//   phpunit      config/toolchain.json phpunit: the release, installed from the composer.json and composer.lock of config/phpunit
 //   symbolExtractors config/toolchain.json symbolExtractors: the symbol extractors of the parity check that make kit-install-symbols builds
 // The tools of mise.toml, Node.js among them, are read by toolchain-mise.mts, Rust by toolchain-files.mts and the PHP lint by
 // toolchain-lint.mts, after the bootstrap. A tool is declared when its key is present (php also by .php-version); an
@@ -20,8 +20,6 @@ export type InstalledExtractor = 'go' | 'php';
 const EXTRACTORS: readonly InstalledExtractor[] = ['go', 'php'];
 const isExtractor = (value: unknown): value is InstalledExtractor => EXTRACTORS.some(name => name === value);
 
-const EXACT = /^\d+\.\d+\.\d+$/;
-const MINOR = /^\d+\.\d+$/;
 const read = (root: string, file: string): string => readFileSync(path.join(root, file), 'utf8');
 
 /** A toolchain release and the file that declares it. */
@@ -48,13 +46,9 @@ const field = (value: unknown, key: string): unknown => (isJsonObject(value) ? v
 // Whether `value` is text that matches `pattern`; a JSON number or list is no text, whatever its text would be.
 const matches = (pattern: RegExp, value: unknown): value is string => typeof value === 'string' && pattern.test(value);
 
-function exact(file: string, what: string, value: unknown): string {
-  if (!matches(EXACT, value)) throw new Error(`${file} must record ${what} as <major>.<minor>.<patch>; it records ${JSON.stringify(value)}`);
-  return value;
-}
-
-function minor(file: string, what: string, value: unknown): string {
-  if (!matches(MINOR, value)) throw new Error(`${file} must record ${what} as <major>.<minor>; it records ${JSON.stringify(value)}`);
+// A version is the text that the repository declares, which the install passes as it is; kit fixes no form of it (K1076).
+function text(file: string, what: string, value: unknown): string {
+  if (typeof value !== 'string' || value.trim() === '') throw new Error(`${file} must record ${what} as text; it records ${JSON.stringify(value)}`);
   return value;
 }
 
@@ -68,13 +62,12 @@ export function toolchainConfig(root: string): Record<string, unknown> {
 }
 
 /**
- * The release of a tool of config/toolchain.json `key` that is installed from an archive of each platform: its exact version
+ * The release of a tool of config/toolchain.json `key` that is installed from an archive of each platform: its version
  * and the sha256 of the archive of each platform key, each read as 64 hexadecimal digits.
  */
 function platformRelease(key: string, value: unknown): PlatformRelease {
   const file = `config/toolchain.json ${key}`;
-  const version = field(value, 'version');
-  if (!matches(EXACT, version)) throw new Error(`${file} must record version as <major>.<minor>.<patch>; it records ${JSON.stringify(version)}`);
+  const version = text(file, 'version', field(value, 'version'));
   const digests = field(value, 'sha256') ?? {};
   if (!isJsonObject(digests) || Object.keys(digests).length === 0) throw new Error(`${file} must record the sha256 of the ${key} archive of each platform, for example linux-x64; it records ${isJsonObject(digests) ? 'none' : JSON.stringify(digests)}`);
   const sha256: Record<string, string> = {};
@@ -88,10 +81,10 @@ function platformRelease(key: string, value: unknown): PlatformRelease {
 /** The composer.json of the Composer project of config/phpunit, from which install-tools installs the declared PHPUnit. */
 export const PHPUNIT_MANIFEST = 'config/phpunit/composer.json';
 
-// The PHPUnit release of the PHP tests of kit: its exact version; the Composer project that installs it is config/phpunit.
+// The PHPUnit release of the PHP tests of kit: its version; the Composer project that installs it is config/phpunit.
 function phpunit(value: unknown): Declared & { manifest: string } {
   const file = 'config/toolchain.json phpunit';
-  return { version: exact(file, 'the PHPUnit release', field(value, 'version')), manifest: PHPUNIT_MANIFEST, source: file };
+  return { version: text(file, 'the PHPUnit release', field(value, 'version')), manifest: PHPUNIT_MANIFEST, source: file };
 }
 
 /** The declared toolchains of the checkout at `root`. */
@@ -102,9 +95,9 @@ export function declaredToolchain(root: string): DeclaredToolchain {
   const phpFile = existsSync(path.join(root, '.php-version')) ? read(root, '.php-version').trim() : undefined;
   if (config.php) {
     const php = config.php;
-    if (!isJsonList(php)) throw new Error(`config/toolchain.json must record php as a list of minor releases; it records ${JSON.stringify(php)}`);
-    // Each item that passes is a minor release as text.
-    const minors = php.map(value => minor('config/toolchain.json', 'php as a list of minor releases', value));
+    if (!isJsonList(php)) throw new Error(`config/toolchain.json must record php as a list of releases; it records ${JSON.stringify(php)}`);
+    // Each item is a release of PHP as the repository writes it.
+    const minors = php.map(value => text('config/toolchain.json', 'php as a list of releases', value));
     declared.php = { minors, source: 'config/toolchain.json php' };
   } else if (phpFile) {
     declared.php = { minors: [phpFile], source: '.php-version' };

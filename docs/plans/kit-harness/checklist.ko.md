@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 4d796e9652fca53c6d875f8b74b9944589c7424842c49897ef92119a6b8cedc2 -->
+<!-- source-sha256: 23a18e9557970a98a1727ad4cffd68fbd13244d1c800e386e655d3899ba943cf -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -203,7 +203,7 @@
 | K1073 | generated-files staged는 config/generated.json을 요구하지 않고 stage된 경로를 읽는다 | scripts/kit/generated-files.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1073 tests/kit/generated-files.test.mts` | [ ] |
 | K1074 | runtime-targets는 config/parity.json에서 roots만 읽고 배치를 강제하지 않는다: 엄격한 parity 스키마, roots의 테스트 요구, __init__.py 규칙, packages/<runtime> 배치, 추적된 smoke fixture, go.work 모듈 규칙이 없다 | scripts/kit/runtime-targets.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1074 tests/kit/runtime-targets.test.mts` | [ ] |
 | K1075 | php-extension은 packages/php-ext가 선언한 확장을 빌드하며, Composer 이름과 확장 이름에 대한 이름 규칙을 두지 않는다 | scripts/kit/php-extension.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1075 tests/kit/php-extension.test.mts` | [ ] |
-| K1076 | toolchain-declared는 config/toolchain.json이 선언한 버전을 읽으며, 그 형태에 대한 규칙을 두지 않는다 | scripts/kit/bootstrap/toolchain-declared.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1076 tests/kit/toolchain-declared.test.mts` | [ ] |
+| K1076 | toolchain-declared는 config/toolchain.json이 선언한 버전을 읽으며, 그 형태에 대한 규칙을 두지 않는다 | scripts/kit/bootstrap/toolchain-declared.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1076 tests/kit/toolchain-declared.test.mts` | [o] |
 | K1077 | install-vscode는 semver가 최솟값을 주는 모든 범위 형식의 engines.vscode에서 최소 버전을 읽는다 | scripts/kit/install-vscode.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1077 tests/kit/install-vscode.test.mts` | [ ] |
 | K1078 | worktree-setup은 devEngines.packageManager가 필요한 이유를 삭제된 kit include가 아니라 자신이 실행하는 것으로 밝힌다 | scripts/kit/worktree-setup.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1078 tests/kit/worktree-setup.test.mts` | [ ] |
 | K1079 | divergence-check는 예외 사유와 기능 상태를 저장소가 선언한 규칙으로 판단하며, kit에 고정된 종류 목록이나 기능 상태 규칙이 없다 | scripts/kit/divergence-check.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1079 tests/kit/divergence-check.test.mts` | [ ] |

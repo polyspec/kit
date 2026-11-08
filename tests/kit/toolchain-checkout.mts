@@ -8,7 +8,7 @@ import { initRepository } from './sandbox-repository.mts';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-export const FIXTURE_CONFIG = path.join(HERE, 'fixture/config');
+const FIXTURE_CONFIG = path.join(HERE, 'fixture/config');
 
 /** The text of a representative configuration file of tests/kit/fixture/config. */
 export const fixtureConfig = (name: string) => readFileSync(path.join(FIXTURE_CONFIG, name), 'utf8');
