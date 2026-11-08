@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 2936a37779182703a30e584f5c87fc46c2c1c8769901465671a2fb6e15446357 -->
+<!-- source-sha256: ddc1a768d1ed0f4c4b9f74cf630deb8f530609145130a464ed9b518e7e21de39 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -9,6 +9,7 @@
 - K1068: ci-setup은 config/ci.json이 선언한 것을 계획하고 준비하며 다른 파일과 대조하지 않습니다. parityBindings가 config/parity.json의 implementation을 모두 이름할 필요가 없고, binding이 없는 implementation은 binding job을 받지 않으며 선언된 binding은 job 하나를 받습니다. parityMode는 선택 항목이며(없으면 config/parity.json이 있을 때 full, 없을 때 none), binding의 setup은 parityMode phases를 요구하지 않습니다. implementation에 binding이 없어도 되는지는 저장소 자신의 규칙입니다. 선언된 setup·binding·context target과 기본 deps-<runtime> target은 Makefile과 먼저 대조하지 않고 선언대로 실행하며, 없는 target은 실행될 때 make가 알립니다(K1068).
 - kit-check는 저장소의 config/<name>.json을 그 이름의 kit schema로 검증하지 않습니다. scripts/kit/kit-check.mts, make target `kit-check`, `kit-gates`와 `kit-gates-static`의 자리, CI step이 사라졌고, `PACKAGE`와 `isSource`는 manifests.mts로, `writtenByKit`는 release.mts로 옮겼습니다. 각 도구가 자기가 읽는 설정을 검증합니다. 레시피가 아직 kit-check를 실행하는 저장소는 도구가 없으므로 그 호출을 지울 때까지 실패합니다(K1070).
 - kit의 각 schema는 그 도구가 읽는 key만 검사합니다. 어떤 schema도 기술하지 않은 key를 거부하지 않고(additionalProperties false 삭제), version key schema, 그 도구가 읽지 않는 reason(duplication exclude, generated exceptions와 tracked, parity internal), config/ci.json의 모든 runtime의 setup을 요구하지 않으며, kit의 어떤 도구도 읽지 않는 ciExempt를 기술하지 않습니다(K1069).
+- K1078: worktree-setup은 devEngines.packageManager가 필요한 자신의 이유를 밝힙니다. 새 worktree에서 그 npm으로 npm ci를 실행해 make install이 실행하는 @polyspec/kit 유틸리티가 node_modules에 있게 합니다. 이유는 더 이상 K1054가 삭제한 kit include를 이름 붙이지 않습니다(K1078).
 - K1077: install-vscode는 어떤 형식의 semver 범위에서든 engines.vscode의 최소 버전을 읽습니다. ^X.Y.Z 범위만 받던 제한이 없어졌습니다(K1077).
 - K1076: config/toolchain.json은 mise, PHPUnit, PHP의 버전을 어떤 형식의 텍스트로든 선언하며, 설치는 그것을 그대로 넘깁니다. kit은 <major>.<minor>.<patch>나 <major>.<minor> 형태를 정하지 않습니다(K1076).
 - K1072: install-tools는 rust를 설치할 때만 rust의 toolchain 예외를 읽고, kit은 항목의 channel과 scope만 읽습니다. 다른 도구의 항목, kit이 읽지 않는 필드, channel의 형식은 어떤 설치도 거부하지 않습니다(K1072).

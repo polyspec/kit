@@ -49,7 +49,7 @@ function shown(main: string, rev: string): string | undefined {
 function declaredNpmVersion(text: string): string {
   const { devEngines } = parseJson<NpmManifest>(text, 'npm-manifest.schema.json', 'package.json');
   const npm = devEngines?.packageManager;
-  if (npm?.name !== 'npm') throw new Error('package.json declares no devEngines.packageManager of npm, so a worktree gets no node_modules for the include of kit; declare "devEngines": {"packageManager": {"name": "npm", "version": "12.2.0", "onFail": "error"}} and "npm:npm" = "12.2.0" in mise.toml (docs/operations/adoption.md)');
+  if (npm?.name !== 'npm') throw new Error('package.json declares no devEngines.packageManager of npm; worktree-setup runs npm ci in the new worktree with the npm that devEngines.packageManager names, so that the utilities of @polyspec/kit that make install runs are in its node_modules; declare "devEngines": {"packageManager": {"name": "npm", "version": "12.2.0", "onFail": "error"}} and "npm:npm" = "12.2.0" in mise.toml (docs/operations/adoption.md)');
   if (npm.version === undefined) throw new Error('devEngines.packageManager of package.json names npm without a version; declare the npm version there, for example "version": "12.2.0"');
   return npm.version;
 }
@@ -82,10 +82,10 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
   const tools = path.join(main, 'var', 'tools');
   const own: NodeJS.ProcessEnv = { ...env, PATH: (env.PATH ?? '').split(path.delimiter).filter(entry => entry !== tools && !entry.startsWith(`${tools}${path.sep}`)).join(path.delimiter) };
   for (const name of ['MAKEFLAGS', 'MFLAGS', 'MAKELEVEL']) delete own[name];
-  // A consumer Makefile includes kit from node_modules, which a new worktree lacks: npm ci of the npm that devEngines names
-  // installs it first, as the clean checkout of the CI pipeline does (release.md), and make install then runs its own. A package.json
-  // without that declaration (a consumer that adopted no npm:npm, K938-1) is refused here, before any npm or make runs: the include of
-  // kit would fail with make's own message, and no other npm is used in its place.
+  // The recipes of a consumer run the utilities of @polyspec/kit from node_modules, which a new worktree lacks: npm ci of the npm that
+  // devEngines names installs them first, as the clean checkout of the CI pipeline does (release.md), and make install then runs its own.
+  // A package.json without that declaration (a consumer that adopted no npm:npm, K938-1) is refused here, before any npm or make runs,
+  // since worktree-setup has no npm to run in its place (K1078).
   if (version !== undefined) {
     print(`[worktree-setup] npm ci of npm@${version} in ${folder}`);
     // npm 11 of the machine refuses to run in a folder whose devEngines names npm 12.2.0 (EBADDEVENGINES), so the npm of the

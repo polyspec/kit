@@ -88,8 +88,8 @@ test('worktree-setup refuses a devEngines.packageManager of npm without a versio
   assert.throws(() => setupWorktree(main, { name: 'consumer', id: 'T6', type: 'fix' }, { print: () => {} }), /devEngines\.packageManager of package\.json names npm without a version; declare the npm version there/);
 });
 
-// K938-1: a consumer that adopted no npm:npm declares only packageManager (orm); its worktree has no node_modules, so make install
-// could only fail at the include of kit. The refusal comes before any npm or make runs, and names what to declare.
+// K938-1: a consumer that adopted no npm:npm declares only packageManager (orm); its worktree has no node_modules, so worktree-setup
+// has no npm to run npm ci with. The refusal comes before any npm or make runs, and names what to declare.
 // K938-1: the outer npm of npm ci writes into its working directory, so it runs in a folder of its own under the temporary root and
 // nothing it writes stays in that root (a stray node_modules there broke every mkdtemp user of Node resolution).
 test('worktree-setup runs the outer npm in a temporary folder of its own and leaves nothing in the temporary root (K938-1)', (t) => {
@@ -147,6 +147,18 @@ test('worktree-setup refuses a package.json with no devEngines.packageManager of
   );
   assert.equal(printed.some(text => text.includes('make --no-print-directory') || text.includes('make install')), false, 'no make runs');
   assert.equal(existsSync(path.join(path.dirname(main), 'npm-calls.txt')), false, 'no npm runs');
+});
+
+// K1078: the refusal gives the reason that worktree-setup itself has: it runs npm ci with the npm of devEngines, so the utilities of
+// @polyspec/kit that the recipes of make install run are in node_modules of the new worktree; kit is included by no Makefile.
+test('K1078: the refusal of a package.json without devEngines npm names the npm ci of worktree-setup, not an include of kit', (t) => {
+  const main = repository(t, { 'Makefile': 'install:\n', 'package.json': JSON.stringify({ name: 'consumer' }), '.gitignore': '/node_modules/\n/var/\n' });
+  assert.throws(() => setupWorktree(main, { name: 'reason', id: 'T10', type: 'fix' }, { print: () => {} }), (error: unknown) => {
+    assert.ok(error instanceof Error);
+    assert.doesNotMatch(error.message, /include of kit/);
+    assert.match(error.message, /worktree-setup runs npm ci in the new worktree with the npm that devEngines\.packageManager names/);
+    return true;
+  });
 });
 
 test('worktree-setup links the installed kit to the kit checkout that the link declaration of the main checkout names before make install, as install-link does, and leaves a release copy with none (K858, K869)', (t) => {

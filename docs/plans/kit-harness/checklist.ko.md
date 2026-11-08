@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 91fe647be3768a77f4976241f8de8d618df9d17cf2caf941aaf559286d83ec70 -->
+<!-- source-sha256: 791d747e1ce706b9148a30609a5943f6df202d29088bc7ae59a471ae8e49971a -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -205,7 +205,7 @@
 | K1075 | php-extension은 packages/php-ext가 선언한 확장을 빌드하며, Composer 이름과 확장 이름에 대한 이름 규칙을 두지 않는다 | scripts/kit/php-extension.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1075 tests/kit/php-extension.test.mts` | [ ] |
 | K1076 | toolchain-declared는 config/toolchain.json이 선언한 버전을 읽으며, 그 형태에 대한 규칙을 두지 않는다 | scripts/kit/bootstrap/toolchain-declared.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1076 tests/kit/toolchain-declared.test.mts` | [o] |
 | K1077 | install-vscode는 semver가 최솟값을 주는 모든 범위 형식의 engines.vscode에서 최소 버전을 읽는다 | scripts/kit/install-vscode.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1077 tests/kit/install-vscode.test.mts` | [o] |
-| K1078 | worktree-setup은 devEngines.packageManager가 필요한 이유를 삭제된 kit include가 아니라 자신이 실행하는 것으로 밝힌다 | scripts/kit/worktree-setup.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1078 tests/kit/worktree-setup.test.mts` | [ ] |
+| K1078 | worktree-setup은 devEngines.packageManager가 필요한 이유를 삭제된 kit include가 아니라 자신이 실행하는 것으로 밝힌다 | scripts/kit/worktree-setup.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1078 tests/kit/worktree-setup.test.mts` | [o] |
 | K1079 | divergence-check는 예외 사유와 기능 상태를 저장소가 선언한 규칙으로 판단하며, kit에 고정된 종류 목록이나 기능 상태 규칙이 없다 | scripts/kit/divergence-check.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1079 tests/kit/divergence-check.test.mts` | [ ] |
 | K1080 | rebuild-check는 config/rebuild.json이 선언한 도구를 검사하며, 모든 저장소가 분류해야 하는 kit 고정 도구 목록이 없다 | scripts/kit/rebuild-check.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1080 tests/kit/rebuild-check.test.mts` | [ ] |
 | K1081 | check-documents는 저장소가 선언한 문서를 검사하며, 행이 kit checklist 항목을 이름 붙여야 한다는 요구와 kit에 고정된 checklist 위치가 없다 | scripts/kit/check-documents.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1081 tests/kit/check-documents.test.mts` | [ ] |
