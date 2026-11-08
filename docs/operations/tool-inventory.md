@@ -442,9 +442,11 @@ implementation roots that the caller passes, those of the parity declaration of 
 test that branches on the extension, the runtime or the platform (`extension_loaded`, `function_exists`, `PHP_VERSION`,
 `PHP_OS`, `sys.version_info`, `sys.platform`, `process.versions`, `process.platform`, `runtime.GOOS`, `runtime.GOARCH`, `cfg!`,
 `#[cfg(...)]`, `os.name`); code of an implementation that reads whether another implementation is present (`extension_loaded`);
-`--exclude-group` in a script, a Makefile or a workflow; `partial` or `unsupported` in `contracts/features.json`; and an exception
-of `config/duplication.json` or of the `tools` and `internal` of `config/parity.json` whose reason begins with no kind that kit
-defines: `generated:`, `fixture:`, `test:`, `harness:`, `ecosystem:` or `external:`. The skipped and narrowed tests are the markers of
+`--exclude-group` in a script, a Makefile or a workflow; a state of `contracts/features.json` that the caller refuses with
+`--feature-state <state>`; and an exception of `config/duplication.json` or of the `tools` and `internal` of `config/parity.json`
+whose reason begins with none of the kinds that the caller declares with `--reason-kind <kind>`. Both rules belong to the
+repository: with no `--feature-state` or no `--reason-kind` the check finds nothing of that kind. The recipe of kit declares the
+states `partial` and `unsupported` and the kinds `generated:`, `fixture:`, `test:`, `harness:`, `ecosystem:` and `external:` (K1079). The skipped and narrowed tests are the markers of
 `make test-markers-check`, which also reads `testing.Short()`, `pytest.importorskip`, `@requires`, `#[Requires...]` and the skip of a
 `node:test` context. `make item-state` refuses a bypassed or impossible state whose cause cites a release, a failure that is not
 reproduced, a flake, a transient or unrelated failure or the environment. `make item-state` marks an item done only after the commands of its Verification cell pass on the tree that the commit holds (K335). The tools and tests of kit itself are checked like any repository's (K954). A TypeScript or JavaScript file is read with its parser, so a bypass or a divergence written inside a string literal is data, and only the code of the file is matched. A CI identity is a finding when a spawned process receives it in its `env` option or when `process.env` is assigned it; passed to a function under test as an argument, it is data.

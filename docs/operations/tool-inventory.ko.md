@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 31b563a0ede247ea13be8df4a153b1ac560ce8c395fa45043848894499cec4b3 -->
+<!-- source-sha256: 5db781d39d5b29b8a3d9f8bc82c272d41f22171bcabea1d2ed341ebeae2a1102 -->
 
 # 도구 목록
 
@@ -401,9 +401,11 @@ K809가 쌍의 규칙을 지웠습니다: `pair-missing`, `doc-id`, `revision`, 
 `--parity <path>` parity 선언의 root나 `--roots`의 폴더를 읽고(K1114, 인수 없는 호출은 사용법 오류) 다음의 파일과 줄을 보고한다: extension, runtime, platform으로 분기하는 test(`extension_loaded`,
 `function_exists`, `PHP_VERSION`, `PHP_OS`, `sys.version_info`, `sys.platform`, `process.versions`, `process.platform`,
 `runtime.GOOS`, `runtime.GOARCH`, `cfg!`, `#[cfg(...)]`, `os.name`), 다른 구현이 있는지 읽는 구현의 code(`extension_loaded`), script,
-Makefile, workflow의 `--exclude-group`, `contracts/features.json`의 `partial`이나 `unsupported`, 그리고 reason이 kit이 정한 kind로
-시작하지 않는 `config/duplication.json`의 예외와 `config/parity.json`의 `tools`, `internal`(`generated:`, `fixture:`, `test:`,
-`harness:`, `ecosystem:`, `external:`). 건너뛰거나 좁힌 test는 `make test-markers-check`의 marker이며 이 검사는 `testing.Short()`,
+Makefile, workflow의 `--exclude-group`, 호출자가 `--feature-state <state>`로 거부하는 `contracts/features.json`의 상태, 그리고
+reason이 호출자가 `--reason-kind <kind>`로 선언한 kind 중 어느 것으로도 시작하지 않는 `config/duplication.json`의 예외와
+`config/parity.json`의 `tools`, `internal`. 두 규칙은 저장소의 것이다: `--feature-state`나 `--reason-kind`가 없으면 그 종류는
+찾지 않는다. kit의 recipe는 상태 `partial`, `unsupported`와 kind `generated:`, `fixture:`, `test:`, `harness:`, `ecosystem:`,
+`external:`를 선언한다(K1079). 건너뛰거나 좁힌 test는 `make test-markers-check`의 marker이며 이 검사는 `testing.Short()`,
 `pytest.importorskip`, `@requires`, `#[Requires...]`, `node:test` context의 skip도 읽는다. `make item-state`는 cause가 release,
 재현되지 않음, flake, 일시적이거나 무관한 실패, 환경을 인용하는 bypassed나 impossible 상태를 거부한다. `make item-state`는 Verification 칸의 명령이 commit이 담는 tree에서 통과한 뒤에만 item을 done으로 표시한다(K335). kit 자신의 도구와 test도 다른 저장소와 같이 검사한다(K954). TypeScript와 JavaScript 파일은 parser로 읽으므로, 문자열 리터럴 안에 쓰인 bypass나 divergence는 data이고 파일의 code만 대조합니다. CI identity는 실행되는 process의 `env` 옵션으로 넘기거나 `process.env`에 대입하면 finding이고, 테스트 대상 함수에 인자로 넘기면 data입니다(K954).
 

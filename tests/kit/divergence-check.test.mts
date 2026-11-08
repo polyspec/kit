@@ -10,10 +10,12 @@ import { tool } from './kit-tools.mts';
 
 import { tree } from './tree.mts';
 
-// The roots of each case are those of its config/parity.json, which the case passes with --parity, or none (K1114).
+// The roots of each case are those of its config/parity.json, which the case passes with --parity, or none (K1114); the rules are
+// those that kit's own recipe declares (K1079).
+const KIT_RULES = { reasonKinds: ['generated', 'fixture', 'test', 'harness', 'ecosystem', 'external'], featureStates: ['partial', 'unsupported'] };
 const run = (texts: Record<string, string>) => {
   const read = (file: string) => texts[file];
-  return divergenceFindings(Object.keys(texts), read, texts['config/parity.json'] === undefined ? [] : selectedRoots(['--parity', 'config/parity.json'], read) ?? []);
+  return divergenceFindings(Object.keys(texts), read, texts['config/parity.json'] === undefined ? [] : selectedRoots(['--parity', 'config/parity.json'], read) ?? [], KIT_RULES);
 };
 const PARITY = JSON.stringify({ implementations: [{ name: 'php', roots: ['packages/php'] }, { name: 'ts', roots: ['packages/ts'] }] });
 
@@ -42,21 +44,21 @@ test('--exclude-group in a script or a Makefile, and a partial or unsupported fe
     'contracts/features.json': '{\n  "createForm": {\n    "python": "partial",\n    "go": "supported",\n    "rust": "unsupported"\n  }\n}\n',
   }), [
     'Makefile:2: --exclude-group narrows the run of an implementation',
-    'contracts/features.json:3: the feature file declares an implementation partial; every implementation holds every unit (S6)',
-    'contracts/features.json:5: the feature file declares an implementation unsupported; every implementation holds every unit (S6)',
+    'contracts/features.json:3: the feature file declares an implementation partial, a state that the repository refuses',
+    'contracts/features.json:5: the feature file declares an implementation unsupported, a state that the repository refuses',
   ]);
 });
 
-test('an exception of a configuration whose reason names no kind of kit is a finding, and each kind passes (K315)', () => {
+test('an exception of a configuration whose reason names no declared kind is a finding, and each kind passes (K315, K1079)', () => {
   const duplication = JSON.stringify({ schema: 1, exclude: [{ glob: 'tests/**', reason: 'a test states its case in full' }, { glob: 'gen/**', reason: 'generated: the tables of a generator' }] }, null, 2);
   const parity = JSON.stringify({ implementations: [{ name: 'php', roots: ['packages/php'], internal: [{ glob: 'packages/php/tests/Internal*.php', reason: 'private helpers' }] }], tools: [{ root: 'packages/editor', reason: 'harness: the editor tests' }, { root: 'packages/other', reason: 'because' }] }, null, 2);
   assert.deepEqual(run({ 'config/duplication.json': duplication, 'config/parity.json': parity }), [
-    'config/duplication.json:5: the exception tests/** gives a reason of no kind that kit defines; begin it with one of generated: fixture: test: harness: ecosystem: external:',
-    'config/parity.json:10: the exception packages/php/tests/Internal*.php gives a reason of no kind that kit defines; begin it with one of generated: fixture: test: harness: ecosystem: external:',
-    'config/parity.json:22: the exception packages/other gives a reason of no kind that kit defines; begin it with one of generated: fixture: test: harness: ecosystem: external:',
+    'config/duplication.json:5: the exception tests/** gives a reason of no declared kind; begin it with one of generated: fixture: test: harness: ecosystem: external:',
+    'config/parity.json:10: the exception packages/php/tests/Internal*.php gives a reason of no declared kind; begin it with one of generated: fixture: test: harness: ecosystem: external:',
+    'config/parity.json:22: the exception packages/other gives a reason of no declared kind; begin it with one of generated: fixture: test: harness: ecosystem: external:',
   ]);
-  for (const kind of ['generated', 'fixture', 'test', 'harness', 'ecosystem', 'external']) assert.equal(reasonKind(`${kind}: why`), true);
-  assert.equal(reasonKind('because'), false);
+  for (const kind of KIT_RULES.reasonKinds) assert.equal(reasonKind(`${kind}: why`, KIT_RULES.reasonKinds), true);
+  assert.equal(reasonKind('because', KIT_RULES.reasonKinds), false);
 });
 
 test('a divergence written inside a string literal is data, not a divergence (K954)', () => {
@@ -225,4 +227,17 @@ test('K1114 divergence-check takes the implementation roots from --parity or --r
   const bare = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/divergence-check.mts'))], { cwd: root, encoding: 'utf8' });
   assert.equal(bare.status, 2, bare.stderr);
   assert.match(bare.stderr, /usage: divergence-check\.mts --parity <path> \| --roots/);
+});
+
+test('the kinds of reason and the refused feature states are the rules the caller declares; none declared refuses none (K1079)', () => {
+  const duplication = JSON.stringify({ schema: 1, exclude: [{ glob: 'gen/**', reason: 'because' }] }, null, 2);
+  const features = '{\n  "createForm": {\n    "python": "partial"\n  }\n}\n';
+  const texts: Record<string, string> = { 'config/duplication.json': duplication, 'contracts/features.json': features };
+  assert.deepEqual(divergenceFindings(Object.keys(texts), file => texts[file], []), []);
+  assert.deepEqual(divergenceFindings(Object.keys(texts), file => texts[file], [], { reasonKinds: ['generated'], featureStates: ['partial'] }), [
+    'config/duplication.json:5: the exception gen/** gives a reason of no declared kind; begin it with one of generated:',
+    'contracts/features.json:3: the feature file declares an implementation partial, a state that the repository refuses',
+  ]);
+  assert.equal(reasonKind('generated: why', ['generated']), true);
+  assert.equal(reasonKind('generated: why', []), false);
 });

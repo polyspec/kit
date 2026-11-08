@@ -12,9 +12,10 @@
 //      whether their names are global or namespaced. The polyfill guard of a declaration, which only declares the function or
 //      constant where the extension did not (K873), is none; AutoloadFiles.php defines that shape for both checks (K883);
 //   3. a run of an implementation is narrowed by a flag (--exclude-group);
-//   4. contracts/features.json declares an implementation partial or unsupported;
-//   5. a configuration exception carries a reason that names no kind that kit defines (REASON_KINDS), in config/duplication.json,
-//      and in the tools and internal tests of config/parity.json.
+//   4. contracts/features.json declares an implementation in a state that the caller refuses (--feature-state, K1079);
+//   5. a configuration exception carries a reason that names no kind that the caller declares (--reason-kind, K1079), in
+//      config/duplication.json, and in the tools and internal tests of config/parity.json.
+// Checks 4 and 5 hold the rules of the repository: with no --feature-state or no --reason-kind they find nothing (K1079).
 // The skipped and narrowed tests are the markers of test-markers-check; the vendored tools and tests of kit are left out.
 //
 //   node scripts/kit/divergence-check.mts --parity <path> | --roots [<folder>...]
@@ -37,8 +38,8 @@ import { trackedFiles } from './tracked-files.mts';
 import { errorCode } from './process.mts';
 import { codeText, SCRIPT_FILE } from './script-ast.mts';
 
-/** The kinds of reason that kit defines for an exception of a configuration: the reason begins with the kind and a colon. */
-export const REASON_KINDS = ['generated', 'fixture', 'test', 'harness', 'ecosystem', 'external'] as const;
+/** The rules that the caller declares: the kinds of reason of an exception and the feature states it refuses (K1079). */
+export type DivergenceRules = { reasonKinds?: readonly string[]; featureStates?: readonly string[] };
 
 const SOURCE = /\.(?:php|py|[cm]?[jt]sx?|go|rs)$/;
 // A TypeScript or JavaScript file is checked as its code: a string literal or a comment that names a probe is data (K954).
@@ -174,8 +175,8 @@ const within = (root: string, file: string) => file === root || file.startsWith(
 /** The line of the first `needle` in `text`, or 1. */
 const lineOf = (text: string, needle: string) => Math.max(1, text.split('\n').findIndex(line => line.includes(needle)) + 1);
 
-/** A reason is of a kind that kit defines when it begins with the kind and a colon. */
-export const reasonKind = (reason: string): boolean => REASON_KINDS.some(kind => reason.startsWith(`${kind}:`));
+/** A reason is of a declared kind when it begins with one of `kinds` and a colon. */
+export const reasonKind = (reason: string, kinds: readonly string[]): boolean => kinds.some(kind => reason.startsWith(`${kind}:`));
 
 /**
  * The number of polyfill guards on each `file:line` of the PHP `sources` (K883), read by AutoloadFiles.php of the PHP symbol
@@ -191,8 +192,9 @@ export function phpPolyfillGuards(sources: Record<string, string>, root: string 
   return guards;
 }
 
-/** The findings of the checked `files` of a repository with the implementation `roots`; `read` gives the text of a file. */
-export function divergenceFindings(files: readonly string[], read: (file: string) => string | undefined, roots: readonly string[]): string[] {
+/** The findings of the checked `files` of a repository with the implementation `roots`, by the `rules` that its caller declares; `read` gives the text of a file. */
+export function divergenceFindings(files: readonly string[], read: (file: string) => string | undefined, roots: readonly string[], rules: DivergenceRules = {}): string[] {
+  const kinds = rules.reasonKinds ?? [];
   const phpFunctions = phpFunctionDeclarations(files, roots, read);
   const probed: Record<string, string> = {};
   for (const file of files) {
@@ -224,15 +226,16 @@ export function divergenceFindings(files: readonly string[], read: (file: string
       for (const { number, code } of lines(text)) if (/--exclude-group\b/.test(code)) found.push(`${file}:${number}: --exclude-group narrows the run of an implementation`);
     }
     if (file.endsWith('contracts/features.json')) {
-      for (const state of ['partial', 'unsupported']) {
-        text.split('\n').forEach((line, index) => { if (new RegExp(`"${state}"`).test(line)) found.push(`${file}:${index + 1}: the feature file declares an implementation ${state}; every implementation holds every unit (S6)`); });
+      for (const state of rules.featureStates ?? []) {
+        text.split('\n').forEach((line, index) => { if (line.includes(JSON.stringify(state))) found.push(`${file}:${index + 1}: the feature file declares an implementation ${state}, a state that the repository refuses`); });
       }
     }
-    if (file === 'config/duplication.json') found.push(...reasonFindings(file, text, reasoned(rootOf(text).exclude, 'glob')));
+    if (kinds.length === 0) continue;
+    if (file === 'config/duplication.json') found.push(...reasonFindings(file, text, reasoned(rootOf(text).exclude, 'glob'), kinds));
     if (file === 'config/parity.json') {
       const parsed = rootOf(text);
-      found.push(...reasonFindings(file, text, reasoned(parsed.tools, 'root')));
-      found.push(...reasonFindings(file, text, objects(parsed.implementations).flatMap(entry => reasoned(entry.internal, 'glob'))));
+      found.push(...reasonFindings(file, text, reasoned(parsed.tools, 'root'), kinds));
+      found.push(...reasonFindings(file, text, objects(parsed.implementations).flatMap(entry => reasoned(entry.internal, 'glob')), kinds));
     }
   }
   return found.sort();
@@ -282,9 +285,9 @@ function objects(value: unknown): Record<string, unknown>[] {
 const reasoned = (value: unknown, key: string): { glob: string; reason: string }[] =>
   objects(value).map(entry => ({ glob: typeof entry[key] === 'string' ? entry[key] : '', reason: typeof entry.reason === 'string' ? entry.reason : '' }));
 
-/** A finding for each entry of `entries` whose reason names no kind of REASON_KINDS. */
-function reasonFindings(file: string, text: string, entries: readonly { glob: string; reason: string }[]): string[] {
-  return entries.filter(entry => !reasonKind(entry.reason)).map(entry => `${file}:${lineOf(text, entry.glob)}: the exception ${entry.glob} gives a reason of no kind that kit defines; begin it with one of ${REASON_KINDS.map(kind => `${kind}:`).join(' ')}`);
+/** A finding for each entry of `entries` whose reason names none of the declared `kinds`. */
+function reasonFindings(file: string, text: string, entries: readonly { glob: string; reason: string }[], kinds: readonly string[]): string[] {
+  return entries.filter(entry => !reasonKind(entry.reason, kinds)).map(entry => `${file}:${lineOf(text, entry.glob)}: the exception ${entry.glob} gives a reason of no declared kind; begin it with one of ${kinds.map(kind => `${kind}:`).join(' ')}`);
 }
 
 /**
@@ -317,21 +320,35 @@ if (isMain(import.meta.url)) {
       throw error;
     }
   };
+  // The rules of the repository, from the arguments of its recipe (K1079): --reason-kind <kind> and --feature-state <state>, each
+  // repeatable; the other arguments name the implementation roots (K1114).
+  const argv = process.argv.slice(2);
+  const reasonKinds: string[] = [];
+  const featureStates: string[] = [];
+  const rest: string[] = [];
+  for (let at = 0; at < argv.length; at++) {
+    const arg = argv[at];
+    const value = argv[at + 1];
+    if ((arg === '--reason-kind' || arg === '--feature-state') && value !== undefined) {
+      (arg === '--reason-kind' ? reasonKinds : featureStates).push(value);
+      at++;
+    } else if (arg !== undefined) rest.push(arg);
+  }
   let roots: string[] | undefined;
   try {
-    roots = selectedRoots(process.argv.slice(2), read);
+    roots = selectedRoots(rest, read);
   } catch (error) {
     console.error(`[divergence-check] ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   }
   if (roots === undefined) {
-    console.error('[divergence-check] usage: divergence-check.mts --parity <path> | --roots [<folder>...]');
+    console.error('[divergence-check] usage: divergence-check.mts [--reason-kind <kind>]... [--feature-state <state>]... --parity <path> | --roots [<folder>...]');
     process.exit(2);
   }
-  const found = divergenceFindings(checkedSources(root, tracked, roots), read, roots);
+  const found = divergenceFindings(checkedSources(root, tracked, roots), read, roots, { reasonKinds, featureStates });
   for (const finding of found) console.error(`[divergence-check] ${finding}`);
   if (found.length) {
     console.error(`[divergence-check] ${found.length} divergences; an implementation holds every unit of the contract and is tested as the others are`);
     process.exitCode = 1;
-  } else console.log('[divergence-check] no implementation diverges through a branch, a narrowing, a feature state or an exception without a kind');
+  } else console.log('[divergence-check] no implementation diverges through a branch, a narrowing, a refused feature state or an exception without a declared kind');
 }

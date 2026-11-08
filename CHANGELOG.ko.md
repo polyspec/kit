@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 831807e5bcc67eef4ebb0c6338a241f7ef5ab5ae725b88501d26eb0dd801b070 -->
+<!-- source-sha256: 7ca6d3c25c25447985e911699910da789d67465e969b0b9e3951897a18c7fbc7 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -42,6 +42,7 @@
 - K1106: runtime-targets는 runtime, package layout, test 폴더, test 파일 패턴, interpreter, build 도구 경로, runner flag를 정하지 않는다. `test --runner <runner>`는 `--roots <folder>...`나 `--parity <path>`를 받으며, 후자는 그 runner의 구현이 root를 주고, config/parity.json은 경로를 넘길 때만 읽는다. 호출자의 runner 인수는 `--` 뒤에 오고 kit는 하나도 더하지 않는다. go root가 여럿이면 ./<root>/... 패턴으로 go test 한 번에 실행하고, node --test는 각 root의 test 파일을 스스로 찾으며, python은 각 root에서 --venv가 이름 붙인 환경이나 PATH의 python으로 실행한다. `build`는 `--` 뒤 호출자의 명령을 쓴 그대로 root마다 실행하고, `infrastructure`는 이름 붙인 경로마다 node --test를 실행한다. 선택 없는 호출은 exit 2이고, 아무것도 실행하지 않는 선택과 실행한 test가 하나도 없다고 기록된(run-tests --results) root는 실패한다. task, build-<runtime>, test-<runtime>, suite, go.work 방식과 kit.mk의 해당 recipe는 없어진다. 각 저장소의 Makefile이 자기 선택으로 runtime-targets를 부르고, php-extension test는 `--` 뒤 선택과 build된 library를 --php-extension으로 넘긴다(K1106).
 - K1117: duplication-check와 install-php는 `packages/php-ext` 폴더를 가정하지 않는다. duplication-check는 자기 stub 경로를 빼지 않으므로 저장소가 config/duplication.json에서 PHP extension의 S10 stub을 제외하고, install-php는 `packages/php-ext`가 있는 저장소에서 실패하던 php-config나 phpize의 부재를 모든 저장소에서 빼고 넘어간다. phpize를 실행하는 extension build가 그것들 없이 실패한다. tool-inventory의 R6 행과 parity.schema.json의 `shares` 설명은 implementation이 `shares` 선언으로만 test를 공유한다고 적는다(K1117).
 - K1114: ci-setup, divergence-check, parity는 구현 폴더의 layout을 두지 않는다. ci-setup은 plan의 runtime을 config/ci.json의 `runtimes`와 `targets.runtimes`에서만 가져오고 폴더 이름이나 추적된 파일에서는 가져오지 않으며 `runtimes`가 없으면 실패한다. ci-setup은 `--parity <path>`를 받아 구현 이름, runner, parityMode 기본값을 그 파일에서만 읽으며(config/ci.json의 parityMode가 우선하고, 없으면 --parity가 있을 때 full, 없을 때 none이며, config/parity.json이 있으면 정하던 기본값을 대신하며, ci.schema.json은 parityBindings 이름을 저장소가 쓴 그대로 받는다), divergence-check는 `--parity <path>`나 `--roots [<folder>...]`를 받으며(인수 없는 호출은 exit 2, kit 자신의 recipe는 `--roots`를 넘긴다), 선언이 없는 parity는 `--roots`가 이름 붙인 root를 비교한다(둘 다 없는 호출은 exit 2, kit의 parity-check와 parity-declarations-check는 `--roots`를 넘긴다). implementationFolders와 그 packages/<runtime> 목록은 없어진다. release coverage가 분류하는 package 파일 이름, 도구가 쓰는 package 파일, 검사가 빼는 fixture는 config/release.json의 `packageFiles`, `writtenFiles`, `fixtures`이고, packageFiles가 없는 coverage는 문제다. kit는 자기 목록을 그곳에 선언하고 MISE_LOCKS는 없어진다(K1114).
+- K1079: divergence-check는 호출자가 선언한 규칙으로만 거부한다: 설정 예외의 reason kind는 `--reason-kind <kind>`, contracts/features.json에서 거부할 상태는 `--feature-state <state>`로 받고, 둘 다 없으면 그 종류는 찾지 않으며, kit의 recipe가 자신의 kind와 상태를 선언한다(K1079).
 - PHPUnit event의 fully qualified identity와 독립된 flow를 보존하고 parity mapping의 namespace aliasing을 제거한다(K1091).
 
 ## 0.0.98

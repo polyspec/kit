@@ -200,8 +200,10 @@ text-absent: ## Fail while the tracked file FILE holds the stale text TEXT, nami
 	$(NODE) $(KIT)/text-absent.$(KIT_EXT)
 
 .PHONY: divergence-check
-divergence-check: ## Fail on an implementation that diverges through a branch on the runtime, a narrowing of its run, a partial or unsupported feature, or an exception without a kind of reason (K315); offline
-	$(NODE) $(KIT)/divergence-check.$(KIT_EXT) --roots
+# The rules of kit for divergence-check (K1079): the kinds of reason of a configuration exception and the refused feature states.
+DIVERGENCE_RULES := --reason-kind generated --reason-kind fixture --reason-kind test --reason-kind harness --reason-kind ecosystem --reason-kind external --feature-state partial --feature-state unsupported
+divergence-check: ## Fail on an implementation that diverges through a branch on the runtime, a narrowing of its run, a partial or unsupported feature, or an exception without a kind of reason (K315, K1079); offline
+	$(NODE) $(KIT)/divergence-check.$(KIT_EXT) $(DIVERGENCE_RULES) --roots
 
 .PHONY: language-check
 language-check: ## Fail on Hangul in a comment, an identifier, an error or log message or a test name of the code (K252); offline
