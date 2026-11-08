@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 8a9653c1f3f15c4717d85b1200899c719a4c287b4c22d680a85498aab1e434e6 -->
+<!-- source-sha256: 31b563a0ede247ea13be8df4a153b1ac560ce8c395fa45043848894499cec4b3 -->
 
 # 도구 목록
 
@@ -70,11 +70,11 @@ PHP는 설치하지 않고 wrapper로 제공합니다(K283, K862). `.php-version
 비교하지 않습니다. 패키지의 `require`가 제외하는 PHP는 Composer의 platform 검사가 거부하고, 나머지는 저장소 자신의 검사가
 맡습니다. 절대 경로를 담은 exec wrapper로
 `var/tools/bin/php`를 쓰며 link는 만들지 않고, Composer 설치보다 먼저 써서 Composer가 그 PHP로 실행되게 합니다. `php-config`와
-`phpize`는 php 옆에 있으면 wrapper로 쓰며, `packages/php-ext`가 있는 저장소는 이들이 없으면
-실패합니다. kit은 설치를 판정하지 않습니다. 다른 설치용으로 빌드된 extension은 PHP 자신이 로드를 거부합니다. PATH에 php가 없으면
+`phpize`는 php 옆에 있으면 wrapper로 쓰고 없으면 빼며, phpize를 실행하는 extension build가 이들 없이
+실패합니다(K1117). kit은 설치를 판정하지 않습니다. 다른 설치용으로 빌드된 extension은 PHP 자신이 로드를 거부합니다. PATH에 php가 없으면
 `php is not on PATH`로 실패합니다.
 
-`packages/php-ext`가 있는 저장소에서는 설치 단계가 arginfo header를 쓰지 않습니다. build는 phpize 뒤에 phpize가 PHP build 디렉터리에서 extension source의 `build/`로 복사한 `gen_stub.php`를 실행합니다(K930, K941; Ubuntu의 `php-config --prefix`에는 build 디렉터리가 없습니다). 이 도구는 필요한 고정 PHP-Parser를 checkout마다 한 번 `var/php-ext/gen-stub/`의 `build/`에 내려받고, 이후 build는 다시 내려받지 않습니다. 실패한 build는 그 폴더를 스스로 지웁니다. 강제 종료된 build 뒤에는 `rm -rf var/php-ext/gen-stub`을 실행하십시오. 폴더에 덜 풀린 PHP-Parser가 남아 다음 build가 그것을 믿을 수 있습니다. 이 내려받기는 PHP 자신의 gen_stub.php가 하는 일이며 kit은 그 버전을 고정하거나 해시하지 않습니다. P35는 저장소의 lock graph를 다루며 도구 내부의 fetch는 다루지 않습니다. extension이 없는 PHP library는 extension 개발 도구가 필요하지 않습니다. 공유 `kit.mk`는 선언된 parity extractor 하나를 `make kit-install-symbols EXTRACTORS="go"` 또는 `EXTRACTORS="php"`로 설치합니다. 먼저 대응하는 고정 도구를 `make install-tools TOOLS="php composer"` 또는 `TOOLS=go`로 설치하며, `EXTRACTORS`는 `config/toolchain.json symbolExtractors`에 있어야 합니다.
+PHP extension에서는 설치 단계가 arginfo header를 쓰지 않습니다. build는 phpize 뒤에 phpize가 PHP build 디렉터리에서 extension source의 `build/`로 복사한 `gen_stub.php`를 실행합니다(K930, K941; Ubuntu의 `php-config --prefix`에는 build 디렉터리가 없습니다). 이 도구는 필요한 고정 PHP-Parser를 checkout마다 한 번 `var/php-ext/gen-stub/`의 `build/`에 내려받고, 이후 build는 다시 내려받지 않습니다. 실패한 build는 그 폴더를 스스로 지웁니다. 강제 종료된 build 뒤에는 `rm -rf var/php-ext/gen-stub`을 실행하십시오. 폴더에 덜 풀린 PHP-Parser가 남아 다음 build가 그것을 믿을 수 있습니다. 이 내려받기는 PHP 자신의 gen_stub.php가 하는 일이며 kit은 그 버전을 고정하거나 해시하지 않습니다. P35는 저장소의 lock graph를 다루며 도구 내부의 fetch는 다루지 않습니다. extension이 없는 PHP library는 extension 개발 도구가 필요하지 않습니다. 공유 `kit.mk`는 선언된 parity extractor 하나를 `make kit-install-symbols EXTRACTORS="go"` 또는 `EXTRACTORS="php"`로 설치합니다. 먼저 대응하는 고정 도구를 `make install-tools TOOLS="php composer"` 또는 `TOOLS=go`로 설치하며, `EXTRACTORS`는 `config/toolchain.json symbolExtractors`에 있어야 합니다.
 build는 임시 source 사본에서 generator를 실행하고 module만 게시하므로, kit은 generator 버전을 비교하지 않습니다(K930). phpize가 source의 `build/`에 `gen_stub.php`를 복사하지 않았으면 build가 실패합니다.
 Composer release archive는 generated header를 stub/output 경로로 선언합니다. Release asset은 tag의 stub에서 header를 만들고
 staged file을 Info-ZIP(`zip`)으로 추가하며, stored entry, mode 0644, commit timestamp를 고정합니다. `zip`이 없으면
@@ -717,7 +717,7 @@ file header만 맞춥니다: PHP `declare`, `namespace`, `use`; TypeScript와 Ja
 `tests/kit/duplication-check.test.mts`에 format마다 case가 있습니다: header만 같은 두 file은 통과하고 6줄 body가 같은 두 file은
 실패합니다.
 
-S10 PHP extension의 stub이 있는 저장소는 `packages/php-ext/src/polyspec_*.stub.php`를 자기 `exclude`에 둡니다: S10이 stub에 library의 class와 함수를 같은 이름과 signature로 선언하게 하므로 jscpd가 이것을 library의 clone으로 보고하기 때문입니다. library 안의 clone은 계속 셉니다(K366). K1104부터 이 경로는 kit이 아니라 저장소의 선언입니다.
+S10 PHP extension의 stub은 library의 class와 함수를 같은 이름과 signature로 선언하므로 jscpd가 이것을 library의 clone으로 보고합니다. kit은 자기 경로를 빼지 않으며, 저장소가 config/duplication.json에서 자기 stub을 제외합니다. 예: `{ "glob": "packages/php-ext/src/polyspec_*.stub.php", "reason": "the S10 stub declares the library under the same names and signatures" }`. library 안의 clone은 계속 셉니다(K366, K1117).
 
 | Module | 담는 것 | 대체한 것 | 사용처 |
 |---|---|---|---|
@@ -799,8 +799,8 @@ S10 PHP extension의 stub이 있는 저장소는 `packages/php-ext/src/polyspec_
   php와 php-ext는 `deps-php`, `deps-python`)을 실행합니다. 이는 package manager의 lock 설치를 얇게 부르는 target입니다(K859).
   plan의 runtime만 setup합니다. 선언된 target과 기본 target은 선언대로 실행합니다. kit은 먼저 Makefile과
   대조하지 않으며, 없는 target은 실행될 때 make가 알립니다(K1068). ci-setup은 package manager, target, parity-check가 스스로 판정하는 것을 거부하지 않습니다(K860).
-  PHP runtime job은 선언된 PHP와 Composer 도구를 선택합니다. `packages/php-ext`가 있으면 PHP extension job도 이 도구를
-  선택하고 lint/build/test 전에 설치 단계가 필요 없습니다. build는 phpize가 `build/`에 복사한 `gen_stub.php`를 실행합니다. Extension test는 Composer package에 설치된
+  PHP runtime job은 선언된 PHP와 Composer 도구를 선택합니다. PHP extension job도 이 도구를
+  선택하고 extension의 lint, build, test 전에 설치 단계가 필요 없습니다. build는 phpize가 `build/`에 복사한 `gen_stub.php`를 실행합니다. Extension test는 Composer package에 설치된
   PHPUnit을 사용하므로 Kit의 private PHPUnit 선언은 필요하지 않습니다. PHP parity runner가 Composer를 쓰면 parity 도구에도
   Composer를 포함합니다. PHP setup 목록을 직접 지정하는 소비 저장소는 root와 package를 포함해 필요한 Composer project를
   모두 나열해야 합니다.
@@ -1152,7 +1152,7 @@ Node parity는 한 native 호출에서 stdout의 machine reporter와 stderr의 N
 | R3 not-executed | binding이 시작하지 못하거나(program이 없거나, 그 implementation의 environment 참조가 설정되지 않았거나 비었거나 checkout과 사용 중인 kit 패키지 밖 경로로 풀림), 0이 아닌 status로 끝나거나, 통과한 case가 suite 파일의 case와 정확히 같지 않습니다. feature binding은 그 실행에서 `id`가 정확히 한 번 통과해야 하며, Cargo는 그 `id`를 exact libtest filter로 실행하고 file runner는 전체 파일을 실행합니다. Cargo filter가 0개를 찾으면 미실행이고, binding id 밖의 test가 보고되어도 R3입니다. 각 binding은 한 번 실행됩니다(K959). 고정 seed와 격리된 database가 실행을 결정적으로 만들며, 그렇지 않은 test는 두 번째 실행이 찾을 대상이 아니라 test의 결함입니다. finding은 실패, skip, 누락, 초과 case를 나열합니다. 실행이 case를 두 번 보고하면 finding은 `reported twice` 부분으로 그 case를 적습니다. build되지 않는 Go package는 compiler 출력을 덧붙입니다. |
 | R4 undeclared-suite | `suites` glob의 파일이 어떤 suite unit의 파일도 아니고 어떤 case directory 안에도 있지 않습니다. |
 | R5 undeclared-test | implementation의 test 파일(그 root 안에서 그 runner의 규약이나 `testPatterns`가 고르는 파일, 또는 그 `tests` glob의 파일) 중 그 `support` 파일이 아닌 것이 그 implementation의 어떤 binding의 test도 아닙니다. 또는 그 root 안의 파일이 test처럼 이름 붙었고(`*_test.*`, `test_*.*`, `*Test.*`, `*.test.*`, `*.spec.*`), 어떤 규약도 고르지 않으며, 어떤 binding도 실행하지 않습니다. 또는 node, php, python implementation의 보조 파일이 `parity-check`가 실행할 때 case를 보고합니다. |
-| R6 misplaced-test | binding의 test가 그 implementation의 `roots` 밖이고, 그것이 `shares`하는 implementation의 root(root `packages/php-ext`의 implementation은 선언 없이 PHP library인 root `packages/php`와 `packages/<component>/php`의 implementation을 공유한다, S10) 밖이며, `comparators` 밖에 있습니다. 또는 하나 이상의 runner의 규약이나 `testPatterns`가 고르는 파일로서 그 runner들의 implementation의 `support` 파일이 아닌 것이, 그 runner들의 모든 implementation의 root 밖이고 `comparators` 밖이며 `tools` root 밖에 있습니다. vendored `scripts/kit`과 `tests/kit`은 kit 자신의 것이어서 검사하지 않습니다. |
+| R6 misplaced-test | binding의 test가 그 implementation의 `roots` 밖이고, 그것이 `shares`로 선언한 implementation의 root(그 선언 없이는 다른 implementation을 공유하지 않는다, K1117) 밖이며, `comparators` 밖에 있습니다. 또는 하나 이상의 runner의 규약이나 `testPatterns`가 고르는 파일로서 그 runner들의 implementation의 `support` 파일이 아닌 것이, 그 runner들의 모든 implementation의 root 밖이고 `comparators` 밖이며 `tools` root 밖에 있습니다. vendored `scripts/kit`과 `tests/kit`은 kit 자신의 것이어서 검사하지 않습니다. |
 | R7 error-catalog | implementation이 code(`errors`)를 선언하지 않거나, 그 code가 catalog와 다릅니다(누락 또는 초과 code). |
 | R9 language-set-drift | `languageLists`가 선언한 다른 파일의 목록이 implementation과 다르거나, pattern이 아무것도 찾지 못합니다. |
 | R10 docs-count | `documents`의 문서가 implementation N개를 세는데, 그 문장이 implementation N개를 모두 적지 않습니다. 다만 문장이 정확히 N개를 적고 passage의 이름을 모두 모은 것이 모든 implementation이면 예외입니다. 또는 이름을 모두 모아도 모든 implementation이 아닌 문장에서 implementation 이름 세 개 이상을 나열합니다. each나 각각 뒤의 수는 항목마다 세므로 count가 아니고("각각 한 구현"), 열거의 다른 항목이 양쪽에 있는 이름의 run은 그 항목들을 나열하므로 list가 아닙니다("Node.js, npm, Go, Rust, PHP minor version, Composer"). 마지막 이름 뒤의 `documents` noun은 항목이 아닙니다 (K197). |

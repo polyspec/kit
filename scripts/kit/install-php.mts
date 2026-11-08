@@ -32,17 +32,14 @@ export function installPhp({ root, print }: { root: string; print: (text: string
   const php = onPath('php', env);
   if (php === undefined) throw new Error('php is not on PATH; install PHP so that php is on PATH');
   const directory = path.dirname(php);
-  const needsExtension = existsSync(path.join(root, 'packages/php-ext'));
   const written: Record<string, string> = { php };
   // The prefix of php is the parent of its bin directory; a PHP without sbin/php-fpm gets no wrapper, and nothing fails (K341).
   const fpm = path.join(path.dirname(directory), 'sbin', 'php-fpm');
   if (existsSync(fpm)) written['php-fpm'] = fpm;
   for (const name of ['php-config', 'phpize'] as const) {
     const companion = path.join(directory, name);
-    if (!existsSync(companion)) {
-      if (needsExtension) throw new Error(`${companion} is missing beside ${php}, and packages/php-ext needs phpize and php-config; install the development files of that PHP`);
-      continue;
-    }
+    // A missing companion gets no wrapper in any repository (K1117): the build of an extension runs phpize and fails without it.
+    if (!existsSync(companion)) continue;
     written[name] = companion;
   }
   for (const name of PHP_WRAPPERS) {

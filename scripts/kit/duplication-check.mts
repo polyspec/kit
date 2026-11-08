@@ -42,6 +42,7 @@ export function duplicationCheck(root: string, print: (text: string) => void = t
   // --ignore splits its value at each comma, so a brace glob {a,b} would exclude nothing (K310): the globs go whole in a configuration file.
   const folder = mkdtempSync(path.join(tmpdir(), 'kit-jscpd-'));
   const config = path.join(folder, 'jscpd.json');
+  // kit leaves out no path of its own (K1117): a repository excludes the S10 stub of its PHP extension in config/duplication.json.
   writeFileSync(config, JSON.stringify({ ignore: [...exclude.map(entry => entry.glob), ...generated] }));
   const declared = [
     ...(minLines === undefined ? [] : ['--min-lines', String(minLines)]),

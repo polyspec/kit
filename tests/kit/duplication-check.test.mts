@@ -72,9 +72,9 @@ for (const [name, { extension, header, statement }] of Object.entries(HEADERS)) 
   });
 }
 
-// K366: the stub of a PHP extension declares the classes of the PHP library under the same names and signatures (S10), so the
-// repository excludes the stub by its path (K1104), and a clone inside the library still fails.
-test('the S10 stub of a PHP extension is left out of the duplication check, and a clone inside the library is not (K366)', (t) => {
+// K366, K1117: the stub of a PHP extension declares the classes of the PHP library under the same names and signatures (S10); kit
+// knows no path of it, so the repository excludes its stub in config/duplication.json, and a clone inside the library still fails.
+test('K1117 the S10 stub of a PHP extension is a clone until config/duplication.json excludes it, and a clone inside the library is not left out (K366)', (t) => {
   const greeter = [
     '<?php',
     'final class Greeter',
@@ -83,8 +83,12 @@ test('the S10 stub of a PHP extension is left out of the duplication check, and 
     '}',
     '',
   ].join('\n');
-  const root = tree(t, { 'config/duplication.json': kitRule([{ glob: 'packages/php-ext/src/polyspec_*.stub.php', reason: 'S10: the stub declares the library under its names' }]), 'packages/php/src/Greeter.php': greeter, 'packages/php-ext/src/polyspec_fixture.stub.php': greeter });
-  assert.equal(duplicationCheck(root, () => {}).status, 0, 'a stub that mirrors a library class is no finding');
+  const root = tree(t, { 'packages/php/src/Greeter.php': greeter, 'packages/php-ext/src/polyspec_fixture.stub.php': greeter });
+  const undeclared = duplicationCheck(root, () => {});
+  assert.equal(undeclared.status, 1, 'kit leaves out no stub by a path of its own');
+  assert.match(undeclared.output, /polyspec_fixture/);
+  put(root, { 'config/duplication.json': kitRule([{ glob: 'packages/php-ext/src/polyspec_*.stub.php', reason: 'the S10 stub declares the library under the same names and signatures' }]) });
+  assert.equal(duplicationCheck(root, () => {}).status, 0, 'a stub that the repository excludes is no finding');
   put(root, { 'packages/php/src/Other.php': greeter });
   const found = duplicationCheck(root, () => {});
   assert.equal(found.status, 1, found.output);

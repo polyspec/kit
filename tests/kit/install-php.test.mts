@@ -90,14 +90,15 @@ test('no php on PATH fails with php is not on PATH, and nothing else is judged (
   assert.match(result.stderr, /php is not on PATH/);
 });
 
-test('missing companions fail a repository with packages/php-ext, and are left out for one without (K283)', (t) => {
+// K1117: kit knows no extension folder, so missing companions get no wrapper in any repository; the build of an extension, which
+// runs phpize, fails on its own when they are missing.
+test('K1117 missing companions are left out, also in a repository with an extension under packages/php-ext (K283)', (t) => {
   const withExt = sandbox(t, '8.4', { 'packages/php-ext/src/x.c': '' });
   const dir = path.join(withExt.directory, 'bare');
   fake(path.join(dir, 'php'), '8.4.12');
-  const failed = start(withExt.root, withExt.machine(dir));
-  assert.equal(failed.status, 1);
-  assert.match(failed.stderr, /php-ext/);
-  assert.match(failed.stderr, /packages\/php-ext needs phpize and php-config/);
+  const extension = start(withExt.root, withExt.machine(dir));
+  assert.equal(extension.status, 0, extension.stderr);
+  assert.deepEqual(readdirSync(withExt.bin).sort(), ['mise', 'php', 'phpcs', 'phpstan']);
   const without = sandbox(t, '8.4');
   const ok = start(without.root, without.machine(dir));
   assert.equal(ok.status, 0, ok.stderr);
