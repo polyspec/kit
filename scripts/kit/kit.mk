@@ -226,7 +226,7 @@ test-markers-check: ## Fail on a test that a marker skips or narrows: test.skip,
 	$(NODE) $(KIT)/test-markers.$(KIT_EXT)
 
 .PHONY: duplication-check
-duplication-check: ## Fail while a piece of 6 lines or more of code exists twice outside the folders of config/duplication.json (jscpd, K248-3); offline
+duplication-check: ## Fail while a piece of code exists twice, by the formats, minimum lines, ignore-patterns and exclusions of config/duplication.json (jscpd, K248-3, K1104); offline
 	$(NODE) $(KIT)/duplication-check.$(KIT_EXT)
 
 .PHONY: rebuild-check rules-check

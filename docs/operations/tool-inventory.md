@@ -778,10 +778,12 @@ import. `make duplication-check` fails when a piece of 6 lines or more exists tw
 it also finds a repeated piece inside a function, which the test that it replaced (`tests/kit/duplication.test.mts`, whole
 functions only) did not (K126). The base had no pair that long; the shortest pair was the 4 lines of `startReport`. Since
 K248-3 the check is a tool of kit, `duplication-check.mts` in kit.mk, which a repository runs from its own recipe (K1054): jscpd, a dependency of the
-package, reads the code of the checkout that .gitignore leaves, in the formats of the runtimes, outside the folders that
-`config/duplication.json` excludes, each with its reason; kit excludes `tests/`, since a test states its case in full.
+package, reads the code of the checkout that .gitignore leaves, by the rule that `config/duplication.json` declares (K1104): the
+jscpd `formats`, the `minLines` of a piece, the `ignorePatterns` and the globs that it `exclude`s, each with its reason. What a
+repository does not declare is jscpd's own default; kit fixes none. kit declares the formats of its runtimes and C, 6 lines, the
+header patterns below, and excludes `tests/`, since a test states its case in full.
 
-The check passes jscpd's own `--ignore-pattern` (K287), a constant of `duplication-check.mts`, so that the tokens of the lines
+kit's `ignorePatterns` are jscpd's own `--ignore-pattern` (K287), so that the tokens of the lines
 that carry no logic are skipped: imports and declarations are imposed by what the code uses, not written twice by choice. It
 matches only the file header of each format: PHP `declare`, `namespace` and `use`; TypeScript and JavaScript `import`, single
 line or a block; Go `package` and `import`, single or a block; Python `import` and `from ... import`, also parenthesized; Rust
@@ -789,7 +791,7 @@ line or a block; Go `package` and `import`, single or a block; Python `import` a
 body or signature stays a clone. `tests/kit/duplication-check.test.mts` holds a case per format: two files that share only a
 header pass and two that share a 6-line body fail.
 
-The check also leaves out the S10 stub of a PHP extension, `packages/php-ext/src/polyspec_*.stub.php`, by its path: S10 makes the stub declare the classes and functions of the library under the same names and signatures, so jscpd would report it as a clone of the library. Clones inside the library itself stay counted (K366).
+A repository with the S10 stub of a PHP extension excludes `packages/php-ext/src/polyspec_*.stub.php` in its `exclude`: S10 makes the stub declare the classes and functions of the library under the same names and signatures, so jscpd would report it as a clone of the library. Clones inside the library itself stay counted (K366); since K1104 the path is the repository's declaration, not kit's.
 
 | Module | Holds | Replaces | Users |
 |---|---|---|---|

@@ -1,9 +1,14 @@
 // Tests of scripts/kit/duplication-check.mts: jscpd, a dependency of the package, fails on a piece of code that exists
 // twice in the checkout, outside the folders that config/duplication.json excludes with their reasons (K248-3).
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { duplicationCheck } from '../../scripts/kit/duplication-check.mts';
 import { put, tree } from './tree.mts';
+
+// The rule that kit declares for itself in config/duplication.json, without its exclusion of tests/ (K1104).
+const { exclude: _tests, ...KIT_RULE } = JSON.parse(readFileSync(new URL('../../config/duplication.json', import.meta.url), 'utf8')) as Record<string, unknown>;
+const kitRule = (exclude: { glob: string; reason: string }[] = []) => JSON.stringify({ ...KIT_RULE, exclude });
 
 // Eight distinct lines, a piece that jscpd reports when it exists twice.
 const PIECE = Array.from({ length: 8 }, (_, index) => `export const value${index} = compute(${index}, 'name${index}', [${index}, ${index + 1}]);`).join('\n');
@@ -57,7 +62,7 @@ for (const [name, { extension, header, statement }] of Object.entries(HEADERS)) 
   test(`${name}: two files that share only a header pass, two that share a 6-line body fail (K287)`, (t) => {
     const file = (body: string) => `${header.join('\n')}\n${body}\n`;
     const own = (prefix: string) => lines(8, i => statement(prefix, i)).join('\n');
-    const root = tree(t, { [`src/a.${extension}`]: file(own('alpha')), [`src/b.${extension}`]: file(own('beta')) });
+    const root = tree(t, { 'config/duplication.json': kitRule(), [`src/a.${extension}`]: file(own('alpha')), [`src/b.${extension}`]: file(own('beta')) });
     const headerOnly = duplicationCheck(root, () => {});
     assert.equal(headerOnly.status, 0, headerOnly.output);
     put(root, { [`src/c.${extension}`]: file(own('alpha')) });
@@ -67,8 +72,8 @@ for (const [name, { extension, header, statement }] of Object.entries(HEADERS)) 
   });
 }
 
-// K366: the stub of a PHP extension declares the classes of the PHP library under the same names and signatures (S10), so the check
-// leaves out the stub by its path, and a clone inside the library still fails.
+// K366: the stub of a PHP extension declares the classes of the PHP library under the same names and signatures (S10), so the
+// repository excludes the stub by its path (K1104), and a clone inside the library still fails.
 test('the S10 stub of a PHP extension is left out of the duplication check, and a clone inside the library is not (K366)', (t) => {
   const greeter = [
     '<?php',
@@ -78,7 +83,7 @@ test('the S10 stub of a PHP extension is left out of the duplication check, and 
     '}',
     '',
   ].join('\n');
-  const root = tree(t, { 'packages/php/src/Greeter.php': greeter, 'packages/php-ext/src/polyspec_fixture.stub.php': greeter });
+  const root = tree(t, { 'config/duplication.json': kitRule([{ glob: 'packages/php-ext/src/polyspec_*.stub.php', reason: 'S10: the stub declares the library under its names' }]), 'packages/php/src/Greeter.php': greeter, 'packages/php-ext/src/polyspec_fixture.stub.php': greeter });
   assert.equal(duplicationCheck(root, () => {}).status, 0, 'a stub that mirrors a library class is no finding');
   put(root, { 'packages/php/src/Other.php': greeter });
   const found = duplicationCheck(root, () => {});
@@ -110,4 +115,23 @@ test('a file that config/generated.json tracks as a generated source is left out
   assert.match(found.output, /src\/a\.ts/);
   assert.match(found.output, /src\/c\.ts/);
   assert.doesNotMatch(found.output, /gen\/table\.ts/);
+});
+
+// K1104: the formats, the minimum lines, the ignore-patterns and the exclusions come from the repository; kit fixes none.
+test('K1104: duplication-check reads its formats, its minimum lines and its exclusions from the repository, with none fixed in kit', (t) => {
+  const root = tree(t, { 'src/a.ts': `${PIECE}\n`, 'src/c.ts': `// another module\n${PIECE}\n` });
+  assert.equal(duplicationCheck(root, () => {}).status, 1, 'without a declaration jscpd reads with its own defaults');
+  put(root, { 'config/duplication.json': JSON.stringify({ schema: 1, minLines: 20 }) });
+  assert.equal(duplicationCheck(root, () => {}).status, 0, 'the declared minimum lines apply');
+  put(root, { 'config/duplication.json': JSON.stringify({ schema: 1, formats: ['python'] }) });
+  assert.equal(duplicationCheck(root, () => {}).status, 0, 'only the declared formats are read');
+  // A stub of a PHP extension and a header that only imports are no exclusion of kit: the repository declares them.
+  const greeter = ['<?php', 'final class Greeter', '{', ...Array.from({ length: 8 }, (_, index) => `    public const NAME${index} = 'name${index}';`), '}', ''].join('\n');
+  const stub = tree(t, { 'packages/php/src/Greeter.php': greeter, 'packages/php-ext/src/polyspec_fixture.stub.php': greeter });
+  assert.equal(duplicationCheck(stub, () => {}).status, 1, 'kit leaves out no stub of its own');
+  const imports = Array.from({ length: 60 }, (_, index) => `import { member${index} } from './module${index}.ts';`).join('\n');
+  const headers = tree(t, { 'src/a.ts': `${imports}\nexport const alpha = 1;\n`, 'src/b.ts': `${imports}\nexport const beta = 2;\n` });
+  assert.equal(duplicationCheck(headers, () => {}).status, 1, 'kit skips no header of its own');
+  put(headers, { 'config/duplication.json': kitRule() });
+  assert.equal(duplicationCheck(headers, () => {}).status, 0, 'the declared ignore-patterns skip the header');
 });

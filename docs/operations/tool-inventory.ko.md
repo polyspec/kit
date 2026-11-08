@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 07ab75120a3c9eda534d6004e6ac5ab1c92ad651ec649c8ac1484eb1ddcb7f2b -->
+<!-- source-sha256: 4b308ca79c5651aa512e299150ea3dd55da5ec56c9277919795086c29eec0b32 -->
 
 # 도구 목록
 
@@ -704,10 +704,11 @@ finding 하나입니다.
 되풀이된 부분도 찾는데, 이것이 대신한 test(`tests/kit/duplication.test.mts`, 함수 전체만 비교)는 찾지 못했습니다(K126). 기준 코드에는
 그만큼 긴 쌍이 없었고, 가장 짧은 쌍은 `startReport`의 4줄이었습니다. K248-3부터 이 check는 kit.mk의 kit 도구
 `duplication-check.mts`이며, 저장소는 자기 recipe로 실행합니다(K1054). package의 dependency인 jscpd가 .gitignore가 남기는 checkout의 code를
-runtime의 format으로, `config/duplication.json`이 각자의 이유와 함께 제외하는 folder 밖에서 읽습니다. kit은 test가 자기 case를
-온전히 기술하므로 `tests/`를 제외합니다.
+`config/duplication.json`이 선언하는 규칙으로 읽습니다(K1104): jscpd `formats`, 한 부분의 `minLines`, `ignorePatterns`, 그리고 각자의
+이유와 함께 `exclude`하는 glob입니다. 저장소가 선언하지 않은 것은 jscpd 자체의 기본값이며 kit은 아무것도 고정하지 않습니다. kit은
+자기 runtime과 C의 format, 6줄, 아래 header pattern을 선언하고, test가 자기 case를 온전히 기술하므로 `tests/`를 제외합니다.
 
-check는 jscpd 자체의 `--ignore-pattern`(K287)을 `duplication-check.mts`의 상수로 넘겨, logic을 담지 않는 줄의 token을 건너뜁니다.
+kit의 `ignorePatterns`는 jscpd 자체의 `--ignore-pattern`(K287)이며, logic을 담지 않는 줄의 token을 건너뜁니다.
 import와 선언은 code가 쓰는 것에 따라 정해지는 것이지 선택으로 두 번 쓴 것이 아니기 때문입니다(ecosystem의 option). 각 format의
 file header만 맞춥니다: PHP `declare`, `namespace`, `use`; TypeScript와 JavaScript의 `import`(한 줄 또는 여러 줄 block); Go의
 `package`와 `import`(단일 또는 block); Python의 `import`와 `from ... import`(괄호 포함); Rust의 `use`(중괄호 포함); C의
@@ -715,7 +716,7 @@ file header만 맞춥니다: PHP `declare`, `namespace`, `use`; TypeScript와 Ja
 `tests/kit/duplication-check.test.mts`에 format마다 case가 있습니다: header만 같은 두 file은 통과하고 6줄 body가 같은 두 file은
 실패합니다.
 
-check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`를 경로로 제외합니다: S10이 stub에 library의 class와 함수를 같은 이름과 signature로 선언하게 하므로 jscpd가 이것을 library의 clone으로 보고하기 때문입니다. library 안의 clone은 계속 셉니다(K366).
+S10 PHP extension의 stub이 있는 저장소는 `packages/php-ext/src/polyspec_*.stub.php`를 자기 `exclude`에 둡니다: S10이 stub에 library의 class와 함수를 같은 이름과 signature로 선언하게 하므로 jscpd가 이것을 library의 clone으로 보고하기 때문입니다. library 안의 clone은 계속 셉니다(K366). K1104부터 이 경로는 kit이 아니라 저장소의 선언입니다.
 
 | Module | 담는 것 | 대체한 것 | 사용처 |
 |---|---|---|---|

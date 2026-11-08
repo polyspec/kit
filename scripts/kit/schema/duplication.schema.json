@@ -1,20 +1,50 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "config/duplication.json",
-  "description": "The folders that the duplication check (duplication-check.mts, K248-3) does not read, each with the reason that the rule of separated concerns does not apply to it.",
+  "description": "The rule of the duplication check (duplication-check.mts, K248-3, K1104) that the repository declares: the jscpd formats it reads, the minimum lines of a piece, the ignore-patterns of lines that carry no logic, and the globs that it does not read, each with its reason. What is not declared is jscpd's own default.",
   "type": "object",
-  "required": ["exclude"],
   "properties": {
+    "formats": {
+      "description": "The jscpd formats that the check reads, such as typescript or php; without it, every format of jscpd.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "minLines": {
+      "description": "The minimum lines of a piece that the check reports; without it, the default of jscpd.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "ignorePatterns": {
+      "description": "The ignore-patterns of jscpd: regular expressions of lines that carry no logic, such as the file header of each format (K287). jscpd splits them at commas, so a pattern holds none.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[^,]+$"
+      }
+    },
     "exclude": {
       "type": "array",
       "items": {
         "type": "object",
         "required": ["glob"],
         "properties": {
-          "glob": { "description": "A glob of jscpd, relative to the root, such as tests/**.", "type": "string", "minLength": 1 },
-          "reason": { "description": "Why the folder is no component whose concerns the check separates.", "type": "string", "pattern": "\\S" }
+          "glob": {
+            "description": "A glob of jscpd, relative to the root, such as tests/**.",
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "description": "Why the folder is no component whose concerns the check separates.",
+            "type": "string",
+            "pattern": "\\S"
+          }
         }
-      }
+      },
+      "description": "The globs that the check does not read, each with its reason."
     }
   }
 }

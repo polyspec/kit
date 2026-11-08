@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- duplication-check reads its formats, minimum lines, ignore-patterns and exclusions from config/duplication.json, with none fixed in kit; exclude is optional, and kit declares its own current values, while a repository with PHP extension stubs excludes packages/php-ext/src/polyspec_*.stub.php itself (K1104).
 - ci-targets runs each target with make -k only when the caller asks for it with make -k ci-targets (node ci-targets.mts -k); the example ci-pipeline.yml runs make -k ci-targets (K1098).
 - run-tests sets the runner flags and the environment of a run only as the caller passes them: the per-test option of node --test, vitest and Playwright only with --timeout, and no --test-concurrency=1, -count=1 -timeout=0, --test-threads=1, PYTHONUNBUFFERED, NO_COLOR, PYTHON_COLORS or removal of NODE_TEST_CONTEXT of its own (K1094).
 - K1097: uv-install, lint-rust, lint-php and install-rust pass no fixed flag of their own: uv sync takes the SYNC flags as written, lint-rust passes its command-line arguments to cargo clippy and lint-php passes them to PHPStan, and a Rust channel of the exceptions installs with the profile of rustup's settings, so a nightly now installs rustup's default profile, not the minimal one; install-tools passes its arguments that start with - to `rustup toolchain install`, so --no-self-update is the caller's flag; kit's own recipes pass --locked to uv sync and clippy, --memory-limit=-1 to PHPStan and --no-self-update to rustup (K1097).
