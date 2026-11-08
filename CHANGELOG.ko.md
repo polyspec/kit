@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ccf72a01d5bb78acfc5bc42817ccc7850bf7420db8024ddbbef1ed6021ad119a -->
+<!-- source-sha256: a6da8f1eebc20926be4617db38587efbc67c93702ce5e852526f3febd4f86a31 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -9,6 +9,7 @@
 ## 0.0.99
 
 - Release: K1068–K1085, K1087–K1118, K1120–K1125 행을 담은 kit 0.0.99로, 각 도구가 자신이 쓰는 것과 저장소나 호출자가 선언한 것만 읽는다. K1086은 담지 않는다(K1119).
+- K1121: kit.mk는 kit 시험 파일을 이름 짓지 않습니다. kit 자신의 smoke 파일을 실행하는 case-sensitive-runner-smoke는 kit Makefile의 target입니다(K1121).
 - K1120: CI 선언이 추적되는 시험을 따릅니다. kit shard는 mise-tools.test.mts를 담고, go source group은 지워진 tools-go-mod-real.test.mts를 더 이상 이름 짓지 않으며, php group은 phpunit-identity를 위해 PHPUnit을 설치하고, Windows bootstrap 단계는 make database를 읽지 않는 node recipe인 release-coverage를 실행합니다(K1120).
 - K1118: 각 checkout은 자기 `.links`만 읽습니다. worktree는 더 이상 main checkout의 선언을 읽지 않으므로, 자기 `.links`가 없는 worktree는 릴리즈 상태이며 그 설치(uv-install, npm, make install)는 lock이 지정한 package를 받고 link-check는 그 릴리즈 상태와 비교합니다. 자기 `.links`가 있는 worktree는 선언대로 link합니다. 쓰이지 않는 link-providers의 `mainCheckout` export를 지웁니다(K1118).
 - 테스트 sandbox에서 호출자의 GIT_DIR, GIT_WORK_TREE 등 저장소 위치를 정하는 git 변수를 지워, `git rebase -x`나 hook 아래의 kit-test 실행이 그것을 시작한 저장소에 쓰지 않게 한다(K1113).

@@ -148,10 +148,6 @@ lint-php-ext: ## Check that src/config.m4 names the extension and the stub hash 
 test-php-ext: build-php-ext ## Compare the declarations of the built extension with the PHP library, then run its unit tests with CASES=<pattern>; offline
 	$(NODE) $(KIT)/php-extension.$(KIT_EXT) test $(PHP_EXTENSION_LAYOUT) -- --roots packages/php-ext
 
-.PHONY: case-sensitive-runner-smoke
-case-sensitive-runner-smoke: ## Smoke the standard Node runner with a temporary verified case-sensitive directory; offline
-	CASE_SENSITIVE_ENV=KIT_CASE_SENSITIVE_SMOKE_DIR $(NODE) $(KIT)/runtime-targets.$(KIT_EXT) case-sensitive-smoke tests/kit/standard-case-sensitive-smoke.mts
-
 .PHONY: kit-gates
 # The gates of every repository, whose partitions below the CI pipeline (workflows/ci-pipeline.yml) runs past failures, so that one run shows every failure
 # (K270): each make target that a rule of PRINCIPLES.md is enforced by.

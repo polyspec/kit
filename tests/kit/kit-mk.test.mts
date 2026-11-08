@@ -26,7 +26,7 @@ test('every recipe of kit.mk runs its tool through KIT and KIT_EXT, and none nam
 test('kit.mk runs the tools of the directory and extension that KIT and KIT_EXT name', () => {
   const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', KIT_MK, 'docs-check', 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs'], { cwd: ROOT, encoding: 'utf8' });
   assert.equal(dry.status, 0, dry.stderr);
-  assert.equal(dry.stdout.trim(), `${path.join(ROOT, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/check-documents.mjs`);
+  assert.equal(dry.stdout.trim(), `${path.join(ROOT, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/check-documents.mjs --checklist-place --private-path /Users/ --private-path /home/ --kit-rows`);
 });
 
 test('Windows Make with mise present and npm:npm absent points NPM under var/tools, never at /node_modules (K938)', (t) => {
@@ -206,6 +206,9 @@ test('kit-test is a target of the Makefile of kit, not of kit.mk', () => {
   assert.ok(dry.stdout.split('\n').includes(`${path.join(ROOT, 'var/tools/bin/node')} scripts/kit/run-tests.mts node --timeout 30 -- --test-concurrency=1 tests/kit`), dry.stdout);
 });
 
+// make kit-test starts without NODE_TEST_CONTEXT, so its node --test does not join the run of this file (K1094).
+const { NODE_TEST_CONTEXT: _joined, ...OUTSIDE } = process.env;
+
 /**
  * A kit checkout in a sandbox with the Makefile, run with the node of this test as NODE, since it has no var/tools, the tools and the packages of kit (the tools read JSON through ajv) and
  * `tests` as its tests/kit; a Git repository with everything committed.
@@ -225,7 +228,7 @@ function kitCheckout(t: TestContext, tests: Record<string, string>) {
 test('kit-test fails when its run changes the checkout, and names the path', (t) => {
   const writes = "import test from 'node:test';\nimport { writeFileSync } from 'node:fs';\ntest('writes', () => { writeFileSync('stray.txt', 'x'); });\n";
   const root = kitCheckout(t, { 'tests/kit/writes.test.mts': writes });
-  const run = spawnSync('make', ['--no-print-directory', 'kit-test', `NODE=${process.execPath}`], { cwd: root, encoding: 'utf8' });
+  const run = spawnSync('make', ['--no-print-directory', 'kit-test', `NODE=${process.execPath}`], { cwd: root, encoding: 'utf8', env: OUTSIDE });
   assert.notEqual(run.status, 0, run.stdout);
   assert.match(run.stderr, /> \?\? stray\.txt/);
   assert.match(run.stderr, /kit-test: the run changed the checkout/);
@@ -233,7 +236,7 @@ test('kit-test fails when its run changes the checkout, and names the path', (t)
 
 test('kit-test passes when its run leaves the checkout as it was', (t) => {
   const root = kitCheckout(t, { 'tests/kit/clean.test.mts': "import test from 'node:test';\ntest('clean', () => {});\n" });
-  const run = spawnSync('make', ['--no-print-directory', 'kit-test', `NODE=${process.execPath}`], { cwd: root, encoding: 'utf8' });
+  const run = spawnSync('make', ['--no-print-directory', 'kit-test', `NODE=${process.execPath}`], { cwd: root, encoding: 'utf8', env: OUTSIDE });
   assert.equal(run.status, 0, `${run.stdout}${run.stderr}`);
 });
 
