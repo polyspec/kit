@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 0ecc3b700c8bc2755f17c185dba83a3fdee9f22ea59daa7deacbbe22315d5591 -->
+<!-- source-sha256: 14d77924000ff6203f48ab0886660cd44db78b030e01cb9c0dace8611a19b3ce -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -255,4 +255,4 @@
 | K1124 | checklist.schema.json은 states에서 설명하지 않는 key를 거부하지 않는다(K1069) | `scripts/kit/schema/checklist.schema.json` | the ci workflow passes | [o] |
 | K1125 | 시험은 K1069-K1118 이후 호출자가 선언하는 것을 넘긴다: 호출자의 private path, 문서 규칙, rebuild source, packageFiles, fixture, extension layout, mise 환경, PATH와 concurrency, hook 설치 없음, 중첩 실행의 NODE_TEST_CONTEXT 없음, 모든 저장소의 initRepository, K958 reason 시험 삭제 | `tests/kit`, `tests/source` | the ci workflow passes | [o] |
 | K1126 | Windows에서 owner-check가 빈 make target 목록을 받는다: Git Bash의 make는 database를 CRLF 줄 끝으로 출력하므로 parseMakeDatabase가 Files 절을 찾지 못하고 owner-validate는 config/owner-checks.json의 모든 target을 없다고 한다(오류 42개, CI run 42446319516, bootstrap windows-2025); run 42447489050은 끝나기 전에 취소되어 kit tests (5) 밖의 결과는 알 수 없고, run 42447688905는 Windows bootstrap을 통과했다 | `scripts/kit/owner-check.mts`, `.github/workflows/ci.yml` | the ci workflow passes | [o] |
-| K1127 | php-ext.test.mts의 K1103 case는 확장 없음 확인에 파일이 없는 folder를 이름 짓는다: CI run 42447688905, kit tests (5): tests/kit/php-ext.test.mts:566에서 check --extension ext --build-dir out이 ext/src/config.m4 declares no PHP_NEW_EXTENSION으로 1을 반환했다. ext에 ext/src/vendor.c가 있기 때문이다 | `tests/kit/php-ext.test.mts` | the ci workflow passes | [ ] |
+| K1127 | php-ext.test.mts의 K1103 case는 확장 없음 확인에 파일이 없는 folder를 이름 짓는다: CI run 42447688905, kit tests (5): tests/kit/php-ext.test.mts:566에서 check --extension ext --build-dir out이 ext/src/config.m4 declares no PHP_NEW_EXTENSION으로 1을 반환했다. ext에 ext/src/vendor.c가 있기 때문이다 | `tests/kit/php-ext.test.mts` | the ci workflow passes | [o] |

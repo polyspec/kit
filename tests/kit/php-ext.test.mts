@@ -562,7 +562,9 @@ test('K1103 the extension, build and library folders are the caller\'s', (t) => 
     assert.equal(bare.status, 2, bare.stderr);
     assert.match(bare.stderr, /usage: php-extension\.mts check\|build\|test --extension <folder> --build-dir <folder>/);
   }
-  const absent = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'check', '--extension', 'ext', '--build-dir', 'out'], { cwd: root, encoding: 'utf8' });
+  // A folder that holds no file is no extension (K1127): the case runs in its own tree, which holds no file under ext.
+  const empty = tree(t, { 'README.md': 'x\n' });
+  const absent = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'check', '--extension', 'ext', '--build-dir', 'out'], { cwd: empty, encoding: 'utf8' });
   assert.equal(absent.status, 0, absent.stderr);
   assert.match(absent.stdout, /ext holds no file/);
 });
