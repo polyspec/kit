@@ -308,10 +308,14 @@ ci-passed: ## Fail unless every job of RESULTS, the JSON of toJSON(needs), has t
 # vX.Y.Z, which release-tag appends to GITHUB_ENV with VERSION. The release workflow runs the steps in this order.
 .PHONY: release-prepare release-tools release-tag release-assets release-candidate-assets release-publish release-undraft release-coverage
 
+# kit's own release names its main ref and its asset folder, which the release tools take from the caller and never fix (K1102).
+RELEASE_MAIN ?= origin/main
+RELEASE_ASSETS ?= var/release/assets
+
 # Freeze the native candidate before CI; the release then tags the exact commit of its successful run without another test run.
 .PHONY: release-candidate
 release-candidate: ## Prepare the VERSION archives of the committed candidate before CI
-	$(NODE) $(KIT)/release-run.$(KIT_EXT) prepare "$(VERSION)"
+	RELEASE_ASSETS="$(RELEASE_ASSETS)" $(NODE) $(KIT)/release-run.$(KIT_EXT) prepare "$(VERSION)"
 
 # release-prepare is the preparation that a repository's release needs before release-tools, such as the checkout of a sibling
 # release: kit declares it with no recipe, and a repository adds its own with a release-prepare:: rule of its Makefile (K132).
@@ -331,19 +335,19 @@ release-tools-path: ## Append var/tools/bin and the shims of mise to GITHUB_PATH
 
 release-tag: ## Create and push the annotated tag vX.Y.Z, X.Y.Z the newest section of the change log, and the tag <directory>/vX.Y.Z of every Go module at the commit of the successful CI run RUN of ci.yml on main, or pass for a tag there already, and append TAG and VERSION to GITHUB_ENV when it is set (K269, K911, K924); with AUTO, as the workflow_run of a green CI starts it, only the version commit of the top version releases, a commit whose top version is tagged elsewhere passes with nothing to release, and any other fails naming the version commit (K987); reads the run with gh
 	@test -n "$$RUN" || { echo "release-tag: RUN is required, for example make release-tag RUN=123"; exit 1; }
-	$(NODE) $(KIT)/release-run.$(KIT_EXT) tag "$$RUN"$(if $(AUTO), --auto)
+	RELEASE_MAIN="$(RELEASE_MAIN)" $(NODE) $(KIT)/release-run.$(KIT_EXT) tag "$$RUN"$(if $(AUTO), --auto)
 
-release-assets: ## Build the archive of every package of TAG, and packages.json of its Composer packages (K871), into var/release/assets; ONLINE, since uv build installs the build-system.requires of a wheel package
+release-assets: ## Build the archive of every package of TAG, and packages.json of its Composer packages (K871), into RELEASE_ASSETS (K1102); ONLINE, since uv build installs the build-system.requires of a wheel package
 	@test -n "$$TAG" || { echo "release-assets: TAG is required, for example make release-assets TAG=v0.0.1"; exit 1; }
-	$(ONLINE) $(NODE) $(KIT)/release.$(KIT_EXT) assets "$$TAG"
+	RELEASE_ASSETS="$(RELEASE_ASSETS)" $(ONLINE) $(NODE) $(KIT)/release.$(KIT_EXT) assets "$$TAG"
 
-release-candidate-assets: ## Build the archive of every package from committed HEAD for VERSION, and packages.json of its Composer packages (K871), into var/release/assets; ONLINE, since uv build installs the build-system.requires of a wheel package
+release-candidate-assets: ## Build the archive of every package from committed HEAD for VERSION, and packages.json of its Composer packages (K871), into RELEASE_ASSETS (K1102); ONLINE, since uv build installs the build-system.requires of a wheel package
 	@test -n "$$VERSION" || { echo "release-candidate-assets: VERSION is required, for example make release-candidate-assets VERSION=0.0.1"; exit 1; }
-	$(ONLINE) $(NODE) $(KIT)/release.$(KIT_EXT) candidate-assets "$$VERSION"
+	RELEASE_ASSETS="$(RELEASE_ASSETS)" $(ONLINE) $(NODE) $(KIT)/release.$(KIT_EXT) candidate-assets "$$VERSION"
 
 release-publish: ## Create the GitHub Release of TAG as a draft with the notes and the files of release-assets, the archives and packages.json; a draft of an earlier run is replaced
 	@test -n "$$TAG" || { echo "release-publish: TAG is required, for example make release-publish TAG=v0.0.1"; exit 1; }
-	$(NODE) $(KIT)/release.$(KIT_EXT) publish "$$TAG"
+	RELEASE_ASSETS="$(RELEASE_ASSETS)" $(NODE) $(KIT)/release.$(KIT_EXT) publish "$$TAG"
 
 release-undraft: ## Make the draft release of TAG public
 	@test -n "$$TAG" || { echo "release-undraft: TAG is required, for example make release-undraft TAG=v0.0.1"; exit 1; }

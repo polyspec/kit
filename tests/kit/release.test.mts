@@ -172,6 +172,35 @@ test('assets builds one archive per package of the configuration', (t) => {
   assert.deepEqual(box.npmCalls().map(call => path.basename(call.cwd)), ['fixture-lib', 'fixture-app']);
 });
 
+test('K1102: assets builds into the asset folder that the caller names in RELEASE_ASSETS, and refuses with status 2 a call that names none, the checkout or a folder that holds it', (t) => {
+  const box = releaseSandbox(t);
+  const tag = box.tag('v0.0.1');
+  const folder = path.join(mkdtempSync(path.join(tmpdir(), 'kit-release-assets-')), 'assets');
+  t.after(() => rmSync(path.dirname(folder), { recursive: true, force: true }));
+  const output: string[] = [];
+  assert.equal(release.main(['assets', tag], { root: box.root, env: { ...box.env, RELEASE_ASSETS: folder }, print: line => output.push(line), error: line => output.push(line) }), 0, output.join('\n'));
+  assert.ok(output.some(line => line.endsWith(` in ${folder}`)), output.join('\n'));
+  assert.deepEqual(readdirSync(folder).sort(), ['fixture-app-0.0.1.tgz', 'fixture-lib-0.0.1.tgz', 'kit_fixture-0.0.1-py3-none-any.whl', 'packages.json', 'polyspec-kit-fixture-php-0.0.1.zip']);
+  assert.equal(existsSync(path.join(box.root, 'var/release/assets')), false, 'kit fixes no folder of its own');
+  // A call that names no folder, unset or empty, is a usage error for every step that builds or publishes the assets.
+  const { RELEASE_ASSETS: _named, ...bare } = box.env;
+  for (const env of [bare, { ...bare, RELEASE_ASSETS: '' }]) {
+    for (const args of [['assets', tag], ['candidate-assets', '0.0.1'], ['publish', tag]]) {
+      const refused: string[] = [];
+      assert.equal(release.main(args, { root: box.root, env, print: line => refused.push(line), error: line => refused.push(line) }), 2, args.join(' '));
+      assert.match(refused.join('\n'), /needs the asset folder; name it in RELEASE_ASSETS/);
+    }
+  }
+  assert.equal(existsSync(path.join(box.root, 'var/release/assets')), false, 'nothing is built without a named folder');
+  // The checkout, or a folder that holds it, is refused as a usage error, and nothing is removed.
+  for (const folder of ['.', '..', box.root, path.dirname(box.root)]) {
+    const refused: string[] = [];
+    assert.equal(release.main(['assets', tag], { root: box.root, env: { ...box.env, RELEASE_ASSETS: folder }, print: line => refused.push(line), error: line => refused.push(line) }), 2, folder);
+    assert.match(refused.join('\n'), /is the checkout or a folder that holds it/);
+    assert.ok(existsSync(path.join(box.root, 'config/release.json')), 'the checkout is intact');
+  }
+});
+
 test('K712 builds candidate archives from committed HEAD without a release tag', (t) => {
   const generatedSource = '#include <sqlite3ext.h>\nSQLITE_EXTENSION_INIT1\n';
   const box = releaseSandbox(t, { mutate(root) {

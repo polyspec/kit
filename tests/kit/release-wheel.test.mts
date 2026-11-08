@@ -8,7 +8,7 @@ import test from 'node:test';
 import * as release from '../../scripts/kit/release.mts';
 import * as wheel from '../../scripts/kit/release-wheel.mts';
 import { Stop } from '../../scripts/kit/process.mts';
-import { releaseSandbox } from './release-sandbox.mts';
+import { ASSETS, releaseSandbox } from './release-sandbox.mts';
 import { GENERATOR_WHEEL, SIBLING_WHEEL, addSibling, generatorRequires, siblingLine } from './sibling-sandbox.mts';
 
 type Box = ReturnType<typeof releaseSandbox>;
@@ -30,7 +30,7 @@ test('assets builds the wheel of the tagged commit with uv build, which installs
   const tag = box.release('0.0.1');
   const names = release.assets(context(box), tag);
   assert.ok(names.includes(WHEEL));
-  const file = path.join(box.root, release.ASSETS, WHEEL);
+  const file = path.join(box.root, ASSETS, WHEEL);
   assert.ok(existsSync(file), 'the wheel is in var/release/assets');
   const metadata = spawnSync('unzip', ['-p', file, '*.dist-info/METADATA'], { encoding: 'utf8' }).stdout;
   assert.match(metadata, /^Name: kit-fixture$/m);
@@ -41,7 +41,7 @@ test('assets builds the wheel of the tagged commit with uv build, which installs
   assert.deepEqual(build.args.slice(0, -2), ['build', '--wheel', '--python', path.join(box.root, 'var/tools/mise/shims/python3'), '--out-dir'], 'the native build frontend, with the Python of the checkout');
   // uv build writes a .gitignore into its output folder, so it builds outside the checkout and only the wheel reaches the assets (K813).
   assert.ok(!build.args.at(-2)?.startsWith(box.root), 'the wheel is built into a folder outside the checkout');
-  assert.ok(!readdirSync(path.join(box.root, release.ASSETS)).includes('.gitignore'), 'the assets hold no .gitignore of uv build');
+  assert.ok(!readdirSync(path.join(box.root, ASSETS)).includes('.gitignore'), 'the assets hold no .gitignore of uv build');
   assert.ok(!build.args.at(-1)?.startsWith(box.root), 'the wheel is built from a copy of the tagged commit, not the working tree');
 });
 

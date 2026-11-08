@@ -3,7 +3,7 @@
 // (K911) and then runs these steps in this order, each through its make target:
 //
 //   node scripts/kit/release.mts assets TAG     build the archive of every package of the tag, and packages.json of its
-//                                               Composer packages, into var/release/assets
+//                                               Composer packages, into the asset folder that RELEASE_ASSETS names (K1102)
 //   node scripts/kit/release.mts publish TAG    create the GitHub Release of the tag as a draft, with its notes and those files
 //   node scripts/kit/release.mts undraft TAG    make the draft release of the tag public
 //   node scripts/kit/release.mts coverage       every package file of the checkout is classified in config/release.json
@@ -51,9 +51,7 @@ import { linksOutsideCheckout } from './link.mts';
 import { toolCommand } from './mise-tools.mts';
 import { packedPackageManifest } from './pack-manifest.mts';
 
-export const MAIN = 'origin/main';
 export const CONFIG = 'config/release.json';
-export const ASSETS = 'var/release/assets';
 /** The Composer repository of the Composer packages of a release, beside its archives (K871). */
 export const PACKAGES_JSON = 'packages.json';
 // GitHub refuses a release body over 125000 characters.
@@ -122,6 +120,10 @@ export interface Context {
   config: ReleaseConfig;
   env: NodeJS.ProcessEnv;
   log: (text: string) => void;
+  /** The remote-tracking ref `<remote>/<branch>` of main that a released commit is on, as the caller names it; none when unnamed (K1102). */
+  main: string | undefined;
+  /** The folder of the assets, relative to the checkout or absolute, as the caller names it; none when unnamed (K1102). */
+  assets: string | undefined;
 }
 
 /** A parsed manifest, package.json (NpmManifest) or composer.json (ComposerManifest), in the fields that the release reads. */
@@ -208,9 +210,19 @@ export function loadConfig(root: string): ReleaseConfig {
 
 const at = (ctx: Context) => ({ cwd: ctx.root, env: ctx.env });
 
-/** A command context: the repository root, its configuration, the environment of its commands and a log function. */
-export function context(root: string, { config = loadConfig(root), env = process.env, log = () => {} }: { config?: ReleaseConfig; env?: NodeJS.ProcessEnv; log?: (text: string) => void } = {}): Context {
-  return { root, config, env, log };
+/**
+ * A command context: the repository root, its configuration, the environment of its commands, a log function, and the main ref
+ * and the asset folder that the caller names, in its options or in RELEASE_MAIN and RELEASE_ASSETS of the environment; kit names
+ * neither, and an empty value names none (K1102).
+ */
+export function context(root: string, { config = loadConfig(root), env = process.env, log = () => {}, main = env.RELEASE_MAIN || undefined, assets = env.RELEASE_ASSETS || undefined }: { config?: ReleaseConfig; env?: NodeJS.ProcessEnv; log?: (text: string) => void; main?: string | undefined; assets?: string | undefined } = {}): Context {
+  return { root, config, env, log, main, assets };
+}
+
+/** The asset folder of `ctx`, which a step that builds or publishes the assets needs; the caller names it in RELEASE_ASSETS (K1102). */
+export function assetFolder(ctx: Pick<Context, 'assets'>): string {
+  if (ctx.assets === undefined) throw new Stop('no asset folder is named; the caller names it in RELEASE_ASSETS');
+  return ctx.assets;
 }
 
 /** The newest release tag reachable from HEAD, which resolves the argument `latest` of the release
@@ -491,7 +503,7 @@ function generatedArchiveFiles(ctx: Context, commit: string, folder: string, gen
 }
 
 /**
- * Builds the archive of every package of the tag into var/release/assets and returns their names. Each manifest of the
+ * Builds the archive of every package of the tag into the asset folder of the context and returns their names. Each manifest of the
  * tagged commit names its package, and each archive must carry the manifest of its package at the commit byte for byte; kit alone uses its canonical prepack source-to-dist manifest. The directory is replaced as a whole.
  */
 export function assets(ctx: Context, tag: string): string[] {
@@ -524,10 +536,23 @@ function requireCheckout(ctx: Context, reference: string, commit: string, retry:
   if (links.length) throw new Stop(`${reference}: a dependency linked from outside the checkout: ${links.join(', ')}; remove those links, then run ${retry}`);
 }
 
+/**
+ * Why the asset folder `assets` cannot hold the assets of the checkout `root`, or undefined: a build replaces the folder as a whole,
+ * so it is never the checkout or a folder that holds it (K1102).
+ */
+export function assetsFolderProblem(root: string, assets: string): string | undefined {
+  const up = path.relative(path.resolve(root, assets), path.resolve(root));
+  const outside = up === '..' || up.startsWith(`..${path.sep}`) || path.isAbsolute(up);
+  return outside ? undefined : `the asset folder ${assets} is the checkout or a folder that holds it; name a folder of its own in RELEASE_ASSETS`;
+}
+
 /** Builds archives from one committed tree through the producer shared by tagged releases and tagless candidates. */
 function assetsFromCommit(ctx: Context, reference: string, commit: string, version: string): string[] {
   const { root, config } = ctx;
-  const target = path.join(root, ASSETS);
+  const folder = assetFolder(ctx);
+  const unusable = assetsFolderProblem(root, folder);
+  if (unusable !== undefined) throw new Stop(unusable);
+  const target = path.resolve(root, folder);
   const names = assetNames(config, version);
   const files = releaseFiles(config, version);
   const sources = config.packages.map(({ kind, directory: folder }) => run('git', ['show', `${commit}:${path.posix.join(folder, MANIFEST_OF[kind])}`], at(ctx)));
@@ -591,7 +616,7 @@ function assetsFromCommit(ctx: Context, reference: string, commit: string, versi
       }
     });
     const built = readdirSync(next).sort();
-    if (JSON.stringify(built) !== JSON.stringify([...names].sort())) throw new Stop(`${ASSETS} holds [${built.join(', ')}], not the archives [${[...names].sort().join(', ')}]`);
+    if (JSON.stringify(built) !== JSON.stringify([...names].sort())) throw new Stop(`${folder} holds [${built.join(', ')}], not the archives [${[...names].sort().join(', ')}]`);
     const failures = config.packages.flatMap(({ kind, directory: folder, name }, index) => {
       if (kind === 'wheel') {
         // names holds the archive name of each package at its index.
@@ -663,9 +688,10 @@ export function publish(ctx: Context, tag: string): string[] {
   const version = parseTag(tag);
   const notes = releaseNotes(ctx, tag);
   const names = releaseFiles(config, version);
-  const target = path.join(root, ASSETS);
+  const assets = assetFolder(ctx);
+  const target = path.resolve(root, assets);
   const missing = names.filter(name => !existsSync(path.join(target, name)));
-  if (missing.length) throw new Stop(`${ASSETS} lacks [${missing.join(', ')}]; make release-assets builds them`);
+  if (missing.length) throw new Stop(`${assets} lacks [${missing.join(', ')}]; make release-assets builds them`);
   const earlier = releaseOf(at(ctx), config.repositoryUrl, tag);
   if (earlier && !earlier.draft) throw new Stop(`the release ${tag} is already public; a public release is not replaced`);
   if (earlier) {
@@ -743,11 +769,21 @@ export function main(argv: string[], { root = repositoryRoot(), env = process.en
     error(USAGE);
     return 2;
   }
+  // The steps that build or publish the assets need the asset folder that the caller names; without it, or with the checkout or a
+  // folder that holds it, nothing runs (K1102).
+  const named = env.RELEASE_ASSETS || undefined;
+  if (mode !== undefined && ['assets', 'candidate-assets', 'publish'].includes(mode)) {
+    const unusable = named === undefined ? `${mode} needs the asset folder; name it in RELEASE_ASSETS` : assetsFolderProblem(root, named);
+    if (unusable !== undefined) {
+      error(`[release] ${mode} failed: ${unusable}`);
+      return 2;
+    }
+  }
   try {
     const ctx = context(root, { env, log: print });
     if (candidate) {
       const names = candidateAssets(ctx, present(latest, 'candidate version'));
-      print(`[release] HEAD candidate ${latest}: built ${names.join(', ')} in ${ASSETS}`);
+      print(`[release] HEAD candidate ${latest}: built ${names.join(', ')} in ${assetFolder(ctx)}`);
       return 0;
     }
     const release = tag === 'latest' ? latestTag(ctx) : tag;
@@ -765,7 +801,7 @@ export function main(argv: string[], { root = repositoryRoot(), env = process.en
       throw new Error(`[release] ${mode} has no TAG, which the usage check above requires`);
     } else if (mode === 'assets') {
       const names = assets(ctx, tag);
-      print(`[release] ${tag}: built ${names.join(', ')} in ${ASSETS}`);
+      print(`[release] ${tag}: built ${names.join(', ')} in ${assetFolder(ctx)}`);
     } else if (mode === 'undraft') {
       const made = undraft(ctx, tag);
       print(`[release] ${tag}: ${made ? 'made the GitHub Release public' : 'the GitHub Release is already public'}`);

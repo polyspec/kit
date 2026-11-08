@@ -2,7 +2,7 @@
 import { isMain, repositoryRoot } from './paths.mts';
 import { appendFileSync } from 'node:fs';
 import semver from 'semver';
-import { candidateAssets, CONFIG, context, createTags, hasUnreleasedEntries, MAIN, newestReleaseTag, parseTag, releasedVersion, taggedRelease, topVersion, type CommandOptions, type Context } from './release.mts';
+import { assetsFolderProblem, candidateAssets, CONFIG, context, createTags, hasUnreleasedEntries, newestReleaseTag, parseTag, releasedVersion, taggedRelease, topVersion, type CommandOptions, type Context } from './release.mts';
 import { repositoryParts } from './github-release.mts';
 import { execute, run, Stop } from './process.mts';
 import { isJsonObject } from './bootstrap/files.mts';
@@ -69,7 +69,7 @@ export function prepare(ctx: Context, version: string): { sha: string; assets: s
 
 /**
  * The release tags at the commit of the successful CI run `runId` (`make release-tag RUN`, K911, K924): the run is a completed
- * successful push or workflow_dispatch run of a workflow of the repository (K1059), its commit is on origin/main, the version is the
+ * successful push or workflow_dispatch run of a workflow of the repository (K1059), its commit is on the main ref that the caller names in RELEASE_MAIN (K1102), the version is the
  * newest section ## X.Y.Z of the change log of that commit, whose ## Unreleased holds no entry where config/documents.json of that
  * commit names the changelog rule unreleased-empty-at-release (K1084), and createTags puts vX.Y.Z and the
  * tag of every Go module that config/release.json of that commit declares there. Returns the version and what it did per tag.
@@ -83,16 +83,20 @@ export function prepare(ctx: Context, version: string): { sha: string; assets: s
 export function tagRun(ctx: Context, runId: number, auto = false): { version: string; lines: string[]; release: boolean } {
   if (!Number.isSafeInteger(runId) || runId < 1) throw new Stop(`CI run id ${runId} is not a positive integer`);
   const { repo } = repositoryParts(ctx.config.repositoryUrl);
-  const repository = ctx.env.GITHUB_REPOSITORY;
-  if (repository && repository.toLowerCase() !== repo.toLowerCase()) throw new Stop(`GITHUB_REPOSITORY ${repository} does not match config/release.json repository ${repo}`);
   const output = run('gh', ['api', `repos/${repo}/actions/runs/${runId}`, '--jq', '{id,workflow_id,path,head_sha,event,status,conclusion,head_branch}'], { cwd: ctx.root, env: ctx.env });
   const runInfo = parseCandidateRun(output);
   validateCandidateRun(runInfo, runId);
   const commit = runInfo.head_sha;
-  run('git', ['fetch', '--no-tags', 'origin', 'refs/heads/main:refs/remotes/origin/main'], { cwd: ctx.root, env: ctx.env });
-  const ancestry = execute('git', ['merge-base', '--is-ancestor', commit, MAIN], { cwd: ctx.root, env: ctx.env });
-  if (ancestry.status === 1) throw new Stop(`the commit ${commit} of CI run ${runId} is not on ${MAIN}; a release tags a commit of main`);
-  if (ancestry.status !== 0) throw new Stop(`git merge-base --is-ancestor ${commit} ${MAIN} exited with ${ancestry.status}: ${(ancestry.stderr ?? '').trim()}`);
+  // The main ref that the caller names (RELEASE_MAIN, K1102) is a remote-tracking ref <remote>/<branch>, which the fetch brings up to date.
+  const main = ctx.main;
+  if (main === undefined) throw new Stop('no main ref is named; the caller names it in RELEASE_MAIN');
+  const slash = main.indexOf('/');
+  const [remote, branch] = slash < 0 ? ['', ''] : [main.slice(0, slash), main.slice(slash + 1)];
+  if (!remote || !branch) throw new Stop(`the main ref ${main} is no remote-tracking ref <remote>/<branch>`);
+  run('git', ['fetch', '--no-tags', remote, `refs/heads/${branch}:refs/remotes/${remote}/${branch}`], { cwd: ctx.root, env: ctx.env });
+  const ancestry = execute('git', ['merge-base', '--is-ancestor', commit, main], { cwd: ctx.root, env: ctx.env });
+  if (ancestry.status === 1) throw new Stop(`the commit ${commit} of CI run ${runId} is not on ${main}; a release tags a commit of main`);
+  if (ancestry.status !== 0) throw new Stop(`git merge-base --is-ancestor ${commit} ${main} exited with ${ancestry.status}: ${(ancestry.stderr ?? '').trim()}`);
   // The change log and the Go modules are those of the tagged tree: main may have changed config/release.json since the run.
   const show = (file: string) => run('git', ['show', `${commit}:${file}`], { cwd: ctx.root, env: ctx.env });
   const tagged = { ...ctx, config: { ...ctx.config, ...taggedRelease(show(CONFIG), `${CONFIG} at ${commit}`) } };
@@ -183,6 +187,14 @@ const USAGE = 'usage: node scripts/kit/release-run.mts prepare VERSION | tag CI_
 export function main(argv: string[], { root = repositoryRoot(), env = process.env, print = console.log, error = console.error }: CommandOptions = {}): number {
   const [mode, value, extra, ...rest] = argv;
   if (mode === 'prepare' && value && !extra && rest.length === 0) {
+    // prepare builds the assets into the folder that the caller names; without it, or with the checkout or a folder that holds it,
+    // nothing runs (K1102).
+    const assets = env.RELEASE_ASSETS || undefined;
+    const unusable = assets === undefined ? 'prepare needs the asset folder; name it in RELEASE_ASSETS' : assetsFolderProblem(root, assets);
+    if (unusable !== undefined) {
+      error(`[release-run] ${mode} ${value} failed: ${unusable}`);
+      return 2;
+    }
     try {
       const ctx = context(root, { env, log: print });
       const result = prepare(ctx, value);
@@ -196,6 +208,11 @@ export function main(argv: string[], { root = repositoryRoot(), env = process.en
   // tag takes the CI run id, and --auto when the run started the release by itself (K987); the version is the section of the
   // change log of the run's commit (K924).
   if (mode === 'tag' && value && (extra === undefined || extra === '--auto') && rest.length === 0) {
+    // tag judges the commit against the main ref that the caller names; without it nothing runs (K1102).
+    if (!env.RELEASE_MAIN) {
+      error(`[release-run] ${mode} ${value} failed: tag needs the main ref; name it in RELEASE_MAIN, a remote-tracking ref <remote>/<branch>`);
+      return 2;
+    }
     try {
       const tagged = tagRun(context(root, { env }), Number(value), extra === '--auto');
       for (const line of tagged.lines) print(`[release-run] ${line}`);

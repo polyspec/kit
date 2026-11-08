@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9bcee211b9091d47298285888a0c07f085e2af2088dc40bb6b805f8eb331ee2c -->
+<!-- source-sha256: 7d65a9b9fe3cf40d90d8c2ff46c5777cb213aeaf9caf3a6c07ce69202513e3a8 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -51,6 +51,7 @@
 - K1080: rebuild-check는 호출자가 `--source <glob>`로 선언한 tool source를 고르고, `--exclude <glob>`로 선언한 파일(test와 `.d.ts` 등)은 뺀다. kit에 고정된 layout은 없다. --source가 없으면 config/rebuild.json이 선언한 class만 검사한다. kit의 recipe는 자신의 source와 exclude를 선언하므로 kit은 전과 같은 파일을 고르고, 이전 선택을 유지하려는 저장소는 같은 `--exclude` glob을 넘긴다(K1080).
 - K1079: divergence-check는 호출자가 선언한 규칙으로만 거부한다: 설정 예외의 reason kind는 `--reason-kind <kind>`, contracts/features.json에서 거부할 상태는 `--feature-state <state>`로 받고, 둘 다 없으면 그 종류는 찾지 않으며, kit의 recipe가 자신의 kind와 상태를 선언한다(K1079).
 - K1084: release-tag는 그 commit에 이미 있는 tag를 종류와 관계없이 통과시키며, lightweight tag는 config/release.json이 annotatedTags를 정할 때만 거부합니다. check-documents는 선언된 changelog를 config/documents.json의 changelogRules가 정한 형식 규칙(unreleased-first, unreleased-once, versions-only, newest-first)으로만 판단하며, 정하지 않으면 판단하지 않습니다. release-tag는 그 changelogRules가 unreleased-empty-at-release를 정할 때만 ## Unreleased 아래 항목이 있는 commit을 거부합니다. kit은 자신을 위해 annotatedTags와 다섯 규칙을 모두 정합니다(K1084).
+- K1102: release와 release-run은 main ref를 RELEASE_MAIN에서, asset 폴더를 RELEASE_ASSETS에서 받으며, kit의 기본값은 없습니다. 값이 필요한 단계가 그 값을 받지 못하면 status 2로 끝나고, checkout이거나 checkout을 담은 asset 폴더도 그렇습니다. kit.mk는 kit을 위해 origin/main과 var/release/assets를 지정하며, release-tag는 GITHUB_REPOSITORY가 config/release.json과 달라도 run을 더 이상 거부하지 않습니다(K1102).
 - K1101: parity-check는 vitest JSON report를 checkout의 var/parity/vitest.json 대신 시스템 임시 폴더(TMPDIR) 아래 새 폴더에 쓰게 하고, 실행이 어떻게 끝나든 매 실행 뒤 지웁니다(K1101).
 - K1085: parity-check는 unit owner를 contracts/features.json이나 config/release.json으로 resolve하며, 그 역참조(feature가 unit과 bound test를 나열함, owner part가 모든 bound test를 담음, release package에 manifest가 있음)는 config/parity.json이 ownerCrossChecks를 정할 때만 판단합니다(K1085).
 

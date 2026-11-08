@@ -682,7 +682,7 @@ workflow of the repository (K1059). The repository is data in `config/release.js
 
 - Data instead of constants: `PACKAGES`, `MANIFESTS`, `NOT_RELEASED`, `GO_MODULES`, `REPOSITORY_URL` and the change
   logs of template, hyper and ordered-json are `config/release.json`. The lists are explicit; coverage detects an omission.
-- Tags: `release-run tag RUN` tags the commit of the successful CI run RUN of a workflow of the repository whose commit is in the history of `origin/main` with the version of the newest section
+- Tags: `release-run tag RUN` tags the commit of the successful CI run RUN of a workflow of the repository whose commit is in the history of the main ref that `RELEASE_MAIN` names (none exits 2; kit.mk names `origin/main`, K1102) with the version of the newest section
   `## X.Y.Z` of its change log (K911, K924): it reads `changelog` and `goModules` of config/release.json at that commit and
   refuses a commit whose change log has no such section or has entries under `## Unreleased`. The maintainer dispatches the
   release workflow with the id of the run alone (`gh workflow run release.yml -f run=<id>`), which runs it, and no tag is
@@ -724,7 +724,7 @@ workflow of the repository (K1059). The repository is data in `config/release.js
 - crudui `RELEASE_COMMIT` (assets before the tag exists) and the install of the archives as a consumer (template
   `release-consumer`, crudui `release-install`, hyper and orm `release-install`): dropped; installing a release is the work of
   the package manager of the consumer (K798).
-- orm output under `.runtime/release` and `assets.txt`: the output is `var/release/assets` in every repository.
+- orm output under `.runtime/release` and `assets.txt`: the output is the folder that the caller names in `RELEASE_ASSETS` (kit.mk names `var/release/assets`); a call that names none, the checkout or a folder that holds it is refused with status 2 (K1102).
 - Not release steps and not merged: template `check-clean-release.mjs` (a full matrix in a clean worktree) and hyper
   `publish.mjs` (installed copies for development).
 - ordered-json `release.py` is replaced by the Node tool.

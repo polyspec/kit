@@ -26,9 +26,9 @@ build inputs outside their package directories. Commit source changes and rerun 
 The version change rewrites package-manager locks. A version change of a composer.json re-locks it with `composer update --lock`
 in its directory, since the content-hash of `composer.lock` covers `version`. The commit passes a CI workflow of the repository on its development branch or on `main`, and is included in the history of `origin/main` before release. The release tags that exact successful commit even when main has advanced; integration does not require repeating its CI. (2) The release workflow is
 dispatched with the id of that run alone (`gh workflow run release.yml -f run=<id>`, or the workflow dispatch of the GitHub API);
-no push of a tag starts it. Its `make release-tag` (`release-run tag RUN`) checks the format of the run id and the repository of
-config/release.json, reads the run with `gh api`, requires a completed successful push or dispatch run of a CI workflow of the repository whose
-commit is on `origin/main`, reads `changelog` and `goModules` of config/release.json at that commit (`git show`), checking those two fields alone, and X.Y.Z from the first section `## X.Y.Z` of its change log there,
+no push of a tag starts it. Its `make release-tag` (`release-run tag RUN`) checks the format of the run id,
+reads the run of the repository of config/release.json with `gh api`, requires a completed successful push or dispatch run of a CI workflow of the repository whose
+commit is on the main ref that the caller names in `RELEASE_MAIN` (a remote-tracking ref `<remote>/<branch>`, which it fetches; a call that names none exits 2, and kit.mk names `origin/main` for kit; K1102), reads `changelog` and `goModules` of config/release.json at that commit (`git show`), checking those two fields alone, and X.Y.Z from the first section `## X.Y.Z` of its change log there,
 refuses a commit whose change log has none, or has entries under `## Unreleased` where config/documents.json of that commit names the changelog rule `unreleased-empty-at-release` (K1084), and tags that commit, then appends `TAG=vX.Y.Z` and `VERSION=X.Y.Z` to
 `GITHUB_ENV` for the steps that follow (K924): it checks `vX.Y.Z` and the tag
 `<directory>/vX.Y.Z` of every Go module below the root first, stops when one of them is at another commit, creates the missing

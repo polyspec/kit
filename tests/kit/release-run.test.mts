@@ -203,7 +203,7 @@ test('release-tag reads only the change log and the Go modules of config/release
   assert.equal(git(box.root, 'rev-parse', 'refs/tags/v0.0.1^{commit}'), head);
 });
 
-test('release-tag refuses a failed run, a commit off main and another repository before any tag (K749, K911)', (t) => {
+test('release-tag refuses a failed run and a commit off main before any tag (K749, K911)', (t) => {
   const failed = runBox(t, commit => candidate({ head_sha: commit, conclusion: 'failure' }));
   const refused = tagRun(failed.box.root, failed.env);
   assert.equal(refused.result, 1);
@@ -220,10 +220,34 @@ test('release-tag refuses a failed run, a commit off main and another repository
   assert.match(offMain.errors.join('\n'), /the commit [0-9a-f]{40} of CI run 91 is not on origin\/main/);
   assert.equal(git(off.box.root, 'tag', '--list'), '');
 
-  const other = tagRun(off.box.root, { ...off.env, GITHUB_REPOSITORY: 'polyspec/another-repository' });
-  assert.equal(other.result, 1);
-  assert.match(other.errors.join('\n'), /does not match config\/release\.json repository/);
   assert.equal(tagRun(off.box.root, off.env, ['publish', '0.0.1', 'a'.repeat(40), '91']).result, 2, 'make release is gone; only prepare and tag remain');
+});
+
+test('K1102: release-tag judges the commit against the main ref that RELEASE_MAIN names, refuses with status 2 a call that names none, and takes a run whatever GITHUB_REPOSITORY holds', (t) => {
+  const { box, remote, env } = runBox(t, () => candidate());
+  git(box.root, 'checkout', '--quiet', '-b', 'trunk');
+  git(box.root, 'commit', '--quiet', '--allow-empty', '-m', 'trunk');
+  git(box.root, 'push', '--quiet', 'origin', 'trunk');
+  const trunk = git(box.root, 'rev-parse', 'HEAD');
+  const runEnv = { ...env, GITHUB_REPOSITORY: 'polyspec/another-repository', RELEASE_RUN_RESPONSE: JSON.stringify(candidate({ head_sha: trunk })) };
+  const offMain = tagRun(box.root, runEnv);
+  assert.equal(offMain.result, 1);
+  assert.match(offMain.errors.join('\n'), /of CI run 91 is not on origin\/main/);
+  // A call that names no main ref, unset or empty, is a usage error; kit fixes none.
+  const { RELEASE_MAIN: _named, ...noMain } = runEnv;
+  for (const unnamed of [noMain, { ...noMain, RELEASE_MAIN: '' }]) {
+    const refused = tagRun(box.root, unnamed);
+    assert.equal(refused.result, 2);
+    assert.match(refused.errors.join('\n'), /tag needs the main ref; name it in RELEASE_MAIN/);
+  }
+  const { RELEASE_ASSETS: _assets, ...noAssets } = runEnv;
+  assert.equal(tagRun(box.root, noAssets, ['prepare', '0.0.1']).result, 2, 'prepare needs the asset folder');
+  const named = tagRun(box.root, { ...runEnv, RELEASE_MAIN: 'origin/trunk' });
+  assert.equal(named.result, 0, named.errors.join('\n'));
+  assert.equal(execFileSync('git', ['--git-dir', remote, 'rev-parse', 'refs/tags/v0.0.1^{commit}'], { encoding: 'utf8' }).trim(), trunk);
+  const bare = tagRun(box.root, { ...runEnv, RELEASE_MAIN: 'trunk' });
+  assert.equal(bare.result, 1);
+  assert.match(bare.errors.join('\n'), /the main ref trunk is no remote-tracking ref <remote>\/<branch>/);
 });
 
 // K987: a green push run of CI starts the release by itself (release-tag --auto); only the version commit of the top ## X.Y.Z

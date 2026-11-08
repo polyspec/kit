@@ -174,6 +174,9 @@ function setVersion(root: string, file: string, version: string) {
   }
 }
 
+/** The asset folder that the sandbox names in RELEASE_ASSETS, as kit.mk names it for kit (K1102). */
+export const ASSETS = 'var/release/assets';
+
 /** The options of releaseSandbox. */
 export type ReleaseSandboxOptions = { version?: string; changelog?: string; mutate?: (root: string) => void };
 
@@ -229,7 +232,8 @@ export function releaseSandbox(t: Pick<TestContext, 'after'>, { version = '0.0.1
   // The tools of the sandbox are the stubs: gh, npm, python3 and uv here, and go and composer answering from their records
   // (toolStubs), never a go or Composer of the machine, whose release differs between machines.
   const stubs = toolStubs();
-  const env = { ...stubs, PATH: `${bin}${path.delimiter}${stubs.PATH}`, STUB_STATE: state, STUB_NPM_LOG: npmLog, STUB_NPM_MODE: '', STUB_PYTHON_LOG: pythonLog, STUB_WHEEL_REQUIRES_FILE: path.join(root, '.stubs/wheel-requires.json') };
+  // The caller names the main ref and the asset folder of the release (K1102), as kit.mk does for kit.
+  const env = { ...stubs, RELEASE_MAIN: 'origin/main', RELEASE_ASSETS: ASSETS, PATH: `${bin}${path.delimiter}${stubs.PATH}`, STUB_STATE: state, STUB_NPM_LOG: npmLog, STUB_NPM_MODE: '', STUB_PYTHON_LOG: pythonLog, STUB_WHEEL_REQUIRES_FILE: path.join(root, '.stubs/wheel-requires.json') };
   const box = {
     root,
     env,

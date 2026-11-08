@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: de83ed7180fa4e9b53334b4c24e7a6b5b5c5d2e1fa48050b465506e484b53b5e -->
+<!-- source-sha256: 6de4e5cdd5fbb5da71ee98ab0bcd58b1d8e54f5638eebbcc0215994d1e6a73b0 -->
 
 # 도구 목록
 
@@ -623,7 +623,7 @@ go.mod의 module path에 연결합니다.
 
 - 상수 대신 데이터: template, hyper, ordered-json의 `PACKAGES`, `MANIFESTS`, `NOT_RELEASED`, `GO_MODULES`, `REPOSITORY_URL`과
   changelog는 `config/release.json`입니다. 목록은 명시적이며 빠진 항목은 coverage가 찾습니다.
-- Tag: `release-run tag RUN`은 저장소 workflow의 성공한 CI run RUN의 commit(`origin/main` 이력에 포함되어야 함)에 그 change log의 가장 새로운 section `## X.Y.Z`의
+- Tag: `release-run tag RUN`은 저장소 workflow의 성공한 CI run RUN의 commit(`RELEASE_MAIN`이 지정한 main ref의 이력에 포함되어야 함. 지정하지 않으면 status 2이며 kit.mk는 `origin/main`을 지정함; K1102)에 그 change log의 가장 새로운 section `## X.Y.Z`의
   버전으로 tag를 답니다(K911, K924). 그 commit에 있는 config/release.json의 `changelog`와 `goModules`를 읽고, change log에 그런
   section이 없거나 `## Unreleased` 아래 항목이 있는 commit은 거부합니다. maintainer는 run의 id만으로 release workflow를
   dispatch하고(`gh workflow run release.yml -f run=<id>`) 그 workflow가 이를 실행하며, 손으로 push하는 tag는 없습니다.
@@ -656,7 +656,7 @@ go.mod의 module path에 연결합니다.
   저장소가 자기 `release-assets` recipe에 붙이는 선행 단계이므로 도구는 build를 알지 못합니다.
 - crudui `RELEASE_COMMIT`(tag가 생기기 전의 assets)은 합치지 않습니다. archive를 소비자처럼 설치하는 일(template `release-consumer`, crudui
   `release-install`, hyper와 orm `release-install`)도 버렸습니다. release를 설치하는 일은 consumer의 package manager가 합니다(K798).
-- orm의 `.runtime/release` 출력과 `assets.txt`: 출력은 모든 저장소에서 `var/release/assets`입니다.
+- orm의 `.runtime/release` 출력과 `assets.txt`: 출력은 호출자가 `RELEASE_ASSETS`로 지정한 폴더입니다(kit.mk는 `var/release/assets`를 지정). 지정하지 않은 호출, checkout, checkout을 담은 폴더는 status 2로 거부합니다(K1102).
 - release 단계가 아니어서 합치지 않음: template `check-clean-release.mjs`(clean worktree에서 전체 matrix)와 hyper `publish.mjs`(개발용 설치본).
 - ordered-json `release.py`는 Node 도구로 대체합니다.
 
