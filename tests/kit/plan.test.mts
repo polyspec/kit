@@ -423,7 +423,7 @@ test('item-edit replaces the Task cells of a row in any state (K373)', (t) => {
   setState(root, { id: 'T1', state: '[o]' });
   editItem(root, { id: 'T1', task: 'Done task', taskKo: '끝난 작업' });
   assert.equal(rows(root, english)[0], '| T1 | Done task | `a.mts` | `node --test a.test.mts` | [o] |', 'the Task of a done item is corrected');
-  assert.throws(() => editItem(root, { id: 'T1', verification: '`node -e "1"`' }), /T1 is \[o\]/, 'the Verification of a done item stays');
+  assert.throws(() => editItem(root, { id: 'T1', verification: '`node -e "1"`', doneStays: true }), /T1 is \[o\]/, 'the Verification of a done item stays');
 });
 
 test('item-edit replaces the Deliverables cell in both languages, and not of a done item (K388)', (t) => {
@@ -439,7 +439,28 @@ test('item-edit replaces the Deliverables cell in both languages, and not of a d
   commitState(done, 'verification');
   for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(done, file), `${CHANGELOG}- Task (T2).\n`);
   setState(done, { id: 'T2', state: '[o]' });
-  assert.throws(() => editItem(done, { id: 'T2', deliverables: '`b.mts`' }), /is \[o\]/);
+  assert.throws(() => editItem(done, { id: 'T2', deliverables: '`b.mts`', doneStays: true }), /is \[o\]/);
+});
+
+// K1116: a done item stays only when the caller declares that rule (DONE_STAYS=1 of kit's recipe); without it item-edit edits the
+// Verification and the Deliverables of a done item as of any other.
+test('K1116: item-edit refuses a done item only when the caller declares DONE_STAYS', (t) => {
+  const done = committed(t, 'T3');
+  setState(done, { id: 'T3', state: '[~]' });
+  commitState(done, 'start');
+  setState(done, { id: 'T3', state: '[v]' });
+  commitState(done, 'verification');
+  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(done, file), `${CHANGELOG}- Task (T3).\n`);
+  setState(done, { id: 'T3', state: '[o]' });
+  const english = 'docs/plans/parser/checklist.md';
+  for (const [file, text] of Object.entries(editItem(done, { id: 'T3', deliverables: '`c.mts`' }))) writeFileSync(path.join(done, file), text);
+  assert.equal(rows(done, english).find(row => row.startsWith('| T3 |')), '| T3 | Task T3 | `c.mts` | `node --test a.test.mts` | [o] |', 'without the rule a done item is edited');
+  const plan = fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url));
+  const run = (env: Record<string, string>) => spawnSync(process.execPath, [plan, 'item-edit'], { cwd: done, env: { ...process.env, ID: 'T3', DELIVERABLES: '`d.mts`', ...env }, encoding: 'utf8' });
+  const declared = run({ DONE_STAYS: '1' });
+  assert.equal(declared.status, 1);
+  assert.match(declared.stderr, /T3 is \[o\]/);
+  assert.equal(run({}).status, 0, 'the command edits a done item without the declaration');
 });
 
 // K442: item-edit rewrites the cause and the retry of a bypassed item, and the cause of an impossible one, through the checks of item-state.

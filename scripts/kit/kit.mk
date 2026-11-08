@@ -266,7 +266,7 @@ item-new: ## Add the item ID to the checklist of PLAN and its Korean twin in the
 
 # item-edit also rewrites the cause and the retry of a held item (K442): CAUSE, RETRY, CAUSE_KO and RETRY_KO.
 item-edit: ## Replace the Verification cell of the item ID with VERIFICATION, its Deliverables cell with DELIVERABLES, or its Task cells with TASK and TASK_KO, in both languages, through the checks of item-new; with CAUSE, RETRY, CAUSE_KO and RETRY_KO, rewrite the cause and the retry of a bypassed item (its cause for an impossible one) through the checks of item-state; offline
-	$(call raw_text,TASK TASK_KO DELIVERABLES VERIFICATION CAUSE RETRY CAUSE_KO RETRY_KO) $(NODE) $(KIT)/plan.$(KIT_EXT) item-edit
+	$(call raw_text,TASK TASK_KO DELIVERABLES VERIFICATION CAUSE RETRY CAUSE_KO RETRY_KO) DONE_STAYS=1 $(NODE) $(KIT)/plan.$(KIT_EXT) item-edit
 
 item-state: ## Move the item ID to STATE in both languages along an allowed transition; done needs its changelog line, bypassed CAUSE, RETRY, CAUSE_KO and RETRY_KO, impossible CAUSE and CAUSE_KO; offline
 	$(NODE) $(KIT)/plan.$(KIT_EXT) item-state

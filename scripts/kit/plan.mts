@@ -8,7 +8,7 @@
 //   item-new   PLAN=<slug> ID=<id> TASK= TASK_KO= DELIVERABLES= VERIFICATION=
 //              adds the row of the item in the waiting state to the checklist of the plan and to its Korean twin: a sub-item
 //              (an ID that ends in -<n>) after the last sub-item of its parent, another item at the end of the last table
-//   item-edit  ID=<id> [TASK= TASK_KO= DELIVERABLES= VERIFICATION= | CAUSE= RETRY= CAUSE_KO= RETRY_KO=]
+//   item-edit  ID=<id> [TASK= TASK_KO= DELIVERABLES= VERIFICATION= | CAUSE= RETRY= CAUSE_KO= RETRY_KO=] [DONE_STAYS=1]
 //              replaces the Task, Deliverables or Verification cells of the item in both languages, or rewrites the cause and the
 //              retry of a bypassed item (the cause alone of an impossible one) with the checks of item-state
 //   item-state ID=<id> STATE=<state> [CAUSE= RETRY= CAUSE_KO= RETRY_KO=]
@@ -176,10 +176,10 @@ export function newItem(root: string, item: NewItem): Record<string, string> {
  * Replaces the Verification cell of the row of the item `id` in the checklist and in its Korean twin (K353), or its Task cells, the
  * English `task` and the Korean `taskKo` together (K373), or its Deliverables cell, the same in both languages (K388), through the
  * checks of newItem; returns the two files as { path: text }. Throws, writing nothing, for an item that is no row, the Verification or
- * the Deliverables of a done item (an item that is done stays), a Task without its Korean twin and a cell that fails the checks of
- * docs-check. The Task of a done item is corrected, since its words are no state.
+ * the Verification or the Deliverables of a done item when the caller declares `doneStays` (K1116), a Task without its Korean twin and a
+ * cell that fails the checks of docs-check. The Task of a done item is corrected, since its words are no state.
  */
-export function editItem(root: string, { id, deliverables, verification, task, taskKo }: { id: string; deliverables?: string | undefined; verification?: string | undefined; task?: string | undefined; taskKo?: string | undefined }): Record<string, string> {
+export function editItem(root: string, { id, deliverables, verification, task, taskKo, doneStays = false }: { id: string; deliverables?: string | undefined; verification?: string | undefined; task?: string | undefined; taskKo?: string | undefined; doneStays?: boolean }): Record<string, string> {
   if ((task === undefined) !== (taskKo === undefined)) throw new Error('item-edit takes TASK and TASK_KO together: the Korean twin holds the same information');
   // Without a Task or a Deliverables the Verification is edited, and an empty one is refused by its cell.
   const editsVerification = verification !== undefined || (task === undefined && deliverables === undefined);
@@ -193,7 +193,7 @@ export function editItem(root: string, { id, deliverables, verification, task, t
     const cells = (lines[index] ?? '').replace(/^\| /, '').replace(/ \|$/, '').split(' | ');
     if (cells.length !== 5) throw new Error(`the row of ${id} holds ${cells.length} cells, not the 5 of a checklist row`);
     // The Deliverables cell is the same text in both languages (K388), so it is edited in each file like the Verification.
-    if (editsVerification || deliverables !== undefined) {
+    if (doneStays && (editsVerification || deliverables !== undefined)) {
       const { done } = statesOf(tracker);
       if (cells[4]?.startsWith(done)) throw new Error(`${id} is ${done}; from ${done} an item stays; a new finding is an item of its own`);
     }
@@ -508,7 +508,7 @@ if (isMain(import.meta.url)) {
       if (held && [env.TASK, env.TASK_KO, env.DELIVERABLES, env.VERIFICATION].some(value => value !== undefined)) throw new Error('item-edit takes CAUSE, RETRY, CAUSE_KO and RETRY_KO apart from TASK, TASK_KO, DELIVERABLES and VERIFICATION');
       const files = held
         ? editState(root, { id, cause: env.CAUSE, retry: env.RETRY, causeKo: env.CAUSE_KO, retryKo: env.RETRY_KO })
-        : editItem(root, { id, deliverables: env.DELIVERABLES, verification: env.VERIFICATION, task: env.TASK, taskKo: env.TASK_KO });
+        : editItem(root, { id, deliverables: env.DELIVERABLES, verification: env.VERIFICATION, task: env.TASK, taskKo: env.TASK_KO, doneStays: env.DONE_STAYS === '1' });
       for (const file of Object.keys(files)) console.log(`[plan] edited ${id} in ${file}`);
     } else if (command === 'item-state') {
       const change = { id: required(env.ID, 'ID'), state: required(env.STATE, 'STATE'), cause: env.CAUSE, retry: env.RETRY, causeKo: env.CAUSE_KO, retryKo: env.RETRY_KO };
