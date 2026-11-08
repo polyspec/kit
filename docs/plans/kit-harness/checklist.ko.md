@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 9a1631f145089db47d7afcdcead9704e68aeec9e08c1987d11b592aec3632260 -->
+<!-- source-sha256: f563fb80e5630501c481309f6b4e1c07e6aafe53337e51731e38a85ca4bb9332 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -239,7 +239,7 @@
 | K1109 | check-documents는 건너뛰는 private 경로를 저장소에서 읽고 kit에 고정된 것은 없으며, kit 항목을 이름 붙이는 행은 저장소가 그 규칙을 선언할 때만 요구한다 | scripts/kit/check-documents.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1109 tests/kit/check-documents.test.mts` | [o] |
 | K1110 | checklist는 항목 상태와 표 형식을 저장소에서 읽으며 kit에 고정된 것은 없다 | scripts/kit/checklist.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1110 tests/kit/checklist.test.mts` | [o] |
 | K1111 | ci-passed는 저장소가 그 규칙을 선언할 때만 건너뛴 job을 실패로 본다 | scripts/kit/ci-passed.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1111 tests/kit/ci-passed.test.mts` | [ ] |
-| K1112 | owner-check는 저장소가 그 규칙을 선언할 때만 추적된 모든 경로에 owner를 요구한다 | scripts/kit/owner-check.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1112 tests/kit/owner-check.test.mts` | [ ] |
+| K1112 | owner-check는 저장소가 그 규칙을 선언할 때만 추적된 모든 경로에 owner를 요구한다 | scripts/kit/owner-check.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1112 tests/kit/owner-check.test.mts` | [o] |
 | K1113 | 테스트 sandbox는 호출자의 GIT_* 환경 없이 git을 실행하므로, git rebase -x나 hook 아래의 실행이 그것을 시작한 저장소에 쓰지 않는다 | tests/kit/sandbox-repository.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1113 tests/kit/sandbox-repository.test.mts` | [ ] |
 | K1068 | ci-setup은 config/ci.json이 선언한 것만 계획하고 준비하며, config/parity.json과 대조하지 않고 parityMode나 parityBindings를 요구하지 않으며 target을 Makefile과 대조하지 않습니다 | scripts/kit/ci-setup.mts, scripts/kit/schema/ci.schema.json, tests/kit/ci-setup.test.mts, docs/operations/tool-inventory(.ko).md, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1068 tests/kit/ci-setup.test.mts` | [o] |
 | K1114 | ci-setup, divergence-check, parity는 구현 폴더를 호출자(--parity roots)에게서 받는다. release 목록 PACKAGE_FILES, PHPUNIT_MANIFEST, MISE_LOCKS, KIT_FIXTURE는 config/release.json에서 오며 kit은 자기 것을 선언한다 | scripts/kit/ci-setup.mts, scripts/kit/divergence-check.mts, scripts/kit/parity.mts, scripts/kit/release.mts, config/release.json, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1114 tests/kit/ci-setup.test.mts tests/kit/divergence-check.test.mts tests/kit/gates-workflow.test.mts tests/kit/parity-api.test.mts tests/kit/release.test.mts` | [o] |

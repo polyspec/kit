@@ -280,11 +280,14 @@ documents-stamp: ## Write the source-sha256 of each English document into the Ko
 
 .PHONY: owner-check owner-validate
 
+# The owner rules of kit itself: every tracked path has an owner (K1112).
+OWNER_RULES := --every-path
+
 owner-check: ## Run the checks that own the changed paths (config/owner-checks.json); PATHS="a b" or BASE=<revision> selects the paths
-	$(NODE) $(KIT)/owner-check.$(KIT_EXT) $(if $(PATHS),--paths "$(PATHS)") $(if $(BASE),--base $(BASE))
+	$(NODE) $(KIT)/owner-check.$(KIT_EXT) $(OWNER_RULES) $(if $(PATHS),--paths "$(PATHS)") $(if $(BASE),--base $(BASE))
 
 owner-validate: ## Check that config/owner-checks.json owns every tracked path and names only existing checks; offline
-	$(NODE) $(KIT)/owner-check.$(KIT_EXT) --validate
+	$(NODE) $(KIT)/owner-check.$(KIT_EXT) $(OWNER_RULES) --validate
 
 .PHONY: ci-targets ci-summary ci-passed
 

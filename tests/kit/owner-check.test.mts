@@ -8,7 +8,7 @@ import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { commandsOf, importGraph, makeDatabase, npmProject, parseMakeDatabase, select, suiteTargets, validate } from '../../scripts/kit/owner-check.mts';
-import type { OwnerDeclaration } from '../../scripts/kit/owner-check.mts';
+import type { OwnerDeclaration, OwnerRules } from '../../scripts/kit/owner-check.mts';
 import { trackedFiles } from '../../scripts/kit/tracked-files.mts';
 import { readConfig } from '../../scripts/kit/schema-validate.mts';
 import { put, tree } from './tree.mts';
@@ -59,9 +59,11 @@ function project(t: TestContext, files: Record<string, string> = FILES) {
   const tracked = trackedFiles(root);
   return { root, tracked, project: { make: makeDatabase(root), ...npmProject(root, tracked) } };
 }
-const errorsOf = (t: TestContext, declaration: OwnerDeclaration, files?: Record<string, string>) => {
+// The rules that kit's own recipe declares (K1112).
+const RULES: OwnerRules = { everyPath: true };
+const errorsOf = (t: TestContext, declaration: OwnerDeclaration, files?: Record<string, string>, rules: OwnerRules = RULES) => {
   const { tracked, project: found } = project(t, files);
-  return validate(declaration, tracked, found, file => tracked.includes(file));
+  return validate(declaration, tracked, found, file => tracked.includes(file), undefined, rules);
 };
 const has = (errors: string[], ...parts: string[]) => assert.ok(errors.some(line => parts.every(part => line.includes(part))), `expected ${parts.join(' ... ')}\nin\n${errors.join('\n')}`);
 
@@ -74,7 +76,7 @@ test('a declaration that owns every path passes, with targets of an included fil
   assert.deepEqual(found.workspaces, ['@x/one']);
   assert.deepEqual(found.prefixes, ['tools/bench']);
   assert.deepEqual(Object.keys(found.scripts), ['test:forms']);
-  assert.deepEqual(validate(DECLARATION, tracked, found, file => tracked.includes(file)), []);
+  assert.deepEqual(validate(DECLARATION, tracked, found, file => tracked.includes(file), undefined, RULES), []);
   assert.deepEqual(suiteTargets(found.make), ['docs-check', 'unit-test', 'lint']);
 });
 
@@ -84,6 +86,21 @@ test('a tracked path without an owner and a glob without a path fail', (t) => {
   const errors = errorsOf(t, declaration);
   has(errors, 'README.md', 'matches no owner in config/owner-checks.json', 'add a rule');
   has(errors, 'the glob gone/** matches no tracked path');
+});
+
+test('K1112: every tracked path has an owner only when the repository declares --every-path', (t) => {
+  const declaration = { ...DECLARATION, owners: [known(DECLARATION.owners[1], 'DECLARATION.owners[1]')] };
+  const undeclared = errorsOf(t, declaration, undefined, {});
+  assert.deepEqual(undeclared.filter(line => line.includes('matches no owner')), [], undeclared.join('\n'));
+  has(errorsOf(t, declaration), 'README.md', 'matches no owner in config/owner-checks.json');
+  const root = checkout(t, DECLARATION);
+  const passed = command(root, ['--validate']);
+  assert.equal(passed.status, 0, passed.stdout + passed.stderr);
+  assert.match(passed.stdout, /names only existing checks/);
+  put(root, { 'new.bin': 'x' });
+  const unowned = command(root, ['--paths', 'new.bin', '--dry-run']);
+  assert.equal(unowned.status, 0, unowned.stdout + unowned.stderr);
+  assert.match(unowned.stdout, /new\.bin -> nothing: no rule owns the path/);
 });
 
 test('a target that is not in the Makefile and a target that runs the full suite fail', (t) => {
@@ -294,10 +311,10 @@ const full = { ...DECLARATION, owners: [...DECLARATION.owners, { paths: ['config
 
 test('the command validates the declaration and names each error', (t) => {
   const root = checkout(t, DECLARATION);
-  const failed = command(root, ['--validate']);
+  const failed = command(root, ['--every-path', '--validate']);
   assert.equal(failed.status, 1, failed.stdout + failed.stderr);
   assert.match(failed.stderr, /\[owner-check\] config\/owner-checks\.json: the path matches no owner in config\/owner-checks\.json; add a rule/);
-  const passed = command(checkout(t, full), ['--validate']);
+  const passed = command(checkout(t, full), ['--every-path', '--validate']);
   assert.equal(passed.status, 0, passed.stdout + passed.stderr);
   assert.match(passed.stdout, /owns every tracked path/);
 });
@@ -308,7 +325,7 @@ test('the command prints the selection of --dry-run and fails for an unowned pat
   assert.equal(dry.status, 0, dry.stdout + dry.stderr);
   assert.match(dry.stdout, /2 changed paths select make docs-check; make unit-test; make extra-check; npm run test:forms; node tests tests\/a\.test\.mjs/);
   put(root, { 'new.bin': 'x' });
-  const unowned = command(root, ['--paths', 'new.bin', '--dry-run']);
+  const unowned = command(root, ['--every-path', '--paths', 'new.bin', '--dry-run']);
   assert.equal(unowned.status, 1, unowned.stdout + unowned.stderr);
 });
 

@@ -6,18 +6,21 @@
 // change touches, never the full suite.
 //
 // The declaration is checked on every run, before any owner runs (`--validate` checks only that):
-//   - every tracked path matches a rule, and every glob matches a tracked path (new files that Git does not ignore count);
+//   - every glob matches a tracked path (new files that Git does not ignore count), and, when the caller passes --every-path
+//     (K1112), every tracked path matches a rule;
 //   - every target exists in the Makefile or a file it includes and does not run the full suite, no rule selects every
 //     target of CHECK_TARGETS, every script, workspace and package directory exists, every test file exists;
 //   - for `inputs`, each path that a check reads has a rule that selects the check or a target that runs it;
 //   - for `importers`, each path of the rule, or each of its `modules`, is imported by a test of the globs.
 // Every selected check runs to its end, also after an earlier one failed, and the failures are listed together.
 //
-//   node scripts/kit/owner-check.mts [--paths "<path> ..."] [--base <revision>] [--dry-run] [--validate]
+//   node scripts/kit/owner-check.mts [--paths "<path> ..."] [--base <revision>] [--dry-run] [--validate] [--every-path]
 //     --paths     the changed paths; default: the uncommitted tracked changes and the new files that Git does not ignore
 //     --base      the changed paths are those between <revision> and the working tree
 //     --dry-run   print the selection without running it
 //     --validate  check the declaration only
+//     --every-path  the rule of the repository that every tracked path, and every changed path that exists, has an owner (K1112);
+//                   without it a path that no rule owns selects nothing
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -223,25 +226,28 @@ export function ruleChecks(rule: OwnerRule): Check[] {
 
 const compile = (declaration: OwnerDeclaration) => declaration.owners.map(rule => ({ ...rule, expressions: rule.paths.map(globExpression) }));
 
+/** The rules that the caller declares with the arguments of its recipe; a rule that is not declared finds nothing (K1112). */
+export type OwnerRules = { everyPath?: boolean };
+
 /**
  * The errors of the declaration against the tracked paths, the targets of make and the npm manifests. `project` holds
  * `make` (makeDatabase), `scripts` (the scripts of the root package.json), `workspaces` and `prefixes` (the names and
  * directories with a test script).
  */
-export function validate(declaration: OwnerDeclaration, tracked: string[], project: Project, exists: Exists, importers: Importers = noImporters) {
+export function validate(declaration: OwnerDeclaration, tracked: string[], project: Project, exists: Exists, importers: Importers = noImporters, rules: OwnerRules = {}) {
   const errors: string[] = [];
   const targets = new Set(project.make.targets.keys());
   const fullSuite = fullSuiteTargets(project.make, declaration.fullSuite);
   const suite = suiteTargets(project.make);
-  const rules = compile(declaration);
-  for (const rule of rules) {
+  const compiled = compile(declaration);
+  for (const rule of compiled) {
     const label = rule.paths.join(' ');
     rule.paths.forEach((glob, index) => {
       // expressions holds the expression of each glob of paths at its index.
       if (!tracked.some(file => present(rule.expressions[index], 'rule.expressions[index]').test(file))) errors.push(`${DECLARATION}: the glob ${glob} matches no tracked path; remove it or correct it`);
     });
     if (rule.modules && !rule.importers) errors.push(`${DECLARATION}: the rule of ${label} names modules but no importers`);
-    if (rule.importers) errors.push(...importerErrors(rule, rules, label, tracked, exists, importers));
+    if (rule.importers) errors.push(...importerErrors(rule, compiled, label, tracked, exists, importers));
     for (const target of rule.targets ?? []) {
       if (!targets.has(target)) errors.push(`${DECLARATION}: the target ${target} of ${label} is not a target of the Makefile or of a file it includes`);
       if (fullSuite.has(target)) errors.push(`${DECLARATION}: the target ${target} of ${label} runs the full suite, which an owner check never runs`);
@@ -255,9 +261,10 @@ export function validate(declaration: OwnerDeclaration, tracked: string[], proje
   for (const test of declaration.always ?? []) if (!exists(test)) errors.push(`${DECLARATION}: the test ${test} of always does not exist`);
   if (declaration.testTarget && !targets.has(declaration.testTarget)) errors.push(`${DECLARATION}: testTarget ${declaration.testTarget} is not a target of the Makefile or of a file it includes`);
   for (const target of declaration.fullSuite ?? []) if (!targets.has(target)) errors.push(`${DECLARATION}: fullSuite names ${target}, which is not a target of the Makefile or of a file it includes`);
-  if (suite.length && rules.some(rule => suite.every(target => rule.targets?.includes(target)))) errors.push(`${DECLARATION}: a rule selects every target of CHECK_TARGETS, which is the full suite`);
-  for (const file of tracked) {
-    if (!rules.some(rule => rule.expressions.some(expression => expression.test(file)))) errors.push(`${file}: the path matches no owner in ${DECLARATION}; add a rule whose paths match it`);
+  if (suite.length && compiled.some(rule => suite.every(target => rule.targets?.includes(target)))) errors.push(`${DECLARATION}: a rule selects every target of CHECK_TARGETS, which is the full suite`);
+  // Every tracked path has an owner only when the repository declares the rule (K1112).
+  for (const file of rules.everyPath ? tracked : []) {
+    if (!compiled.some(rule => rule.expressions.some(expression => expression.test(file)))) errors.push(`${file}: the path matches no owner in ${DECLARATION}; add a rule whose paths match it`);
   }
   // `inputs` names the paths that a check reads. For each of them a rule must select the check, or for a make target a
   // target that runs it as a prerequisite, so a change of the path runs a check that reads it.
@@ -284,7 +291,7 @@ export function validate(declaration: OwnerDeclaration, tracked: string[], proje
       const matched = tracked.filter(file => expression.test(file));
       if (!matched.length) errors.push(`${DECLARATION}: the input glob ${glob} of ${check} matches no tracked path`);
       for (const file of matched) {
-        if (!rules.some(rule => rule.expressions.some(owner => owner.test(file)) && selects(rule, check))) errors.push(`${file}: an input of ${check}, which no owner rule of the path selects; add the check to the rule of the path`);
+        if (!compiled.some(rule => rule.expressions.some(owner => owner.test(file)) && selects(rule, check))) errors.push(`${file}: an input of ${check}, which no owner rule of the path selects; add the check to the rule of the path`);
       }
     }
   }
@@ -415,7 +422,9 @@ export function ownerDeclaration(root: string): OwnerDeclaration {
 
 if (isMain(import.meta.url)) {
   const root = repositoryRoot();
-  const { values } = parseArgs({ options: { paths: { type: 'string' }, base: { type: 'string' }, 'dry-run': { type: 'boolean' }, validate: { type: 'boolean' } } });
+  const { values } = parseArgs({ options: { paths: { type: 'string' }, base: { type: 'string' }, 'dry-run': { type: 'boolean' }, validate: { type: 'boolean' }, 'every-path': { type: 'boolean' } } });
+  // The rules of the repository, from the arguments of its recipe (K1112).
+  const rules = { everyPath: values['every-path'] ?? false };
   if (!existsSync(path.join(root, DECLARATION))) {
     complain(`${DECLARATION} does not exist; declare the owner of each path there (scripts/kit/schema/owner-checks.schema.json)`);
     process.exit(1);
@@ -426,22 +435,23 @@ if (isMain(import.meta.url)) {
   say(`checking ${DECLARATION} against ${tracked.length} paths`);
   const exists = (file: string) => existsSync(path.join(root, file));
   const importers = importGraph(root, tracked);
-  const errors = validate(declaration, tracked, project, exists, importers);
+  const errors = validate(declaration, tracked, project, exists, importers, rules);
   if (errors.length) {
     for (const error of errors) complain(error);
     complain(`${errors.length} errors in ${DECLARATION}`);
     process.exit(1);
   }
   if (values.validate) {
-    say(`${DECLARATION} owns every tracked path`);
+    say(rules.everyPath ? `${DECLARATION} owns every tracked path` : `${DECLARATION} names only existing checks`);
     process.exit(0);
   }
   const changed = changedPaths(root, values);
   const selection = select(declaration, changed, suiteTargets(project.make), exists, importers);
-  if (selection.unowned.length) {
+  if (rules.everyPath && selection.unowned.length) {
     for (const file of selection.unowned) complain(`${file}: the path matches no owner in ${DECLARATION}; add a rule whose paths match it`);
     process.exit(1);
   }
+  for (const file of rules.everyPath ? [] : selection.unowned) say(`${file} -> nothing: no rule owns the path`);
   for (const reason of selection.reasons) say(reason);
   const commands = commandsOf(selection, declaration);
   say(`${changed.length} changed paths select ${commands.map(command => command.name).join('; ') || 'nothing'}`);

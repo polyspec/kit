@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K1112: owner-check requires an owner for every tracked path, and for every changed path that exists, only when the caller passes `--every-path`; without it a path that no rule owns selects nothing. kit's own owner-check and owner-validate recipes pass it.
 - K1110: the checklists read the markers of their six states from `states` and the header of their tables from `columns` of config/checklist.json; the strict reading judges the header only when `columns` is declared, and without `states` the plan utilities read and write `[ ]`, `[~]`, `[v]`, `[o]`, `[!]` and `[-]`. kit's own config/checklist.json declares both. The unused `BLOCKING` sentence is removed.
 - K1109: check-documents judges private paths only under the prefixes that the caller declares with `--private-path`, and the kit item ids of checklist rows (checklist-kit) only with `--kit-rows`; kit's own recipe declares `/Users/`, `/home/` and `--kit-rows`. A repository that calls check-documents bare keeps neither rule. A Windows home path (`X:\Users\<name>\`) is no longer matched, since development targets this Mac only.
 - K1108: make link-check no longer judges the paths that a tracked manifest names (npm file:/link:, Composer path repositories, uv sources, Cargo paths, go.mod replace, go.work); what a manifest names is the repository's own. Nor does it judge whether Git ignores `.links`, which is the repository's own .gitignore. The links against `.links` are still checked.

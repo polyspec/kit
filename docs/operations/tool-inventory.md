@@ -476,6 +476,8 @@ Merged behaviors:
   `check`, `rerun-failed` and the clean release check become entries of `fullSuite`.
 - A rule that selects every target of `CHECK_TARGETS` fails (template). The `inputs` check is the crudui form; its
   declaration is a list of `{ check, paths }`.
+- That every tracked path, and every changed path that exists, has an owner is a rule the repository declares with
+  `--every-path` in its recipe; without it a path that no rule owns selects nothing. kit's own recipe declares it (K1112).
 - Targets of a file that the Makefile includes (`include scripts/kit/kit.mk`) are known targets (new).
 - A node test file runs through `scripts/kit/run-tests.mts`, or through the make target `testTarget` with `TESTS=<files>`
   (hyper).

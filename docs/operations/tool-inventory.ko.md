@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: a98fc4885aef621c90413694de28277c87c6afe0f66f27da51b69a7a324cd442 -->
+<!-- source-sha256: 699ac45a527e11dc56fe51288628b5c6452f200b111731eb33d934d612de40eb -->
 
 # 도구 목록
 
@@ -434,6 +434,8 @@ reason이 호출자가 `--reason-kind <kind>`로 선언한 kind 중 어느 것�
   `rerun-failed`, clean release check는 `fullSuite`의 항목이 됩니다.
 - `CHECK_TARGETS`의 모든 target을 고르는 rule은 실패합니다(template). `inputs` 검사는 crudui 형식이고, 선언은
   `{ check, paths }`의 목록입니다.
+- 모든 추적 경로와 존재하는 모든 변경 경로가 owner를 가져야 한다는 것은 저장소가 recipe에서 `--every-path`로 선언하는 규칙입니다.
+  선언이 없으면 어떤 rule도 갖지 않은 경로는 아무것도 고르지 않습니다. kit 자신의 recipe는 이를 선언합니다(K1112).
 - Makefile이 include하는 파일(`include scripts/kit/kit.mk`)의 target도 알려진 target입니다(새 동작).
 - node test 파일은 `scripts/kit/run-tests.mts`로 실행하거나, make target `testTarget`에 `TESTS=<files>`를 넘겨 실행합니다(hyper).
 - 고른 check는 모두 끝까지 실행하고 실패를 함께 나열합니다(모든 구현). check에는 시간 제한이 없습니다.
