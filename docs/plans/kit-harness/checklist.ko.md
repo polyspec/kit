@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 0d6b786afdee53418fb361c485323df2a9f2806a4aa9fade30ad72bebd7b8eed -->
+<!-- source-sha256: bf63b2219f62d06cafd2e609c789fdc96f9c76d02c3acb3e6fb49f70dcc5c15d -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -258,3 +258,4 @@
 | K1127 | php-ext.test.mts의 K1103 case는 확장 없음 확인에 파일이 없는 folder를 이름 짓는다: CI run 42447688905, kit tests (5): tests/kit/php-ext.test.mts:566에서 check --extension ext --build-dir out이 ext/src/config.m4 declares no PHP_NEW_EXTENSION으로 1을 반환했다. ext에 ext/src/vendor.c가 있기 때문이다 | `tests/kit/php-ext.test.mts` | the ci workflow passes | [o] |
 | K1129 | parity 삭제: kit은 구현들이 서로 어떻게 관계되는지 검사하지 않으며, 각 저장소가 자기 테스트를 실행한다 | `scripts/kit/parity*.mts`, `scripts/kit/schema/parity.schema.json`, the parity symbol extractors, the parity targets of `scripts/kit/kit.mk`, the parity reading of `scripts/kit/ci-setup.mts` | typecheck, lint-ts, kit-build and docs-check pass; no parity reference remains | [o] |
 | K1130 | K1129 행을 담아 kit 0.0.100을 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` passes | [o] |
+| K1131 | 저장소의 recipe 문장을 읽는 owner-check의 거부 삭제: recipe가 ci-targets를 시작하는 target과 CHECK_TARGETS의 모든 target을 고르는 규칙은 더 이상 거부하지 않으며, 저장소가 선언한 fullSuite는 여전히 거부한다 | `scripts/kit/owner-check.mts` | `tests/kit/owner-check.test.mts` | [ ] |
