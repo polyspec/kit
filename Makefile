@@ -6,10 +6,10 @@ include scripts/kit/kit.mk
 
 .DEFAULT_GOAL := kit-test
 
-.PHONY: kit-test kit-tool-record source-test install-packages kit-install-symbols-php kit-install-symbols install kit-build
+.PHONY: kit-test kit-owner-test kit-tool-record source-test install-packages kit-install-symbols-php kit-install-symbols install kit-build
 
 # The suite of kit, which CI runs (.github/workflows/ci.yml); locally only the tests that own a change run
-# (node scripts/kit/run-tests.mts node -- <test file>).
+# (node scripts/kit/run-tests.mts node --timeout 30 -- --test-concurrency=1 <test file>).
 CHECK_TARGETS := typecheck kit-test source-test rebuild-check duplication-check
 
 # The explicit test shards balance the declared unit cases (K718); CI runs every shard independently.
@@ -89,25 +89,30 @@ kit-install-symbols-php: ## Install the locked packages of the PHP symbol extrac
 # recorded under var/ (ignored) before the run and compared after it; the changed status lines are printed.
 kit-test: ## Run the tests of the tools (tests/kit) through the test runner, with per-case progress and timeouts, and fail when the run changes the checkout; offline
 	@mkdir -p var && git status --porcelain -uall > var/kit-test-status && git diff --binary HEAD | git hash-object --stdin > var/kit-test-diff
-	$(NODE) scripts/kit/run-tests.mts node -- tests/kit
+	$(NODE) scripts/kit/run-tests.mts node --timeout 30 -- --test-concurrency=1 tests/kit
 	@git status --porcelain -uall | diff var/kit-test-status - >&2 && git diff --binary HEAD | git hash-object --stdin | cmp -s var/kit-test-diff - || { echo "kit-test: the run changed the checkout: the status lines above, or a change of these tracked files: $$(git diff --name-only HEAD | tr '\n' ' ')" >&2; exit 1; }
+
+# The test command of the owner checks of kit (config/owner-checks.json testTarget): the test files of TESTS, with the timeout and
+# the one file at a time of kit-test (K1094).
+kit-owner-test: ## Run the test files of TESTS through the test runner, as kit-test runs them; the owner checks of kit call it; offline
+	$(NODE) scripts/kit/run-tests.mts node --timeout 30 -- --test-concurrency=1 $(TESTS)
 
 .PHONY: kit-test-shard source-test-group
 kit-test-shard: ## Run one declared kit unit-test shard; CI supplies SHARD=1..6; offline
 	@case " $(KIT_TEST_SHARDS) " in *" $(SHARD) "*) ;; *) echo "kit-test-shard: unknown or empty SHARD='$(SHARD)'; choose one of $(KIT_TEST_SHARDS)" >&2; exit 2;; esac
 	@test -n "$(KIT_TEST_FILES_$(SHARD))" || { echo "kit-test-shard: SHARD=$(SHARD) has no declared test files" >&2; exit 2; }
 	@mkdir -p var && git status --porcelain -uall > var/kit-test-status-$(SHARD) && git diff --binary HEAD | git hash-object --stdin > var/kit-test-diff-$(SHARD)
-	$(NODE) scripts/kit/run-tests.mts node -- $(KIT_TEST_FILES_$(SHARD))
+	$(NODE) scripts/kit/run-tests.mts node --timeout 30 -- --test-concurrency=1 $(KIT_TEST_FILES_$(SHARD))
 	@git status --porcelain -uall | diff var/kit-test-status-$(SHARD) - >&2 && git diff --binary HEAD | git hash-object --stdin | cmp -s var/kit-test-diff-$(SHARD) - || { echo "kit-test-shard: the run changed the checkout: the status lines above, or a change of these tracked files: $$(git diff --name-only HEAD | tr '\n' ' ')" >&2; exit 1; }
 
 # The kit's own tests (tests/source) check the kit's real Python and wheel path. The package does not ship them, so a consumer never runs them.
 source-test: ## Run the kit's own tests (tests/source) through the test runner, with the tools of mise.toml; offline after make install-tools, except uv build, which installs the build-system.requires of each wheel it builds
-	$(NODE) scripts/kit/run-tests.mts node -- tests/source
+	$(NODE) scripts/kit/run-tests.mts node --timeout 30 -- --test-concurrency=1 tests/source
 
 source-test-group: ## Run one declared source-test group; CI supplies GROUP=ts|php|rust|go|python|common-1|common-2|common-3; offline after make install-tools
 	@case " $(SOURCE_TEST_GROUPS) " in *" $(GROUP) "*) ;; *) echo "source-test-group: unknown or empty GROUP='$(GROUP)'; choose one of $(SOURCE_TEST_GROUPS)" >&2; exit 2;; esac
 	@test -n "$(SOURCE_TEST_FILES_$(GROUP))" || { echo "source-test-group: GROUP=$(GROUP) has no declared test files" >&2; exit 2; }
-	$(NODE) scripts/kit/run-tests.mts node -- $(SOURCE_TEST_FILES_$(GROUP))
+	$(NODE) scripts/kit/run-tests.mts node --timeout 30 -- --test-concurrency=1 $(SOURCE_TEST_FILES_$(GROUP))
 
 kit-tool-record: ## Write tests/kit/tool-records.json, what the pinned go and Composer print for the requests of the stubs; offline after make install-tools
 	$(NODE) tests/kit/record-tools.mts

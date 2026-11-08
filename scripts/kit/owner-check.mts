@@ -388,7 +388,9 @@ export function commandsOf(selection: { checks: Check[]; tests: string[] }, decl
   if (!selection.tests.length) return selection.checks;
   const tests = declaration.testTarget
     ? { name: `make ${declaration.testTarget} TESTS=${selection.tests.join(' ')}`, command: 'make', args: ['--no-print-directory', declaration.testTarget, `TESTS=${selection.tests.join(' ')}`] }
-    : { name: `node tests ${selection.tests.join(' ')}`, command: process.execPath, args: [siblingTool(import.meta.url, 'run-tests'), 'node', '--', ...selection.tests] };
+    // The run gives the node reporter one file at a time, so it attributes each case to its file (K218); run-tests sets no
+    // concurrency of its own (K1094).
+    : { name: `node tests ${selection.tests.join(' ')}`, command: process.execPath, args: [siblingTool(import.meta.url, 'run-tests'), 'node', '--', '--test-concurrency=1', ...selection.tests] };
   return [...selection.checks, tests];
 }
 

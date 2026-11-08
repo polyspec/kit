@@ -275,7 +275,7 @@ test("kit's owner rules: a change of what a rule test reads runs that test (K904
 test('the tests run through run-tests.mts or through the declared test target', () => {
   const selection = { checks: [], tests: ['tests/a.test.mjs', 'tests/b.test.mjs'] };
   const direct = commandsOf(selection, {});
-  assert.deepEqual(direct.map(command => command.args), [[path.join(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/run-tests.mts'), 'node', '--', 'tests/a.test.mjs', 'tests/b.test.mjs']]);
+  assert.deepEqual(direct.map(command => command.args), [[path.join(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/run-tests.mts'), 'node', '--', '--test-concurrency=1', 'tests/a.test.mjs', 'tests/b.test.mjs']]);
   const target = commandsOf(selection, { testTarget: 'test-scripts' });
   // A selection with tests has the command of the tests.
   assert.deepEqual(known(target[0], 'target[0]').args, ['--no-print-directory', 'test-scripts', 'TESTS=tests/a.test.mjs tests/b.test.mjs']);

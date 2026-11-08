@@ -150,9 +150,10 @@ export function parseArguments(argv: string[], root = repositoryRoot()) {
   return options;
 }
 
-function splitCargo(args: string[]) {
+/** The arguments of cargo itself: those before a -- that starts the arguments of the test harness. */
+function cargoArguments(args: string[]) {
   const index = args.indexOf('--');
-  return index === -1 ? { cargo: args, harness: [] } : { cargo: args.slice(0, index), harness: args.slice(index + 1) };
+  return index === -1 ? args : args.slice(0, index);
 }
 
 
@@ -194,33 +195,38 @@ export function probeExtensions(extensions: string[], php: string): string | und
 
 export function toolCommand({ tool, timeoutSeconds, timeoutExplicit = false, cwd, args, phpExtensions = [], venv, module }: ToolOptions, root = repositoryRoot()): { command: string; args: string[]; build?: string[] } {
   const milliseconds = String(timeoutSeconds * 1000);
+  // The timeout of a test reaches the tool's own option only when the caller passes --timeout; otherwise the tool keeps its own
+  // default and the gap watch of this runner bounds every test (K1094). Concurrency, caching and whole-run limits of a tool are
+  // the caller's arguments after --, such as --test-concurrency=1, -count=1 -timeout=0 or -- --test-threads=1.
+  const timeout = (...flags: string[]) => (timeoutExplicit ? flags.map(flag => `${flag}=${milliseconds}`) : []);
   switch (tool) {
     case 'node':
       return {
         command: process.execPath,
         // The preload fails a file whose process is still alive the test timeout after its last test, naming what holds it.
-        // One file runs at a time, so the reporter attributes each case to the file whose group event opened it (K218).
-        args: ['--test', `--import=${pathToFileURL(siblingTool(import.meta.url, 'test-exit-deadline')).href}?ms=${milliseconds}`, `--test-timeout=${milliseconds}`, '--test-concurrency=1', `--test-reporter=${pathToFileURL(siblingTool(import.meta.url, 'node-reporter')).href}`, '--test-reporter-destination=stdout', ...args],
+        // The reporter attributes each case to the file whose group event opened it, so a run of several files that need that
+        // passes --test-concurrency=1 (K218).
+        args: ['--test', `--import=${pathToFileURL(siblingTool(import.meta.url, 'test-exit-deadline')).href}?ms=${milliseconds}`, ...timeout('--test-timeout'), `--test-reporter=${pathToFileURL(siblingTool(import.meta.url, 'node-reporter')).href}`, '--test-reporter-destination=stdout', ...args],
       };
     case 'vitest':
       // The runner starts the entry of the vitest package with its own node, so vitest runs on the declared Node.js and not on
       // the node that the shebang of node_modules/.bin/vitest finds on PATH.
-      return { command: process.execPath, args: [path.join(root, 'node_modules/vitest/vitest.mjs'), 'run', `--testTimeout=${milliseconds}`, `--hookTimeout=${milliseconds}`, `--reporter=${siblingTool(import.meta.url, 'vitest-reporter')}`, ...args] };
+      return { command: process.execPath, args: [path.join(root, 'node_modules/vitest/vitest.mjs'), 'run', ...timeout('--testTimeout', '--hookTimeout'), `--reporter=${siblingTool(import.meta.url, 'vitest-reporter')}`, ...args] };
     case 'playwright': {
       const cli = playwrightCli(root, cwd);
       if (cli === undefined) throw new Error(`the project-local Playwright CLI does not exist; ${present(INSTALL.playwright, 'INSTALL.playwright')({ cwd, root })}`);
-      return { command: process.execPath, args: [cli, 'test', `--timeout=${milliseconds}`, ...args, `--reporter=${siblingTool(import.meta.url, 'playwright-reporter')}`] };
+      return { command: process.execPath, args: [cli, 'test', ...timeout('--timeout'), ...args, `--reporter=${siblingTool(import.meta.url, 'playwright-reporter')}`] };
     }
     case 'go':
-      // go test has no limit per test; this runner applies it. -timeout=0 removes the limit of go test on a whole test
-      // binary, a package.
+      // go test has no limit per test; this runner applies it. go test limits a whole test binary to 10 minutes unless the
+      // caller passes -timeout=0.
       // go is the one of mise.toml, run by the shim of the checkout, else the go of PATH (K947).
       // The build runs the test binaries with `true`, which ends at once, so it compiles each binary and runs no test (K549-1).
-      return { command: miseCommand(root, 'go'), args: ['test', '-json', '-count=1', '-timeout=0', ...args], build: ['test', '-exec=true', ...args] };
+      return { command: miseCommand(root, 'go'), args: ['test', '-json', ...args], build: ['test', '-exec=true', ...args] };
     case 'cargo':
-      // One test at a time, so each test prints its start before its result. cargo is not pinned by kit: rustup finds it on PATH
-      // (rust-toolchain.toml), so it is the one command that is not resolved by the checkout.
-      return { command: 'cargo', args: ['test', ...splitCargo(args).cargo, '--', '--test-threads=1', ...splitCargo(args).harness], build: ['test', '--no-run', ...splitCargo(args).cargo] };
+      // cargo is not pinned by kit: rustup finds it on PATH (rust-toolchain.toml), so it is the one command that is not resolved
+      // by the checkout. A caller that wants each test's start before its result passes -- --test-threads=1.
+      return { command: 'cargo', args: ['test', ...args], build: ['test', '--no-run', ...cargoArguments(args)] };
     case 'phpunit': {
       // PHPUnit of the vendor directory that Composer gives the package of `cwd`: its own, or that of the nearest Composer
       // project above it, such as the root of a monorepo (composer-vendor.mts, K186); with none, the path of its own, whose
@@ -327,7 +333,7 @@ const INTERRUPTS: readonly NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGHUP'];
 /** How often the runner checks that its parent is still the process that started it. */
 const PARENT_POLL_MS = 200;
 
-export async function run(argv: string[], { root = repositoryRoot(), write = (text: string): unknown => process.stdout.write(text), graceMs = STOP_GRACE_MS, startUpMs = START_UP_MS }: { root?: string; write?: (text: string) => unknown; graceMs?: number; startUpMs?: number } = {}): Promise<number> {
+export async function run(argv: string[], { root = repositoryRoot(), write = (text: string): unknown => process.stdout.write(text), graceMs = STOP_GRACE_MS, startUpMs = START_UP_MS, callerEnv = process.env }: { root?: string; write?: (text: string) => unknown; graceMs?: number; startUpMs?: number; callerEnv?: NodeJS.ProcessEnv } = {}): Promise<number> {
   const options = parseArguments(argv, root);
   const began = Date.now();
   const { command, args, build } = toolCommand(options, root);
@@ -351,20 +357,17 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
   // The progress reporters write their counts to this file; the runner requires that a test ran.
   const results = mkdtempSync(path.join(tmpdir(), 'kit-test-result-'));
   const resultFile = path.join(results, 'result.json');
-  // A runner started from inside node --test must not join that run as its child.
-  // unittest colors its verbose lines when FORCE_COLOR is set (Python 3.14); its parser reads plain lines, so the run turns
-  // color off.
+  // The run passes the environment of its caller as it is (K1094): a runner started from inside node --test is started without
+  // NODE_TEST_CONTEXT by that caller, and a caller whose environment sets FORCE_COLOR passes PYTHON_COLORS=0 for the python
+  // tool, whose parser reads plain lines.
   // The reporters run in the --cwd directory, so they take the repository root from TEST_ROOT.
-  // The runner and its tool start with the mise of the checkout, so a run outside make, in a shell without its MISE_* variables,
-  // trusts the mise.toml of the checkout and finds its tools; the variables that the run sets itself come after (K411).
-  const env: NodeJS.ProcessEnv = { ...process.env, KIT_TEST_RESULT: resultFile, [TEST_ROOT]: root, ...(python ? { PYTHONUNBUFFERED: '1', NO_COLOR: '1', PYTHON_COLORS: '0' } : {}), ...(reporter ? { [TEST_EVENTS]: String(TEST_EVENTS_FD) } : {}) };
+  const env: NodeJS.ProcessEnv = { ...callerEnv, KIT_TEST_RESULT: resultFile, [TEST_ROOT]: root, ...(reporter ? { [TEST_EVENTS]: String(TEST_EVENTS_FD) } : {}) };
   delete env.KIT_PHPUNIT_AUTOLOAD;
   delete env.KIT_TEST_EVENTS;
   Object.assign(env, phpunitAutoload(options, root));
   // The ini file of the extensions lives in the folder of the results, which the run removes at its end (K900).
   Object.assign(env, phpExtensionScan(options.phpExtensions, results, env));
   if (reporter) env[TEST_EVENTS] = String(TEST_EVENTS_FD);
-  delete env.NODE_TEST_CONTEXT;
   // The signal that interrupted the run, which the runner ends on once the tool's group is stopped.
   let interrupted: NodeJS.Signals | undefined;
   // How a process of the run, the build of the tests or the tool (`what`), ended: its status and signal, or why it did not run

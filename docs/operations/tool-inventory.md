@@ -502,10 +502,14 @@ Merged behaviors:
 
 - Tools: `node`, `vitest`, `go`, `cargo`, `phpunit` (template and crudui) and `python` (K17); hyper has the first, the last and `vitest`. Each test
   prints its start, a line while it runs, and its result with the elapsed time; each test has its own timeout
-  (`--timeout`, 30 s by default), enforced by `node --test` and vitest and by the runner for the other tools. Every interval without a
+  (`--timeout`, 30 s by default), enforced by the runner; a `--timeout` that the caller passes also reaches the per-test option of
+  `node --test`, vitest and Playwright. Every interval without a
   test event has the same timeout (K371-1): before the first test, between tests and after the last one, the runner stops the tool
-  and prints `no test started within N s after <last event>` with the elapsed time of the run. No whole run, package or file has a
-  time limit (all implementations; crudui's `go test -timeout 10m` is dropped for `-timeout=0`).
+  and prints `no test started within N s after <last event>` with the elapsed time of the run. The runner adds no flag and no
+  environment of its own (K1094): concurrency, caching and whole-run limits are the caller's arguments after `--`, such as
+  `--test-concurrency=1`, `-count=1 -timeout=0` (go test otherwise limits a test binary to 10 minutes) or `-- --test-threads=1`,
+  and the environment is the caller's, so a caller inside `node --test` starts it without `NODE_TEST_CONTEXT` and a caller with
+  `FORCE_COLOR` passes `PYTHON_COLORS=0` to the python tool.
 - A run in which no test passed, failed or ran out of time fails. template counted a skipped test as a test; hyper and crudui did
   not, and kit takes theirs, because a run that only skipped verified nothing. The reporters write their counts to the file in
   `KIT_TEST_RESULT` (hyper's `HYPER_TEST_RESULT`) and the runner fails when no counts arrive.

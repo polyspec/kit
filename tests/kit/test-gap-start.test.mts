@@ -11,6 +11,9 @@ import { run } from '../../scripts/kit/run-tests.mts';
 import { tool } from './kit-tools.mts';
 import { tree } from './tree.mts';
 
+// The runs start without NODE_TEST_CONTEXT, so the nested node --test does not join the run of this file (K1094).
+const { NODE_TEST_CONTEXT: _joined, ...OUTSIDE } = process.env;
+
 // The line that a test process writes when it is up: PROCESS_UP of test-gap.mts.
 const PROCESS_UP = 'kit-test-process-up';
 
@@ -65,7 +68,7 @@ test('the process of a node file that starts slower than the timeout, after a fi
     'tests/slow.test.mjs': "import test from 'node:test';\ntest('slow', () => {});\n",
     'slow-start.mjs': `if (process.env.NODE_TEST_CONTEXT && process.argv[1]?.endsWith('slow.test.mjs')) ${pause(3000)}\n`,
   });
-  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '2', '--', 'tests/fast.test.mjs', 'tests/slow.test.mjs'], { cwd: root, encoding: 'utf8', env: { ...process.env, NODE_OPTIONS: `--import=${path.join(root, 'slow-start.mjs')}` } });
+  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '2', '--', '--test-concurrency=1', 'tests/fast.test.mjs', 'tests/slow.test.mjs'], { cwd: root, encoding: 'utf8', env: { ...OUTSIDE, NODE_OPTIONS: `--import=${path.join(root, 'slow-start.mjs')}` } });
   const output = result.stdout + result.stderr;
   assert.equal(result.status, 0, output);
   assert.match(output, /2 passed, 0 failed, 0 timed out/);

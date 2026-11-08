@@ -38,7 +38,9 @@ const RESULTS: JSONSchemaType<Results> = {
 const SPEC = "import test from 'node:test';\n";
 
 const checkout = (t: TestContext, files: Record<string, string>) => tree(t, files);
-const runner = (root: string, args: string[], env: NodeJS.ProcessEnv = {}) => spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, ...env } });
+// The runs start without NODE_TEST_CONTEXT, so a nested node --test does not join the run of this file (K1094).
+const { NODE_TEST_CONTEXT: _joined, ...OUTSIDE } = process.env;
+const runner = (root: string, args: string[], env: NodeJS.ProcessEnv = {}) => spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), ...args], { cwd: root, encoding: 'utf8', env: { ...OUTSIDE, ...env } });
 // A run of a whole directory runs in-process (K954).
 async function runInProcess(root: string, args: string[]): Promise<{ status: number; stdout: string; stderr: string }> {
   let stdout = '';
@@ -47,7 +49,7 @@ async function runInProcess(root: string, args: string[]): Promise<{ status: num
   const real = realpathSync(root);
   process.chdir(real);
   try {
-    const status = await run(args, { root: real, write: (text: string) => { stdout += text; } });
+    const status = await run(args, { root: real, write: (text: string) => { stdout += text; }, callerEnv: OUTSIDE });
     return { status, stdout, stderr: '' };
   } finally {
     process.chdir(previous);
@@ -177,7 +179,7 @@ test('a node test that awaits a promise that never settles is ended past the dea
 test('a node file whose top-level await never settles, with a live handle, is ended past the deadline (K437-1)', { timeout: 60_000 }, (t) => {
   const root = checkout(t, { 'tests/pending.test.mjs': `${SPEC}setInterval(() => {}, 1000);\nawait new Promise(() => {});\ntest('late', () => {});\n` });
   const began = Date.now();
-  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '2', '--', 'tests/pending.test.mjs'], { cwd: root, encoding: 'utf8', env: { ...process.env }, timeout: 30_000 });
+  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '2', '--', 'tests/pending.test.mjs'], { cwd: root, encoding: 'utf8', env: { ...OUTSIDE }, timeout: 30_000 });
   const elapsed = Date.now() - began;
   assert.equal(result.status, 1, output(result));
   assert.match(output(result), /(⏱ node \. tests\/pending\.test\.mjs: no test started within 2 s after the start of tests\/pending\.test\.mjs|tests\/pending\.test\.mjs: no test started or ended within 2000 ms of the process start)/);
@@ -234,9 +236,9 @@ test('a namespaced PHPUnit data-provider deadline matches its TeamCity case iden
   assert.match(lines.join(''), /NamespacedSmallTest::testCases with data set "alpha" \(timeout 6\.0s\)/);
 });
 
-test('each tool starts with its progress and timeout arguments and no limit on a whole run', (t) => {
+test('each tool starts with its progress arguments and the timeout that the caller passes', (t) => {
   const shims = tree(t, { 'var/tools/mise/shims/go': '', 'var/tools/mise/shims/python3': '' });
-  const node = toolCommand({ tool: 'node', timeoutSeconds: 7, cwd: '/r', args: ['a'] }, '/r');
+  const node = toolCommand({ tool: 'node', timeoutSeconds: 7, timeoutExplicit: true, cwd: '/r', args: ['a'] }, '/r');
   assert.ok(node.args.includes('--test-timeout=7000') && !node.args.includes('--test-force-exit') && node.args.at(-1) === 'a');
   const reporter = node.args.find(arg => arg.startsWith('--test-reporter='));
   assert.ok(reporter);
@@ -244,17 +246,16 @@ test('each tool starts with its progress and timeout arguments and no limit on a
   assert.equal(new URL(reporterUrl).protocol, 'file:');
   assert.equal(fileURLToPath(reporterUrl), path.join(path.dirname(tool(import.meta.resolve('../../scripts/kit/run-tests.mts'))), 'node-reporter.mts'));
   assert.ok(node.args.some(arg => arg.startsWith('--import=file://') && arg.endsWith('scripts/kit/test-exit-deadline.mts?ms=7000')));
-  const vitest = toolCommand({ tool: 'vitest', timeoutSeconds: 7, cwd: '/r', args: [] }, '/r');
+  const vitest = toolCommand({ tool: 'vitest', timeoutSeconds: 7, timeoutExplicit: true, cwd: '/r', args: [] }, '/r');
   assert.deepEqual(vitest.args.slice(0, 4), ['/r/node_modules/vitest/vitest.mjs', 'run', '--testTimeout=7000', '--hookTimeout=7000']);
   const playwrightRoot = tree(t, { 'node_modules/@playwright/test/cli.js': '' });
-  const playwright = toolCommand({ tool: 'playwright', timeoutSeconds: 7, cwd: playwrightRoot, args: ['--config', 'tests/e2e/playwright.config.ts', 'tests/e2e/login.spec.ts'] }, playwrightRoot);
+  const playwright = toolCommand({ tool: 'playwright', timeoutSeconds: 7, timeoutExplicit: true, cwd: playwrightRoot, args: ['--config', 'tests/e2e/playwright.config.ts', 'tests/e2e/login.spec.ts'] }, playwrightRoot);
   assert.equal(playwright.command, process.execPath);
   assert.deepEqual(playwright.args, [path.join(playwrightRoot, 'node_modules/@playwright/test/cli.js'), 'test', '--timeout=7000', '--config', 'tests/e2e/playwright.config.ts', 'tests/e2e/login.spec.ts', `--reporter=${path.join(path.dirname(tool(import.meta.resolve('../../scripts/kit/run-tests.mts'))), 'playwright-reporter.mts')}`]);
   const packageRoot = tree(t, { 'node_modules/playwright/cli.js': '', 'app/node_modules/@playwright/test/cli.js': '' });
   assert.equal(toolCommand({ tool: 'playwright', timeoutSeconds: 7, cwd: path.join(packageRoot, 'app'), args: [] }, packageRoot).args[0], path.join(packageRoot, 'app/node_modules/@playwright/test/cli.js'));
   assert.throws(() => toolCommand({ tool: 'playwright', timeoutSeconds: 7, cwd: '/r', args: [] }, '/r'), /project-local Playwright CLI does not exist; run make install/);
-  assert.deepEqual(toolCommand({ tool: 'go', timeoutSeconds: 7, cwd: '/r', args: ['./...'] }, shims), { command: path.join(shims, 'var/tools/mise/shims/go'), args: ['test', '-json', '-count=1', '-timeout=0', './...'], build: ['test', '-exec=true', './...'] });
-  assert.deepEqual(toolCommand({ tool: 'cargo', timeoutSeconds: 7, cwd: '/r', args: ['-p', 'x', '--', '--nocapture'] }, '/r').args, ['test', '-p', 'x', '--', '--test-threads=1', '--nocapture']);
+  assert.deepEqual(toolCommand({ tool: 'go', timeoutSeconds: 7, cwd: '/r', args: ['./...'] }, shims), { command: path.join(shims, 'var/tools/mise/shims/go'), args: ['test', '-json', './...'], build: ['test', '-exec=true', './...'] });
   assert.deepEqual(toolCommand({ tool: 'cargo', timeoutSeconds: 7, cwd: '/r', args: ['-p', 'x', '--', '--nocapture'] }, '/r').build, ['test', '--no-run', '-p', 'x']);
   assert.deepEqual(toolCommand({ tool: 'python', timeoutSeconds: 7, cwd: '/r', args: ['discover', '-s', 'tests'] }, shims), { command: path.join(shims, 'var/tools/mise/shims/python3'), args: ['-c', PYTHON_START, tool(import.meta.resolve('../../scripts/kit/runners/python.py')), '--timeout', '7', 'discover', '-s', 'tests', '-v'] });
 });
@@ -306,7 +307,7 @@ test('the PHPUnit listing of a run passes the autoloader of the run to the deadl
   });
   chmodSync(path.join(root, 'var/tools/bin/php'), 0o755);
   composerStub(root);
-  const env = { ...process.env };
+  const env = { ...OUTSIDE };
   delete env.KIT_PHPUNIT_AUTOLOAD;
   assert.deepEqual(listedTests(['phpunit', '--cwd', path.join(root, 'p'), '--', 'tests/SmallTest.php'], root, env), ['Small::case']);
 });
@@ -324,7 +325,7 @@ test('the deadline prepend of a package whose vendor has no PHPUnit loads the au
   });
   chmodSync(path.join(root, 'var/tools/bin/php'), 0o755);
   composerStub(root);
-  const env = { ...process.env };
+  const env = { ...OUTSIDE };
   delete env.KIT_PHPUNIT_AUTOLOAD;
   assert.deepEqual(listedTests(['phpunit', '--cwd', path.join(root, 'p'), '--', 'tests/SmallTest.php'], root, env), ['Small::case']);
 });
@@ -841,7 +842,7 @@ test('declared setup operations suspend only the gap watch and restore it when t
 test('a node file that never reports a test and never yields is stopped by the gap watch (K371-1-1)', { timeout: 60_000 }, (t) => {
   const root = checkout(t, { 'tests/busy.test.mjs': 'const end = Date.now() + 20000;\nwhile (Date.now() < end) {}\n' });
   const began = Date.now();
-  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '2', '--', 'tests/busy.test.mjs'], { cwd: root, encoding: 'utf8', env: { ...process.env }, timeout: 40_000 });
+  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '2', '--', 'tests/busy.test.mjs'], { cwd: root, encoding: 'utf8', env: { ...OUTSIDE }, timeout: 40_000 });
   const elapsed = Date.now() - began;
   assert.equal(result.status, 1, output(result));
   assert.match(output(result), /⏱ node \. tests\/busy\.test\.mjs: no test started within 2 s after the start of tests\/busy\.test\.mjs; the run elapsed [\d.]+s; stopping `[^`]*node --test/);
@@ -855,7 +856,7 @@ test('a node file that holds a handle and never reports a test is ended at its t
   const stop = /no test started (?:within 2 s after the start of tests\/(?:hold|idle)\.test\.mjs|or ended within 2000 ms of the process start)/;
   for (const args of [['--', 'tests/hold.test.mjs'], ['--', '--test-name-pattern', 'nomatch', 'tests/idle.test.mjs']]) {
     const began = Date.now();
-    const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '2', ...args], { cwd: root, encoding: 'utf8', env: { ...process.env }, timeout: 40_000 });
+    const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '2', ...args], { cwd: root, encoding: 'utf8', env: { ...OUTSIDE }, timeout: 40_000 });
     const elapsed = Date.now() - began;
     assert.equal(result.status, 1, output(result));
     assert.match(output(result), stop, output(result));
@@ -910,7 +911,7 @@ test('a timeout stops the whole process group of the tool, with SIGKILL after th
 
 test('an interrupted runner stops the whole process group of the tool and ends on its signal (K141)', { timeout: 30_000 }, async (t) => {
   const { root, pids } = hangingPython(t);
-  const child = spawn(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'python', '--timeout', '60', 'tests'], { cwd: root, stdio: ['ignore', 'pipe', 'inherit'], env: { ...process.env } });
+  const child = spawn(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'python', '--timeout', '60', 'tests'], { cwd: root, stdio: ['ignore', 'pipe', 'inherit'], env: { ...OUTSIDE } });
   t.after(() => child.kill('SIGKILL'));
   // The runner prints the start of the test after the stub recorded its pids.
   child.stdout.setEncoding('utf8').on('data', (text: string) => { if (text.includes('▶ test_hang')) child.kill('SIGTERM'); });
@@ -927,7 +928,7 @@ test('run-tests stops its process group when its parent is killed (K437)', { tim
   const { root, pids } = hangingPython(t);
   const parentFile = path.join(root, 'parent.mjs');
   writeFileSync(parentFile, `const { spawn } = process.getBuiltinModule('node:child_process');\nspawn(process.execPath, [${JSON.stringify(tool(import.meta.resolve('../../scripts/kit/run-tests.mts')))}, 'python', '--timeout', '60', 'tests'], { cwd: ${JSON.stringify(root)}, stdio: 'inherit' });\nsetInterval(() => {}, 1000);\n`);
-  const parent = spawn(process.execPath, [parentFile], { cwd: root, env: { ...process.env }, stdio: ['ignore', 'pipe', 'inherit'] });
+  const parent = spawn(process.execPath, [parentFile], { cwd: root, env: { ...OUTSIDE }, stdio: ['ignore', 'pipe', 'inherit'] });
   t.after(() => parent.kill('SIGKILL'));
   await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('the runner never started the test')), 20_000);
@@ -1109,20 +1110,20 @@ test('a node file of 89 tests reports every test when the reporter reads its eve
   const lagged = source.replace('const { type, data } = event;', 'const { type, data } = event;\n    for (const end = Date.now() + 5; Date.now() < end;);');
   assert.notEqual(lagged, source);
   writeFileSync(reporter, lagged);
-  const result = spawnSync(process.execPath, [path.join(tools, 'scripts/kit/run-tests.mts'), 'node', '--', 'tests/many.test.mjs'], { cwd: root, encoding: 'utf8' });
+  const result = spawnSync(process.execPath, [path.join(tools, 'scripts/kit/run-tests.mts'), 'node', '--', 'tests/many.test.mjs'], { cwd: root, encoding: 'utf8', env: OUTSIDE });
   assert.equal(result.status, 0, output(result));
   assert.equal(result.stdout.match(/✔ tests\/many\.test\.mjs › case \d+ /g)?.length, 89, output(result));
   assert.match(result.stdout, /✔ node --test: 89 passed, 0 failed, 0 timed out, 0 skipped/);
 });
 
-test('python tests are read without color when FORCE_COLOR is set, since unittest colors its output then', (t) => {
+test('python tests are read without color when FORCE_COLOR is set and the caller passes PYTHON_COLORS=0', (t) => {
   // A stub of python3 that colors its verbose lines as Python 3.14 does under FORCE_COLOR, unless PYTHON_COLORS is 0.
   const root = checkout(t, { 'tests/t.py': '' });
   pythonStub(root, `
 const colored = process.env.FORCE_COLOR && process.env.PYTHON_COLORS !== '0';
 const ok = colored ? '\\x1b[32mok\\x1b[0m' : 'ok';
 process.stderr.write('test_a (t.T.test_a) ... ' + ok + '\\n\\n' + '-'.repeat(70) + '\\nRan 1 test in 0.001s\\n\\nOK\\n');`);
-  const colored = runner(root, ['python', 'tests'], { FORCE_COLOR: '3' });
+  const colored = runner(root, ['python', 'tests'], { FORCE_COLOR: '3', PYTHON_COLORS: '0' });
   assert.equal(colored.status, 0, output(colored));
   assert.match(colored.stdout, /✔ test_a \(t\.T\.test_a\)/);
   assert.match(colored.stdout, /1 passed, 0 failed/);
@@ -1138,20 +1139,21 @@ test('a run without a selection runs its tool outside CI (K1053)', async (t) => 
   assert.deepEqual(record.cases.map(({ id, status }) => [id, status]), [['tests/one.test.mjs › one', 'pass']]);
 });
 
-// A shell that runs no make has no MISE_* variable: the runner must still start its tools with the mise of the checkout (K411).
-test('run-tests starts its runner with the environment of mise of the checkout, also outside make (K411)', (t) => {
+// K411 started the tools with the mise environment of the checkout; since K1093 and K1094 the run passes the environment of its
+// caller through, also in a shell that runs no make and has no MISE_* variable.
+test('run-tests passes the environment of its caller through, also outside make (K411, K1093, K1094)', (t) => {
   // The fixture writes the state dir, the global config file and the first PATH entry, one per line.
   const fixture = "import { writeFileSync } from 'node:fs';\ntest('env', () => { writeFileSync('seen.txt', [process.env.MISE_STATE_DIR, process.env.MISE_GLOBAL_CONFIG_FILE, process.env.PATH.split(':')[0]].join('\\n')); });\n";
   const root = checkout(t, { 'tests/env.test.mjs': `${SPEC}${fixture}` });
-  const env: NodeJS.ProcessEnv = { ...process.env };
+  const env: NodeJS.ProcessEnv = { ...OUTSIDE };
   for (const name of Object.keys(env)) if (name.startsWith('MISE_')) delete env[name];
   const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--', 'tests/env.test.mjs'], { cwd: root, encoding: 'utf8', env });
   assert.equal(result.status, 0, output(result));
   const real = realpathSync(root);
   const [state, config, first] = readFileSync(path.join(real, 'seen.txt'), 'utf8').split('\n');
-  assert.equal(state, path.join(real, 'var/tools/mise/state'));
-  assert.equal(config, path.join(real, 'mise.toml'));
-  assert.equal(first, path.join(real, 'var/tools/bin'));
+  assert.equal(state, '', 'no MISE_STATE_DIR of its own');
+  assert.equal(config, '', 'no MISE_GLOBAL_CONFIG_FILE of its own');
+  assert.equal(first, (env.PATH ?? '').split(':')[0], 'the PATH of the caller, with nothing put before it');
 });
 
 // The tools of the checkout are the wrapper of var/tools/bin or the shim of mise, else the tool of PATH by its name (K947).
@@ -1227,4 +1229,29 @@ test('Cargo build and test keep the CARGO_TARGET_DIR of the environment and the 
     if (inherited === undefined) delete process.env.CARGO_TARGET_DIR;
     else process.env.CARGO_TARGET_DIR = inherited;
   }
+});
+
+// K1094: the runner adds no runner flag and no environment of its own; the caller passes them.
+test('K1094: run-tests sets the runner flags and the environment of a run only as the caller passes them', (t) => {
+  const shims = tree(t, { 'var/tools/mise/shims/go': '' });
+  const node = toolCommand({ tool: 'node', timeoutSeconds: 7, cwd: '/r', args: ['a'] }, '/r');
+  assert.ok(!node.args.some(arg => arg.startsWith('--test-timeout') || arg.startsWith('--test-concurrency')), node.args.join(' '));
+  assert.ok(toolCommand({ tool: 'node', timeoutSeconds: 7, timeoutExplicit: true, cwd: '/r', args: ['a'] }, '/r').args.includes('--test-timeout=7000'));
+  assert.ok(!toolCommand({ tool: 'vitest', timeoutSeconds: 7, cwd: '/r', args: [] }, '/r').args.some(arg => /Timeout/.test(arg)));
+  assert.deepEqual(toolCommand({ tool: 'vitest', timeoutSeconds: 7, timeoutExplicit: true, cwd: '/r', args: [] }, '/r').args.slice(2, 4), ['--testTimeout=7000', '--hookTimeout=7000']);
+  const playwrightRoot = tree(t, { 'node_modules/@playwright/test/cli.js': '' });
+  assert.ok(!toolCommand({ tool: 'playwright', timeoutSeconds: 7, cwd: playwrightRoot, args: [] }, playwrightRoot).args.includes('--timeout=7000'));
+  assert.deepEqual(toolCommand({ tool: 'go', timeoutSeconds: 7, cwd: '/r', args: ['./...'] }, shims).args, ['test', '-json', './...']);
+  assert.deepEqual(toolCommand({ tool: 'cargo', timeoutSeconds: 7, cwd: '/r', args: ['-p', 'x', '--', '--nocapture'] }, '/r').args, ['test', '-p', 'x', '--', '--nocapture']);
+  // A stub of python3 that records the variables of its environment and reports one passing test.
+  const root = checkout(t, { 'tests/t.py': '' });
+  const seen = path.join(root, 'seen.json');
+  pythonStub(root, `
+const names = ['PYTHONUNBUFFERED', 'NO_COLOR', 'PYTHON_COLORS', 'NODE_TEST_CONTEXT'];
+require('node:fs').writeFileSync(process.env.SEEN, JSON.stringify(Object.fromEntries(names.map(name => [name, process.env[name] ?? null]))));
+process.stderr.write('test_a (t.T.test_a) ... ok\\n\\n' + '-'.repeat(70) + '\\nRan 1 test in 0.001s\\n\\nOK\\n');`);
+  const { PYTHONUNBUFFERED: _unbuffered, NO_COLOR: _noColor, PYTHON_COLORS: _colors, ...inherited } = process.env;
+  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'python', 'tests'], { cwd: root, encoding: 'utf8', env: { ...inherited, SEEN: seen, NODE_TEST_CONTEXT: 'child-v8' } });
+  assert.equal(result.status, 0, output(result));
+  assert.deepEqual(JSON.parse(readFileSync(seen, 'utf8')), { PYTHONUNBUFFERED: null, NO_COLOR: null, PYTHON_COLORS: null, NODE_TEST_CONTEXT: 'child-v8' });
 });

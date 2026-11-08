@@ -29,6 +29,8 @@ test('a sandbox takes the installed tools of var/tools and neither the caches of
 // when the test is cancelled or times out, and when the test process receives SIGTERM or SIGINT (K104). A stub Makefile
 // stands in for an API smoke: its checkout-smoke target starts a sleep in the background and records its pid.
 const CHECKOUT = pathToFileURL(path.join(path.dirname(fileURLToPath(import.meta.url)), 'checkout.mts')).href;
+// The nested run starts without NODE_TEST_CONTEXT, so it does not join the run of this file (K1094).
+const { NODE_TEST_CONTEXT: _joined, ...OUTSIDE } = process.env;
 const RUNNER = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/run-tests.mts');
 
 test('K560 source package sandboxes use npm from the main checkout of a linked worktree', () => {
@@ -137,7 +139,7 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const) {
 
 test('a test that run-tests times out ends the process group of its nested run', CASE, async (t) => {
   const { directory, sleepPid } = stubCheckout(t, true);
-  const child = spawn(process.execPath, [RUNNER, 'node', '--timeout', '1', '--', path.join(directory, 'stub.test.mts')], { cwd: directory, stdio: 'ignore' });
+  const child = spawn(process.execPath, [RUNNER, 'node', '--timeout', '1', '--', path.join(directory, 'stub.test.mts')], { cwd: directory, stdio: 'ignore', env: OUTSIDE });
   t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); });
   await until(() => sleepPid() !== undefined);
   const pid = sleepPid();

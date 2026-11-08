@@ -203,7 +203,7 @@ test('kit-test is a target of the Makefile of kit, not of kit.mk', () => {
   assert.equal(recipes.some(line => line.includes('tests/kit')), false, 'kit.mk runs tests/kit');
   const dry = spawnSync('make', ['-n', '--no-print-directory', 'kit-test'], { cwd: ROOT, encoding: 'utf8' });
   assert.equal(dry.status, 0, dry.stderr);
-  assert.ok(dry.stdout.split('\n').includes(`${path.join(ROOT, 'var/tools/bin/node')} scripts/kit/run-tests.mts node -- tests/kit`), dry.stdout);
+  assert.ok(dry.stdout.split('\n').includes(`${path.join(ROOT, 'var/tools/bin/node')} scripts/kit/run-tests.mts node --timeout 30 -- --test-concurrency=1 tests/kit`), dry.stdout);
 });
 
 /**

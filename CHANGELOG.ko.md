@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3fe1f5b8c88ec4a34ccac527ff44498fb1f0d94fa762410f989fbac3a94d88e0 -->
+<!-- source-sha256: f9b4bb7b6bb9e100b615678f29c63a8bc702a6be9f7f5df14a98f0b4553e460d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -29,6 +29,7 @@
 - K1076: config/toolchain.json은 mise, PHPUnit, PHP의 버전을 어떤 형식의 텍스트로든 선언하며, 설치는 그것을 그대로 넘깁니다. kit은 <major>.<minor>.<patch>나 <major>.<minor> 형태를 정하지 않습니다. 아무것도 읽지 않으면서 그 형태와 모든 필드를 갖춘 Rust nightly 예외를 여전히 요구하던 scripts/kit/schema/toolchain.schema.json은 지웠습니다(K1076).
 - K1072: install-tools는 rust를 설치할 때만 rust의 toolchain 예외를 읽고, kit은 항목의 channel과 scope만 읽습니다. 다른 도구의 항목, kit이 읽지 않는 필드, channel의 형식은 어떤 설치도 거부하지 않으며, list가 아닌 exceptions 값은 예외가 없는 것으로 봅니다(K1072).
 - K1071: install-symbols는 EXTRACTORS 인수가 이름 붙인 extractor를 설치하며, config/toolchain.json이 symbolExtractors에 그것을 되풀이할 필요가 없습니다(K1071).
+- run-tests는 실행의 runner flag와 environment를 호출자가 넘긴 대로만 정한다: node --test, vitest, Playwright의 test별 option은 --timeout이 있을 때만 넘기고, --test-concurrency=1, -count=1 -timeout=0, --test-threads=1, PYTHONUNBUFFERED, NO_COLOR, PYTHON_COLORS, NODE_TEST_CONTEXT 제거를 스스로 하지 않는다(K1094).
 - PHPUnit event의 fully qualified identity와 독립된 flow를 보존하고 parity mapping의 namespace aliasing을 제거한다(K1091).
 
 ## 0.0.98
