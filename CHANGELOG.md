@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+## 0.0.100
+
+- Release: kit 0.0.100 with the row K1129, which deletes parity (K1130).
+
 - K1129: Delete parity: kit does not check how implementations relate; each repository runs its own tests. Gone are parity.mts and every parity-*.mts module, parity.schema.json and the other schemas only parity read, the go and python symbol extractors and extract.php, divergence-check and test-markers-check with markers/python.py, the make targets parity-check, parity-declarations-check, parity-api-check, parity-bindings-<implementation>-check, kit-gates-parity, divergence-check and test-markers-check, the parity, parity-api and parity-bindings jobs of ci-pipeline.yml, parityMode, parityBindings and the parity group of config/ci.json and ci-setup, `--parity` of runtime-targets, the package exports parity, parity-declaration and parity-node-reporter, the Rust nightly exception of kit, and the parity rules of PRINCIPLES and AGENTS (P32, S6). kit-install-symbols installs the PHP programs of kit only (EXTRACTORS=php) (K1129).
 
 ## 0.0.99

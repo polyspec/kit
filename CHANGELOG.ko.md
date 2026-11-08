@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4ca06a2fee2f606d029e65341d61e4a2b38994346386d1f552962680418ca9af -->
+<!-- source-sha256: 75c5be498d40678decc8b4f6e8e831d8bd6dc02be520d282b25be4076a5cf49f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.100
+
+- Release: parity를 지우는 K1129 행을 담은 kit 0.0.100(K1130).
 
 - K1129: parity 삭제: kit은 구현들이 서로 어떻게 관계되는지 검사하지 않으며, 각 저장소가 자기 테스트를 실행한다. parity.mts와 모든 parity-*.mts module, parity.schema.json과 parity만 읽던 다른 schema, go와 python symbol extractor와 extract.php, divergence-check와 test-markers-check와 markers/python.py, make target parity-check, parity-declarations-check, parity-api-check, parity-bindings-<implementation>-check, kit-gates-parity, divergence-check, test-markers-check, ci-pipeline.yml의 parity, parity-api, parity-bindings job, config/ci.json과 ci-setup의 parityMode, parityBindings, parity group, runtime-targets의 `--parity`, package export parity, parity-declaration, parity-node-reporter, kit의 Rust nightly 예외, PRINCIPLES와 AGENTS의 parity 규칙(P32, S6)이 사라집니다. kit-install-symbols는 kit의 PHP program만 설치합니다(EXTRACTORS=php)(K1129).
 
