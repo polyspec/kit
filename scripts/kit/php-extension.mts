@@ -200,13 +200,14 @@ function selfTypes(value: unknown, className: string): unknown {
  */
 export function extensionFiles(root: string, extension: string, skip: readonly string[] = []): string[] {
   const folder = path.join(root, extension);
+  // A file of the extension below a folder that the caller skips is no source, whether it is tracked or only on the disk (K1123).
+  const skipped = (file: string) => file.startsWith(`${extension}/`) && file.slice(extension.length + 1).split('/').slice(0, -1).some(part => skip.includes(part));
   const disk = existsSync(folder)
     ? readdirSync(folder, { recursive: true, withFileTypes: true })
       .filter(entry => entry.isFile())
       .map(entry => path.relative(root, path.join(entry.parentPath, entry.name)).split(path.sep).join('/'))
-      .filter(file => !file.slice(extension.length + 1).split('/').slice(0, -1).some(part => skip.includes(part)))
     : [];
-  return [...new Set([...trackedFiles(root), ...disk])].sort();
+  return [...new Set([...trackedFiles(root), ...disk])].filter(file => !skipped(file)).sort();
 }
 
 /** The text of the file `file` of `root` on the disk, or undefined when there is none. */

@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 544c18a6f68a0ea805aceb880c17369c03a4d23fffc603b6dd6e288786ec60bc -->
+<!-- source-sha256: f8a8edb05ba3386910851d36d08b1a08baa4f57b53fa95eb166cbf0dbe19c7be -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -9,6 +9,7 @@
 ## 0.0.99
 
 - Release: K1068–K1085, K1087–K1118, K1120–K1125 행을 담은 kit 0.0.99로, 각 도구가 자신이 쓰는 것과 저장소나 호출자가 선언한 것만 읽는다. K1086은 담지 않는다(K1119).
+- K1123: php-extension은 호출자가 건너뛰는 folder 아래 파일을 추적되든 disk에만 있든 뺍니다(K1123).
 - K1122: runtime-targets는 끝에 slash가 붙은 root를 그 folder로 읽어, tools/와 tools는 tools에서 한 번 실행됩니다(K1122).
 - K1121: kit.mk는 kit 시험 파일을 이름 짓지 않습니다. kit 자신의 smoke 파일을 실행하는 case-sensitive-runner-smoke는 kit Makefile의 target입니다(K1121).
 - K1120: CI 선언이 추적되는 시험을 따릅니다. kit shard는 mise-tools.test.mts를 담고, go source group은 지워진 tools-go-mod-real.test.mts를 더 이상 이름 짓지 않으며, php group은 phpunit-identity를 위해 PHPUnit을 설치하고, Windows bootstrap 단계는 make database를 읽지 않는 node recipe인 release-coverage를 실행합니다(K1120).
