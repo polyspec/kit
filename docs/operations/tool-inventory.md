@@ -592,7 +592,7 @@ Merged behaviors:
   hyper's `environment`).
 - A log above 1 MiB keeps its head and its last 256 KiB (orm).
 - `ci-passed`: the input is `RESULTS`, the JSON of `needs` (template, hyper, ordered-json; orm named it `CI_NEEDS`); each job is
-  printed with its result; any result other than `success` fails with status 1; an unset or unusable input fails with status 2
+  printed with its result; any result other than `success` fails with status 1, except `skipped`, which fails only where the caller sets `FAIL_SKIPPED=1` (K1111; kit's own ci.yml sets it); an unset or unusable input fails with status 2
   (crudui, orm); `::error` annotations are written on GitHub Actions (crudui, orm).
 
 Dropped behaviors:

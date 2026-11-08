@@ -352,4 +352,4 @@ jobs:
       - name: summarize required CI jobs
         env:
           RESULTS: ${{ toJSON(needs) }}
-        run: make ci-passed NODE=node
+        run: make ci-passed NODE=node FAIL_SKIPPED=1

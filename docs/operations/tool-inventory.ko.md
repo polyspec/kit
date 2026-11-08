@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 6de4e5cdd5fbb5da71ee98ab0bcd58b1d8e54f5638eebbcc0215994d1e6a73b0 -->
+<!-- source-sha256: 3a896e6c182403b7951ac004078461df3da175c3cc17bb9d8bcba49f0677c6a5 -->
 
 # 도구 목록
 
@@ -540,7 +540,7 @@ Export된 `runCommand`는 자신이 시작한 command만 소유한다. 긴 comma
 - toolchain version과 runner image는 `record.json`과 summary에 들어갑니다(template의 `toolchains.json`, hyper의 `environment`).
 - 1 MiB를 넘는 log는 처음 부분과 마지막 256 KiB를 남깁니다(orm).
 - `ci-passed`: 입력은 `needs`의 JSON인 `RESULTS`(template, hyper, ordered-json; orm은 `CI_NEEDS`)이고, job마다 결과를 출력하며,
-  `success`가 아닌 결과는 status 1로 실패하고, 설정되지 않았거나 쓸 수 없는 입력은 status 2로 실패합니다(crudui, orm). GitHub
+  `success`가 아닌 결과는 status 1로 실패하되, `skipped`는 호출자가 `FAIL_SKIPPED=1`을 설정할 때만 실패하고(K1111; kit 자신의 ci.yml이 설정합니다), 설정되지 않았거나 쓸 수 없는 입력은 status 2로 실패합니다(crudui, orm). GitHub
   Actions에서는 `::error` annotation을 씁니다(crudui, orm).
 
 버린 동작:

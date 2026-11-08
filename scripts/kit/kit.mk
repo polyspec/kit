@@ -300,7 +300,7 @@ ci-targets: ## Run TARGETS past failures, wherever it is started, each with -k u
 ci-summary: ## Write summary.md of CI_REPORT again from its record, also for a run that stopped; never judges the targets
 	$(NODE) $(KIT)/ci-targets.$(KIT_EXT) --summary $(CI_REPORT)
 
-ci-passed: ## Fail unless every job of RESULTS, the JSON of toJSON(needs), has the result success
+ci-passed: ## Fail unless every job of RESULTS, the JSON of toJSON(needs), has the result success or skipped; FAIL_SKIPPED=1 fails a skipped job too (K1111)
 	$(NODE) $(KIT)/ci-passed.$(KIT_EXT)
 
 # The steps of a release (scripts/kit/release.mts, config/release.json). release-tag tags the commit of the successful CI run RUN

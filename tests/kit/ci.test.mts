@@ -231,8 +231,23 @@ test('ci-passed passes when every needed job succeeded', () => {
   assert.deepEqual(result.lines, ['[ci-passed] lint: success', '[ci-passed] test: success', '[ci-passed] every needed job passed: lint, test']);
 });
 
-test('ci-passed fails for a job that failed, was skipped or was cancelled, and names it', () => {
-  const result = passed(JSON.stringify({ lint: ok, test: { result: 'failure' }, docs: { result: 'skipped' }, e2e: { result: 'cancelled' }, odd: {} }));
+test('K1111: ci-passed passes a skipped job, and fails it only where the caller sets FAIL_SKIPPED=1', (t) => {
+  const needs = JSON.stringify({ lint: ok, docs: { result: 'skipped' } });
+  const result = passed(needs);
+  assert.equal(result.status, 0, result.errors.join('\n'));
+  assert.deepEqual(result.lines, ['[ci-passed] lint: success', '[ci-passed] docs: skipped', '[ci-passed] every needed job passed or was skipped: lint, docs']);
+  const declared = passed(needs, { failSkipped: true });
+  assert.equal(declared.status, 1);
+  assert.deepEqual(declared.errors, ['the job docs ended with skipped; expected success']);
+  const directory = mkdtempSync(path.join(tmpdir(), 'kit-ci-passed-skipped-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const run = (env: Record<string, string>) => spawnSync(process.execPath, [path.join(KIT, 'ci-passed.mts')], { cwd: directory, encoding: 'utf8', env: { PATH: process.env.PATH, RESULTS: needs, ...env } }).status;
+  assert.equal(run({}), 0);
+  assert.equal(run({ FAIL_SKIPPED: '1' }), 1);
+});
+
+test('ci-passed fails for a job that failed or was cancelled, and for a skipped one where the caller sets failSkipped, and names it', () => {
+  const result = passed(JSON.stringify({ lint: ok, test: { result: 'failure' }, docs: { result: 'skipped' }, e2e: { result: 'cancelled' }, odd: {} }), { failSkipped: true });
   assert.equal(result.status, 1);
   assert.deepEqual(result.errors, ['the job test ended with failure; expected success', 'the job docs ended with skipped; expected success', 'the job e2e ended with cancelled; expected success', 'the job odd ended with no result; expected success']);
   assert.equal(result.lines.at(-1), '[ci-passed] failed: 4 of 5 needed jobs did not succeed');
