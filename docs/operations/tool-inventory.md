@@ -315,12 +315,16 @@ matches, such as `**/node_modules/**`, and a staged executable object of a kind 
 {
   "schema": 1,
   "hooks": [],
-  "idPattern": "K[0-9]+(?:[.-][0-9]+)*"
+  "idPattern": "K[0-9]+(?:[.-][0-9]+)*",
+  "states": { "waiting": "[ ]", "active": "[~]", "verifying": "[v]", "done": "[o]", "bypassed": "[!]", "impossible": "[-]" },
+  "columns": ["ID", "Task", "Deliverables", "Verification", "State"]
 }
 ```
 
 K241 replaced the declared trackers of K6.1: kit finds the checklists as `docs/plans/<plan>/checklist.md`, each a table
-with the six states of kit, and `idPattern` is the one declaration of a checklist; the list format of orm is removed.
+whose last cell holds the state; the list format of orm is removed. The repository declares the markers of the six states in
+`states` (without it the plan utilities read and write `[ ]`, `[~]`, `[v]`, `[o]`, `[!]` and `[-]`) and the header of its tables in
+`columns`, which the strict reading requires only when it is declared (K1110).
 
 `hooks` lists the tracked hooks of `.githooks` of the repository, its own files; `make hooks` points `core.hooksPath` at
 `.githooks` when the list names one and makes each executable, and kit writes no hook (K1053). `config/generated.json` holds `paths`, the globs of repository paths that are generated on top of the kit segments (a build output

@@ -32,12 +32,12 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { sha256 } from './bootstrap/digest.mts';
-import { BYPASSED, CHECKLIST_HEADER, DONE, IMPOSSIBLE, loadConfig, PLANS, readChecklist, STATE_TRANSITIONS, STATES, trackersOf, WAITING, workingPlanFiles } from './checklist.mts';
+import { CHECKLIST_HEADER, loadConfig, PLANS, readChecklist, stateList, statesOf, stateTransitions, trackersOf, workingPlanFiles } from './checklist.mts';
 import { COMMIT_RULES } from './check-commits.mts';
 import { itemCommands } from './verification.mts';
 import { spawnSync } from 'node:child_process';
 import { changedFiles, foldersOfChanged, typeErrorMessage, typeErrors } from './ts-typecheck.mts';
-import type { Tracker } from './checklist.mts';
+import type { States, Tracker } from './checklist.mts';
 import { lineBlocks } from './markdown.mts';
 import { stamped } from './documents-stamp.mts';
 import { isMain, repositoryRoot } from './paths.mts';
@@ -159,7 +159,7 @@ export function newItem(root: string, item: NewItem): Record<string, string> {
   if (own !== undefined) throw new Error(`${item.id} is held by ${own.path}; choose a fresh ID`);
   const [held] = mainHolders(root, config, item.id);
   if (held !== undefined) throw new Error(`${item.id} is held by ${held} of main; choose a fresh ID`);
-  const tail = ` | ${cell(item.deliverables, 'DELIVERABLES')} | ${cell(item.verification, 'VERIFICATION')} | ${WAITING} |`;
+  const tail = ` | ${cell(item.deliverables, 'DELIVERABLES')} | ${cell(item.verification, 'VERIFICATION')} | ${statesOf(tracker).waiting} |`;
   const english = `| ${item.id} | ${cell(item.task, 'TASK')}${tail}`;
   const korean = `| ${item.id} | ${cell(item.taskKo, 'TASK_KO')}${tail}`;
   const read = (name: string) => readFileSync(path.join(root, name), 'utf8');
@@ -193,7 +193,8 @@ export function editItem(root: string, { id, deliverables, verification, task, t
     if (cells.length !== 5) throw new Error(`the row of ${id} holds ${cells.length} cells, not the 5 of a checklist row`);
     // The Deliverables cell is the same text in both languages (K388), so it is edited in each file like the Verification.
     if (editsVerification || deliverables !== undefined) {
-      if (cells[4]?.startsWith(DONE)) throw new Error(`${id} is ${DONE}; from ${DONE} an item stays; a new finding is an item of its own`);
+      const { done } = statesOf(tracker);
+      if (cells[4]?.startsWith(done)) throw new Error(`${id} is ${done}; from ${done} an item stays; a new finding is an item of its own`);
     }
     if (editsVerification) cells[3] = cell(verification, 'VERIFICATION');
     if (deliverables !== undefined) cells[2] = cell(deliverables, 'DELIVERABLES');
@@ -236,9 +237,10 @@ export function editState(root: string, change: Omit<NewState, 'state'>): Record
   const read = (name: string) => readFileSync(path.join(root, name), 'utf8');
   const entry = findItem(trackers, read, change.id);
   const state = entry.item.state;
-  if (state !== BYPASSED && state !== IMPOSSIBLE) throw new Error(`${change.id} is ${state}; item-edit rewrites the cause and the retry of a bypassed (${BYPASSED}) item and the cause of an impossible (${IMPOSSIBLE}) one`);
-  if (state === IMPOSSIBLE && (change.retry !== undefined || change.retryKo !== undefined)) throw new Error(`${change.id} is ${IMPOSSIBLE}, which has no retry condition; RETRY and RETRY_KO belong to a bypassed item`);
-  const files = stateFiles(root, trackers, entry, change.id, stateCells({ ...change, state }));
+  const { bypassed, impossible } = statesOf(entry.tracker);
+  if (state !== bypassed && state !== impossible) throw new Error(`${change.id} is ${state}; item-edit rewrites the cause and the retry of a bypassed (${bypassed}) item and the cause of an impossible (${impossible}) one`);
+  if (state === impossible && (change.retry !== undefined || change.retryKo !== undefined)) throw new Error(`${change.id} is ${impossible}, which has no retry condition; RETRY and RETRY_KO belong to a bypassed item`);
+  const files = stateFiles(root, trackers, entry, change.id, stateCells({ ...change, state }, statesOf(entry.tracker)));
   for (const [name, text] of Object.entries(files)) writeFileSync(path.join(root, name), text);
   return files;
 }
@@ -307,10 +309,10 @@ export function splitPlan(root: string, { from, to, ids, title, titleKo }: PlanS
 /** The new state of an item, with the texts that its cell needs in the bypassed and the impossible state. */
 export type NewState = { id: string; state: string; cause?: string | undefined; retry?: string | undefined; causeKo?: string | undefined; retryKo?: string | undefined };
 
-/** The state cells of `change` in English and Korean. */
-function stateCells({ state, cause, retry, causeKo, retryKo }: NewState): [string, string] {
-  if (state === BYPASSED) return [`${state} cause: ${cell(cause, 'CAUSE')}; retry: ${cell(retry, 'RETRY')}`, `${state} 원인: ${cell(causeKo, 'CAUSE_KO')}; 재시도: ${cell(retryKo, 'RETRY_KO')}`];
-  if (state === IMPOSSIBLE) return [`${state} cause: ${cell(cause, 'CAUSE')}`, `${state} 원인: ${cell(causeKo, 'CAUSE_KO')}`];
+/** The state cells of `change` in English and Korean, with the markers `states` of its checklist. */
+function stateCells({ state, cause, retry, causeKo, retryKo }: NewState, states: States): [string, string] {
+  if (state === states.bypassed) return [`${state} cause: ${cell(cause, 'CAUSE')}; retry: ${cell(retry, 'RETRY')}`, `${state} 원인: ${cell(causeKo, 'CAUSE_KO')}; 재시도: ${cell(retryKo, 'RETRY_KO')}`];
+  if (state === states.impossible) return [`${state} cause: ${cell(cause, 'CAUSE')}`, `${state} 원인: ${cell(causeKo, 'CAUSE_KO')}`];
   return [state, state];
 }
 
@@ -327,16 +329,18 @@ function withState(text: string, id: string, state: string): string {
 
 /**
  * The item `change.id` with its checklist and the trackers of the checkout; throws on a state that is not declared and on a move
- * from the current state of the item that STATE_TRANSITIONS does not allow (K937). `already` is true when the item holds
+ * from the current state of the item that stateTransitions does not allow (K937). `already` is true when the item holds
  * `change.state`, which is no move (K937-1).
  */
 function movableItem(root: string, change: NewState) {
-  if (!(STATES as readonly string[]).includes(change.state)) throw new Error(`the state ${JSON.stringify(change.state)} is none of ${STATES.join(', ')}`);
   const trackers = trackersOf(loadConfig(root), workingPlanFiles(root));
   const entry = findItem(trackers, name => readFileSync(path.join(root, name), 'utf8'), change.id);
+  const states = statesOf(entry.tracker);
+  const markers = stateList(states);
+  if (!markers.includes(change.state)) throw new Error(`the state ${JSON.stringify(change.state)} is none of ${markers.join(', ')}`);
   const from = entry.item.state;
   const already = from === change.state;
-  const allowed = STATE_TRANSITIONS[from] ?? [];
+  const allowed = stateTransitions(states)[from] ?? [];
   if (!already && !allowed.includes(change.state)) throw new Error(`${change.id} is ${from}, which allows ${allowed.length === 0 ? 'no move' : `only ${allowed.join(', ')}`}; ${change.state} is refused`);
   return { trackers, entry, already };
 }
@@ -344,12 +348,12 @@ function movableItem(root: string, change: NewState) {
 /**
  * Moves the item `change.id` to `change.state` in its checklist and the Korean twin and returns the two files as
  * { path: text }, none when the item already holds the state. Throws, writing nothing, on a state that is not declared, a transition
- * that STATE_TRANSITIONS does not allow, and a missing cause or retry condition.
+ * that stateTransitions does not allow, and a missing cause or retry condition.
  */
 export function setState(root: string, change: NewState): Record<string, string> {
   const { trackers, entry, already } = movableItem(root, change);
   if (already) return {};
-  const files = stateFiles(root, trackers, entry, change.id, stateCells(change));
+  const files = stateFiles(root, trackers, entry, change.id, stateCells(change, statesOf(entry.tracker)));
   for (const [name, text] of Object.entries(files)) writeFileSync(path.join(root, name), text);
   return files;
 }

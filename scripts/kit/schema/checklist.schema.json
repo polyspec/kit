@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "config/checklist.json",
-  "description": "The Git hooks that a checkout installs and the pattern of the item IDs of the checklists. The checklists are docs/plans/<plan>/checklist.md, which kit finds itself (K241); each is a table with the six states of kit.",
+  "description": "The Git hooks that a checkout installs, the pattern of the item IDs of the checklists, and the markers of their states and the columns of their tables. The checklists are docs/plans/<plan>/checklist.md, which kit finds itself (K241).",
   "type": "object",
   "required": ["hooks", "idPattern"],
   "properties": {
@@ -14,6 +14,29 @@
       "description": "The source of the regular expression that an item ID matches as a whole, such as K[0-9]+(?:[.-][0-9]+)*; an ID that ends in -<number> is a sub-item of the ID without it.",
       "type": "string",
       "minLength": 1
+    },
+    "states": {
+      "description": "The markers of the six states of an item, each a bracketed marker such as [o] (K1110); without it the plan utilities read and write [ ], [~], [v], [o], [!] and [-].",
+      "type": "object",
+      "required": ["waiting", "active", "verifying", "done", "bypassed", "impossible"],
+      "additionalProperties": false,
+      "properties": {
+        "waiting": { "$ref": "#/$defs/marker" },
+        "active": { "$ref": "#/$defs/marker" },
+        "verifying": { "$ref": "#/$defs/marker" },
+        "done": { "$ref": "#/$defs/marker" },
+        "bypassed": { "$ref": "#/$defs/marker" },
+        "impossible": { "$ref": "#/$defs/marker" }
+      }
+    },
+    "columns": {
+      "description": "The header of every checklist table, which the strict reading requires when it is declared (K1110); the state is the last column.",
+      "type": "array",
+      "minItems": 2,
+      "items": { "type": "string", "minLength": 1 }
     }
+  },
+  "$defs": {
+    "marker": { "type": "string", "pattern": "^\\[[^\\]|]*\\]$" }
   }
 }

@@ -20,7 +20,7 @@ import { lineBlocks } from './markdown.mts';
 import { makeDatabase, suiteTargets, type MakeDatabase } from './owner-check.mts';
 import { commandParts, expandMake, makeArguments } from './recipe-tools.mts';
 import { isMain, repositoryRoot } from './paths.mts';
-import { CONFIG, DONE, IMPOSSIBLE, loadConfig, readChecklist, trackersOf, workingPlanFiles } from './checklist.mts';
+import { CONFIG, loadConfig, readChecklist, statesOf, trackersOf, workingPlanFiles } from './checklist.mts';
 
 /** A rule of a document: its first line and the text of its `Enforced by:` line, or null. */
 type Rule = { line: number; enforced: string | null; text: string };
@@ -269,7 +269,8 @@ function itemStates(root: string): Map<string, { state: string; done: boolean }>
   if (!existsSync(path.join(root, CONFIG))) return states;
   for (const tracker of trackersOf(loadConfig(root), workingPlanFiles(root))) {
     const { items } = readChecklist(readFileSync(path.join(root, tracker.path), 'utf8'), tracker);
-    for (const item of items) states.set(item.id, { state: item.state, done: item.state === DONE || item.state === IMPOSSIBLE });
+    const { done, impossible } = statesOf(tracker);
+    for (const item of items) states.set(item.id, { state: item.state, done: item.state === done || item.state === impossible });
   }
   return states;
 }

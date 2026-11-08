@@ -1,11 +1,9 @@
 // The verification of the items of the checklists (K249-3): the Verification cell of an item names, in backticks, the
 // commands that verify it. An open item, waiting or active, names at least one, and none of them is a pipeline. A closed item is
 // history and is not read. docs-check reports the findings, and `make item-test` runs the commands.
-import { ACTIVE, CHECKLIST_COLUMNS, readChecklist, WAITING } from './checklist.mts';
+import { columnOf, readChecklist, statesOf } from './checklist.mts';
 import type { FileFinding, Tracker } from './checklist.mts';
 import { lineBlocks } from './markdown.mts';
-
-const VERIFICATION = CHECKLIST_COLUMNS.indexOf('Verification');
 
 /** The commands of a Verification cell: its spans in backticks. */
 export function commandsOf(cell: string): string[] {
@@ -32,12 +30,13 @@ function hasPipe(command: string): boolean {
   return false;
 }
 
-/** The Verification cell of each item row of `text`, by its line (1-based). */
-function verificationCells(text: string): Map<number, string> {
+/** The Verification cell of each item row of `text` of `tracker`, by its line (1-based); none when its columns hold no Verification. */
+function verificationCells(text: string, tracker: Tracker): Map<number, string> {
   const cells = new Map<number, string>();
+  const column = columnOf(tracker, 'Verification');
   lineBlocks(text).forEach((block, index) => {
-    if (block.kind === 'tableRow') {
-      const cell = block.cells[VERIFICATION];
+    if (block.kind === 'tableRow' && column >= 0) {
+      const cell = block.cells[column];
       if (cell) cells.set(index + 1, cell.text.replace(/\\\|/g, '|'));
     }
   });
@@ -48,7 +47,7 @@ function verificationCells(text: string): Map<number, string> {
 export function itemCommands(text: string, tracker: Tracker, id: string): string[] {
   const item = readChecklist(text, tracker).items.find(entry => entry.id === id);
   if (!item) throw new Error(`${tracker.path} holds no item ${id}`);
-  return commandsOf(verificationCells(text).get(item.line) ?? '');
+  return commandsOf(verificationCells(text, tracker).get(item.line) ?? '');
 }
 
 /**
@@ -58,11 +57,14 @@ export function itemCommands(text: string, tracker: Tracker, id: string): string
 export function verificationFindings(trackers: readonly Tracker[], read: (file: string) => string | undefined): FileFinding[] {
   const found: FileFinding[] = [];
   for (const tracker of trackers) {
+    // A repository whose declared columns hold no Verification names no commands to read (K1110).
+    if (columnOf(tracker, 'Verification') < 0) continue;
+    const { waiting, active } = statesOf(tracker);
     for (const file of [tracker.path, tracker.translation]) {
       const text = read(file);
       if (text === undefined) continue;
-      const cells = verificationCells(text);
-      for (const item of readChecklist(text, tracker).items.filter(entry => entry.state === WAITING || entry.state === ACTIVE)) {
+      const cells = verificationCells(text, tracker);
+      for (const item of readChecklist(text, tracker).items.filter(entry => entry.state === waiting || entry.state === active)) {
         const add = (message: string) => found.push({ file, finding: { line: item.line, column: 1, rule: 'checklist-verification', message } });
         const commands = commandsOf(cells.get(item.line) ?? '');
         if (commands.length === 0) add(`the open item ${item.id} names no command in backticks in its Verification cell; name the unit tests that verify it`);

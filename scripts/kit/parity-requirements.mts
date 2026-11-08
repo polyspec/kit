@@ -14,7 +14,7 @@
 // Only a suite or feature unit traces a requirement for R13: an api unit runs no test.
 // Each finding that names one requirement carries its id in `requirements`, and R18 carries the shared ids, so IDS selects them (K414-1).
 import { matchesAny } from './glob.mts';
-import { BYPASSED, readChecklist, trackersOf } from './checklist.mts';
+import { readChecklist, statesOf, trackersOf } from './checklist.mts';
 import { DECLARATION, finding, type Finding } from './parity-declaration.mts';
 
 const SPEC = /^docs\/spec\/(?:.+\/)?[^/]+(?<!\.ko)\.md$/;
@@ -133,8 +133,9 @@ export function requirementFindings(config: { requirements: { pattern: string };
       findings.push(finding('declaration', `${entry.item} is not an item of ${entry.checklist}`, { place: DECLARATION, requirements: [entry.id] }));
       continue;
     }
-    if (item.state !== BYPASSED) {
-      findings.push(finding('declaration', `${entry.id} is deferred by ${entry.item}, whose state in ${entry.checklist} is ${item.state}, not ${BYPASSED}`, { place: DECLARATION, requirements: [entry.id] }));
+    const { bypassed } = statesOf(tracker);
+    if (item.state !== bypassed) {
+      findings.push(finding('declaration', `${entry.id} is deferred by ${entry.item}, whose state in ${entry.checklist} is ${item.state}, not ${bypassed}`, { place: DECLARATION, requirements: [entry.id] }));
       continue;
     }
     const escapedId = entry.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

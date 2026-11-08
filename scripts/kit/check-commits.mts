@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { isMain, repositoryRoot } from './paths.mts';
-import { DONE, loadConfig, PLANS, readChecklist, trackersOf } from './checklist.mts';
+import { loadConfig, PLANS, readChecklist, statesOf, trackersOf } from './checklist.mts';
 import { fileAt, git, gitResult } from './git.mts';
 
 /** The rules of a commit: the types of its subject, the width of its body, and the changelog that a done item changes. */
@@ -176,7 +176,7 @@ function changeFindings(root: string, message: string, base: string | undefined,
   for (const tracker of trackersOf(loadConfig(root), plans)) {
     const states = (text: string) => new Map(readChecklist(text, tracker).items.map(item => [item.id, item.state]));
     const old = states(base ? fileAt(root, base, tracker.path) : '');
-    for (const [id, state] of states(fileAt(root, side, tracker.path))) if (old.has(id) && old.get(id) !== state && state === DONE) done.push(id);
+    for (const [id, state] of states(fileAt(root, side, tracker.path))) if (old.has(id) && old.get(id) !== state && state === statesOf(tracker).done) done.push(id);
   }
   const stated = statedRed(message);
   if (stated !== undefined) return [];

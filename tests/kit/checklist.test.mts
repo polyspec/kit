@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { BLOCKING, compareTwin, crossFindings, describeFinding, inspectTrackers, loadConfig, readChecklist, trackersOf, undeclaredChecklists, type Tracker } from '../../scripts/kit/checklist.mts';
+import { compareTwin, crossFindings, describeFinding, inspectTrackers, loadConfig, readChecklist, trackersOf, undeclaredChecklists, type Tracker } from '../../scripts/kit/checklist.mts';
 import { newPlan } from '../../scripts/kit/plan.mts';
 import { parseJson } from '../../scripts/kit/schema-validate.mts';
 import type { ChecklistConfig } from '../../scripts/kit/checklist.mts';
@@ -106,11 +106,25 @@ test('a row whose number of cells differs from the header of its table fails wit
   }
 });
 
-test('the strict reading requires the header of kit: ID, Task, Deliverables, Verification and State (K249-3)', () => {
+test('K1110: the strict reading requires the header that the repository declares, and judges none that it does not declare', () => {
   const rows = '| T1 | A | `a.mts` | `node --test a.test.mts` | [o] |\n';
-  assert.deepEqual(readChecklist(`| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n${rows}`, TABLE, { strict: true }).findings, []);
-  const strict = readChecklist(`| ID | Task | Files | Check | Done |\n|---|---|---|---|---|\n${rows}`, TABLE, { strict: true });
-  assert.deepEqual(strict.findings.map(({ line, rule, message }) => [line, rule, message]), [[1, 'checklist-header', 'the header is | ID | Task | Files | Check | Done |; a checklist table has the header | ID | Task | Deliverables | Verification | State |']]);
+  const other = `| ID | Task | Files | Check | Done |\n|---|---|---|---|---|\n${rows}`;
+  assert.deepEqual(readChecklist(other, TABLE, { strict: true }).findings, [], 'no declared columns, no header rule');
+  const declared: Tracker = { ...TABLE, columns: ['ID', 'Task', 'Deliverables', 'Verification', 'State'] };
+  assert.deepEqual(readChecklist(`${HEADER}${rows}`, declared, { strict: true }).findings, []);
+  const strict = readChecklist(other, declared, { strict: true });
+  assert.deepEqual(strict.findings.map(({ line, rule, message }) => [line, rule, message]), [[1, 'checklist-header', 'the header is | ID | Task | Files | Check | Done |; config/checklist.json declares the header | ID | Task | Deliverables | Verification | State |']]);
+});
+
+test('K1110: the states of a checklist are the markers that the repository declares', () => {
+  const own: Tracker = { ...TABLE, states: { waiting: '[todo]', active: '[doing]', verifying: '[check]', done: '[done]', bypassed: '[skip]', impossible: '[never]' } };
+  const text = `${HEADER}| T1 | A | \`a.mts\` | \`node --test a.test.mts\` | [done] |\n| T2 | B | \`b.mts\` | \`node --test b.test.mts\` | [skip] cause: blocked; retry: T1 done |\n`;
+  const strict = readChecklist(text, own, { strict: true });
+  assert.deepEqual(strict.findings, []);
+  assert.deepEqual(strict.items.map(item => item.state), ['[done]', '[skip]']);
+  // The markers of the plan utilities are no states of this repository.
+  const kit = readChecklist(`${HEADER}| T1 | A | \`a.mts\` | \`node --test a.test.mts\` | [o] |\n`, own);
+  assert.deepEqual(kit.findings.map(finding => finding.rule), ['checklist-state']);
 });
 
 test('the strict reading reports a state marker of the impossible state outside a task', () => {
@@ -152,10 +166,6 @@ test('inspectTrackers names each active item with its file and ID, and each unre
   assert.deepEqual(inspectTrackers(trackers, read).problems, ['T1.2 is [v] in a.md and [o] in a.ko.md', 'b.md: does not exist']);
   delete files['a.ko.md'];
   assert.deepEqual(inspectTrackers([TABLE], read).problems, ['a.ko.md: does not exist']);
-});
-
-test('the sentence of the blocking state names the other states', () => {
-  assert.equal(BLOCKING, 'only the state [~] blocks a push; [ ], [v], [o], [!], [-] do not block a push');
 });
 
 test('loadConfig accepts the configuration of the fixture and names each rule that another breaks', (t) => {

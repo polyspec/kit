@@ -3,9 +3,10 @@
 // The commit check (check-commits.mts) reads the states that a commit changes; the document check (check-documents.mts) reads every
 // checklist strictly. One function, readChecklist, reads a checklist at both levels.
 //
-// A checklist is a table with one row per item, `| ID | title | ... | state |`; the state is the last cell and one of the
-// six states of kit: [ ] waiting, [~] development, [v] verification, [o] done, [!] bypassed and [-] impossible. A state is the leading
-// `[x]` of its cell, or the whole cell when the cell does not start with `[`. A checklist that cannot be read is an error and
+// A checklist is a table with one row per item, `| ID | title | ... | state |`; the state is the last cell and one of the six states
+// (waiting, development, verification, done, bypassed and impossible) whose markers config/checklist.json declares, or else the
+// markers that the plan utilities write; the header is checked only against the columns that config/checklist.json declares (K1110).
+// A state is the leading `[x]` of its cell, or the whole cell when the cell does not start with `[`. A checklist that cannot be read is an error and
 // never an empty result: the gate refuses a push whose items it cannot read.
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -19,42 +20,54 @@ export const CONFIG = 'config/checklist.json';
 export const PLANS = 'docs/plans';
 const CHECKLIST_FILE = /^docs\/plans\/([^/]+)\/checklist\.md$/;
 
-/** The columns of a checklist table: the ID, the task, what it delivers, the commands that verify it, and its state. */
+/** The columns of the checklist table that the plan utilities write: the ID, the task, what it delivers, the commands that verify it, and its state. */
 export const CHECKLIST_COLUMNS = ['ID', 'Task', 'Deliverables', 'Verification', 'State'] as const;
 
 /** The header of a checklist table, with its delimiter row. */
 export const CHECKLIST_HEADER = `| ${CHECKLIST_COLUMNS.join(' | ')} |\n|${CHECKLIST_COLUMNS.map(() => '---').join('|')}|\n`;
 
-/** The states of kit, in their order: waiting, active, done, bypassed, impossible. */
-export const WAITING = '[ ]';
-export const ACTIVE = '[~]';
-export const VERIFYING = '[v]';
-export const DONE = '[o]';
-export const BYPASSED = '[!]';
-export const IMPOSSIBLE = '[-]';
-export const STATES = [WAITING, ACTIVE, VERIFYING, DONE, BYPASSED, IMPOSSIBLE] as const;
+/** The markers of the six states of an item. */
+export type States = { waiting: string; active: string; verifying: string; done: string; bypassed: string; impossible: string };
+
+/** The markers that the plan utilities read and write when config/checklist.json declares none; a repository declares its own there (K1110). */
+export const DEFAULT_STATES: States = { waiting: '[ ]', active: '[~]', verifying: '[v]', done: '[o]', bypassed: '[!]', impossible: '[-]' };
+
+/** The markers of the states of the checklist `tracker`. */
+export const statesOf = (tracker: Pick<Tracker, 'states'>): States => tracker.states ?? DEFAULT_STATES;
+
+/** The markers of `states` in their order: waiting, active, verifying, done, bypassed, impossible. */
+export const stateList = (states: States): string[] => [states.waiting, states.active, states.verifying, states.done, states.bypassed, states.impossible];
 
 /** The allowed transitions: an item may be marked done from development or verification; failed verification returns to development. */
-export const STATE_TRANSITIONS: Record<string, readonly string[]> = {
-  [WAITING]: [ACTIVE, IMPOSSIBLE],
-  [ACTIVE]: [VERIFYING, DONE, BYPASSED, IMPOSSIBLE, WAITING],
-  [VERIFYING]: [ACTIVE, DONE],
-  [BYPASSED]: [ACTIVE],
-  [DONE]: [],
-  [IMPOSSIBLE]: [],
-};
+export function stateTransitions(states: States): Record<string, readonly string[]> {
+  return {
+    [states.waiting]: [states.active, states.impossible],
+    [states.active]: [states.verifying, states.done, states.bypassed, states.impossible, states.waiting],
+    [states.verifying]: [states.active, states.done],
+    [states.bypassed]: [states.active],
+    [states.done]: [],
+    [states.impossible]: [],
+  };
+}
 
-/** A checklist of a plan folder: its document, its Korean twin and the pattern of its item IDs. */
+/** The place of the column `name` in the rows of the checklist `tracker`: among its declared columns, else those that the plan utilities write; -1 when it has none. */
+export const columnOf = (tracker: Pick<Tracker, 'columns'>, name: string): number => (tracker.columns ?? CHECKLIST_COLUMNS).indexOf(name);
+
+/** A checklist of a plan folder: its document, its Korean twin, the pattern of its item IDs and what config/checklist.json declares of its states and columns (K1110). */
 export interface Tracker {
   path: string;
   translation: string;
   idPattern: string;
+  states?: States;
+  columns?: readonly string[];
 }
 
 /** config/checklist.json as checklist.schema.json describes it. */
 export interface ChecklistConfig {
   hooks: string[];
   idPattern: string;
+  states?: States;
+  columns?: string[];
 }
 
 /** The config text of a committed tree, validated by the checklist schema. */
@@ -91,18 +104,22 @@ export function loadConfig(root: string): ChecklistConfig {
 export const workingPlanFiles = (root: string): string[] => git(root, 'ls-files', '--cached', '--others', '--exclude-standard', '--', PLANS).split('\n').filter(Boolean);
 
 /** The checklists of the tree whose paths are `files`, sorted: docs/plans/<plan>/checklist.md with its Korean twin. */
-export function trackersOf(config: Pick<ChecklistConfig, 'idPattern'>, files: Iterable<string>): Tracker[] {
-  return [...files].filter(file => CHECKLIST_FILE.test(file)).sort().map(file => ({ path: file, translation: file.replace(/\.md$/, '.ko.md'), idPattern: config.idPattern }));
+export function trackersOf(config: Pick<ChecklistConfig, 'idPattern' | 'states' | 'columns'>, files: Iterable<string>): Tracker[] {
+  return [...files].filter(file => CHECKLIST_FILE.test(file)).sort().map(file => ({
+    path: file,
+    translation: file.replace(/\.md$/, '.ko.md'),
+    idPattern: config.idPattern,
+    ...(config.states ? { states: config.states } : {}),
+    ...(config.columns ? { columns: config.columns } : {}),
+  }));
 }
 
-const MARKER = /\[[ ~vo!xX-]\]/g;
+const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const DOCUMENT_MARKER = /^<!-- (?:doc-id|source-sha256): \S+ -->$/;
-const TABLE_BYPASS = /^\[!\] (?:cause|원인): \S.*; (?:retry|재시도): \S.*$/;
-const TABLE_IMPOSSIBLE = /^\[-\] (?:cause|원인): \S.*$/;
 // The first cell of a task row is the task ID, which a code span may follow: `T3.2 \`parallel\``.
 const ID_CELL = /^(\S+)(?:\s+`[^`]*`)?$/;
 // The state cell of a row as the strict reading accepts it.
-const EXPECTED_CELL = `${WAITING}, ${ACTIVE}, ${VERIFYING}, ${DONE}, ${BYPASSED} cause: <cause>; retry: <condition> or ${IMPOSSIBLE} cause: <cause>`;
+const expectedCell = (states: States) => `${states.waiting}, ${states.active}, ${states.verifying}, ${states.done}, ${states.bypassed} cause: <cause>; retry: <condition> or ${states.impossible} cause: <cause>`;
 
 const stateOf = (cell: string): string => /^\[[^\]]*\]/.exec(cell)?.[0] ?? cell;
 
@@ -119,12 +136,19 @@ export const describeFinding = (finding: ChecklistFinding): string => (finding.l
  *
  * The strict reading (`strict: true`) is the reading of the document check. It reports the same and also that a checklist
  * holds only tasks: a line that is not a heading, a task or a document marker; a state marker that is not the state of a
- * task; a state cell that holds more than its state (a state is alone in its cell, but `[!]` is followed by
- * `cause: <cause>; retry: <condition>` and `[-]` by `cause: <cause>`). The Korean labels of the cause and the retry condition of TABLE_BYPASS and TABLE_IMPOSSIBLE are accepted. Each
+ * task; a state cell that holds more than its state (a state is alone in its cell, but the bypassed marker is followed by
+ * `cause: <cause>; retry: <condition>` and the impossible marker by `cause: <cause>`), and, when config/checklist.json declares
+ * columns, a table header that differs from them (K1110). The Korean labels of the cause and the retry condition are accepted. Each
  * finding has a line and a column.
  */
 export function readChecklist(text: string, tracker: Tracker, { strict = false }: { strict?: boolean } = {}): { items: ChecklistItem[]; findings: ChecklistFinding[] } {
   const id = new RegExp(`^(?:${tracker.idPattern})$`);
+  const states = statesOf(tracker);
+  const markers = stateList(states);
+  const marker = new RegExp(markers.map(escaped).join('|'), 'g');
+  const tableBypass = new RegExp(`^${escaped(states.bypassed)} (?:cause|원인): \\S.*; (?:retry|재시도): \\S.*$`);
+  const tableImpossible = new RegExp(`^${escaped(states.impossible)} (?:cause|원인): \\S.*$`);
+  const expected = expectedCell(states);
   const findings: ChecklistFinding[] = [];
   const items: ChecklistItem[] = [];
   const seen = new Map<string, number>();
@@ -161,8 +185,9 @@ export function readChecklist(text: string, tracker: Tracker, { strict = false }
     const task = ID_CELL.exec(first)?.[1];
     if (block.kind === 'tableHeader' || block.kind === 'tableDelimiter') {
       allowed = true;
-      // The columns are fixed, so a reader finds the verification and the state of a row by their place (K249-3).
-      if (block.kind === 'tableHeader' && block.names.join(' | ') !== CHECKLIST_COLUMNS.join(' | ')) strictOnly(number, indent + 1, 'checklist-header', `the header is | ${block.names.join(' | ')} |; a checklist table has the header | ${CHECKLIST_COLUMNS.join(' | ')} |`);
+      // The columns that the repository declares are the header of its tables, so a reader finds the verification and the state of a
+      // row by their place (K249-3); with none declared the header is not judged (K1110).
+      if (block.kind === 'tableHeader' && tracker.columns && block.names.join(' | ') !== tracker.columns.join(' | ')) strictOnly(number, indent + 1, 'checklist-header', `the header is | ${block.names.join(' | ')} |; config/checklist.json declares the header | ${tracker.columns.join(' | ')} |`);
     } else if (task && id.test(task)) {
       allowed = true;
       const column = row.length - 1;
@@ -174,12 +199,12 @@ export function readChecklist(text: string, tracker: Tracker, { strict = false }
         const state = cell.text.trim();
         place = cell.start + cell.text.search(/\S/);
         if (strict && (!line.trimEnd().endsWith('|') || !state)) {
-          finding(number, line.length + 1, 'checklist-state', `the row of ${task} does not end with a state cell; expected a closing | after ${EXPECTED_CELL}`);
+          finding(number, line.length + 1, 'checklist-state', `the row of ${task} does not end with a state cell; expected a closing | after ${expected}`);
         } else {
           const kept = stateOf(state);
-          const alone = !strict || state === kept || (kept === BYPASSED && TABLE_BYPASS.test(state)) || (kept === IMPOSSIBLE && TABLE_IMPOSSIBLE.test(state));
-          if (!alone) both(number, place + 1, 'checklist-state', `the state of ${task} is ${JSON.stringify(state)}; expected ${EXPECTED_CELL}`);
-          else if (!(STATES as readonly string[]).includes(kept)) both(number, place + 1, 'checklist-state', `the state of ${task} is ${JSON.stringify(state)}; expected ${EXPECTED_CELL}`, `${task} has the state ${JSON.stringify(kept)}, the states are ${STATES.join(', ')}`);
+          const alone = !strict || state === kept || (kept === states.bypassed && tableBypass.test(state)) || (kept === states.impossible && tableImpossible.test(state));
+          if (!alone) both(number, place + 1, 'checklist-state', `the state of ${task} is ${JSON.stringify(state)}; expected ${expected}`);
+          else if (!markers.includes(kept)) both(number, place + 1, 'checklist-state', `the state of ${task} is ${JSON.stringify(state)}; expected ${expected}`, `${task} has the state ${JSON.stringify(kept)}, the states are ${markers.join(', ')}`);
           add(number, { id: task, title: row[1]?.text.trim() ?? '', state: kept });
         }
       }
@@ -191,8 +216,8 @@ export function readChecklist(text: string, tracker: Tracker, { strict = false }
       strictOnly(number, indent + 1, 'checklist-line', `${where}; a checklist holds only tasks, so its plan and notes belong in plan.md`);
     }
     if (strict) {
-      for (const marker of line.matchAll(MARKER)) {
-        if (marker.index !== place) finding(number, marker.index + 1, 'checklist-marker', `the state marker ${marker[0]} is not the state of a task; a state marker stands only at the start of the last cell of a task row`);
+      for (const found of line.matchAll(marker)) {
+        if (found.index !== place) finding(number, found.index + 1, 'checklist-marker', `the state marker ${found[0]} is not the state of a task; a state marker stands only at the start of the last cell of a task row`);
       }
     }
   });
@@ -231,7 +256,8 @@ export function crossFindings(checklists: { tracker: Tracker; items: ChecklistIt
 export function activeItems(text: string, tracker: Tracker, { open = false }: { open?: boolean } = {}): ChecklistItem[] {
   const { items, findings } = readChecklist(text, tracker);
   if (findings.length > 0) throw new Error(findings.map(describeFinding).join('; '));
-  return items.filter(item => item.state === ACTIVE || (open && item.state === WAITING));
+  const states = statesOf(tracker);
+  return items.filter(item => item.state === states.active || (open && item.state === states.waiting));
 }
 
 /**
@@ -293,7 +319,10 @@ export function compareTwin(english: string, korean: string, tracker: Tracker): 
 
 // A line that holds a checklist item: a table row whose last cell starts with a state marker, or a list item whose state
 // marker is followed by an ID (a bullet that only names a marker in prose, such as `- [o] never reopened`, is no item).
-const ITEM_LINE = /^\|.*\| \[[ ~vo!-]\][^|]*\|\s*$|^ *[-*] \[[ ~vo!-]\] [A-Z][A-Z0-9]*[-.]?[0-9]/m;
+const itemLine = (markers: readonly string[]) => {
+  const marker = `(?:${markers.map(escaped).join('|')})`;
+  return new RegExp(`^\\|.*\\| ${marker}[^|]*\\|\\s*$|^ *[-*] ${marker} [A-Z][A-Z0-9]*[-.]?[0-9]`, 'm');
+};
 
 /**
  * The documents of `files` (repository paths under docs/, each with its text) that hold a checklist item but are no
@@ -301,7 +330,8 @@ const ITEM_LINE = /^\|.*\| \[[ ~vo!-]\][^|]*\|\s*$|^ *[-*] \[[ ~vo!-]\] [A-Z][A-
  */
 export function undeclaredChecklists(trackers: readonly Tracker[], files: { path: string; text: string }[]): string[] {
   const declared = new Set(trackers.flatMap(tracker => [tracker.path, tracker.translation]));
-  return files.filter(file => file.path.startsWith('docs/') && !declared.has(file.path) && ITEM_LINE.test(file.text)).map(file => file.path);
+  const line = itemLine([...new Set((trackers.length ? trackers : [{}]).flatMap(tracker => stateList(statesOf(tracker))))]);
+  return files.filter(file => file.path.startsWith('docs/') && !declared.has(file.path) && line.test(file.text)).map(file => file.path);
 }
 
 /**
@@ -319,9 +349,10 @@ export function inspectTrackers(trackers: readonly Tracker[], read: (file: strin
       english = read(tracker.path);
       const parsed = readChecklist(english, tracker);
       if (parsed.findings.length > 0) throw new Error(parsed.findings.map(describeFinding).join('; '));
+      const states = statesOf(tracker);
       for (const item of parsed.items) {
-        if (item.state === ACTIVE || (open && item.state === WAITING)) active.push({ file: tracker.path, id: item.id, title: item.title });
-        if (item.state === VERIFYING) verification.push({ file: tracker.path, id: item.id, title: item.title });
+        if (item.state === states.active || (open && item.state === states.waiting)) active.push({ file: tracker.path, id: item.id, title: item.title });
+        if (item.state === states.verifying) verification.push({ file: tracker.path, id: item.id, title: item.title });
       }
     } catch (error) {
       if (!(error instanceof Error)) throw error;
@@ -345,6 +376,3 @@ export function inspectTrackers(trackers: readonly Tracker[], read: (file: strin
   }
   return { active, verification, problems };
 }
-
-/** The sentence that says which state stops a push and which do not. */
-export const BLOCKING = `only the state ${ACTIVE} blocks a push; ${[WAITING, VERIFYING, DONE, BYPASSED, IMPOSSIBLE].join(', ')} do not block a push`;

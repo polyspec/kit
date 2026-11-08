@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: d628a023dc8412fcf5b50b754259ba81e9f6ebb1cb4d52e8aa62b552cc397125 -->
+<!-- source-sha256: a98fc4885aef621c90413694de28277c87c6afe0f66f27da51b69a7a324cd442 -->
 
 # 도구 목록
 
@@ -283,12 +283,16 @@ request, merge queue, ruleset이 없습니다.
 {
   "schema": 1,
   "hooks": [],
-  "idPattern": "K[0-9]+(?:[.-][0-9]+)*"
+  "idPattern": "K[0-9]+(?:[.-][0-9]+)*",
+  "states": { "waiting": "[ ]", "active": "[~]", "verifying": "[v]", "done": "[o]", "bypassed": "[!]", "impossible": "[-]" },
+  "columns": ["ID", "Task", "Deliverables", "Verification", "State"]
 }
 ```
 
-K241은 K6.1의 선언된 tracker를 대체했습니다. kit은 checklist를 `docs/plans/<plan>/checklist.md`로 찾고, 각각은 kit의 state 6개를
-가진 table이며, `idPattern`이 checklist의 유일한 선언입니다. orm의 list format은 제거되었습니다.
+K241은 K6.1의 선언된 tracker를 대체했습니다. kit은 checklist를 `docs/plans/<plan>/checklist.md`로 찾고, 각각은 마지막 cell에 state를
+가진 table입니다. orm의 list format은 제거되었습니다. 저장소는 state 6개의 marker를 `states`에 선언하고(없으면 plan utility는 `[ ]`,
+`[~]`, `[v]`, `[o]`, `[!]`, `[-]`를 읽고 씁니다), table header를 `columns`에 선언하며, strict reading은 선언된 경우에만 header를
+요구합니다(K1110).
 
 `hooks`는 `.githooks`에서 추적하는 저장소 자신의 hook 목록입니다. 목록이 hook을 지정하면 `make hooks`가 `core.hooksPath`를 `.githooks`로 가리키고 각 hook을 실행 가능하게 하며, kit은 hook을 쓰지 않습니다(K1053). `config/generated.json`의 `paths`는 kit의 segment 밖에서 생성되는 경로(예: build 산출물 폴더)의 glob 목록이고, `exceptions`는 추적된 채 남는 경로(예: test fixture)의 glob 목록입니다. schema는 `schema/generated.schema.json`입니다. tracker는 `path`, `format`(`table`: `| ID | ... | state |`
 행, `list`: `- [state] ID text` 항목이며 하위 항목은 들여 씁니다), `active`를 가지고, `translation`, `states`(목록 밖의 state는 오류),

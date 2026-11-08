@@ -27,7 +27,7 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { changelogFindings } from './changelog.mts';
 import { verificationFindings } from './verification.mts';
-import { checklistsFindings, CHECKLIST_COLUMNS, CONFIG as CHECKLIST_CONFIG, loadConfig as loadChecklists, readChecklist, trackersOf, undeclaredChecklists, workingPlanFiles } from './checklist.mts';
+import { checklistsFindings, columnOf, CONFIG as CHECKLIST_CONFIG, loadConfig as loadChecklists, readChecklist, trackersOf, undeclaredChecklists, workingPlanFiles } from './checklist.mts';
 import { KIT_ITEMS, kitItemIds } from './kit-items.mts';
 import type { Tracker } from './checklist.mts';
 import { matchesAny } from './glob.mts';
@@ -215,9 +215,9 @@ type KitIdReader = { siblings: ReadonlySet<string>; ownKitIds: boolean };
  */
 function kitRowFindings(checklists: readonly Tracker[], available: (file: string) => string | undefined, ids: Set<string>, reader: KitIdReader): [string, DocumentFinding][] {
   const found: [string, DocumentFinding][] = [];
-  const task = CHECKLIST_COLUMNS.indexOf('Task');
-  const verification = CHECKLIST_COLUMNS.indexOf('Verification');
   for (const tracker of checklists) {
+    const task = columnOf(tracker, 'Task');
+    const verification = columnOf(tracker, 'Verification');
     for (const file of [tracker.path, tracker.translation]) {
       const text = available(file);
       if (text === undefined) continue;
@@ -234,7 +234,7 @@ function kitRowFindings(checklists: readonly Tracker[], available: (file: string
         if (block?.kind !== 'tableRow') continue;
         // The state is the last cell; a row too short for the columns of a checklist names what its cells hold.
         const named = [[task, 'Task'], [verification, 'Verification'], [block.cells.length - 1, 'state']] as const;
-        for (const [index, label] of named.filter(([column], at, all) => all.findIndex(([other]) => other === column) === at)) {
+        for (const [index, label] of named.filter(([column], at, all) => column >= 0 && all.findIndex(([other]) => other === column) === at)) {
           const cell = block.cells[index];
           if (cell === undefined) continue;
           for (const match of cell.text.matchAll(KIT_ID)) {
