@@ -6,9 +6,7 @@ import { appendFileSync, existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { isMain, repositoryRoot } from './paths.mts';
-import { present } from './present.mts';
 import { readConfig } from './schema-validate.mts';
-import { makeDatabase } from './owner-check.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { implementationFolders } from './parity-declaration.mts';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
@@ -38,7 +36,6 @@ type RuntimeJob = { runtime: Runtime | 'none'; installTools: string[]; targets: 
 export type CIPlan = {
   runner: Runner;
   parityMode: ParityMode;
-  parityImplementations: string[];
   parityMatrix: { implementation: string; installTools: string[] }[];
   runtimes: RuntimeJob[];
   commonTools: string[];
@@ -48,13 +45,6 @@ export type CIPlan = {
   extractors: string[];
 };
 
-/** The exact binding matrix from config/parity.json, with duplicate and empty selections rejected before Actions schedules jobs. */
-export function parityBindingMatrix(implementations: readonly string[]): { implementation: string }[] {
-  if (implementations.length === 0) throw new Error('config/parity.json declares no implementations. Fix: declare every required implementation before selecting parityMode phases');
-  if (implementations.some(name => name === '')) throw new Error('config/parity.json declares an empty implementation name. Fix: use each implementation name as the provider target selector');
-  if (new Set(implementations).size !== implementations.length) throw new Error('config/parity.json declares duplicate implementation names. Fix: give every implementation a unique name');
-  return implementations.map(implementation => ({ implementation }));
-}
 
 const runtimeTools: Record<Runtime, string[]> = {
   ts: [],
@@ -104,62 +94,28 @@ function runtimeSet(files: readonly string[], folders: readonly string[]): Set<R
   return found;
 }
 
-function readAndValidate(root: string): { config: CIConfig; runtimes: Runtime[]; files: string[]; folders: string[]; db: ReturnType<typeof makeDatabase>; parityMode: ParityMode; parityImplementations: string[] } {
+function readAndValidate(root: string): { config: CIConfig; runtimes: Runtime[]; files: string[]; folders: string[]; parityMode: ParityMode } {
   if (!existsSync(path.join(root, CI_CONFIG))) throw new Error(`${CI_CONFIG} is missing. Fix: declare shared, parity and runtime setup targets following docs/operations/tool-inventory.md (schema scripts/kit/schema/ci.schema.json)`);
   const config = readConfig<CIConfig>(root, CI_CONFIG, 'ci.schema.json');
-  const db = makeDatabase(root);
-  let parityMode: ParityMode = config.parityMode ?? 'full';
-  const setupEntries = [
-    ['setup.shared', config.setup.shared], ['setup.parity', config.setup.parity],
-    ...RUNTIMES.map(runtime => [`setup.runtimes.${runtime}`, config.setup.runtimes[runtime]] as [string, string[]]),
-    ...Object.entries(config.parityBindings ?? {}).map(([implementation, binding]) => [`parityBindings.${implementation}.setup`, binding.setup] as [string, string[]]),
-  ] as [string, string[]][];
-  for (const [where, targets] of setupEntries) {
-    for (const target of targets) {
-      if (!db.targets.has(target)) throw new Error(`${CI_CONFIG}: ${where} names ${target}, which is not a Make target. Fix: declare an existing locked install/build target; the full install target is not a fallback`);
-    }
-  }
   const files = trackedFiles(root);
   const folders = implementationFolders(files);
   // One runtime set for the plan, the setup and the contexts: the runtimes of the tracked files and those that targets.runtimes
   // names, so a declared runtime is never left out (K910).
   const runtimes = [...new Set([...runtimeSet(files, folders), ...RUNTIMES.filter(runtime => config.targets?.runtimes?.[runtime] !== undefined)])].sort();
-  for (const [scope, context] of Object.entries(config.contexts ?? {})) {
-    for (const phase of ['prepare', 'cleanup'] as const) {
-      const target = context[phase];
-      if (!db.targets.has(target)) throw new Error(`${CI_CONFIG}: contexts.${scope}.${phase} names ${target}, which is not a Make target. Fix: declare an existing repository-owned prepare and cleanup target`);
-    }
-  }
-  // parityMode comes only from config/ci.json (K951): a missing config/parity.json is a declaration of none, not a default.
-  const parityFile = path.join(root, 'config/parity.json');
-  let implementationNames: string[] = [];
-  if (!existsSync(parityFile)) {
-    if (config.parityMode === undefined) throw new Error(`${CI_CONFIG}: config/parity.json is missing and parityMode is not declared in ${CI_CONFIG}; declare "parityMode": "none" when the repository has no parity declaration, or add config/parity.json. Fix: one of the two`);
-    if (config.parityMode !== 'none') throw new Error(`${CI_CONFIG}: parityMode is ${config.parityMode} in ${CI_CONFIG}, but config/parity.json is missing. Fix: add config/parity.json, or declare "parityMode": "none"`);
-  } else {
-    const parity = readConfig<{ implementations: { name: string }[] }>(root, 'config/parity.json', 'parity.schema.json');
-    implementationNames = parity.implementations.map(({ name }) => name);
-    parityBindingMatrix(implementationNames);
-  }
-  if (parityMode === 'phases') {
-    const names = Object.keys(config.parityBindings ?? {});
-    const missing = implementationNames.filter(name => !names.includes(name));
-    const unknown = names.filter(name => !implementationNames.includes(name));
-    if (missing.length || unknown.length)
-      throw new Error(`${CI_CONFIG}: parityBindings has missing implementations ${missing.join(', ') || '(none)'} and unknown implementations ${unknown.join(', ') || '(none)'}; declare exactly the implementations of config/parity.json with explicit setup and tools arrays`);
-  }
-  return { config, runtimes, files, folders, db, parityMode, parityImplementations: implementationNames };
+  // A declared setup, binding or context target runs as declared (K1068): make reports a target that does not exist when it runs.
+  // The plan is what config/ci.json declares (K1068): a declared parityMode is planned as declared, and without a declaration a
+  // repository with config/parity.json has full parity and one without it has none; only the plan reads the file, for its runner tools.
+  const parityMode: ParityMode = config.parityMode ?? (existsSync(path.join(root, 'config/parity.json')) ? 'full' : 'none');
+  return { config, runtimes, files, folders, parityMode };
 }
 
-/** The default setup of a runtime is the repository's own deps-<runtime> target, a thin call of its package manager (K859). */
-function defaultSetup(runtime: Runtime, targets: { has(name: string): boolean }): { target: string; args: string[] }[] {
-  const target = `deps-${{ ts: 'node', go: 'go', rust: 'rust', php: 'php', 'php-ext': 'php', python: 'python' }[runtime]}`;
-  if (!targets.has(target)) throw new Error(`${CI_CONFIG}: the default setup target ${target} is not present in this Makefile. Fix: define ${target} in the Makefile as the locked install of the package manager, or declare setup.runtimes.${runtime}`);
-  return [{ target, args: [] }];
+/** The default setup of a runtime is the repository's own deps-<runtime> target, a thin call of its package manager (K859); make reports it when it is missing. */
+function defaultSetup(runtime: Runtime): { target: string; args: string[] }[] {
+  return [{ target: `deps-${{ ts: 'node', go: 'go', rust: 'rust', php: 'php', 'php-ext': 'php', python: 'python' }[runtime]}`, args: [] }];
 }
 
 function plan(root: string): CIPlan {
-  const { config, runtimes, parityMode, parityImplementations } = readAndValidate(root);
+  const { config, runtimes, parityMode } = readAndValidate(root);
   invocations(root, 'shared');
   if (parityMode !== 'none') invocations(root, 'parity');
   for (const runtime of runtimes) invocations(root, 'runtime', runtime);
@@ -194,8 +150,8 @@ function plan(root: string): CIPlan {
   return {
     runner: config.runner ?? 'ubuntu-24.04',
     parityMode,
-    parityImplementations,
-    parityMatrix: parityMode === 'phases' ? parityBindingMatrix(parityImplementations).map(({ implementation }) => ({ implementation, installTools: present(config.parityBindings?.[implementation], `${CI_CONFIG} parityBindings.${implementation} (declare setup and tools for this implementation)`).tools })) : [],
+    // One binding job for each declared binding (K1068); an implementation without a binding gets no job.
+    parityMatrix: parityMode === 'phases' ? Object.entries(config.parityBindings ?? {}).map(([implementation, binding]) => ({ implementation, installTools: binding.tools })) : [],
     runtimes: runtimeJobs.length ? runtimeJobs : [{ runtime: 'none', installTools: [], targets: [] }],
     commonTools: sharedTools,
     parityTools: [...parityTools].sort(),
@@ -208,19 +164,19 @@ function plan(root: string): CIPlan {
 export function ciPlan(root: string = repositoryRoot()): CIPlan { return plan(root); }
 
 /** The setup of `runtime`: its declared targets or its deps target. */
-function runtimeSetup(runtime: Runtime, config: CIConfig, files: readonly string[], targets: { has(name: string): boolean }): { target: string; args: string[] }[] {
+function runtimeSetup(runtime: Runtime, config: CIConfig): { target: string; args: string[] }[] {
   const configured = config.setup.runtimes[runtime];
-  const setup = configured.length ? configured.map(target => ({ target, args: [] })) : defaultSetup(runtime, targets);
-  return setup;
+  return configured.length ? configured.map(target => ({ target, args: [] })) : defaultSetup(runtime);
 }
 
 function invocations(root: string, group: SetupGroup, selector?: string): { target: string; args: string[] }[] {
-  const { config, runtimes, files, db, parityMode, parityImplementations } = readAndValidate(root);
+  const { config, runtimes } = readAndValidate(root);
   if (group === 'parity-binding') {
-    if (selector === undefined) throw new Error('make kit-ci-setup GROUP=parity-binding needs IMPLEMENTATION; choose an implementation of config/parity.json');
-    if (parityMode !== 'phases') throw new Error(`${CI_CONFIG}: parity-binding setup requires parityMode phases; select that mode before running its binding jobs`);
-    if (!parityImplementations.includes(selector)) throw new Error(`unknown binding implementation ${selector}; choose ${parityImplementations.join(', ')}`);
-    return present(config.parityBindings?.[selector], `${CI_CONFIG} parityBindings.${selector} (declare setup and tools for this implementation)`).setup.map(target => ({ target, args: [] }));
+    const bindings = config.parityBindings ?? {};
+    if (selector === undefined) throw new Error('make kit-ci-setup GROUP=parity-binding needs IMPLEMENTATION; choose a binding of config/ci.json parityBindings');
+    const binding = bindings[selector];
+    if (binding === undefined) throw new Error(`unknown binding implementation ${selector}; ${CI_CONFIG} parityBindings declares ${Object.keys(bindings).join(', ') || '(none)'}`);
+    return binding.setup.map(target => ({ target, args: [] }));
   }
   const runtime = selector;
   if (group !== 'runtime' && runtime !== undefined) throw new Error(`make kit-ci-setup GROUP=${group} does not accept a selector; omit RUNTIME and IMPLEMENTATION`);
@@ -228,10 +184,10 @@ function invocations(root: string, group: SetupGroup, selector?: string): { targ
   if (group === 'shared') return [...(php ? [PHP_EXTRACTOR] : []), ...config.setup.shared.map(target => ({ target, args: [] }))];
   if (group === 'runtime') {
     if (runtime === undefined || !isRuntime(runtime) || !runtimes.includes(runtime)) throw new Error(`make kit-ci-setup GROUP=runtime needs a runtime of the plan (the tracked source files and targets.runtimes); choose ${runtimes.join(', ') || '(none)'}`);
-    return [...runtimeSetup(runtime, config, files, db.targets), ...(php && runtime === 'php' ? [PHP_EXTRACTOR] : [])];
+    return [...runtimeSetup(runtime, config), ...(php && runtime === 'php' ? [PHP_EXTRACTOR] : [])];
   }
   // The parity job builds every implementation, so it runs the setup of every runtime, each target once.
-  const targets = [...runtimes.flatMap(selected => runtimeSetup(selected, config, files, db.targets)), ...config.setup.parity.map(target => ({ target, args: [] }))];
+  const targets = [...runtimes.flatMap(selected => runtimeSetup(selected, config)), ...config.setup.parity.map(target => ({ target, args: [] }))];
   return [...new Map(targets.map(invocation => [invocation.target, invocation])).values()];
 }
 
@@ -288,7 +244,7 @@ export function runCIContext(root: string, phase: 'prepare' | 'cleanup', group: 
   if (result !== 0) throw new Error(`make ${target} failed in the CI context ${phase} for ${scope}; fix that target and rerun the gate`);
 }
 
-// Kept as one small seam for an execution test; commands always contain a validated target name, never config text as shell input.
+// Kept as one small seam for an execution test; a target name of config/ci.json is one argument of make, never shell input.
 function spawnMake(command: string, args: string[], cwd: string): number {
   const result = spawnSync(command, args, { cwd, stdio: 'inherit' });
   if (result.error) throw new Error(`${command} could not start: ${result.error.message}`);

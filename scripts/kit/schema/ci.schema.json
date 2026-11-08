@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "config/ci.json",
-  "description": "Existing Make targets needed before, around and after the gates of the CI pipeline (`scripts/kit/ci-setup.mts`, workflows/ci-pipeline.yml): repository-specific install and generation prerequisites grouped by shared checks, parity, and runtime. Optional contexts name paired repository-owned preparation and cleanup targets around each provider gate. `parityMode` selects the provider full gate (the default) or the provider-owned API and implementation-binding phases.",
+  "description": "Make targets, run as declared, before, around and after the gates of the CI pipeline (`scripts/kit/ci-setup.mts`, workflows/ci-pipeline.yml): repository-specific install and generation prerequisites grouped by shared checks, parity, and runtime. Optional contexts name paired repository-owned preparation and cleanup targets around each provider gate. `parityMode` selects the provider full gate, the provider-owned API and implementation-binding phases, or no parity; without it, full when config/parity.json exists and none when it does not.",
   "type": "object",
   "required": ["schema", "setup"],
   "additionalProperties": false,
@@ -10,9 +10,9 @@
     "comment": { "type": "string" },
     "runner": { "description": "The supported GitHub-hosted runner of the parity and runtime jobs of the CI pipeline. The default is Ubuntu 24.04 x64; repositories may select Ubuntu 26.04 ARM when their native database tooling requires it. The planning job that names the runner, and the shared checks, run on Ubuntu 24.04 x64 (K910).", "type": "string", "enum": ["ubuntu-24.04", "ubuntu-26.04-arm"] },
     "runtimes": { "description": "The runtimes that the repository declares (K955). A repository whose tasks find no target fails unless this is an empty list, which declares that it has no runtime, such as kit; a repository with runtimes whose packages are missing fails too.", "type": "array", "uniqueItems": true, "items": { "type": "string", "enum": ["go", "js", "php", "php-ext", "python", "rust", "ts"] } },
-    "parityMode": { "description": "The parity path of the CI pipeline. `full` (default) runs complete parity-check; `phases` runs the global API phase and one binding phase for every implementation in config/parity.json; `none` runs no parity job and is the declaration of a repository without config/parity.json (K951).", "type": "string", "enum": ["full", "phases", "none"] },
+    "parityMode": { "description": "The parity path of the CI pipeline. `full` runs complete parity-check; `phases` runs the global API phase and one binding phase for every binding of parityBindings; `none` runs no parity job. Without a declaration it is `full` when config/parity.json exists and `none` when it does not (K1068).", "type": "string", "enum": ["full", "phases", "none"] },
     "parityBindings": {
-      "description": "Phased binding job declarations, keyed by the exact implementation names of config/parity.json. Every implementation requires explicit setup and tools arrays; empty arrays mean no work, with no inferred runtime or extractor setup.",
+      "description": "Phased binding job declarations, keyed by implementation name: each declared binding gets one binding job and an implementation without a binding gets none (K1068). Each binding has explicit setup and tools arrays; empty arrays mean no work, with no inferred runtime or extractor setup.",
       "type": "object",
       "propertyNames": { "pattern": "^[a-z][a-z0-9-]*$" },
       "additionalProperties": {
@@ -45,7 +45,7 @@
       }
     },
     "contexts": {
-      "description": "Optional paired existing Make targets for repository-owned CI resources. Preparation runs after locked install/build setup immediately before the provider gate. Cleanup runs with always() after preparation was entered, including when preparation or the gate fails.",
+      "description": "Optional paired Make targets, run as declared, for repository-owned CI resources. Preparation runs after locked install/build setup immediately before the provider gate. Cleanup runs with always() after preparation was entered, including when preparation or the gate fails.",
       "type": "object",
       "additionalProperties": false,
       "properties": {

@@ -6,7 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { initRepository } from './sandbox-repository.mts';
-import { ciPlan, ciSetupInvocations, parityBindingMatrix, runCIContext, runCISetup } from '../../scripts/kit/ci-setup.mts';
+import { ciPlan, ciSetupInvocations, runCIContext, runCISetup } from '../../scripts/kit/ci-setup.mts';
 import { readConfig } from '../../scripts/kit/schema-validate.mts';
 
 const runtimes = ['go', 'php', 'php-ext', 'python', 'rust', 'ts'] as const;
@@ -105,22 +105,23 @@ test('K731-1: the real kit-ci-setup Make target forwards the explicit CLI mode',
   }
 });
 
-test('K731: unknown targets fail before any setup runs', () => {
+// K1068: a declared target is planned as declared; make reports a target that does not exist when the setup runs it.
+test('K1068: a declared setup target that does not exist is planned and make reports it when it runs', () => {
   const root = fixture();
   try {
     const file = path.join(root, 'config/ci.json');
     const config = fixtureConfig(root);
     config.setup.runtimes.go = ['missing-setup'];
     writeFileSync(file, JSON.stringify(config));
-    assert.throws(() => ciSetupInvocations(root, 'runtime', 'go'), /config\/ci\.json: setup\.runtimes\.go names missing-setup, which is not a Make target/);
-    assert.throws(() => runCISetup(root, 'runtime', 'go'), /missing-setup, which is not a Make target/);
+    assert.deepEqual(ciSetupInvocations(root, 'runtime', 'go'), [{ target: 'missing-setup', args: [] }]);
+    assert.throws(() => runCISetup(root, 'runtime', 'go'), /make missing-setup failed in the CI setup runtime\/go/);
     assert.equal(existsSync(path.join(root, 'setup.log')), false);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('K731-1: contexts require a complete pair of existing Make targets', () => {
+test('K731-1: contexts require a complete pair of targets, planned as declared', () => {
   const root = fixture();
   try {
     const file = path.join(root, 'config/ci.json');
@@ -135,7 +136,7 @@ test('K731-1: contexts require a complete pair of existing Make targets', () => 
 
     config.contexts = { shared: { prepare: 'context-prepare', cleanup: 'missing-cleanup' } };
     writeFileSync(file, JSON.stringify(config));
-    assert.throws(() => ciPlan(root), /contexts\.shared\.cleanup names missing-cleanup, which is not a Make target/);
+    assert.equal(ciPlan(root).parityMode, 'full', 'K1068: a declared context target is not pre-checked against the Makefile');
 
     writeFileSync(file, JSON.stringify({ ...fixtureConfig(root), contexts: { unknown: { prepare: 'context-prepare', cleanup: 'context-cleanup' } } }));
     assert.throws(() => ciPlan(root), /contexts must NOT have additional properties/);
@@ -190,8 +191,8 @@ test('K731: missing consumer setup config names its required declaration and sch
 });
 
 // K859: kit wraps no package install; the default setup of a runtime is the repository's own deps-<runtime> target, a thin call of its
-// package manager, and a missing one names the target to define.
-test('K859: the default setup of a runtime is the deps target of the repository, a missing one is named, and an absent runtime needs none', () => {
+// package manager. K1068: it is planned whether or not the Makefile defines it; make reports a missing one when it runs.
+test('K859: the default setup of a runtime is the deps target of the repository, and an absent runtime needs none', () => {
   const root = fixture();
   try {
     writeFileSync(path.join(root, 'packages/go/go.mod'), 'module example.invalid/fixture\n\nrequire example.com/library v1.2.3\n');
@@ -203,7 +204,7 @@ test('K859: the default setup of a runtime is the deps target of the repository,
     config.setup.runtimes.go = [];
     writeFileSync(path.join(root, 'config/ci.json'), JSON.stringify(config));
     execFileSync('git', ['add', 'packages', 'config/ci.json'], { cwd: root });
-    assert.throws(() => ciSetupInvocations(root, 'runtime', 'go'), /the default setup target deps-go is not present in this Makefile\. Fix: define deps-go in the Makefile as the locked install of the package manager, or declare setup\.runtimes\.go/);
+    assert.deepEqual(ciSetupInvocations(root, 'runtime', 'go'), [{ target: 'deps-go', args: [] }], 'K1068: planned before the Makefile defines it');
     writeFileSync(path.join(root, 'Makefile'), `${readFileSync(path.join(root, 'Makefile'), 'utf8')}.PHONY: deps-go deps-php\ndeps-go:\n\t@true\ndeps-php:\n\t@true\n`);
     execFileSync('git', ['add', 'Makefile'], { cwd: root });
     assert.deepEqual(ciSetupInvocations(root, 'runtime', 'go'), [{ target: 'deps-go', args: [] }]);
@@ -222,14 +223,13 @@ test('K731: the plan discovers tracked runtime packages and separates configured
     const result = ciPlan(root);
     assert.deepEqual(result.runtimes.map(job => job.runtime), ['go']);
     assert.equal(result.parityMode, 'full');
-    assert.deepEqual(result.parityImplementations, ['go-client']);
     assert.deepEqual(result.parityMatrix, []);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('K734: phase mode plans one API job and the exact implementation matrix from parity.json', () => {
+test('K734: phase mode plans one API job and one binding job for each declared binding', () => {
   const root = fixture();
   try {
     const file = path.join(root, 'config/ci.json');
@@ -238,7 +238,6 @@ test('K734: phase mode plans one API job and the exact implementation matrix fro
     writeFileSync(file, JSON.stringify(config));
     const result = ciPlan(root);
     assert.equal(result.parityMode, 'phases');
-    assert.deepEqual(result.parityImplementations, ['go-client']);
     assert.deepEqual(result.parityMatrix, [{ implementation: 'go-client', installTools: [] }]);
     const output = path.join(root, 'github-output');
     const script = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/ci-setup.mts');
@@ -246,28 +245,6 @@ test('K734: phase mode plans one API job and the exact implementation matrix fro
     const actionOutputs = readFileSync(output, 'utf8');
     assert.match(actionOutputs, /^parity_mode=phases$/m);
     assert.match(actionOutputs, /^parity_matrix=\[{"implementation":"go-client","installTools":\[\]}\]$/m);
-    assert.deepEqual(parityBindingMatrix(['go', 'php-extension']), [{ implementation: 'go' }, { implementation: 'php-extension' }]);
-    assert.throws(() => parityBindingMatrix([]), /declares no implementations/);
-    assert.throws(() => parityBindingMatrix(['go', 'go']), /duplicate implementation names/);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('K734: phase mode rejects duplicate declaration selectors', () => {
-  const root = fixture();
-  try {
-    const configFile = path.join(root, 'config/ci.json');
-    const config = fixtureConfig(root);
-    config.parityMode = 'phases';
-    writeFileSync(configFile, JSON.stringify(config));
-    const parityFile = path.join(root, 'config/parity.json');
-    const parity = readConfig<{ implementations: { name: string; runner: string; roots: string[] }[] }>(root, 'config/parity.json', 'parity.schema.json');
-    const first = parity.implementations[0];
-    assert.ok(first, 'the fixture declares one implementation');
-    parity.implementations.push({ ...first });
-    writeFileSync(parityFile, JSON.stringify(parity));
-    assert.throws(() => ciPlan(root), /duplicate implementation names/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -282,7 +259,6 @@ test('K745: one discovered implementation without parity declaration selects no 
     writeFileSync(path.join(root, 'config/ci.json'), JSON.stringify(declared));
     const noParity = ciPlan(root);
     assert.equal(noParity.parityMode, 'none');
-    assert.deepEqual(noParity.parityImplementations, []);
     assert.deepEqual(noParity.parityMatrix, []);
     const output = path.join(root, 'github-output');
     const script = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/ci-setup.mts');
@@ -293,21 +269,39 @@ test('K745: one discovered implementation without parity declaration selects no 
   }
 });
 
-// K951: parityMode comes only from config/ci.json. A missing config/parity.json selects no parity phase only when config/ci.json
-// declares parityMode none; without that declaration, or with a parity mode that needs the declaration, the plan fails with the fix.
-test('K951: a missing config/parity.json fails the plan unless config/ci.json declares parityMode none', () => {
+// K1068: ci-setup plans what config/ci.json declares. A binding job exists for each declared binding only; the implementations of
+// config/parity.json without a binding get no job, and whether that is acceptable is the repository's own rule.
+test('K1068: phases mode with parity.json implementations and no parityBindings plans no binding job', () => {
+  const root = fixture();
+  try {
+    const file = path.join(root, 'config/ci.json');
+    const config = fixtureConfig(root);
+    config.parityMode = 'phases';
+    delete config.parityBindings;
+    writeFileSync(file, JSON.stringify(config));
+    const result = ciPlan(root);
+    assert.equal(result.parityMode, 'phases');
+    assert.deepEqual(result.parityMatrix, []);
+    config.parityBindings = { other: { setup: [], tools: ['rust'] } };
+    writeFileSync(file, JSON.stringify(config));
+    assert.deepEqual(ciPlan(root).parityMatrix, [{ implementation: 'other', installTools: ['rust'] }]);
+    assert.deepEqual(ciSetupInvocations(root, 'parity-binding', 'other'), []);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// K1068: without config/parity.json and with no declared parityMode the plan has no parity; a declared mode is planned as declared.
+test('K1068: a missing config/parity.json with no parityMode plans no parity, and a declared mode is planned as declared', () => {
   const root = fixture();
   try {
     const file = path.join(root, 'config/ci.json');
     execFileSync('git', ['rm', '-q', '-f', 'config/parity.json'], { cwd: root });
-    assert.throws(() => ciPlan(root), /config\/parity\.json is missing and parityMode is not declared in config\/ci\.json; .*Fix: /);
+    assert.equal(ciPlan(root).parityMode, 'none');
     const config = fixtureConfig(root);
     config.parityMode = 'full';
     writeFileSync(file, JSON.stringify(config));
-    assert.throws(() => ciPlan(root), /parityMode is full in config\/ci\.json, but config\/parity\.json is missing/);
-    config.parityMode = 'none';
-    writeFileSync(file, JSON.stringify(config));
-    assert.equal(ciPlan(root).parityMode, 'none');
+    assert.equal(ciPlan(root).parityMode, 'full');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -516,8 +510,7 @@ test('K860: ci-setup refuses no tool selector, context scope, parity recipe or m
     mkdirSync(path.join(root, 'packages/php'), { recursive: true });
     writeFileSync(path.join(root, 'packages/php/Client.php'), '<?php\n');
     execFileSync('git', ['add', 'packages/php/Client.php'], { cwd: root });
-    assert.throws(() => ciPlan(root), /config\/parity\.json is missing/, 'the plan refuses the missing declaration with the fix');
-    // A repository without a parity declaration declares parityMode none (K951), so the setup below reads a valid plan.
+    // A repository without a parity declaration runs no parity job.
     config.parityMode = 'none';
     writeFileSync(file, JSON.stringify(config));
   } finally {
@@ -556,22 +549,16 @@ test('K1026: empty binding declarations perform no runtime default setup', () =>
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test('K1026: phased binding declarations exactly cover implementations and validate setup targets', () => {
+test('K1026: phased binding setup runs the declared targets of the selected binding', () => {
   const root = fixture();
   try {
     const config = fixtureConfig(root);
     config.parityMode = 'phases';
     const file = path.join(root, 'config/ci.json');
     writeFileSync(file, JSON.stringify(config));
-    delete config.parityBindings;
-    writeFileSync(file, JSON.stringify(config));
-    assert.throws(() => ciPlan(root), /parityBindings.*missing.*go-client/);
-    config.parityBindings = { 'go-client': { setup: [], tools: [] }, other: { setup: [], tools: [] } };
-    writeFileSync(file, JSON.stringify(config));
-    assert.throws(() => ciPlan(root), /parityBindings.*unknown.*other/);
     config.parityBindings = { 'go-client': { setup: ['missing-setup'], tools: [] } };
     writeFileSync(file, JSON.stringify(config));
-    assert.throws(() => ciPlan(root), /parityBindings.go-client.setup.*missing-setup.*not a Make target/);
+    assert.deepEqual(ciSetupInvocations(root, 'parity-binding', 'go-client'), [{ target: 'missing-setup', args: [] }]);
     config.parityBindings = { 'go-client': { setup: [], tools: [] } };
     writeFileSync(file, JSON.stringify(config));
     assert.throws(() => ciSetupInvocations(root, 'parity-binding', 'other'), /unknown.*other.*go-client/);

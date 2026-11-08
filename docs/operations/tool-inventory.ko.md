@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: e505667d05be7a9318227a490c4d37ba87dd9377d57aff3c899eb166d3a1f18e -->
+<!-- source-sha256: 0989bf0640e843066681f9deba77da4021ff5364ae361624221262b38668b6ad -->
 
 # 도구 목록
 
@@ -762,7 +762,7 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
   `make kit-check`는 bootstrap 복사본을 담은 저장소 workflow의 각 줄을 적었습니다(K992, K996). action은
   workspace의 root에서 실행되므로 job은 저장소를 그곳에 checkout합니다. tag의 release는 tag 자신의 tree에 있는
   action을 실행하므로, 저장소가 K992를 채택하기 전의 tag를 dispatch하면 action이 없어 red로 멈춥니다. 소비 저장소는
-  `config/ci.json`에 저장소별 setup target을 선언합니다. 각 값은 명령문이 아니라 실제 존재하는 Make target 이름입니다.
+  `config/ci.json`에 저장소별 setup target을 선언합니다. 각 값은 명령문이 아니라 Make target 이름입니다.
   schema는 `scripts/kit/schema/ci.schema.json`이며 `kit-check`가 소비 저장소의 선언을 검증합니다. runtime task는 runtime의 package가 하나도 없으면 `config/ci.json`이 `"runtimes": []`를 선언하지 않는 한 실패합니다. 이 선언은 kit처럼 저장소에 runtime이 없다는 뜻입니다(K955). 예:
 
   ```json
@@ -786,17 +786,17 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
   Runtime setup target은 해당 runtime job과 전체 또는 API parity job에서 실행됩니다. Binding phase는 아래의 별도 명시적 setup을 사용합니다.
   비어 있지 않은 runtime 목록은 Kit 기본값을 대체하므로, 해당 runtime이 필요한 setup과 추적된 native package lock을
   모두 포함해야 합니다. 목록이 비어 있으면 저장소 자신의 `deps-<runtime>` target(ts는 `deps-node`, `deps-go`, `deps-rust`,
-  php와 php-ext는 `deps-php`, `deps-python`)을 실행합니다. 이는 package manager의 lock 설치를 얇게 부르는 target이며, 없으면
-  정의할 target 이름과 함께 실패합니다(K859). 추적된 source 파일에 있는 runtime만 setup합니다. 실행 전 모든 선언 target을 Make database와 대조합니다. 없는 target은
-  수정 안내와 함께 실패합니다. ci-setup은 package manager, target, parity-check가 스스로 판정하는 것을 거부하지 않습니다(K860).
+  php와 php-ext는 `deps-php`, `deps-python`)을 실행합니다. 이는 package manager의 lock 설치를 얇게 부르는 target입니다(K859).
+  추적된 source 파일에 있는 runtime만 setup합니다. 선언된 target과 기본 target은 선언대로 실행합니다. kit은 먼저 Makefile과
+  대조하지 않으며, 없는 target은 실행될 때 make가 알립니다(K1068). ci-setup은 package manager, target, parity-check가 스스로 판정하는 것을 거부하지 않습니다(K860).
   PHP runtime job은 선언된 PHP와 Composer 도구를 선택합니다. `packages/php-ext`가 있으면 PHP extension job도 이 도구를
   선택하고 lint/build/test 전에 설치 단계가 필요 없습니다. build는 phpize가 `build/`에 복사한 `gen_stub.php`를 실행합니다. Extension test는 Composer package에 설치된
   PHPUnit을 사용하므로 Kit의 private PHPUnit 선언은 필요하지 않습니다. PHP parity runner가 Composer를 쓰면 parity 도구에도
   Composer를 포함합니다. PHP setup 목록을 직접 지정하는 소비 저장소는 root와 package를 포함해 필요한 Composer project를
   모두 나열해야 합니다.
-  `parityMode`는 선택 항목이며 기본값은 `full`입니다. `full`은 provider의 전체 `parity-check`를 실행합니다. `phases`는
-  `parity-api-check`를 한 번 실행하고 `config/parity.json`의 implementation 이름과 정확히 일치하는
-  `parity-bindings-<implementation>-check` matrix를 실행합니다. 소비 저장소는 concrete target에 setup prerequisite를 추가합니다. `config/parity.json`이 없으면 plan에는 기본값이 없습니다. `parityMode`를 선언해야 하며, parity 선언이 없는 저장소는 `none`을 선언합니다(K951). 선언된 모드 없이 파일이 없으면 plan이 실패합니다. `kit-check`는 `CHECK_TARGETS`가 전체 target 한 번 또는 API와 모든 binding phase를 완전하게
+  `parityMode`는 선택 항목입니다. 선언이 없으면 `config/parity.json`이 있을 때 `full`, 없을 때 `none`으로 계획합니다(K1068).
+  `full`은 provider의 전체 `parity-check`를 실행합니다. `phases`는 `parity-api-check`를 한 번 실행하고 `parityBindings`가
+  선언한 binding마다 job 하나인 `parity-bindings-<implementation>-check` matrix를 실행합니다. 소비 저장소는 concrete target에 setup prerequisite를 추가합니다. `kit-check`는 `CHECK_TARGETS`가 전체 target 한 번 또는 API와 모든 binding phase를 완전하게
   실행하도록 요구하며, 두 방식을 섞지 못하게 합니다. 마지막 job `required`(ubuntu-24.04)는
   파이프라인의 모든 job을 needs로 하고, plan이 선택한 job이 성공하지 않으면(skip된 경우 포함, K950) 실패합니다. plan이 고르지 않은 job은 skip되며 결과가 아닙니다.
   kit-ci-verify-gates는 없습니다.
@@ -808,9 +808,10 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
   job을 항상 판정하며 선택된 job이 건너뛰거나 취소되어도 실패합니다. 이 제어 의존성을 제거해도 GitHub의 runner
   동시 실행 한도는 늘어나지 않습니다.
   규칙 도달성은 저장소의 CI pipeline을 그 workflow 중 하나로서 step의 make 명령으로 읽는다. 예시 pipeline이 읽는 config/ci.json은 그 자체로 어떤 target에도 도달하지 않는다(K1057).
-  Phases 모드의 config/ci.json은 `parityBindings`에서 config/parity.json의 모든 implementation 이름을
-  `{ "setup": ["existing-target"], "tools": ["tool-selector"] }`에 대응시킵니다. Key 집합은 정확히 일치해야 하며
-  누락되거나 추가된 항목은 계획이 거절합니다. 빈 배열은 setup이나 tool을 요구하지 않는다는 명시적 선언입니다.
+  Phases 모드의 config/ci.json은 `parityBindings`에서 implementation 이름을
+  `{ "setup": ["setup-target"], "tools": ["tool-selector"] }`에 대응시킵니다. 계획은 선언된 binding만 실행하며 다른 파일과
+  대조하지 않습니다. binding이 없는 config/parity.json의 implementation은 binding job을 받지 않으며, 그것이 허용되는지는
+  저장소 자신의 규칙입니다(K1068). 빈 배열은 setup이나 tool을 요구하지 않는다는 명시적 선언입니다.
   각 binding matrix job은 해당 항목의 tool만 설치하고
   `make kit-ci-setup GROUP=parity-binding IMPLEMENTATION=<name>`으로 해당 setup만 실행합니다.
   Symbol extractor를 암묵적으로 설치하거나 runtime·API setup을 상속하지 않습니다. Repository는 context target의
@@ -825,8 +826,7 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
   setup을 반복하는 parity job에서 판정하고 설치합니다. `shared`와 `parity` key는 각 job의 도구를 선택합니다. 각 selector는
   install-tools가 판정합니다.
   선택 항목인 `contexts` map은 잠긴 setup 뒤, 기존 provider gate를 실행하기 직전에 저장소의 prepare target을 실행하고
-  gate 뒤에 cleanup target을 실행합니다. 각 scope에는 두 target이 모두 있어야 합니다. workflow 시작 전에 둘 다 실제 Make
-  target인지 검증합니다. 예를 들어
+  gate 뒤에 cleanup target을 실행합니다. 각 scope에는 두 target이 모두 있어야 하며, 둘은 선언대로 실행됩니다(K1068). 예를 들어
   `"contexts": { "shared": { "prepare": "ci-shared-prepare", "cleanup": "ci-shared-cleanup" } }`는 shared
   context를 선택합니다. `parity`는 선택된 각 parity job에서 따로 실행하고, runtime key는 해당 runtime job에 적용합니다.
   준비 단계에 진입한 뒤에는 Actions `always()`로 cleanup을 실행하므로 prepare 또는 gate가 실패해도 정리합니다. Cleanup 실패도

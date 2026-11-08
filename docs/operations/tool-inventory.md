@@ -839,7 +839,7 @@ Left as it is, with the reason:
   workflow that carried its own copy of the bootstrap (K992, K996).
   The action runs at the root of the workspace, so a job checks the repository out there. The release of a tag runs the action of the tag's own tree, so a
   dispatch of a tag older than the repository's adoption of K992 stops red: the action is missing there. A consumer declares
-  repository-owned setup targets in `config/ci.json`; each value is an existing Make target name, not a command. The schema is
+  repository-owned setup targets in `config/ci.json`; each value is a Make target name, not a command. The schema is
   `scripts/kit/schema/ci.schema.json` and `kit-check` validates the consumer declaration. A runtime task with no package of a runtime
 fails unless `config/ci.json` declares `"runtimes": []`, which says that the repository has no runtime, as kit does (K955). For example:
 
@@ -864,18 +864,19 @@ fails unless `config/ci.json` declares `"runtimes": []`, which says that the rep
   Runtime setup targets are run in that runtime's job and in the full or API parity job. Binding phases use their own explicit setup below.
   A nonempty runtime list replaces Kit's defaults and must include all setup that runtime needs, including its tracked native
   package locks. An empty runtime list runs the repository's own `deps-<runtime>` target (`deps-node` for ts, `deps-go`,
-  `deps-rust`, `deps-php` for php and php-ext, `deps-python`), a thin call of the locked install of its package manager; a
-  missing one fails and names the target to define (K859). Only a runtime present in tracked source files is set up. Every declared target is checked against the Make database before
-  setup starts; a missing target fails with a fix. ci-setup refuses nothing that a package manager, a target or parity-check
+  `deps-rust`, `deps-php` for php and php-ext, `deps-python`), a thin call of the locked install of its package manager (K859). Only a runtime present in tracked source files is set up. Every declared or
+  default target runs as declared: kit does not check it against the Makefile first, and make reports a target that does not exist when it
+  runs (K1068). ci-setup refuses nothing that a package manager, a target or parity-check
   judges itself (K860).
   PHP runtime jobs select the declared PHP and Composer tools. PHP extension jobs select those prerequisites and, when
   `packages/php-ext` exists, no install step precedes lint/build/test, since the build runs the `gen_stub.php` that phpize copies into `build/` of the source. Extension tests use PHPUnit installed
   with their Composer package, so Kit's private PHPUnit declaration is not required. PHP parity selection includes Composer
   when its runner needs it. A consumer with a nonempty PHP setup list must include every Composer project it needs, including
   root and package projects.
-  `parityMode` is optional and defaults to `full`. `full` runs the complete provider `parity-check`; `phases` runs the provider
-  `parity-api-check` once and a `parity-bindings-<implementation>-check` matrix whose names come exactly from
-  `config/parity.json`. A phase consumer adds setup prerequisites to those concrete targets.
+  `parityMode` is optional: without it the plan is `full` when `config/parity.json` exists and `none` when it does not (K1068).
+  `full` runs the complete provider `parity-check`; `phases` runs the provider `parity-api-check` once and a
+  `parity-bindings-<implementation>-check` matrix with one job for each binding that `parityBindings` declares. A phase consumer
+  adds setup prerequisites to those concrete targets.
   The pipeline separates planning from checks. A small `plan` job bootstraps the locked package and runs kit-ci-plan;
   it publishes the job declarations but runs no check or runtime setup. Shared checks, selected parity jobs and runtime
   jobs depend only on those plan outputs and start independently when runner capacity permits. They exchange no shared
@@ -883,15 +884,14 @@ fails unless `config/ci.json` declares `"runtimes": []`, which says that the rep
   judges the plan, shared checks and every selected parity/runtime job, including skipped or cancelled selected jobs.
   Removing this control dependency does not increase GitHub's runner concurrency limit.
   Rule reachability reads the CI pipeline of a repository as one of its workflows, by the make commands of its steps; config/ci.json, which the example pipeline reads, reaches no target by itself (K1057).
-  In phases mode, `parityBindings` in config/ci.json maps every implementation name from config/parity.json to
-  `{ "setup": ["existing-target"], "tools": ["tool-selector"] }`. The key set must match exactly; missing or extra entries
-  fail planning. Empty arrays explicitly request no setup or tools. Each binding matrix job installs only that entry's
+  In phases mode, `parityBindings` in config/ci.json maps an implementation name to
+  `{ "setup": ["setup-target"], "tools": ["tool-selector"] }`. The plan runs exactly the declared bindings and compares them
+  with no other file: an implementation of config/parity.json without a binding gets no binding job, and whether that is
+  acceptable is the repository's own rule (K1068). Empty arrays explicitly request no setup or tools. Each binding matrix job installs only that entry's
   tools and runs only its setup through `make kit-ci-setup GROUP=parity-binding IMPLEMENTATION=<name>`.
   It installs no symbol extractor implicitly and inherits no runtime or API setup. The repository lists every prerequisite
   its binding needs, including prerequisites of its context targets. API and full parity keep their complete preparation.
   This is execution of repository declarations, not build artifact or cache management.
-  Without `config/parity.json` the plan has no default: `parityMode` must be declared, as `none` when the repository has no
-  parity declaration (K951); a missing file with no declared mode fails the plan.
   `kit-check` requires `CHECK_TARGETS` to select either the full target once or the complete API-plus-bindings partition, never both.
   The final job `required` (ubuntu-24.04) needs every job of the pipeline and fails when a job that the plan selected does not
   succeed, including a skipped one (K950); a job that the plan does not select is skipped and is not a result. There is no kit-ci-verify-gates.
@@ -905,8 +905,7 @@ fails unless `config/ci.json` declares `"runtimes": []`, which says that the rep
   parity, which repeats runtime setup. `shared` and `parity` keys select tools for those jobs; install-tools judges each
   selector.
   The optional `contexts` map gives a job a repository-owned prepare and cleanup target after locked setup and immediately
-  around its existing provider gate. Each scope requires both targets; both are validated as existing Make targets before the
-  workflow runs. For example,
+  around its existing provider gate. Each scope requires both targets, which run as declared (K1068). For example,
   `"contexts": { "shared": { "prepare": "ci-shared-prepare", "cleanup": "ci-shared-cleanup" } }` selects a
   shared context. `parity` applies independently in each selected parity job; runtime keys apply to that runtime's job. The
   cleanup step uses Actions `always()` after preparation was entered, so it runs after either prepare or gate failure and its

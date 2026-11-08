@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K1068: ci-setup plans and sets up what config/ci.json declares and compares it with no other file: parityBindings need not name the implementations of config/parity.json, an implementation without a binding gets no binding job and a declared binding gets one, parityMode is optional (without it, full when config/parity.json exists and none when it does not), and the setup of a binding needs no parityMode phases; whether an implementation may lack a binding is the repository's own rule. A declared setup, binding or context target and the default deps-<runtime> target run as declared, with no check against the Makefile first: make reports a target that does not exist when it runs (K1068).
 - Preserve fully qualified PHPUnit event identities and independent flows; remove namespace aliasing from parity mapping (K1091).
 
 ## 0.0.98
