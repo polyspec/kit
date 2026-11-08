@@ -1,5 +1,5 @@
-// The checklists of a repository. A plan is the folder docs/plans/<plan>/ with plan.md, checklist.md and their Korean twins
-// plan.ko.md and checklist.ko.md (K241); kit finds the checklists in the files of a tree, so a repository declares no path.
+// The checklists of a repository: each docs/plans/<plan>/checklist.md with its Korean twin checklist.ko.md (K241); kit finds the
+// checklists in the files of a tree, and what else a plan folder holds is the repository's own (K1082).
 // The commit check (check-commits.mts) reads the states that a commit changes; the document check (check-documents.mts) reads every
 // checklist strictly. One function, readChecklist, reads a checklist at both levels.
 //
@@ -15,9 +15,8 @@ import { present } from './present.mts';
 import { git } from './git.mts';
 
 export const CONFIG = 'config/checklist.json';
-// The folder of the plans and the files of a plan folder.
+// The folder of the plans.
 export const PLANS = 'docs/plans';
-export const PLAN_FILES = ['plan.md', 'plan.ko.md', 'checklist.md', 'checklist.ko.md'] as const;
 const CHECKLIST_FILE = /^docs\/plans\/([^/]+)\/checklist\.md$/;
 
 /** The columns of a checklist table: the ID, the task, what it delivers, the commands that verify it, and its state. */
@@ -94,30 +93,6 @@ export const workingPlanFiles = (root: string): string[] => git(root, 'ls-files'
 /** The checklists of the tree whose paths are `files`, sorted: docs/plans/<plan>/checklist.md with its Korean twin. */
 export function trackersOf(config: Pick<ChecklistConfig, 'idPattern'>, files: Iterable<string>): Tracker[] {
   return [...files].filter(file => CHECKLIST_FILE.test(file)).sort().map(file => ({ path: file, translation: file.replace(/\.md$/, '.ko.md'), idPattern: config.idPattern }));
-}
-
-/**
- * The findings of the plan folders of the tree whose paths are `files`: a file of docs/plans that lies outside a plan
- * folder, a file of a plan folder other than its four files, and a plan folder without one of them. Each finding names the
- * path and the fix.
- */
-export function planFindings(files: Iterable<string>): { file: string; message: string }[] {
-  const findings: { file: string; message: string }[] = [];
-  const folders = new Map<string, Set<string>>();
-  for (const file of [...files].filter(item => item.startsWith(`${PLANS}/`)).sort()) {
-    const parts = file.slice(PLANS.length + 1).split('/');
-    const [folder, name] = parts;
-    if (parts.length !== 2 || folder === undefined || name === undefined) {
-      findings.push({ file, message: `a file of ${PLANS} lies in the folder of its plan: ${PLANS}/<plan>/ holds ${PLAN_FILES.join(', ')}, and a procedure belongs in docs/operations/` });
-      continue;
-    }
-    if (!(PLAN_FILES as readonly string[]).includes(name)) findings.push({ file, message: `a plan folder holds only ${PLAN_FILES.join(', ')}; move the file to the plan, the checklist, docs/spec/ or docs/operations/` });
-    folders.set(folder, (folders.get(folder) ?? new Set()).add(name));
-  }
-  for (const [folder, names] of folders) {
-    for (const name of PLAN_FILES.filter(required => !names.has(required))) findings.push({ file: `${PLANS}/${folder}/${name}`, message: `the plan ${folder} has no ${name}; a plan folder holds ${PLAN_FILES.join(', ')}` });
-  }
-  return findings;
 }
 
 const MARKER = /\[[ ~vo!xX-]\]/g;

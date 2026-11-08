@@ -7,7 +7,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { BLOCKING, compareTwin, crossFindings, describeFinding, inspectTrackers, loadConfig, planFindings, readChecklist, trackersOf, undeclaredChecklists, type Tracker } from '../../scripts/kit/checklist.mts';
+import { BLOCKING, compareTwin, crossFindings, describeFinding, inspectTrackers, loadConfig, readChecklist, trackersOf, undeclaredChecklists, type Tracker } from '../../scripts/kit/checklist.mts';
+import { newPlan } from '../../scripts/kit/plan.mts';
 import { parseJson } from '../../scripts/kit/schema-validate.mts';
 import type { ChecklistConfig } from '../../scripts/kit/checklist.mts';
 import { known } from './known.mts';
@@ -193,14 +194,16 @@ test('the checklists are the checklist.md files of the plan folders, each with i
   ]);
 });
 
-test('a plan folder holds its four files, and docs/plans holds plan folders only (K241)', () => {
-  const plan = (name: string) => ['plan.md', 'plan.ko.md', 'checklist.md', 'checklist.ko.md'].map(file => `docs/plans/${name}/${file}`);
-  assert.deepEqual(planFindings(plan('a')), []);
-  const findings = planFindings([...plan('a'), 'docs/plans/a/notes.md', 'docs/plans/b/checklist.md', 'docs/plans/c.md', 'docs/plans/d/e/plan.md']).map(entry => entry.file);
-  assert.deepEqual(findings, [
-    'docs/plans/a/notes.md', 'docs/plans/c.md', 'docs/plans/d/e/plan.md',
-    'docs/plans/b/plan.md', 'docs/plans/b/plan.ko.md', 'docs/plans/b/checklist.ko.md',
-  ]);
+test('a plan folder holds what the repository puts in it: plan-new writes a plan beside folders of any files (K1082)', (t) => {
+  const root = mkdtempSync(path.join(tmpdir(), 'kit-plan-folders-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(path.join(root, 'config'));
+  writeFileSync(path.join(root, 'config/checklist.json'), '{"schema":1,"hooks":["pre-push"],"idPattern":"T[0-9]+"}\n');
+  for (const file of ['docs/plans/a/notes.md', 'docs/plans/b/checklist.md', 'docs/plans/c.md']) {
+    mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+    writeFileSync(path.join(root, file), '# x\n');
+  }
+  assert.deepEqual(Object.keys(newPlan(root, { name: 'd', title: 'D', titleKo: 'D' })).sort(), ['docs/plans/d/checklist.ko.md', 'docs/plans/d/checklist.md', 'docs/plans/d/plan.ko.md', 'docs/plans/d/plan.md']);
 });
 
 test('an item ID is unique among the checklists, and a sub-item has its parent in its checklist (K241)', () => {

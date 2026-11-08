@@ -32,7 +32,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { sha256 } from './bootstrap/digest.mts';
-import { BYPASSED, CHECKLIST_HEADER, DONE, IMPOSSIBLE, loadConfig, PLANS, planFindings, readChecklist, STATE_TRANSITIONS, STATES, trackersOf, WAITING, workingPlanFiles } from './checklist.mts';
+import { BYPASSED, CHECKLIST_HEADER, DONE, IMPOSSIBLE, loadConfig, PLANS, readChecklist, STATE_TRANSITIONS, STATES, trackersOf, WAITING, workingPlanFiles } from './checklist.mts';
 import { COMMIT_RULES } from './check-commits.mts';
 import { itemCommands } from './verification.mts';
 import { spawnSync } from 'node:child_process';
@@ -78,7 +78,7 @@ function required(value: string | undefined, name: string): string {
 
 /**
  * Writes the four files of the plan `name` below docs/plans of `root` and returns them as { path: text }. Throws, writing
- * nothing, when `name` is no slug, the plan exists, a title is empty, or the plan folders would fail planFindings.
+ * nothing, when `name` is no slug, the plan exists or a title is empty; the other plan folders are not judged (K1082).
  */
 export function newPlan(root: string, { name, title, titleKo }: { name: string; title: string | undefined; titleKo: string | undefined }): Record<string, string> {
   if (!SLUG.test(name)) throw new Error(`the name ${JSON.stringify(name)} is no slug; a plan is named by [a-z][a-z0-9-]*`);
@@ -94,8 +94,6 @@ export function newPlan(root: string, { name, title, titleKo }: { name: string; 
     [`${folder}/checklist.md`]: checklist,
     [`${folder}/checklist.ko.md`]: twin(checklist, `<!-- doc-id: checklist-${name} -->\n# ${korean} 체크리스트\n\n${CHECKLIST_HEADER}`),
   };
-  const findings = planFindings([...workingPlanFiles(root), ...Object.keys(files)]);
-  if (findings.length) throw new Error(findings.map(finding => `${finding.file}: ${finding.message}`).join('\n'));
   for (const [file, text] of Object.entries(files)) {
     mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
     writeFileSync(path.join(root, file), text);

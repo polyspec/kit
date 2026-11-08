@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K1082: kit fixes no files of a plan folder: checklist exports no planFindings or PLAN_FILES, and plan-new writes a plan without judging what the other plan folders hold (K1082).
 - K1081: check-documents finds checklist items outside a plan folder only when its caller passes `--checklist-place`; kit's recipe passes it (K1081).
 - K1080: rebuild-check selects the tool sources that its caller declares with `--source <glob>`, and drops the files that it declares with `--exclude <glob>`, such as tests and `.d.ts` files, with no layout fixed in kit; with no --source it checks only the classes that config/rebuild.json declares. kit's recipe declares its own sources and excludes, so kit selects what it selected before; a repository that keeps the old selection passes the same `--exclude` globs (K1080).
 - K1079: divergence-check refuses only by the rules its caller declares: `--reason-kind <kind>` for the kinds of reason of a configuration exception and `--feature-state <state>` for the states of contracts/features.json it refuses; with neither it finds nothing of those kinds, and kit's recipe declares its own kinds and states (K1079).
