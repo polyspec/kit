@@ -83,6 +83,9 @@ const unlisted: Listed = () => {
   throw new Error('CASES selects the tests of a PHP library by PHPUnit, which needs the listing of the run');
 };
 
+/** The folders `places` of the caller, each normalized without a trailing slash, once each and sorted (K1122). */
+const folderSet = (places: readonly string[]): string[] => [...new Set(places.map(place => path.posix.normalize(place).replace(/(.)\/+$/, '$1')))].sort();
+
 /**
  * The runs of the tests of the roots `roots` with the runner `runner` among the tracked `files` (K1106), with the name filter `cases`
  * and the runner arguments `extra` of the caller; kit adds no flag of its own. With `extension`, the built library of a PHP extension,
@@ -91,7 +94,7 @@ const unlisted: Listed = () => {
  */
 export function testRuns(files: readonly string[], runner: string, roots: readonly string[], cases: string | undefined, extension?: string, venv?: string, listed: Listed = unlisted, notes: string[] = [], extra: readonly string[] = []): Run[] {
   const filter = (flag: string) => [...(cases === undefined ? [] : [flag, cases]), ...extra];
-  const folders = [...new Set(roots.map(root => path.posix.normalize(root)))].sort();
+  const folders = folderSet(roots);
   switch (runner) {
     case 'go':
       // One root runs in its own module. Several roots run in one go test from the root with their ./<root>/... patterns, go's own
@@ -128,12 +131,12 @@ export type Build = { cwd: string; command: string; args: string[] };
 
 /** The build command `command` with `args` of the caller in each of the `roots` (K1106). */
 export function buildRuns(roots: readonly string[], command: string, args: readonly string[]): Build[] {
-  return [...new Set(roots.map(root => path.posix.normalize(root)))].sort().map(cwd => ({ cwd, command, args: [...args] }));
+  return folderSet(roots).map(cwd => ({ cwd, command, args: [...args] }));
 }
 
 /** node --test in each of the `paths` that the caller names (K1106), which finds the test files there, with the runner arguments `extra`. */
 export function infrastructureRuns(paths: readonly string[], extra: readonly string[] = []): Run[] {
-  return [...new Set(paths.map(place => path.posix.normalize(place)))].sort().map(cwd => ({ cwd, tool: 'node', args: [...extra] }));
+  return folderSet(paths).map(cwd => ({ cwd, tool: 'node', args: [...extra] }));
 }
 
 /** The smoke of the resource context and the standard Node runner with the files that the caller names (K1074). */

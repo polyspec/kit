@@ -8,6 +8,7 @@
 ## 0.0.99
 
 - Release: kit 0.0.99 with the rows K1068–K1085, K1087–K1118 and K1120–K1125, which make each tool read only what it uses and what the repository or its caller declares; K1086 is not part of it (K1119).
+- K1122: runtime-targets reads a root with a trailing slash as its folder, so tools/ and tools run once, in tools (K1122).
 - K1121: kit.mk names no file of kit's tests: case-sensitive-runner-smoke, which runs kit's own smoke file, is a target of kit's Makefile (K1121).
 - K1120: the CI declarations follow the tracked tests: the kit shards hold mise-tools.test.mts, the go source group no longer names the deleted tools-go-mod-real.test.mts, the php group installs PHPUnit for phpunit-identity, and the Windows bootstrap step runs release-coverage, a node recipe that reads no make database (K1120).
 - K1118: each checkout reads only its own `.links`: a worktree no longer reads the declaration of its main checkout, so a worktree without one is in its release state and its installs (uv-install, npm, make install) take the packages its locks name, and link-check compares that release state; a worktree with its own `.links` links as declared. The unused `mainCheckout` export of link-providers goes (K1118).
