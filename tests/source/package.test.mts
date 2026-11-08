@@ -15,7 +15,7 @@ import type { JSONSchemaType } from 'ajv/dist/2020.js';
 import { readFixture } from '../kit/json-fixture.mts';
 import { parseStub, TEXTS } from '../kit/stub-json.mts';
 import type { NpmManifest } from '../../scripts/kit/manifests.mts';
-import { assets, ASSETS, context } from '../../scripts/kit/release.mts';
+import { assets, context } from '../../scripts/kit/release.mts';
 import { foreignEnvironment } from '../../scripts/kit/link-providers.mts';
 
 /** The URL that a module resolves to and the names that it exports. */
@@ -85,11 +85,13 @@ test('a repository that installs the tarball imports the tool APIs of @polyspec/
   mkdirSync(path.join(copy, 'var/tools/bin'), { recursive: true });
   copyFileSync(NPM, path.join(copy, 'var/tools/bin/npm'));
   // One release-assets call performs the same single lifecycle-enabled native pack this consumer previously used.
-  const names = assets(context(copy, { env: isolatedGit }), tag);
+  // The caller names the asset folder (K1102): one of its own beside the copy.
+  const assetFolder = path.join(packs, 'assets');
+  const names = assets(context(copy, { env: isolatedGit, assets: assetFolder }), tag);
   assert.equal(names.length, 1, 'kit produces exactly its npm release asset');
   const filename = names[0];
   assert.ok(filename);
-  const archive = path.join(copy, ASSETS, filename);
+  const archive = path.join(assetFolder, filename);
   const packed = { version, filename, integrity: `sha512-${createHash('sha512').update(readFileSync(archive)).digest('base64')}` };
   // The consumer installs the tarball and the packages that kit depends on at run time with npm ci, offline, from a cache
   // primed with the tarball and with those packages, as a repository installs them (consumer-layout.test runs the bootstrap).
