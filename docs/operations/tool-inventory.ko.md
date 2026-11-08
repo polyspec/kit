@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: f386790242d72a3bbb69834ebfd19a190a622c50fd8247a91b88c52ce57780e7 -->
+<!-- source-sha256: 3d6dba3d7f7100c498a0fd69d59f7c46777a30e53038f26c283de025ec3fc47c -->
 
 # 도구 목록
 
@@ -110,6 +110,8 @@ PIE는 저장소가 자기 recipe에서 실행하는 도구입니다. 저장소�
 `var/tools`의 Composer project(PHPUnit, PHP lint)는 project folder에서 `COMPOSER_VENDOR_DIR`를 `var/tools/<folder>/vendor`로 둔
 `composer install`로 설치합니다(K790). Composer는 commit된 `composer.lock`이 지정한 것을 설치하고, vendor directory가 이미 그것을
 담고 있으면 아무것도 하지 않으며, 매 실행마다 `var/tools/bin`의 PHP 아래에서 lock의 platform requirement를 확인합니다.
+Composer는 PHP symbol extractor에서와 같이 호출자의 환경으로, `--working-dir` 외에는 kit의 flag 없이 실행됩니다. home, cache, 그리고
+실행하는 plugin과 script는 호출자와 project의 `composer.json`이 정합니다(K1095).
 
 `config/toolchain.json`에는 kit의 schema가 없습니다(K1076). kit은 호출자가 필요로 할 때 각 key를 읽습니다: `php`(text인 release
 목록), `mise`(text인 `version`, platform별 archive의 `sha256`), `phpunit`(text인 `version`), `symbolExtractors`,

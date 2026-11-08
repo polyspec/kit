@@ -125,3 +125,16 @@ test('K861: each install builds the extractor again and records no RELEASE; the 
   assert.ok(existsSync(path.join(root, 'var/tools/symbols-go/bin/kit-symbols-go')));
 });
 
+
+test('K1095 the php extractor runs composer install with the environment of the caller and no flag of kit', (t) => {
+  const root = toolchainCheckout(t);
+  const log = path.join(root, 'composer.log');
+  mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
+  writeFileSync(path.join(root, 'var/tools/bin/composer'), `#!/bin/sh\necho "$* COMPOSER_HOME=\${COMPOSER_HOME:-unset}" >> ${JSON.stringify(log)}\n`);
+  chmodSync(path.join(root, 'var/tools/bin/composer'), 0o755);
+  const saved = process.env.COMPOSER_HOME;
+  process.env.COMPOSER_HOME = '/caller/composer';
+  t.after(() => { if (saved === undefined) delete process.env.COMPOSER_HOME; else process.env.COMPOSER_HOME = saved; });
+  installExtractor({ root, extractor: 'php' });
+  assert.deepEqual(readFileSync(log, 'utf8').split('\n').filter(Boolean), ['install COMPOSER_HOME=/caller/composer']);
+});

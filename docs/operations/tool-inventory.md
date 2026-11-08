@@ -117,6 +117,8 @@ has no target that runs PIE (K931).
 A Composer project of `var/tools` (PHPUnit, the PHP lint) is installed by `composer install` in the folder of the project, with
 `COMPOSER_VENDOR_DIR` set to `var/tools/<folder>/vendor` (K790). Composer installs what the committed `composer.lock` names, does nothing
 when the vendor directory already holds it, and checks the platform requirements of the lock under the PHP of `var/tools/bin` on each run.
+Composer runs with the environment of the caller and no flag of kit beside `--working-dir`, as it does for the PHP symbol extractor: its
+home, its cache, and the plugins and scripts that it runs are those of the caller and of the `composer.json` of the project (K1095).
 
 `config/toolchain.json` has no schema of kit (K1076); kit reads its keys `php` (a list of releases as text), `mise` (`version`
 as text, `sha256` of each platform's archive), `phpunit` (`version` as text), `symbolExtractors` and `exceptions` (below), each

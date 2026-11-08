@@ -7,7 +7,7 @@
 //        GOWORK=off: the extractor is a module of its own, which lies under node_modules of the consumer, so a go.work of the
 //        consumer does not list it (`go help environment`)
 //   php  the Composer project of scripts/kit/symbols/php, whose composer.lock pins nikic/php-parser, installed into vendor
-//        with the Composer of mise.toml as install-phpunit.mts installs PHPUnit
+//        with the Composer of mise.toml, with the environment of the caller and no flag of kit (K1095)
 // Each install builds the extractor again, and go and Composer keep their own caches (K861); the build goes into a temporary
 // directory beside the target and is renamed into place (install-tool.mts); nothing is installed into the machine.
 import { copyFileSync, existsSync } from 'node:fs';
@@ -15,7 +15,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { replaceInstall } from './bootstrap/install-tool.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
-import { composerEnvironment } from './install-composer-project.mts';
 import { miseWhere } from './bootstrap/install-mise.mts';
 import { toolCommand } from './mise-tools.mts';
 import { declaredToolchain, type InstalledExtractor } from './bootstrap/toolchain-declared.mts';
@@ -49,7 +48,7 @@ const BUILDS: Record<InstalledExtractor, (root: string, next: string, print: (te
   php: (root, next, print) => {
     const composer = toolCommand(root, 'composer');
     for (const file of ['composer.json', 'composer.lock']) copyFileSync(path.join(SYMBOLS, 'php', file), path.join(next, file));
-    run(composer, ['install', '--no-interaction', '--no-progress', '--no-scripts', '--no-plugins', '--prefer-dist'], { cwd: next, env: composerEnvironment(root) }, print);
+    run(composer, ['install'], { cwd: next, env: process.env }, print);
   },
   // The Go of mise.toml of the checkout by its absolute path, never a go of the machine nor the shim: the build runs in the
   // extractor sources, which a linked kit puts in the kit checkout, whose mise.toml the shim would read and the checkout does not

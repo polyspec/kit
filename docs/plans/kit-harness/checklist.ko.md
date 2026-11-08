@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 6683f4796653de030cf3c9356e1bee2d6e868ee44ef761c77376e44ab5be9dfa -->
+<!-- source-sha256: 60104d187b1820309c1c358d5dcfde846b0da89a46d9da4905bceeb359f3755b -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -222,7 +222,7 @@
 | K1092 | install-mise는 호출자가 넘긴 환경만 mise wrapper에 쓰고, var/tools/go.mod를 쓰지 않으며, 다른 checkout의 trusted config를 지우지 않고 고정 설치 플래그를 넘기지 않는다 | scripts/kit/bootstrap/install-mise.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1092 tests/kit/install-mise.test.mts` | [o] |
 | K1093 | mise-tools는 호출자가 넘긴 대로만 자식 프로세스에 MISE_*와 PATH를 설정한다 | scripts/kit/mise-tools.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1093 tests/kit/mise-tools.test.mts` | [o] |
 | K1094 | run-tests는 호출자가 넘긴 대로만 테스트 실행의 환경과 runner 플래그를 설정한다 | scripts/kit/run-tests.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1094 tests/kit/run-tests.test.mts` | [ ] |
-| K1095 | install-composer-project와 install-symbols는 호출자가 넘긴 대로만 Composer 환경과 플래그를 설정한다 | scripts/kit/install-composer-project.mts, scripts/kit/install-symbols.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1095 tests/kit/install-symbols.test.mts` | [ ] |
+| K1095 | install-composer-project와 install-symbols는 호출자가 넘긴 대로만 Composer 환경과 플래그를 설정한다 | scripts/kit/install-composer-project.mts, scripts/kit/install-symbols.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1095 tests/kit/install-symbols.test.mts` | [o] |
 | K1096 | install-tools는 호출자가 주지 않은 고정 설치 플래그를 넘기지 않는다 | scripts/kit/install-tools.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1096 tests/kit/install-tools.test.mts` | [ ] |
 | K1097 | uv-install, lint-rust, lint-php, install-rust는 호출자가 주지 않은 --locked, --profile minimal, --memory-limit=-1 같은 고정 플래그를 넘기지 않는다 | scripts/kit/uv-install.mts, scripts/kit/lint-rust.mts, scripts/kit/lint-php.mts, scripts/kit/install-rust.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1097 tests/kit/lint-steps.test.mts` | [ ] |
 | K1098 | ci-targets는 호출자가 요청할 때만 make를 -k로 실행한다 | scripts/kit/ci-targets.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1098 tests/kit/ci-targets.test.mts` | [ ] |
