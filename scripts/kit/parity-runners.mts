@@ -10,9 +10,10 @@
 //           a feature runs only its exact native test id (`--exact`)
 //   node    `node --test --test-reporter=<parity-node-reporter.mts> <test>`, whose lines name each test with its enclosing
 //           suites, joined by ' › '; a case is a top-level test, and a feature id is the joined name
-//   vitest  `node node_modules/vitest/vitest.mjs run <args> --dir <root> --reporter=json --outputFile.json=var/parity/vitest.json
+//   vitest  `node node_modules/vitest/vitest.mjs run <args> --dir <root> --reporter=json --outputFile.json=<temporary>/vitest.json
 //           <test>` from the checkout root, with --dir the root of the implementation that holds the test, read from the JSON
-//           report that vitest writes; a test is named by the titles of its
+//           report that vitest writes to a fresh folder under the temporary folder of the system (TMPDIR), which is removed
+//           after every run whatever it ended with, never in the checkout (K1101); a test is named by the titles of its
 //           suites and its own joined by ' › ', a case is a top-level test, and a feature id is the joined name
 //   php     `php <args> <vendor>/bin/phpunit --teamcity --configuration <package>/phpunit.xml <test>` from the checkout root, with
 //           the PHPUnit of the vendor directory that Composer gives the package of the test (composer-vendor.mts), and
@@ -22,7 +23,9 @@
 //           its data provider; without a symbol, a case is a test method `test_<case>` of the file; a feature id is the test method, `<Class>::<method>` or the bare method (K229)
 //   python  `python3 <args> -m unittest -v <test>`; a case is a test method `test_<case>`, and a feature id is the test method
 // Binding args append to the implementation's runner arguments; the runner then adds its native selector and reporter.
+import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { goEvents, cargoEvents, nodeEvents, phpunitEvents, pythonEvents, type Sink, type TestRef } from './test-output.mts';
 import { toolCommand } from './mise-tools.mts';
@@ -61,6 +64,8 @@ export interface BindingRun {
   merge?: boolean | 'items';
   read: (output: RunOutput, sink: Sink) => void;
   detail: (output: RunOutput) => string[];
+  /** Removes what the run writes outside the checkout (the vitest report, K1101); the ledger calls it after every run, whatever it ended with. */
+  cleanup?: () => void;
 }
 
 /** A binding that cannot run, with the sentence that says why; a sentence is never empty. */
@@ -175,9 +180,7 @@ function dataSetCase(symbol: string): (test: TestRef) => string | undefined {
   };
 }
 
-// The JSON report of a vitest run, in the checkout; the report of vitest 5 as its run reads it, and the sink call of each status
-// (a todo test is expected to fail, so it is no pass).
-const VITEST_REPORT = 'var/parity/vitest.json';
+// The JSON report of vitest 5 as its run reads it, and the sink call of each status (a todo test is expected to fail, so it is no pass).
 type VitestReport = { testResults: { assertionResults: { ancestorTitles: string[]; title: string; status: keyof typeof VITEST_OUTCOMES }[] }[] };
 const VITEST_OUTCOMES = { passed: 'pass', failed: 'fail', skipped: 'skip', pending: 'skip', todo: 'todo' } as const;
 
@@ -265,10 +268,11 @@ const RUNNERS: Record<Runner, RunnerOf> = {
       if (!existsSync(path.join(root, vitest))) return { error: `${vitest} does not exist; run npm ci` };
       const discovery = implementationRoot(roots, binding.test);
       if (discovery === undefined) return { error: `${binding.test} lies under none of the declared roots (${roots.join(', ') || 'none declared'})` };
-      // vitest 5 writes its JSON report to a file; each run writes it anew, and the run reads and removes it. A report that an
-      // interrupted check left is removed first, so a run that writes none reads none.
-      const report = path.join(root, VITEST_REPORT);
-      rmSync(report, { force: true });
+      // vitest 5 writes its JSON report to a file, creating its folder: the run names a fresh folder under the temporary folder of
+      // the system, outside the checkout, and its cleanup removes it after every run, so a run that writes no report reads none
+      // and nothing is written into the checkout (K1101). Naming the folder creates nothing, so a run that never starts leaves none.
+      const folder = path.join(tmpdir(), `kit-parity-vitest-${randomUUID()}`);
+      const report = path.join(folder, 'vitest.json');
       return {
         // vitest discovers the files that match the filter below --dir, following symbolic links; from the checkout root it
         // also walked var/, where a trust record of mise links to the home folder, and ran an old copy of the test there
@@ -279,13 +283,13 @@ const RUNNERS: Record<Runner, RunnerOf> = {
         read: (output, sink) => {
           if (!existsSync(report)) return;
           const { testResults } = readJsonFile<VitestReport>(report, 'vitest-report.schema.json');
-          rmSync(report);
           for (const result of testResults.flatMap(file => file.assertionResults)) {
             const name = [...result.ancestorTitles, result.title].join(' › ');
             sink[VITEST_OUTCOMES[result.status]]({ id: name, name });
           }
         },
         detail: stderrTail,
+        cleanup: () => rmSync(folder, { recursive: true, force: true }),
       };
     },
   },

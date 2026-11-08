@@ -97,16 +97,22 @@ async function runSupport(model: ParityModel, root: string, files: Set<string>, 
         continue;
       }
       say(`run the support file ${file} of ${implementation.name}: ${run.shown} (in ${run.cwd})`);
-      const { result } = await runInvocation(run, root, say);
-      if (result.error || result.stopped === 'output') {
-        found.push(finding('R5', `the support file could not run: ${run.shown}: ${result.error?.message ?? 'its output passed the limit of the ledger, and its process group was stopped'}`, where));
-        continue;
-      }
+      let result: RunCommandResult;
       const problems: string[] = [];
       let reported: string[] = [];
-      try { reported = outcomesOf(run, result).map(([name]) => name); }
-      // catch-any -- A malformed support report fails this file without suppressing independent bindings.
-      catch (error) { problems.push(`invalid reporter output: ${error instanceof Error ? error.message : String(error)}`); }
+      try {
+        ({ result } = await runInvocation(run, root, say));
+        if (result.error || result.stopped === 'output') {
+          found.push(finding('R5', `the support file could not run: ${run.shown}: ${result.error?.message ?? 'its output passed the limit of the ledger, and its process group was stopped'}`, where));
+          continue;
+        }
+        try { reported = outcomesOf(run, result).map(([name]) => name); }
+        // catch-any -- A malformed support report fails this file without suppressing independent bindings.
+        catch (error) { problems.push(`invalid reporter output: ${error instanceof Error ? error.message : String(error)}`); }
+      } finally {
+        // The files that the runner gives the run outside the checkout (the vitest report, K1101) go whatever the run ended with.
+        run.cleanup?.();
+      }
       if (reported.length)
         problems.push(`the support file reports cases (${reported.join(', ')}); declare it as the test of a binding`);
       if (result.status !== 0) {
@@ -137,19 +143,25 @@ async function runInvocation(run: BindingCommand, root: string, say: (line: stri
  */
 async function once(run: BindingCommand & { shown: string }, root: string, where: { unit: string; implementation: string; place: string }, ledger: { runs: LedgerRun[] }, say: (line: string) => void, group: (name: string) => boolean = () => false): Promise<Attempt> {
   say(`run ${where.unit} ${where.implementation}: ${run.shown} (in ${run.cwd})`);
-  const { result } = await runInvocation(run, root, say);
-  const status = result.error ? null : result.status;
+  let result: RunCommandResult;
   let reported: [string, Outcome][] = [];
   let reportError: string | undefined;
-  // Only native case events establish execution; compiler diagnostics remain failure details.
-  if (result.stopped === 'output') reportError = 'its output passed the limit of the ledger, and its process group was stopped';
-  else if (!result.error && result.stopped === undefined) {
-    try { reported = outcomesOf(run, result).filter(([name]) => !group(name)); }
-    // catch-any -- Malformed child output is a binding finding, not a reason to abort the remaining bindings.
-    catch (error) {
-      reportError = error instanceof Error ? error.message : String(error);
+  try {
+    ({ result } = await runInvocation(run, root, say));
+    // Only native case events establish execution; compiler diagnostics remain failure details.
+    if (result.stopped === 'output') reportError = 'its output passed the limit of the ledger, and its process group was stopped';
+    else if (!result.error && result.stopped === undefined) {
+      try { reported = outcomesOf(run, result).filter(([name]) => !group(name)); }
+      // catch-any -- Malformed child output is a binding finding, not a reason to abort the remaining bindings.
+      catch (error) {
+        reportError = error instanceof Error ? error.message : String(error);
+      }
     }
+  } finally {
+    // The files that the runner gives the run outside the checkout (the vitest report, K1101) go whatever the run ended with.
+    run.cleanup?.();
   }
+  const status = result.error ? null : result.status;
   ledger.runs.push({ unit: where.unit, implementation: where.implementation, command: run.command, args: run.args, cwd: run.cwd, status });
   return {
     result,

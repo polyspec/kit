@@ -9,7 +9,7 @@ const {
   FEATURE_FILES, FILES, INTERNAL, KIT_MAKE,
   NODE_CODEC, TIMEOUT, TS_API,
   binding, bindinglessCatches, caseDirectories, check,
-  checkParity, coveragePartChange, emptyCatches,
+  checkParity, coveragePartChange, emptyCatches, existsSync,
   feature, findingAt, initRepository,
   itemAt, itemWhere, keys,
   known, misplacedTests, missingImplementations, mkdirSync,
@@ -110,7 +110,8 @@ test('the vitest runner reads the JSON report of vitest: a suite case is a top-l
     'codec empty pass', 'codec ascii pass', 'roundtrip roundtrip › nested › bytes pass',
   ]);
   const run = known(ledger.runs.find(entry => entry.implementation === 'web'), 'ledger.runs.find(entry => entry.implementation === …)');
-  assert.deepEqual([run.command, ...run.args], [process.execPath, path.join(root, 'node_modules/vitest/vitest.mjs'), 'run', '--dir', 'web', '--reporter=json', `--outputFile.json=${path.join(root, 'var/parity/vitest.json')}`, 'web/src/codec.spec.ts']);
+  assert.deepEqual([run.command, ...run.args.slice(0, -2)], [process.execPath, path.join(root, 'node_modules/vitest/vitest.mjs'), 'run', '--dir', 'web', '--reporter=json']);
+  assert.equal(run.args.at(-1), 'web/src/codec.spec.ts');
   const failing = (await checkParity(vitestRepository(t, { 'web/src/roundtrip.test.ts': 'TODO roundtrip › nested › bytes\n', 'web/src/codec.spec.ts': 'PASS empty\nFAIL ascii\n' }), { execute: true, env: ENV, say: () => {} })).findings;
   assert.deepEqual(keys(failing), ['R3 codec web', 'R3 roundtrip web']);
   assert.match(findingAt(failing, 0).message, /failed: ascii/);
@@ -118,6 +119,25 @@ test('the vitest runner reads the JSON report of vitest: a suite case is a top-l
   const missing = (await checkParity(vitestRepository(t, { 'node_modules/vitest/vitest.mjs': null }), { execute: true, env: ENV, say: () => {} })).findings;
   assert.deepEqual(keys(missing), ['R3 codec web', 'R3 roundtrip web']);
   assert.match(findingAt(missing, 0).message, /node_modules\/vitest\/vitest\.mjs does not exist/);
+});
+
+test('K1101: the vitest report goes to a fresh folder under the temporary folder of the system, never into the checkout, and every run removes it, passed or failed', TIMEOUT, async (t) => {
+  const outputs = (ledger: { runs: { implementation: string; args: string[] }[] }) => ledger.runs.filter(entry => entry.implementation === 'web')
+    .map(entry => known(entry.args.find(arg => arg.startsWith('--outputFile.json=')), 'the --outputFile.json argument').slice('--outputFile.json='.length));
+  const root = vitestRepository(t);
+  const passed = await checkParity(root, { execute: true, env: ENV, say: () => {} });
+  assert.deepEqual(passed.findings, []);
+  const failing = vitestRepository(t, { 'web/src/codec.spec.ts': 'PASS empty\nFAIL ascii\n' });
+  const failed = await checkParity(failing, { execute: true, env: ENV, say: () => {} });
+  assert.deepEqual(keys(failed.findings), ['R3 codec web']);
+  const folders = [...outputs(passed.ledger), ...outputs(failed.ledger)].map(output => path.dirname(output));
+  assert.ok(folders.length >= 4, 'a suite and a feature run of web in each check');
+  assert.ok(!folders.slice(0, 2).some(folder => folders.slice(2).includes(folder)), 'each check names fresh folders');
+  for (const folder of folders) {
+    assert.equal(path.dirname(folder), tmpdir(), 'the report folder lies under the temporary folder of the system');
+    assert.ok(!existsSync(folder), `the run removed its report folder ${folder}`);
+  }
+  for (const checkout of [root, failing]) assert.ok(!existsSync(path.join(checkout, 'var/parity/vitest.json')), 'the check wrote no report into the checkout');
 });
 
 test('vitest discovers the tests of a binding only in the root of its implementation, not through a link under var/ (K202)', TIMEOUT, async (t) => {

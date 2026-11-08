@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K1101: parity-check gives the vitest JSON report a fresh folder under the temporary folder of the system (TMPDIR) and removes it after every run, whatever it ended with, instead of writing var/parity/vitest.json into the checkout (K1101).
 - K1084: release-tag passes an existing tag at the commit whatever its kind, and refuses a lightweight one only where config/release.json names annotatedTags; check-documents judges a declared changelog by the format rules that changelogRules of config/documents.json names (unreleased-first, unreleased-once, versions-only, newest-first) and by none without it; release-tag refuses a commit with entries under ## Unreleased only where those changelogRules name unreleased-empty-at-release; kit names annotatedTags and all five rules for itself (K1084).
 - K1085: parity-check resolves a unit owner through contracts/features.json or config/release.json, and judges its back-references (the feature lists the unit and each bound test, the owner part holds every bound test, a release package has a manifest) only where config/parity.json names ownerCrossChecks (K1085).
 - K1112: owner-check requires an owner for every tracked path, and for every changed path that exists, only when the caller passes `--every-path`; without it a path that no rule owns selects nothing. kit's own owner-check and owner-validate recipes pass it.
