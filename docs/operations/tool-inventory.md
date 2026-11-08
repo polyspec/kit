@@ -306,9 +306,9 @@ Files: `scripts/kit/checklist.mts`, `git-hooks.mts`, `holder-lock.mts`,
 ### Policy
 
 The verification state `[v]` means the implementation is committed and its declared unit tests passed; it blocks release and tag
-creation until the item is done. If verification fails, move it back to `[~]`. `generated-files.mts staged` is the generated-file check (K210), which a repository's own pre-commit hook may run: it reports a staged path with a segment `node_modules`, `vendor`,
-`.venv`, `venv`, `__pycache__`, `target`, `dist` or `*.egg-info`, or a path that a glob of `paths` in `config/generated.json` matches,
-unless a glob of `exceptions` in that file matches it, and names the path (AGENTS.md "Generated files"). There is no pull request, merge queue or ruleset in this policy.
+creation until the item is done. If verification fails, move it back to `[~]`. `generated-files.mts staged` is the generated-file check (K210), which a repository's own pre-commit hook may run: it reports a staged path that a glob of `paths` in `config/generated.json`
+matches, such as `**/node_modules/**`, and a staged executable object of a kind that the hook names with `--binary` (`ELF`, `Mach-O`,
+`PE`), unless a glob of `exceptions` in that file matches it, and names the path (K1105) (AGENTS.md "Generated files"). There is no pull request, merge queue or ruleset in this policy.
 
 ### `config/checklist.json`
 ```json

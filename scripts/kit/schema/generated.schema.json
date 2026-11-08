@@ -1,17 +1,17 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "config/generated.json",
-  "description": "The generated-file rule of AGENTS.md, read by the pre-commit hook (generated-files.mts): a staged path with a generated segment is refused, and so is a staged path that a glob of paths matches; an exception glob accepts it again.",
+  "description": "The generated-file rule of AGENTS.md, read by generated-files.mts: a staged or tracked path that a glob of paths matches is refused, and so is a tracked text file whose header matches a pattern of headers; an exception glob accepts it again. kit sets no generated folder, header or module file of its own (K1105).",
   "type": "object",
   "required": ["paths", "exceptions"],
   "properties": {
     "paths": {
-      "description": "Globs of repository paths that are generated on top of the segments kit refuses (node_modules, vendor, .venv, venv, __pycache__, target, dist, *.egg-info), such as a build output folder of the repository. Read by picomatch with dot: true.",
+      "description": "Globs of repository paths that are generated, such as **/node_modules/** or a build output folder of the repository; they are the only generated paths. Read by picomatch with dot: true.",
       "type": "array",
       "items": { "type": "string", "minLength": 1 }
     },
     "tracked": {
-      "description": "Generated sources that a consumer installs as the tagged tree itself, such as a Go module or a Rust crate: each glob of repository paths is tracked in Git, and its reason says why; the directory of each glob must hold a go.mod or a Cargo.toml (P34). Read by picomatch with dot: true.",
+      "description": "Generated sources that a consumer installs as the tagged tree itself, such as a Go module or a Rust crate: each glob of repository paths is tracked in Git, and its reason says why; the directory of each glob, or one of its parents, holds a file that moduleFiles names (P34). Read by picomatch with dot: true.",
       "type": "array",
       "items": {
         "type": "object",
@@ -21,6 +21,16 @@
           "reason": { "type": "string", "minLength": 1 }
         }
       }
+    },
+    "headers": {
+      "description": "Regular expressions of a generated-file header, such as Code generated .* DO NOT EDIT: tracked refuses a text file whose first comment line among its first five lines matches one (K426, K1105). None declared, no header is checked.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "moduleFiles": {
+      "description": "The file names that make a directory a tagged-tree module for the tracked entries, such as go.mod and Cargo.toml (P34, K1105). None declared, the directory of a tracked entry is not checked.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
     },
     "exceptions": {
       "description": "Generated segments that the repository keeps, each glob of repository paths with its reason, such as test fixtures: read by picomatch with dot: true. A glob names one deliberate file set, never a whole generated folder; an exception exempts the path from the generated-file and duplication checks (K958).",

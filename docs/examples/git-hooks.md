@@ -24,7 +24,7 @@ The generated-file check of kit on the staged paths:
 ```sh
 #!/bin/sh
 cd "$(git rev-parse --show-toplevel)" || exit 1
-exec var/tools/bin/node node_modules/@polyspec/kit/dist/generated-files.mjs staged
+exec var/tools/bin/node node_modules/@polyspec/kit/dist/generated-files.mjs staged --binary ELF --binary Mach-O --binary PE
 ```
 
 ## `.githooks/commit-msg`

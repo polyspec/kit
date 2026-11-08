@@ -1,5 +1,5 @@
 <!-- doc-id: example-git-hooks -->
-<!-- source-sha256: 78921aaf6038d5bf52e657b4e2f3de29d2345574799700a25bd8540356d84c6c -->
+<!-- source-sha256: d2ab322ed7bf3a2945abb3b21618e2626f6b5b80bd419e7bfc5a508e48c8eebe -->
 # 예제: Git hook
 
 [English](git-hooks.md)
@@ -25,7 +25,7 @@ staged 경로에 대한 kit의 generated 파일 검사:
 ```sh
 #!/bin/sh
 cd "$(git rev-parse --show-toplevel)" || exit 1
-exec var/tools/bin/node node_modules/@polyspec/kit/dist/generated-files.mjs staged
+exec var/tools/bin/node node_modules/@polyspec/kit/dist/generated-files.mjs staged --binary ELF --binary Mach-O --binary PE
 ```
 
 ## `.githooks/commit-msg`

@@ -1,5 +1,21 @@
 {
   "schema": 1,
-  "paths": [],
-  "exceptions": []
+  "paths": [
+    "**/node_modules/**",
+    "**/vendor/**",
+    "**/.venv/**",
+    "**/venv/**",
+    "**/__pycache__/**",
+    "**/target/**",
+    "**/dist/**",
+    "**/*.egg-info/**"
+  ],
+  "exceptions": [],
+  "headers": [
+    "Code generated .* DO NOT EDIT"
+  ],
+  "moduleFiles": [
+    "go.mod",
+    "Cargo.toml"
+  ]
 }

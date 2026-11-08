@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 4b308ca79c5651aa512e299150ea3dd55da5ec56c9277919795086c29eec0b32 -->
+<!-- source-sha256: 60491c6d7d68eb30803dbe3928da43db28336e0d8227899dcc0069be7e3bf86e -->
 
 # 도구 목록
 
@@ -275,7 +275,7 @@ lock은 crudui, guard와 hook은 template, tracker는 다섯 구현의 합집합
 
 ### 정책
 
-verification `[v]`는 구현이 commit되었고 선언한 unit test가 통과했음을 뜻하며, item이 done이 될 때까지 release와 tag 생성을 막습니다. verification이 실패하면 `[~]`로 되돌립니다. `generated-files.mts staged`가 generated 파일 검사(K210)이며, 저장소 자신의 pre-commit hook이 이를 실행할 수 있습니다. `node_modules`, `vendor`, `.venv`, `venv`, `__pycache__`, `target`, `dist`, `*.egg-info` segment를 가졌거나 `config/generated.json`의 `paths` glob과 맞는 staged 경로를, `exceptions` glob과 맞지 않으면 보고하고 경로를 이름으로 밝힙니다(AGENTS.md "Generated files"). 이 정책에는 pull
+verification `[v]`는 구현이 commit되었고 선언한 unit test가 통과했음을 뜻하며, item이 done이 될 때까지 release와 tag 생성을 막습니다. verification이 실패하면 `[~]`로 되돌립니다. `generated-files.mts staged`가 generated 파일 검사(K210)이며, 저장소 자신의 pre-commit hook이 이를 실행할 수 있습니다. `**/node_modules/**`처럼 `config/generated.json`의 `paths` glob과 맞는 staged 경로와, hook이 `--binary`로 이름 붙인 종류(`ELF`, `Mach-O`, `PE`)의 staged 실행 object를, `exceptions` glob과 맞지 않으면 보고하고 경로를 이름으로 밝힙니다(K1105)(AGENTS.md "Generated files"). 이 정책에는 pull
 request, merge queue, ruleset이 없습니다.
 
 ### `config/checklist.json`

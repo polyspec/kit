@@ -106,7 +106,7 @@ layout-check: ## Check the folder layout of the checkout (S5) against config/lay
 	@test -x $(ALINT) || { echo "layout-check: $(ALINT) is missing; run make install-tools"; exit 1; }
 	$(ALINT) check --config config/layout.yml --color never --compact .
 	$(NODE) $(KIT)/generated-files.$(KIT_EXT) installs var package.json=node_modules pyproject.toml=.venv composer.json=vendor
-	$(NODE) $(KIT)/generated-files.$(KIT_EXT) tracked
+	$(NODE) $(KIT)/generated-files.$(KIT_EXT) tracked --binary ELF --binary Mach-O --binary PE
 # ---- Git hooks and merge drivers ---------------------------------------------------------------------------------------
 # scripts/kit/git-hooks.mts reads config/checklist.json, whose hooks are the repository's own files under .githooks; kit writes none
 # (K1053).

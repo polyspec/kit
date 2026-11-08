@@ -120,7 +120,7 @@
     },
     "scripts/kit/generated-files.mts": {
       "kind": "policy",
-      "reason": "the generated-file rule of AGENTS.md: the segments it refuses and the exceptions that config/generated.json declares"
+      "reason": "the generated-file rule of AGENTS.md: the generated globs and the exceptions that config/generated.json declares, and the executable kinds that the caller names (K1105)"
     },
     "scripts/kit/git-hooks.mts": {
       "kind": "record",

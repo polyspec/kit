@@ -1,18 +1,22 @@
 #!/usr/bin/env node
-// The generated-file check of AGENTS.md "Generated files": a staged path with a generated segment (node_modules, vendor, .venv,
-// venv, __pycache__, target, dist or *.egg-info) is refused, naming the path, unless config/generated.json declares it an
-// exception. A staged file whose content starts with the header of an executable object (ELF, Mach-O or PE, K416) is refused
-// the same way, whatever its path. A repository's own pre-commit hook may run `staged`.
+// The generated-file check of AGENTS.md "Generated files": a staged path that a glob of the paths of config/generated.json matches
+// is refused, naming the path, unless an exception of the config allows it; the repository declares its generated folders there,
+// such as **/node_modules/** (K1105). A staged file whose content starts with the header of an executable object of a kind that
+// the caller names with --binary (ELF, Mach-O or PE, K416) is refused the same way, whatever its path. A call that names no kind
+// and finds no declared path, so that it checks nothing, is a usage error (exit 2). A repository's own pre-commit hook may run
+// `staged`.
 //
-//   node scripts/kit/generated-files.mts staged   fail while a staged path is generated or an executable object, and no exception of
-//                                                 the config allows it
+//   node scripts/kit/generated-files.mts staged [--binary <kind>]...
+//                                                 fail while a staged path is generated or an executable object of a named kind, and
+//                                                 no exception of the config allows it
 //   node scripts/kit/generated-files.mts installs <directory> | <manifest>=<directory>...
 //                                                 fail while an install directory that the arguments declare is not ignored by Git (K372,
 //                                                 K1083): a bare directory of the root, such as var, or the directory beside each tracked
 //                                                 <manifest>, such as package.json=node_modules; the vendor-dir of a composer.json counts
-//   node scripts/kit/generated-files.mts tracked  fail while a tracked file is generated, an executable object (K416) or a text file
-//                                                 whose first comment line among its first 5 lines is a generated-file header
-//                                                 (Code generated ... DO NOT EDIT), unless the config allows it (K426); `make layout-check` runs it
+//   node scripts/kit/generated-files.mts tracked [--binary <kind>]...
+//                                                 fail while a tracked file is generated, an executable object of a named kind (K416) or a text file
+//                                                 whose first comment line among its first 5 lines matches a pattern of the headers of
+//                                                 the config, unless the config allows it (K426, K1105); `make layout-check` runs it
 import { spawnSync } from 'node:child_process';
 import { closeSync, existsSync, lstatSync, openSync, readSync } from 'node:fs';
 import path from 'node:path';
@@ -24,19 +28,21 @@ import { readConfigFindings } from './schema-validate.mts';
 import { trackedFiles } from './tracked-files.mts';
 
 export const CONFIG = 'config/generated.json';
-export const GENERATED_SEGMENTS = ['node_modules', 'vendor', '.venv', 'venv', '__pycache__', 'target', 'dist'];
 
 /** config/generated.json as generated.schema.json describes it. */
 export interface GeneratedConfig {
   paths: string[];
   exceptions: { path: string; reason?: string }[];
   tracked?: { path: string; reason?: string }[];
+  headers?: string[];
+  moduleFiles?: string[];
 }
 
 /** The globs of the exceptions of `config`, each with its reason (K958). */
 const excepted = (config: Pick<GeneratedConfig, 'exceptions'>) => config.exceptions.map(item => item.path);
 
-const isGeneratedSegment = (segment: string) => GENERATED_SEGMENTS.includes(segment) || segment.endsWith('.egg-info');
+/** The kinds of executable object that executableFormat tells apart, which --binary names (K1105). */
+export const BINARY_KINDS = ['ELF', 'Mach-O', 'PE'] as const;
 
 // A Mach-O fat file holds up to this many architectures; a Java class file starts with CAFEBABE too, but its next word is a
 // version (major 45 and up), so a count above this bound is a class file (K416).
@@ -71,30 +77,34 @@ export function blobContent(root: string, rev: string, file: string): Buffer | u
   return run.status === 0 ? run.stdout : undefined;
 }
 
-/** The paths of `files` whose content, as `read` gives it, is an executable object (K416) and that no glob of `config.exceptions` allows, with the format. */
-export function executableOffenders(files: string[], config: Pick<GeneratedConfig, 'exceptions'>, read: (file: string) => Buffer | undefined) {
+/**
+ * The paths of `files` whose content, as `read` gives it, is an executable object of one of the `kinds` (K416, K1105) and that no
+ * glob of `config.exceptions` allows, with the format.
+ */
+export function executableOffenders(files: string[], config: Pick<GeneratedConfig, 'exceptions'>, read: (file: string) => Buffer | undefined, kinds: readonly string[]) {
+  if (kinds.length === 0) return [];
   return files.flatMap(file => {
     const content = read(file);
     const format = content === undefined ? undefined : executableFormat(content);
-    return format !== undefined && !matchesAny(excepted(config), file) ? [{ file, format }] : [];
+    return format !== undefined && kinds.includes(format.split(' ')[0] ?? '') && !matchesAny(excepted(config), file) ? [{ file, format }] : [];
   });
 }
 
-/** The paths that are generated (a segment of GENERATED_SEGMENTS, or a glob of `config.paths`) and that no glob of `config.exceptions` allows, in the order given. */
+/** The paths that a glob of `config.paths` declares generated (K1105) and that no glob of `config.exceptions` allows, in the order given. */
 export function generatedOffenders(paths: string[], config: Pick<GeneratedConfig, 'paths' | 'exceptions' | 'tracked'>) {
   const tracked = (config.tracked ?? []).map(item => item.path);
-  return paths.filter(file => (file.split('/').some(isGeneratedSegment) || matchesAny(config.paths, file)) && !matchesAny(excepted(config), file) && !matchesAny(tracked, file));
+  return paths.filter(file => matchesAny(config.paths, file) && !matchesAny(excepted(config), file) && !matchesAny(tracked, file));
 }
 
 /**
  * The generated-file findings of the `changed` paths of a side of a change (K351) against `config` of that side, as lines; `fix`
- * says how the side refuses the path, and `read` gives the content of a changed file, which an executable object fails whatever
- * its path (K416). The staged check and the commit check of check-commits.mts read the same rule.
+ * says how the side refuses the path, and `read` gives the content of a changed file, which an executable object of one of the
+ * `kinds` fails whatever its path (K416, K1105).
  */
-export function generatedFindings(changed: string[], config: GeneratedConfig, fix: string, read: (file: string) => Buffer | undefined): string[] {
+export function generatedFindings(changed: string[], config: GeneratedConfig, fix: string, read: (file: string) => Buffer | undefined, kinds: readonly string[]): string[] {
   return [
     ...generatedOffenders(changed, config).map(file => `${file} is a generated file (AGENTS.md "Generated files"); ${fix}, or declare it in ${CONFIG}`),
-    ...executableOffenders(changed, config, read).map(({ file, format }) => `${file} is an executable object (${format}), whatever its path; ${fix}, or declare it an exception in ${CONFIG}`),
+    ...executableOffenders(changed, config, read, kinds).map(({ file, format }) => `${file} is an executable object (${format}), whatever its path; ${fix}, or declare it an exception in ${CONFIG}`),
   ];
 }
 
@@ -103,7 +113,6 @@ export function generatedFindings(changed: string[], config: GeneratedConfig, fi
 const HEAD_BYTES = 64 * 1024;
 const HEADER_LINES = 5;
 const COMMENT = /^\s*(#|\/\/|\/\*|--|;|%|<!--)/;
-const GENERATED_HEADER = /Code generated .* DO NOT EDIT/;
 
 /** The first bytes of the file `file` of `root`, at most HEAD_BYTES; none for a symbolic link or a file that the work tree lacks. */
 function readHead(root: string, file: string): Buffer {
@@ -120,20 +129,21 @@ function readHead(root: string, file: string): Buffer {
 
 /**
  * Whether the file whose first bytes are `head` has a generated-file header: its first comment line among the first five lines, a
- * shebang left out, matches it, and it is text.
+ * shebang left out, matches one of the `headers` that config/generated.json declares (K1105), and it is text.
  */
-function hasGeneratedHeader(head: Buffer): boolean {
-  if (head.includes(0)) return false;
+function hasGeneratedHeader(head: Buffer, headers: readonly RegExp[]): boolean {
+  if (headers.length === 0 || head.includes(0)) return false;
   const first = head.toString('utf8').split('\n', HEADER_LINES).find(line => COMMENT.test(line) && !line.startsWith('#!'));
-  return first !== undefined && GENERATED_HEADER.test(first);
+  return first !== undefined && headers.some(header => header.test(first));
 }
 
 /**
- * The findings of the tracked files of `root`: each tracked path with a generated segment or glob, each one whose first bytes are an
- * executable object (K416) and each text file with a generated-file header, that no glob of `config.exceptions` allows, each naming the path.
+ * The findings of the tracked files of `root`: each tracked path that a generated glob matches, each one whose first bytes are an
+ * executable object of one of the `kinds` (K416, K1105) and each text file with a generated-file header, that no glob of `config.exceptions` allows, each naming the path.
  */
-export function trackedFindings(root: string, config: GeneratedConfig): string[] {
+export function trackedFindings(root: string, config: GeneratedConfig, kinds: readonly string[]): string[] {
   const files = trackedFiles(root);
+  const headers = (config.headers ?? []).map(header => new RegExp(header));
   const heads = new Map<string, Buffer>();
   const head = (file: string): Buffer => {
     const known = heads.get(file);
@@ -145,13 +155,10 @@ export function trackedFindings(root: string, config: GeneratedConfig): string[]
   return [
     ...trackedRuleFindings(root, config),
     ...generatedOffenders(files, config).map(file => `${file} is a generated file (AGENTS.md "Generated files"); untrack it, or declare it in ${CONFIG}`),
-    ...executableOffenders(files, config, head).map(({ file, format }) => `${file} is an executable object (${format}), whatever its path; untrack it, or declare it an exception in ${CONFIG}`),
-    ...files.filter(file => !matchesAny(excepted(config), file) && !matchesAny((config.tracked ?? []).map(item => item.path), file) && hasGeneratedHeader(head(file))).map(file => `${file} has a generated-file header (Code generated ... DO NOT EDIT); untrack it, or declare it an exception in ${CONFIG}`),
+    ...executableOffenders(files, config, head, kinds).map(({ file, format }) => `${file} is an executable object (${format}), whatever its path; untrack it, or declare it an exception in ${CONFIG}`),
+    ...files.filter(file => !matchesAny(excepted(config), file) && !matchesAny((config.tracked ?? []).map(item => item.path), file) && hasGeneratedHeader(head(file), headers)).map(file => `${file} has a generated-file header of ${CONFIG}; untrack it, or declare it an exception in ${CONFIG}`),
   ];
 }
-
-/** The files that make a directory a tagged-tree module (P34): a go.mod or a Cargo.toml. */
-const MODULE_FILES = ['go.mod', 'Cargo.toml'];
 
 /** The directory of a glob: the literal path before its first glob character, without the last segment; '' for the root. */
 function globDirectory(glob: string): string {
@@ -161,15 +168,18 @@ function globDirectory(glob: string): string {
 
 /**
  * The findings of the tracked entries of config/generated.json (P34): a tracked generated source is a tagged tree that consumers
- * install, so the directory of each entry, or one of its parents, must hold a go.mod or a Cargo.toml that Git tracks.
+ * install, so the directory of each entry, or one of its parents, holds a module file that the moduleFiles of the config name, such
+ * as go.mod, and that Git tracks (K1105). A config that names no module file has none to find.
  */
 export function trackedRuleFindings(root: string, config: GeneratedConfig): string[] {
+  const moduleFiles = config.moduleFiles ?? [];
+  if (moduleFiles.length === 0) return [];
   const files = new Set(trackedFiles(root));
   return (config.tracked ?? []).flatMap(({ path: glob }) => {
     const parts = globDirectory(glob).split('/').filter(Boolean);
     const holders = ['', ...parts.map((_, index) => parts.slice(0, index + 1).join('/'))];
-    const accepted = holders.some(dir => MODULE_FILES.some(name => files.has(dir === '' ? name : `${dir}/${name}`)));
-    return accepted ? [] : [`${CONFIG}: tracked ${glob} is not under a directory that holds go.mod or Cargo.toml; a tracked generated source is a tagged tree that consumers install (P34)`];
+    const accepted = holders.some(dir => moduleFiles.some(name => files.has(dir === '' ? name : `${dir}/${name}`)));
+    return accepted ? [] : [`${CONFIG}: tracked ${glob} is not under a directory that holds ${moduleFiles.join(' or ')}; a tracked generated source is a tagged tree that consumers install (P34)`];
   });
 }
 
@@ -244,16 +254,35 @@ export function installFindings(root: string, declared: readonly string[]): stri
   });
 }
 
+/** The kinds that the arguments `args` name with --binary (K1105); undefined when an argument is anything else. */
+export function binaryKinds(args: readonly string[]): string[] | undefined {
+  const kinds: string[] = [];
+  for (let index = 0; index < args.length; index += 2) {
+    const kind = args[index + 1];
+    if (args[index] !== '--binary' || kind === undefined || !(BINARY_KINDS as readonly string[]).includes(kind)) return undefined;
+    kinds.push(kind);
+  }
+  return kinds;
+}
+
 if (isMain(import.meta.url)) {
   const [mode, ...rest] = process.argv.slice(2);
+  const kinds = mode === 'installs' ? [] : binaryKinds(rest);
   // installs checks what the caller declares, so a call that declares nothing, or an entry of another form, is a usage error (K1083).
-  const usage = mode === 'installs' ? rest.length === 0 || !rest.every(isInstallDeclaration) : (mode !== 'staged' && mode !== 'tracked') || rest.length > 0;
-  if (usage) {
-    console.error('Usage: node scripts/kit/generated-files.mts staged|tracked, or installs <directory> | <manifest>=<directory>...');
+  const usage = mode === 'installs' ? rest.length === 0 || !rest.every(isInstallDeclaration) : (mode !== 'staged' && mode !== 'tracked') || kinds === undefined;
+  // staged and tracked check the kinds that the caller names and what config/generated.json declares: its paths, its tracked
+  // entries together with module files (the check of either alone has nothing to find), and for tracked its headers. A call
+  // that has none of them checks nothing, so it is a usage error too (K1105).
+  const config = usage || mode === 'installs' ? undefined : loadGeneratedConfig(repositoryRoot());
+  const declared = config !== undefined && (config.paths.length > 0 || ((config.tracked ?? []).length > 0 && (config.moduleFiles ?? []).length > 0) || (mode === 'tracked' && (config.headers ?? []).length > 0));
+  const empty = config !== undefined && kinds?.length === 0 && !declared;
+  if (usage || kinds === undefined || empty) {
+    if (empty) console.error(`generated-files ${mode} checks nothing: name a kind with --binary, or declare paths, tracked entries with moduleFiles${mode === 'tracked' ? ' or headers' : ''} in ${CONFIG}`);
+    console.error(`Usage: node scripts/kit/generated-files.mts staged|tracked [--binary ${BINARY_KINDS.join('|')}]..., or installs <directory> | <manifest>=<directory>...`);
     process.exitCode = 2;
-  } else if (mode === 'tracked') {
+  } else if (mode === 'tracked' && config) {
     const root = repositoryRoot();
-    const found = trackedFindings(root, loadGeneratedConfig(root));
+    const found = trackedFindings(root, config, kinds);
     for (const line of found) console.error(`[generated-files] ${line}`);
     if (found.length > 0) process.exitCode = 1;
     else console.log('[generated-files] no tracked file is generated');
@@ -262,10 +291,9 @@ if (isMain(import.meta.url)) {
     for (const line of found) console.error(`[generated-files] ${line}`);
     if (found.length > 0) process.exitCode = 1;
     else console.log('[generated-files] every declared install directory is ignored by Git');
-  } else {
+  } else if (config) {
     const root = repositoryRoot();
-    const config = loadGeneratedConfig(root);
-    const found = [...trackedRuleFindings(root, config), ...generatedFindings(stagedPaths(root), config, 'unstage it', file => blobContent(root, ':', file))];
+    const found = [...trackedRuleFindings(root, config), ...generatedFindings(stagedPaths(root), config, 'unstage it', file => blobContent(root, ':', file), kinds)];
     for (const line of found) console.error(`[generated-files] ${line}`);
     if (found.length > 0) process.exitCode = 1;
     else console.log('[generated-files] no generated file is staged');
