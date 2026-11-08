@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1134: uv-install puts back the provider links that it removed before the uv sync or pip install when that install fails, so a failed install no longer leaves the environment without its links (K1134).
+
 ## 0.0.101
 
 - Release: kit 0.0.101 with the rows K1131 and K1132, which delete the refusals of owner-check that read a repository's recipe text and the docs-check rule checklist-verification (K1133).

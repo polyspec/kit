@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 6eea24dc4aa6216b37eca72a7fd2ec5b3774f86304a83d445e3db47f4e1bb906 -->
+<!-- source-sha256: 676dd88d579025f1dd6f10a8b4bb868fceb2fac67271a89a7a0eaac92dae7192 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -261,4 +261,4 @@
 | K1131 | 저장소의 recipe 문장을 읽는 owner-check의 거부 삭제: recipe가 ci-targets를 시작하는 target과 CHECK_TARGETS의 모든 target을 고르는 규칙은 더 이상 거부하지 않으며, 저장소가 선언한 fullSuite는 여전히 거부한다 | `scripts/kit/owner-check.mts` | `tests/kit/owner-check.test.mts` | [o] |
 | K1132 | docs-check 규칙 checklist-verification 삭제: docs-check는 열린 item의 Verification cell에 command를 요구하지 않는다. 이 규칙은 저장소가 뺄 수 있는 flag 없이 실행되었다 | `scripts/kit/verification.mts`, `scripts/kit/check-documents.mts` | `tests/kit/verification.test.mts`, `tests/kit/documents.test.mts` | [o] |
 | K1133 | K1131, K1132 행을 담아 kit 0.0.101을 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |
-| K1134 | uv-install의 uv sync나 pip install이 실패하면, 설치 전에 지운 provider 폴더 링크를 다시 건 뒤 실패를 보고한다. 그래서 실패한 설치는 환경의 링크를 찾은 그대로 남긴다 | `scripts/kit/uv-install.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1134 tests/kit/uv-install.test.mts` | [ ] |
+| K1134 | uv-install의 uv sync나 pip install이 실패하면, 설치 전에 지운 provider 링크 가운데 다른 것으로 바뀌지 않은 것을 모두 되돌린 뒤 실패를 보고한다. 그래서 실패한 설치는 환경의 링크를 찾은 그대로 남긴다 | `scripts/kit/uv-install.mts`, `scripts/kit/link-folders.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1134 tests/kit/uv-install.test.mts` | [o] |

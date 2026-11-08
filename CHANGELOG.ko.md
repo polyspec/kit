@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3fbf858508f4c9b20d3e97e34fc5bc867e282c06810911a71e85bc9ddd870e31 -->
+<!-- source-sha256: dcf34d96a14f5efbd6a4c2011ec551a19aeae0eef24bb0f3c7dc10a36ca1dcd5 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1134: uv-install은 uv sync나 pip install이 실패하면 설치 전에 지운 provider 링크를 되돌린다. 그래서 실패한 설치가 더는 환경을 링크 없이 남기지 않는다(K1134).
 
 ## 0.0.101
 

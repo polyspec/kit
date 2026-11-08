@@ -117,7 +117,7 @@ export function checkoutProviders(checkouts: readonly string[], ecosystem: keyof
 }
 
 /** Whether `file` exists as an entry, a dangling link included. */
-const present = (file: string): boolean => {
+export const present = (file: string): boolean => {
   try {
     lstatSync(file);
     return true;

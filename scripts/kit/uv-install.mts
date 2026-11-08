@@ -1,8 +1,8 @@
 // uv owns the locked installation; kit links each installed polyspec package folder to its checkout (K765, the user's rule of K591).
 // kit neither chooses installed versions nor rewrites manifests or distribution metadata: the release's dist-info stays the record.
 import path from 'node:path';
-import { existsSync, readdirSync } from 'node:fs';
-import { checkoutProviders, incompleteDistributions, linkFolders, providedFolders, releaseEnvironmentLinks } from './link-folders.mts';
+import { existsSync, readdirSync, readlinkSync, symlinkSync } from 'node:fs';
+import { checkoutProviders, environmentLinks, incompleteDistributions, linkFolders, present, providedFolders, releaseEnvironmentLinks } from './link-folders.mts';
 import { declaredCheckouts, type Provider } from './link-providers.mts';
 import { isMain } from './paths.mts';
 import { run } from './process.mts';
@@ -59,6 +59,7 @@ function installSources({ directory, providers = [], uv = 'uv', env = process.en
   try {
     if (sync !== undefined) {
       // uv writes and deletes through a package link, so the links go before it installs (K539).
+      const links = environmentLinks(workspace, venv).map(link => [link, readlinkSync(link)] as const);
       for (const link of releaseEnvironmentLinks(workspace, venv)) print(`uv development: unlinked ${link}, so uv writes no provider checkout`);
       // K856: uv keeps an installed distribution as it is, so one whose package folder a removed link left missing is reinstalled.
       const reinstall = incompleteDistributions(workspace, venv).flatMap(name => ['--reinstall-package', name]);
@@ -66,10 +67,16 @@ function installSources({ directory, providers = [], uv = 'uv', env = process.en
       // A project locked by a PEP 751 lock and no uv.lock installs it as its own install does (K769); uv sync reads only uv.lock.
       const pylock = existsSync(path.join(workspace, 'uv.lock')) ? undefined : pylockOf(workspace);
       print(`uv development: installing the native lock ${pylock === undefined ? 'uv.lock' : path.basename(pylock)}`);
-      const output = pylock === undefined
-        ? run(uv, ['sync', ...sync, ...reinstall], { cwd: project, env })
-        : run(uv, ['pip', 'install', '--python', path.join(venv, 'bin/python'), ...reinstall, '-r', pylock], { cwd: project, env });
-      if (output.trim()) print(output.trim());
+      try {
+        const output = pylock === undefined
+          ? run(uv, ['sync', ...sync, ...reinstall], { cwd: project, env })
+          : run(uv, ['pip', 'install', '--python', path.join(venv, 'bin/python'), ...reinstall, '-r', pylock], { cwd: project, env });
+        if (output.trim()) print(output.trim());
+      } catch (error) {
+        // K1134: a failed install puts back each link that it removed and that nothing replaced, so it leaves the environment as it found it.
+        for (const [link, target] of links) if (!present(link)) symlinkSync(target, link, 'dir');
+        throw error;
+      }
     }
     const folders = providedFolders(workspace, [...providers].filter(provider => provider.ecosystem === 'python'), { environment: venv });
     for (const text of linkFolders(folders)) print(`uv development: ${text}`);
