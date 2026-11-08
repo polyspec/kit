@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 98b46e871627bc49814a909f99e1a082262fc629fff3d1a2260bd8166b396ba8 -->
+<!-- source-sha256: 05a0501698e0432dad484474cc4b439d7f9ddaa1e46ee981cacb014fe7a5df59 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -17,7 +17,7 @@
 - K1099: 선언 없는 git-hooks install이나 check는 사용 오류인 exit 2로 끝납니다. config/checklist.json과 그 schema에는 더 이상 hooks 키가 없으므로 저장소는 그 키를 지우고 hook을 자기 hooks 레시피에 적습니다. 선언된 driver마다 merge.<name>.name은 kit이 설명을 쓰던 자리에 이제 driver 이름 그대로입니다(K1099).
 - K1099: git-hooks는 호출자가 --hooks-path, --hook, --merge, --driver로 넘긴 hook 폴더, hook, merge attribute, merge driver를 설치하고 검사하며, 넘기지 않으면 아무것도 하지 않습니다. kit 자신의 레시피는 changelog와 checklist의 merge와 driver를 선언하며, config/checklist.json에 hook을 두었던 저장소는 그것을 자기 hooks 레시피에 적습니다(K1099).
 - K1090: plan item-state는 항목을 어떤 상태에서든 저장소가 요청한 상태로 옮깁니다. kit은 전이표를 고정하지 않으며, 도구가 적는 원인이 필요한 bypassed와 impossible 상태만 원인을 요구합니다(K1090).
-- K1089: parity --make-targets는 plan-new처럼 호출자의 NAME_PATTERN으로 구현 이름을 검사하며, 없으면 make target이 담을 수 없는 이름만 거부합니다. 정규식이 아닌 NAME_PATTERN은 exit 2로 끝나며, parity.schema.json은 구현 이름, 공유 이름, owner part의 패턴을 더는 고정하지 않습니다. kit의 레시피는 NAME_PATTERN='^[a-z][a-z0-9-]*$'를 넘깁니다(K1089).
+- K1089: parity --make-targets는 plan-new처럼 호출자의 NAME_PATTERN으로 구현 이름을 검사하며, 없으면 make target이 담을 수 없는 이름만 거부합니다. 정규식이 아닌 NAME_PATTERN은 exit 2로 끝나며, parity.schema.json은 구현 이름, 공유 이름, owner part의 패턴을 더는 고정하지 않습니다. kit의 레시피는 `NAME_PATTERN='^[a-z][a-z0-9-]*$'`를 넘깁니다(K1089).
 - K1089: plan-new는 plan 이름을 호출자가 선언한 NAME_PATTERN으로 검사하고, 선언이 없으면 이름이 폴더 이름 하나인지만 검사합니다. kit 자신의 레시피는 `^[a-z][a-z0-9-]*$`를 선언합니다(K1089).
 - K1088: language-check는 --forbid 없는 호출과 정규식이 아닌 --forbid에 사용 오류인 exit 2로 끝납니다(K1088).
 - K1088: language-check는 --forbid 인수가 선언한 텍스트(`\p{Script=Hangul}` 같은 정규식)를 금지하고, 인수가 없으면 아무것도 금지하지 않습니다. kit 자신의 레시피가 한글을 선언하며, 규칙을 유지하는 저장소는 자기 레시피에 그것을 적습니다(K1088).
