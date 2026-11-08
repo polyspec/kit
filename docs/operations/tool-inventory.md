@@ -792,8 +792,8 @@ The check also leaves out the S10 stub of a PHP extension, `packages/php-ext/src
 | `time.mts` | `now`, `seconds`, `compactSeconds` | `now` of ci-targets and full-run, `seconds` of full-run and target-report (`1.2 s`), `seconds` of test-progress and test-hooks (`1.2s`) | those modules |
 | `findings.mts` | `finding` | `finding` of status-table and changelog | status-table, changelog |
 | `markdown.mts` | `lineBlocks`, `headings` | `cells` of checklist and `rowCells` of status-table, which read every line that starts with `|` (K130: the rows and list items of the tree), and the `## ` lines of `changelog.sections` and of the release notes (K130: the headings of the tree). Its fences, prose, links and anchors read the syntax tree of mdast-util-from-markdown with GFM and YAML front matter, and heading anchors are the slugs of github-slugger and of @mdit-vue/shared (VitePress) (K120) | checklist, status-table, changelog |
-| `schema-validate.mts` | `SCHEMAS`, `readConfig`, `readJsonFile`, `parseJson`, `readConfigFindings`, `SchemaError`: the JSON boundary of kit (K158). Every JSON that a tool reads, a file or the output of a command, is validated by the strict Ajv2020 against a schema file of `scripts/kit/schema` and has the type `T` that its caller names only once ajv's type guard `ajv.compile<T>(schema)` accepts it; data that breaks the schema throws a `SchemaError` whose lines name the file or the command and the JSON Pointer of each error of ajv. A check that reports those lines as findings reads with `readConfigFindings`. `scripts/kit/kit-check.mts` is the example caller: `lockedVersion` and `installedKit` read package-lock.json and the installed package.json through `manifests.mts`, and `checkConfig` reports the errors of each config/<name>.json. The bootstrap, which runs before ajv is installed, reads a JSON object with `readJsonObject` of `bootstrap/files.mts` and checks each field itself | the read-and-validate code of `loadConfig` in checklist and in release, and every `JSON.parse(...) as T` and `readJson(...) as T` of scripts/kit (K158) | every tool that reads JSON |
-| `manifests.mts` | `NpmManifest`, `NpmLock`, `ComposerManifest`, `ComposerLock` with their readers, each validated against its schema (`npm-manifest`, `npm-lock`, `composer-manifest`, `composer-lock`) | the local shapes of package.json, package-lock.json, composer.json and composer.lock in toolchain-floors, release, release-consumer, kit-check and owner-check (K158) | those modules |
+| `schema-validate.mts` | `SCHEMAS`, `readConfig`, `readJsonFile`, `parseJson`, `readConfigFindings`, `SchemaError`: the JSON boundary of kit (K158). Every JSON that a tool reads, a file or the output of a command, is validated by the strict Ajv2020 against a schema file of `scripts/kit/schema` and has the type `T` that its caller names only once ajv's type guard `ajv.compile<T>(schema)` accepts it; data that breaks the schema throws a `SchemaError` whose lines name the file or the command and the JSON Pointer of each error of ajv. A check that reports those lines as findings reads with `readConfigFindings`. Each tool validates the configuration it reads when it reads it; nothing validates a config/<name>.json by its name alone (K1070). The bootstrap, which runs before ajv is installed, reads a JSON object with `readJsonObject` of `bootstrap/files.mts` and checks each field itself | the read-and-validate code of `loadConfig` in checklist and in release, and every `JSON.parse(...) as T` and `readJson(...) as T` of scripts/kit (K158) | every tool that reads JSON |
+| `manifests.mts` | `NpmManifest`, `NpmLock`, `ComposerManifest`, `ComposerLock` with their readers, each validated against its schema (`npm-manifest`, `npm-lock`, `composer-manifest`, `composer-lock`), and `PACKAGE` and `isSource`, the name of kit's package and whether a checkout is kit (from kit-check.mts, K1070) | the local shapes of package.json, package-lock.json, composer.json and composer.lock in toolchain-floors, release, release-consumer, kit-check and owner-check (K158) | those modules |
 | `tracked-files.mts` | `checkedFiles`, `KIT_FIXTURE` | `EXCLUDED` of release | release, the lint and check tools |
 | `target-report.mts` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | the same names in target-run, `LAST_LINES` of target-run, the target-name pattern of ci-targets, `git` of target-report | ci-targets, full-run |
 | `pyproject-dependencies.mts` | `dependencyArrays`, the `dependencies` of `[project]`, each extra and each group of `[dependency-groups]`; `dependencyGroups`, each group with its `{ include-group }` tables resolved as the reference implementation of PEP 735 does (K177) | the read of the extras alone, which missed the dependency groups | link |
@@ -840,7 +840,7 @@ Left as it is, with the reason:
   The action runs at the root of the workspace, so a job checks the repository out there. The release of a tag runs the action of the tag's own tree, so a
   dispatch of a tag older than the repository's adoption of K992 stops red: the action is missing there. A consumer declares
   repository-owned setup targets in `config/ci.json`; each value is a Make target name, not a command. The schema is
-  `scripts/kit/schema/ci.schema.json` and `kit-check` validates the consumer declaration. A runtime task with no package of a runtime
+  `scripts/kit/schema/ci.schema.json`, and `ci-setup` validates the consumer declaration when it reads it. A runtime task with no package of a runtime
 fails unless `config/ci.json` declares `"runtimes": []`, which says that the repository has no runtime, as kit does (K955). For example:
 
   ```json
@@ -892,7 +892,6 @@ fails unless `config/ci.json` declares `"runtimes": []`, which says that the rep
   It installs no symbol extractor implicitly and inherits no runtime or API setup. The repository lists every prerequisite
   its binding needs, including prerequisites of its context targets. API and full parity keep their complete preparation.
   This is execution of repository declarations, not build artifact or cache management.
-  `kit-check` requires `CHECK_TARGETS` to select either the full target once or the complete API-plus-bindings partition, never both.
   The final job `required` (ubuntu-24.04) needs every job of the pipeline and fails when a job that the plan selected does not
   succeed, including a skipped one (K950); a job that the plan does not select is skipped and is not a result. There is no kit-ci-verify-gates.
   The optional `targets` map names the repository's own check targets of each job: `shared` runs after `kit-gates-static` in the
@@ -1111,7 +1110,7 @@ Kit downloads no package. In development a repository links the install folder o
 that repository's development folder (make install-link, docs/operations/local-links.md), and downloads nothing. A release
 installation lets the package manager fetch the package: a Composer package comes from the `composer`-type repository
 `https://github.com/polyspec/<repo>/releases/download/<tag>/packages.json` that the release publishes (K871,
-docs/operations/release.md), so the consumer names only the tag. kit-check reads no config/release-assets.json.
+docs/operations/release.md), so the consumer names only the tag.
 
 ## Release workflow, tools and draft (K38)
 
@@ -1408,7 +1407,7 @@ a vector file is a declaration finding. A single-file suite keeps the text match
 
 ### Declaration
 
-`config/parity.json`, validated against `scripts/kit/schema/parity.schema.json` (`make kit-check` validates it too):
+`config/parity.json`, validated against `scripts/kit/schema/parity.schema.json`:
 
 | Key | Content |
 |---|---|

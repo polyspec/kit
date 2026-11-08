@@ -55,11 +55,6 @@ endif
 ALINT := $(KIT_TOOLS)/mise/shims/alint
 BOOTSTRAP_NODE := node
 
-.PHONY: kit-check
-
-kit-check: ## Check the configuration of kit's utilities (config/*.json) against their schemas; offline
-	$(NODE) $(KIT)/kit-check.$(KIT_EXT)
-
 .PHONY: kit-install-symbols
 kit-install-symbols: ## Install selected declared symbol extractors with EXTRACTORS="go php"; their pinned tools must be installed first; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/install-symbols.$(KIT_EXT) $(EXTRACTORS)
@@ -170,7 +165,7 @@ test-integration test-conformance: ## Run the suite of each runtime under tests/
 .PHONY: kit-gates
 # The gates of every repository, whose partitions below the CI pipeline (workflows/ci-pipeline.yml) runs past failures, so that one run shows every failure
 # (K270): each make target that a rule of PRINCIPLES.md is enforced by.
-kit-gates: kit-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check parity-check suppression-check divergence-check lint-ts lint-php lint-python lint-go lint-rust lint-php-ext test-php-ext ## Run every gate of kit; the CI pipeline runs its partitions in CI
+kit-gates: layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check parity-check suppression-check divergence-check lint-ts lint-php lint-python lint-go lint-rust lint-php-ext test-php-ext ## Run every gate of kit; the CI pipeline runs its partitions in CI
 
 # CI partitions the same gate set so each job installs only the tools it uses. `kit-gates` remains the complete local/consumer
 # entry point above; these targets are only the disjoint workflow partitions, and the parity job checks every implementation in
@@ -181,7 +176,7 @@ kit-gates: kit-check layout-check docs-check rules-check owner-validate rebuild-
 ifneq ($(filter kit-gates-static,$(MAKECMDGOALS)),)
 MAKEFLAGS += -k
 endif
-kit-gates-static: kit-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check suppression-check divergence-check ## Run the shared gates; the self-diagnosis of a repository before a push, past failures
+kit-gates-static: layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check suppression-check divergence-check ## Run the shared gates; the self-diagnosis of a repository before a push, past failures
 	@echo "[kit-gates-static] every shared gate passed"
 kit-gates-parity: parity-check ## Run the full parity gate in its own job
 kit-gates-runtime-ts: lint-ts ## Run the TypeScript gate

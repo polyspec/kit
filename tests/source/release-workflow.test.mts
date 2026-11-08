@@ -1,7 +1,7 @@
 // The release workflow of kit (workflows/release.yml), the example that a repository copies to its
 // .github/workflows/release.yml (K1052). The order is fixed: the tools of the repository are installed first; the release is created
 // as a draft with its archives and then made public. The steps after release-tools run on the tools it installed, and on the
-// PHP of .php-version, which make kit-check requires of a repository that needs PHP (K193). The package ships no tests/source, so
+// PHP of .php-version, which a repository that needs PHP declares (K193). The package ships no tests/source, so
 // only the kit runs this case.
 import assert from 'node:assert/strict';
 import { assertWorkflowPackageBootstrap, bootstrapActionCommands, BOOTSTRAP_USES } from '../kit/workflow-package-bootstrap.mts';
@@ -83,7 +83,7 @@ test('the release workflow sets up the PHP of .php-version without a coverage dr
 });
 
 test('the release workflow bootstraps the package, checks the configuration, then prepares the release of the repository, before release-tools (K71-2, K132, K193)', () => {
-  // The release runs no kit-check of its own: release-tag refuses a commit whose CI run, kit-check included, did not pass (K193, K755).
+  // The release runs no gate of its own: release-tag refuses a commit whose CI run did not pass (K193, K755).
   const install = step('make install-tools TOOLS=npm', /^make install-tools TOOLS=npm$/);
   assert.ok(step('the Composer archive preflight', /^command -v zip /).line < install.line, 'archive capability is checked before installation');
   // The kit of main tags (K269, K911); the packages of the tagged commit are installed again before its release.

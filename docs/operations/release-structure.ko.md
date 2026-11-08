@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release-structure -->
-<!-- source-sha256: a5bc3298e6906d457dc497a648872b5e24f85248ac9707a504de04a593256811 -->
+<!-- source-sha256: ac9977995f6685a877ff593f19b24f14e83bf6a3676de8bf848b276fc99a9fa6 -->
 # 릴리스 구조
 
 [English](release-structure.md)
@@ -69,7 +69,7 @@ K514는 lint 설정을 사본에서 빼냈습니다. K1050부터 각 lint 도구
   include했고(S15), 그것이 곁의 `scripts/kit/bootstrap` installer를 실행했습니다. 이제 각 저장소가 자기 recipe를 둡니다.
 - PHP lint project `config/php-lint`는 실행되는 kit에서 읽습니다.
 - `PRINCIPLES.md`, 그 짝, `.editorconfig`, `.claude/settings.json`은 `../kit`의 파일로 가는 tracked symbolic link입니다.
-- 두 workflow는 GitHub가 symbolic link를 따르지 않으므로 각 저장소의 일반 파일로 남고, kit-check는 더 비교하지 않습니다.
+- 두 workflow는 GitHub가 symbolic link를 따르지 않으므로 각 저장소의 일반 파일로 남고, kit의 어떤 도구도 비교하지 않습니다(한때 비교하던 kit-check는 K1070 이후 없습니다).
 - `config/layout.kit.yml`과 그것이 이름 붙인 manifest schema 세 개는 K1052 전까지 kit-sync가 쓰는 복사본으로 남았습니다. alint 0.18.2가
   kit에서 읽는 모든 방법을 거부합니다. 저장소 밖의 `extends:`는 "`extends:` target … resolves to … which is outside the lint
   root"로, 그 파일로 가는 symbolic link도 같은 오류로, 두 번째 `--config`는 "`--config` may be given at most once"로 실패합니다.

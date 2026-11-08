@@ -10,7 +10,6 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { checkConfig } from '../../scripts/kit/kit-check.mts';
 import { toolCommand, toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
 import { Stop } from '../../scripts/kit/process.mts';
 import * as release from '../../scripts/kit/release.mts';
@@ -18,7 +17,7 @@ import { git, readJson, releaseSandbox, writeJson } from './release-sandbox.mts'
 import { builtCopy, installedLockEntries, kitConsumer, NPM, packedKit, primeCache, run, runtimePackage } from '../source/checkout.mts';
 import { KIT_MAKE, tool } from './kit-tools.mts';
 import { readComposerLockFile, type NpmManifest } from '../../scripts/kit/manifests.mts';
-import { parseJson } from '../../scripts/kit/schema-validate.mts';
+import { parseJson, readConfigFindings } from '../../scripts/kit/schema-validate.mts';
 import { known } from './known.mts';
 
 const REPOSITORY = 'example/kit-fixture';
@@ -96,18 +95,20 @@ test('a release tag is vX.Y.Z', () => {
   for (const tag of ['1.2.3', 'v1.2', 'v01.2.3', 'v1.2.3-rc1', 'v1.2.3/', '', 'packages/fixture-go/v1.2.3']) stop(() => release.parseTag(tag), /a release tag is vX\.Y\.Z$/);
 });
 
+const releaseFindings = (root: string) => readConfigFindings<unknown>(root, 'config/release.json', 'release.schema.json').errors ?? [];
+
 test('the schema accepts the configuration of the fixture and names each error of another', (t) => {
   const box = releaseSandbox(t);
-  assert.deepEqual(checkConfig(box.root).filter(line => line.startsWith('config/release.json')), []);
+  assert.deepEqual(releaseFindings(box.root).filter(line => line.startsWith('config/release.json')), []);
   const config = readJson<release.ReleaseConfig>(box.root, 'config/release.json');
   writeJson(box.root, 'config/release.json', { ...config, schema: 2, extra: 1, packages: [{ kind: 'pip', directory: '/abs', name: 'x' }] });
-  const findings = checkConfig(box.root).filter(line => line.startsWith('config/release.json'));
+  const findings = releaseFindings(box.root).filter(line => line.startsWith('config/release.json'));
   assert.ok(!findings.some(line => line.includes('/schema') || line.includes('additionalProperty')), `a key that no tool reads is no finding (K1069)\n${findings.join('\n')}`);
   assert.ok(findings.some(line => line.includes('/packages/0/kind must be equal to one of the allowed values {"allowedValues":["npm","composer","wheel"]}, value "pip"')), findings.join('\n'));
   assert.ok(findings.some(line => line.startsWith('config/release.json: /packages/0/directory must match pattern') && line.includes('value "/abs"')), findings.join('\n'));
   const { changelog, ...without } = config;
   writeJson(box.root, 'config/release.json', without);
-  assert.ok(checkConfig(box.root).some(line => line.includes(`/ must have required property 'changelog' {"missingProperty":"changelog"}`)));
+  assert.ok(releaseFindings(box.root).some(line => line.includes(`/ must have required property 'changelog' {"missingProperty":"changelog"}`)));
   assert.ok(changelog);
 });
 

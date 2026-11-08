@@ -178,10 +178,6 @@
       "kind": "policy",
       "reason": "writes the item IDs of the kit checklists into the installed package, which the consumer checks read (K957)"
     },
-    "scripts/kit/kit-check.mts": {
-      "kind": "policy",
-      "reason": "checks the configuration of a repository against the schemas of @polyspec/kit (K71-2, K1052); no ecosystem tool knows these schemas"
-    },
     "scripts/kit/kit.mk": {
       "kind": "policy",
       "reason": "the make targets of kit's own Makefile that run the tools of kit; the package ships no make file (K1054)"

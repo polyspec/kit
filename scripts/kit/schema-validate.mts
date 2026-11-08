@@ -1,6 +1,6 @@
 // The validation of a configuration against its JSON Schema (draft 2020-12) by ajv, in strict mode with every error. A schema
 // that strict mode refuses (an unknown keyword, an invalid value of a keyword) throws, so a schema never passes unchecked.
-// `kit-check` validates config/<name>.json against scripts/kit/schema/<name>.schema.json.
+// Each tool validates the configuration it reads against its schema of scripts/kit/schema when it reads it (K1070).
 //
 // The JSON boundary of kit (K158): every JSON that a tool reads, a file or the output of a command, goes through readConfig
 // or parseJson with a schema of scripts/kit/schema and the type T that the schema describes. ajv's type guard,

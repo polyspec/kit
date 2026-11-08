@@ -2,13 +2,12 @@
 // the six states, development blocks pushes and verification blocks releases, an unreadable or inconsistent document is an error, a
 // translation must hold the same IDs and states, and an item ID is unique among the checklists of a repository.
 import assert from 'node:assert/strict';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { BLOCKING, compareTwin, crossFindings, describeFinding, inspectTrackers, loadConfig, planFindings, readChecklist, trackersOf, undeclaredChecklists, type Tracker } from '../../scripts/kit/checklist.mts';
-import { checkConfig } from '../../scripts/kit/kit-check.mts';
 import { parseJson } from '../../scripts/kit/schema-validate.mts';
 import type { ChecklistConfig } from '../../scripts/kit/checklist.mts';
 import { known } from './known.mts';
@@ -170,13 +169,6 @@ test('loadConfig accepts the configuration of the fixture and names each rule th
   assert.throws(() => loadConfig(root), /must have required property 'idPattern'/);
   rmSync(path.join(root, 'config/checklist.json'));
   assert.throws(() => loadConfig(root), /config\/checklist\.json does not exist/);
-});
-
-test('kit-check validates config/checklist.json against its schema', (t) => {
-  const root = checkout(t, { 'config/checklist.json': JSON.stringify({ schema: 1, hooks: [], idPattern: 'T[0-9]+', states: ['[ ]'] }) });
-  mkdirSync(path.join(root, 'scripts/kit/schema'), { recursive: true });
-  cpSync(path.join(HERE, '../../scripts/kit/schema/checklist.schema.json'), path.join(root, 'scripts/kit/schema/checklist.schema.json'));
-  assert.deepEqual(checkConfig(root), [], 'a key that no tool reads is no finding (K1069)');
 });
 
 test('undeclaredChecklists names each document under docs/ with checklist items that is no checklist of a plan folder', () => {

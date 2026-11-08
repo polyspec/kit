@@ -13,9 +13,7 @@ This is the procedure of an agent or a person who works in a repository that tak
 2. `make install-tools` installs the tools of `mise.toml`.
 3. Every gate of `kit-gates` runs. A gate that fails is the next item of the plan of the repository, with its own red and green.
 4. Before each push, `make kit-gates-static` is the self-diagnosis of the repository: it runs every shared gate past a failure,
-   so one run names each gate that fails, and ends with `[kit-gates-static] every shared gate passed`. Its `kit-check` judges
-   the rules S11, S12 and P30: one CI pipeline at the root of the checkout, no link step of a package manager and no tracked
-   manifest path out of the repository (K998). The tests run in CI.
+   so one run names each gate that fails, and ends with `[kit-gates-static] every shared gate passed`. The tests run in CI.
 
 ## Scope
 

@@ -1,5 +1,5 @@
 <!-- doc-id: readme -->
-<!-- source-sha256: 634d93220b7e36d54d9c6e431f902540502835fbd44f9c6eb15483c2d245352a -->
+<!-- source-sha256: ba230b79dda32a1482468ab30d40f78d656f0e93d4c64a4d50d1eb42b71dc93f -->
 # polyspec/kit
 
 모든 polyspec 저장소가 공유하는 도구입니다. 저장소는 이를 package `@polyspec/kit`으로 설치합니다. package는 예시(`workflows/`의
@@ -10,7 +10,6 @@ workflow, `actions/`의 bootstrap action, `config/layout.kit.yml`, PRINCIPLES.md
 
 | 관심사 | 도구(`scripts/kit/`) | kit의 make target(`scripts/kit/kit.mk`) |
 |---|---|---|
-| 설정 | `kit-check.mts` | `kit-check` |
 | Toolchain | bootstrap(`bootstrap/bootstrap.mts`: mise, 그리고 mise.toml의 node와 npm), `install-tools.mts`(`mise.toml`과 `mise.lock`의 `mise install --locked`, 이어서 wheel backend, Composer project, `install-rust.mts`의 Rust channel), `mise-tools.mts`, `toolchain-mise.mts` | `install-tools TOOLS=npm`, `install-tools`, `toolchain-lock` |
 | 폴더 layout | `mise.toml`의 alint가 `config/layout.kit.yml`의 공통 rule 위에 `config/layout.yml`을 돌림 | `layout-check` |
 | Lint | `lint-python.mts`, `lint-php.mts`, `lint-rust.mts`, `lint-go.mts`, `lint-ts.mts`, 복사된 설정(docs/operations/tool-inventory.md, Lint 설정)과 `mise.toml`의 ruff, vulture, golangci-lint, deadcode, `install-php-lint.mts`의 PHP lint | `lint-python`, `lint-php`, `lint-rust`, `lint-go`, `lint-ts` |
@@ -33,7 +32,6 @@ workflow, `actions/`의 bootstrap action, `config/layout.kit.yml`, PRINCIPLES.md
 ```sh
 make install-tools TOOLS=npm   # install mise, and the node and npm of mise.toml, with the copied bootstrap (online)
 make install-packages          # npm ci with that npm, @polyspec/kit included (online)
-make kit-check                 # check the configuration against the schemas (offline)
 ```
 
 저장소는 설치된 package로 kit을 도입하고 위 recipe를 자기 Makefile에 둡니다. kit은 저장소에 recipe를 include시키지 않습니다(K1054).

@@ -1,5 +1,5 @@
 <!-- doc-id: spec-utilities-and-recipes -->
-<!-- source-sha256: 8dc30494f48bc6eef0c4db6c007cd16d87ec94acfa68050d49790ffd8d3d0dc0 -->
+<!-- source-sha256: 5fcecae6121b58ea1a8b5a78d951d2b5b40c9acf5bf5d2dcbf6dd7bd9838fff9 -->
 # 유틸리티와 예제
 
 [English](utilities-and-recipes.md)
@@ -57,7 +57,7 @@ kit은 어떤 것도 강제하지 않는다. 특히 다음과 같다.
 kit은 자기가 강제하는 것을 지운다. 각 변경은 Red, Green, 커밋을 거치는 체크리스트 행이다. 지금 강제하는 부분은 다음과 같다.
 - **include되는 레시피.** K1054 전까지 저장소는 package의 `scripts/kit/kit.mk`와 `scripts/kit/kit-bootstrap.mk` 레시피 한 벌을 include했고, AGENTS.md는 그들을 위해 kit.mk의 모든 레시피의 mise 환경을 적었다. 이제 package는 make 파일을 싣지 않는다. kit.mk는 kit 자신의 Makefile의 레시피이고, bootstrap은 예시 `docs/examples/bootstrap.mk`이며, toolchain-lock 레시피는 UV_PYTHON을 적지 않고 `mise.toml`의 `[env]`가 정한다.
 - **유틸리티 안의 덮어쓰기.** `bootstrap/install-mise.mts`(`miseEnvironment`)와 `mise-tools.mts`(`toolsEnvironment`)는 K1048 전까지 자기가 실행하는 도구에 mise와 uv의 설정(`MISE_LOCKED`, `MISE_AUTO_INSTALL`, `UV_*`, `UV_PYTHON`)을 넣었고, `link.mts`와 `run-tests.mts`는 K1049 전까지 `CARGO_TARGET_DIR`를 지웠다. K1050 전까지 lint 유틸리티는 각 도구를 저장소 자신의 설정 대신 kit의 설정으로 실행했다. golangci-lint는 kit의 `.golangci.yml`로, phpcs는 kit의 `phpcs.xml.dist`로, ruff는 kit의 `ruff.toml`로, clippy는 kit을 가리키는 `CLIPPY_CONF_DIR`로, oxlint와 knip은 kit의 `.oxlintrc.json`과 `knip.json`으로 실행한다.
-- **저장소의 레시피와 workflow에 대한 검사.** K1051 전까지 kit-check는 레시피가 도구를 실행하는 방식(`recipe-tools.mts`), Makefile과 workflow의 링크 단계(S11), ci.yml의 모양과 마지막 `ci-passed` job(S12), Makefile의 `$(KIT)/<name>`(S15), manifest 경로(P30)를 판정했고, bypass-check는 Makefile과 스크립트를 판정했다. 이제 kit-check는 kit 자신의 schema가 있는 config 파일만 검증한다.
+- **저장소의 레시피와 workflow에 대한 검사.** K1051 전까지 kit-check는 레시피가 도구를 실행하는 방식(`recipe-tools.mts`), Makefile과 workflow의 링크 단계(S11), ci.yml의 모양과 마지막 `ci-passed` job(S12), Makefile의 `$(KIT)/<name>`(S15), manifest 경로(P30)를 판정했고, bypass-check는 Makefile과 스크립트를 판정했다. K1070 전까지 kit-check는 각 config/<name>.json을 그 이름의 kit schema로 검증했다. 이제 kit-check는 없고, 각 도구가 자기가 읽는 설정을 검증한다.
 - **복사본.** K1052 전까지 kit-sync는 kit package.json의 `kit.copies` 항목 전부를 모든 저장소에 썼다. `PRINCIPLES.md`와 그 짝, `ci-pipeline.yml`, `release.yml`, bootstrap action, `config/layout.kit.yml`, `config/` 아래의 스키마, `.editorconfig`, `.claude/settings.json`이 그 안에 들었다. kit-inject-check가 바뀐 복사본을 실패시켰으므로, 복사본 파이프라인의 마지막 `required` job은 모든 저장소를 `kit-gates-*` gate를 포함한 파이프라인의 모든 job 결과에 묶었다. 이제 package는 이 파일을 예시로 담는다. 저장소는 원하는 것을 복사해 각 사본을 자기 것으로 가지며, 그 파이프라인과 그 job도 마찬가지다. kit은 어느 것도 쓰거나 비교하지 않는다. 그 파일에 대한 kit.owners의 owner 규칙, lint-ts와 rebuild-check의 사본 제외, 사본 편집에 대한 claude-hook의 거부, layout 규칙 `lint-cargo-lints`와 `config/cargo.schema.json`도 함께 사라졌다.
 - **거부.** K1053 전까지 다음이 거부했다.
   - `.claude/settings.json`의 Claude hook(`claude-hook.mts`)은 모든 저장소의 세션에서 명령을 거부했고, `make link`와 `make hook`이 그것을 각 checkout과 workspace 폴더의 설정에 썼다.

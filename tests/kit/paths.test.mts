@@ -31,7 +31,7 @@ test('isMain is true when the command names the tool through a link of its direc
   try {
     process.argv[1] = path.join(alias, 'scripts/kit/paths.mts');
     assert.equal(isMain(module), true, 'the same file, named through a link, is the command');
-    process.argv[1] = path.join(ROOT, 'scripts/kit/kit-check.mts');
+    process.argv[1] = path.join(ROOT, 'scripts/kit/owner-check.mts');
     assert.equal(isMain(module), false, 'another file is not the command');
   } finally {
     // node --test runs this file, so the command names it.

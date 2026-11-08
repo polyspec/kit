@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 78451756e5849c6814e5673057f728fa96949d340c365b8a73ec3871f171cf73 -->
+<!-- source-sha256: ad570450803865efb809bb17ed0d2718367b453a8c5c6b1f9b8c2e7cc54ecd76 -->
 
 # 도구 목록
 
@@ -720,8 +720,8 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
 | `time.mts` | `now`, `seconds`, `compactSeconds` | ci-targets와 full-run의 `now`, full-run과 target-report의 `seconds`(`1.2 s`), test-progress와 test-hooks의 `seconds`(`1.2s`) | 위 module들 |
 | `findings.mts` | `finding` | status-table과 changelog의 `finding` | status-table, changelog |
 | `markdown.mts` | `lineBlocks`, `headings` | `|`로 시작하는 모든 줄을 읽던 checklist의 `cells`와 status-table의 `rowCells`(K130: tree의 행과 list item), `changelog.sections`와 release notes의 `## ` 줄(K130: tree의 heading). fence, 산문, link, anchor는 GFM과 YAML front matter를 켠 mdast-util-from-markdown의 syntax tree에서 읽고, heading anchor는 github-slugger와 @mdit-vue/shared(VitePress)의 slug임(K120) | checklist, status-table, changelog |
-| `schema-validate.mts` | `SCHEMAS`, `readConfig`, `readJsonFile`, `parseJson`, `readConfigFindings`, `SchemaError`: kit의 JSON 경계(K158). 도구가 읽는 모든 JSON(파일이나 command의 출력)은 strict Ajv2020이 `scripts/kit/schema`의 schema 파일로 검증하며, ajv의 type guard `ajv.compile<T>(schema)`가 받아들인 뒤에야 호출자가 정한 type `T`를 가집니다. schema를 어기는 data는 `SchemaError`를 던지고, 그 각 줄은 파일이나 command와 ajv error의 JSON Pointer를 밝힙니다. 그 줄을 finding으로 보고하는 check는 `readConfigFindings`로 읽습니다. 예시 호출자는 `scripts/kit/kit-check.mts`입니다: `lockedVersion`과 `installedKit`는 `manifests.mts`로 package-lock.json과 설치된 package.json을 읽고, `checkConfig`는 각 config/<name>.json의 error를 보고합니다. ajv가 설치되기 전에 도는 bootstrap은 `bootstrap/files.mts`의 `readJsonObject`로 JSON object를 읽고 각 field를 스스로 검사합니다 | checklist와 release의 `loadConfig`에 있던 읽기와 검증 코드, scripts/kit의 모든 `JSON.parse(...) as T`와 `readJson(...) as T`(K158) | JSON을 읽는 모든 도구 |
-| `manifests.mts` | 각자의 schema(`npm-manifest`, `npm-lock`, `composer-manifest`, `composer-lock`)로 검증하는 reader와 함께 `NpmManifest`, `NpmLock`, `ComposerManifest`, `ComposerLock` | toolchain-floors, release, release-consumer, kit-check, owner-check에 있던 package.json, package-lock.json, composer.json, composer.lock의 지역 shape(K158) | 위 module들 |
+| `schema-validate.mts` | `SCHEMAS`, `readConfig`, `readJsonFile`, `parseJson`, `readConfigFindings`, `SchemaError`: kit의 JSON 경계(K158). 도구가 읽는 모든 JSON(파일이나 command의 출력)은 strict Ajv2020이 `scripts/kit/schema`의 schema 파일로 검증하며, ajv의 type guard `ajv.compile<T>(schema)`가 받아들인 뒤에야 호출자가 정한 type `T`를 가집니다. schema를 어기는 data는 `SchemaError`를 던지고, 그 각 줄은 파일이나 command와 ajv error의 JSON Pointer를 밝힙니다. 그 줄을 finding으로 보고하는 check는 `readConfigFindings`로 읽습니다. 각 도구는 자기가 읽는 설정을 읽을 때 검증합니다. config/<name>.json을 이름만으로 검증하는 것은 없습니다(K1070). ajv가 설치되기 전에 도는 bootstrap은 `bootstrap/files.mts`의 `readJsonObject`로 JSON object를 읽고 각 field를 스스로 검사합니다 | checklist와 release의 `loadConfig`에 있던 읽기와 검증 코드, scripts/kit의 모든 `JSON.parse(...) as T`와 `readJson(...) as T`(K158) | JSON을 읽는 모든 도구 |
+| `manifests.mts` | 각자의 schema(`npm-manifest`, `npm-lock`, `composer-manifest`, `composer-lock`)로 검증하는 reader와 함께 `NpmManifest`, `NpmLock`, `ComposerManifest`, `ComposerLock`, 그리고 kit package 이름과 checkout이 kit인지를 주는 `PACKAGE`와 `isSource`(kit-check.mts에서 옮김, K1070) | toolchain-floors, release, release-consumer, kit-check, owner-check에 있던 package.json, package-lock.json, composer.json, composer.lock의 지역 shape(K158) | 위 module들 |
 | `tracked-files.mts` | `checkedFiles`, `KIT_FIXTURE` | release의 `EXCLUDED` | release, lint와 검사 도구 |
 | `target-report.mts` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | target-run의 같은 이름들, target-run의 `LAST_LINES`, ci-targets의 target 이름 pattern, target-report의 `git` | ci-targets, full-run |
 | `pyproject-dependencies.mts` | `dependencyArrays`: `[project]`의 `dependencies`, 각 extra, `[dependency-groups]`의 각 group; `dependencyGroups`: PEP 735의 reference implementation처럼 `{ include-group }` table을 푼 각 group(K177) | dependency group을 빠뜨린 extra만의 읽기 | link |
@@ -763,7 +763,7 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
   workspace의 root에서 실행되므로 job은 저장소를 그곳에 checkout합니다. tag의 release는 tag 자신의 tree에 있는
   action을 실행하므로, 저장소가 K992를 채택하기 전의 tag를 dispatch하면 action이 없어 red로 멈춥니다. 소비 저장소는
   `config/ci.json`에 저장소별 setup target을 선언합니다. 각 값은 명령문이 아니라 Make target 이름입니다.
-  schema는 `scripts/kit/schema/ci.schema.json`이며 `kit-check`가 소비 저장소의 선언을 검증합니다. runtime task는 runtime의 package가 하나도 없으면 `config/ci.json`이 `"runtimes": []`를 선언하지 않는 한 실패합니다. 이 선언은 kit처럼 저장소에 runtime이 없다는 뜻입니다(K955). 예:
+  schema는 `scripts/kit/schema/ci.schema.json`이며 `ci-setup`이 소비 저장소의 선언을 읽을 때 검증합니다. runtime task는 runtime의 package가 하나도 없으면 `config/ci.json`이 `"runtimes": []`를 선언하지 않는 한 실패합니다. 이 선언은 kit처럼 저장소에 runtime이 없다는 뜻입니다(K955). 예:
 
   ```json
   {
@@ -796,8 +796,8 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
   모두 나열해야 합니다.
   `parityMode`는 선택 항목입니다. 선언이 없으면 `config/parity.json`이 있을 때 `full`, 없을 때 `none`으로 계획합니다(K1068).
   `full`은 provider의 전체 `parity-check`를 실행합니다. `phases`는 `parity-api-check`를 한 번 실행하고 `parityBindings`가
-  선언한 binding마다 job 하나인 `parity-bindings-<implementation>-check` matrix를 실행합니다. 소비 저장소는 concrete target에 setup prerequisite를 추가합니다. `kit-check`는 `CHECK_TARGETS`가 전체 target 한 번 또는 API와 모든 binding phase를 완전하게
-  실행하도록 요구하며, 두 방식을 섞지 못하게 합니다. 마지막 job `required`(ubuntu-24.04)는
+  선언한 binding마다 job 하나인 `parity-bindings-<implementation>-check` matrix를 실행합니다. 소비 저장소는 concrete target에 setup prerequisite를 추가합니다.
+  마지막 job `required`(ubuntu-24.04)는
   파이프라인의 모든 job을 needs로 하고, plan이 선택한 job이 성공하지 않으면(skip된 경우 포함, K950) 실패합니다. plan이 고르지 않은 job은 skip되며 결과가 아닙니다.
   kit-ci-verify-gates는 없습니다.
   선택 항목인 `targets` map은 각 job에서 저장소 자신의 check target을 이름합니다. `shared`는 shared job에서 `kit-gates-static` 뒤에,
@@ -1023,7 +1023,7 @@ kit은 package를 내려받지 않습니다. 개발에서 저장소는 다른 po
 link하며(make install-link, docs/operations/local-links.md) 아무것도 내려받지 않습니다. release 설치는 package manager가 package를
 가져오게 둡니다. Composer package는 release가 게시하는 `composer` type repository
 `https://github.com/polyspec/<repo>/releases/download/<tag>/packages.json`에서 오므로(K871, docs/operations/release.md) 소비자는 tag만
-적습니다. kit-check는 config/release-assets.json을 읽지 않습니다.
+적습니다.
 
 ## Release workflow, tool과 draft (K38)
 
@@ -1283,7 +1283,7 @@ directory입니다. 한 directory를 공유하는 unit은 각각 비교하는 �
 
 ### 선언
 
-`config/parity.json`은 `scripts/kit/schema/parity.schema.json`으로 검증합니다(`make kit-check`도 검증합니다):
+`config/parity.json`은 `scripts/kit/schema/parity.schema.json`으로 검증합니다:
 
 | Key | 내용 |
 |---|---|

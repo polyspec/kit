@@ -81,7 +81,7 @@ test('the CI workflow checks the classes of config/rebuild.json and the owner ru
 });
 
 test('the CI workflow runs every make target of config/owner-checks.json but the exempt ones, each with its reason (K183)', () => {
-  // K182 found rebuild-check and owner-validate missing from CI; toolchain-check, kit-check and release-coverage were missing
+  // K182 found rebuild-check and owner-validate missing from CI; toolchain-check, the configuration check and release-coverage were missing
   // too, so a failure of an owner check stayed hidden until a local run. The test derives the list, so a new owner target
   // needs a step or a reasoned exemption.
   const { owners, ciExempt = [] } = readFixture<{ owners: { targets?: string[] }[]; ciExempt?: { target: string; reason: string }[] }>(ROOT, 'config/owner-checks.json');

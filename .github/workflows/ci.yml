@@ -124,11 +124,8 @@ jobs:
       - name: parity
         if: ${{ !cancelled() }}
         run: make parity-check
-      # The configuration against its schemas, and every package file classified in config/release.json (K183). Each make
-      # target of config/owner-checks.json runs in a step here, or its ciExempt entry gives the reason it cannot.
-      - name: kit check
-        if: ${{ !cancelled() }}
-        run: make kit-check
+      # Every package file classified in config/release.json (K183). Each make target of config/owner-checks.json runs in a
+      # step here, or its ciExempt entry gives the reason it cannot.
       - name: release coverage
         if: ${{ !cancelled() }}
         run: make release-coverage
@@ -289,7 +286,7 @@ jobs:
       - name: verify Git Bash Make uses pinned Node.js on Windows
         if: matrix.runner == 'windows-2025'
         shell: bash
-        run: make --no-print-directory kit-check
+        run: make --no-print-directory owner-validate
       - name: smoke the standard runner with a case-sensitive test directory
         run: make case-sensitive-runner-smoke
       - name: install pinned Go and Rust toolchains

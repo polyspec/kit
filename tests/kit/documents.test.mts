@@ -2,14 +2,13 @@
 // line and the rule.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
-import { fileURLToPath } from 'node:url';
 import { check } from '../../scripts/kit/check-documents.mts';
 import { kitItemIds } from '../../scripts/kit/kit-items.mts';
-import { checkConfig } from '../../scripts/kit/kit-check.mts';
+import { readConfigFindings } from '../../scripts/kit/schema-validate.mts';
 import { readStatusTable } from '../../scripts/kit/status-table.mts';
 import { changelogFindings, sections } from '../../scripts/kit/changelog.mts';
 import { pair, put, tree } from './tree.mts';
@@ -287,11 +286,9 @@ test('the command reads config/documents.json and exits with the findings', (t) 
   assert.match(passed.stdout, /1 document pairs/);
 });
 
-test('config/documents.json is validated against its schema', (t) => {
+test('check-documents validates config/documents.json against its schema when it reads it', (t) => {
   const root = tree(t, { 'config/documents.json': JSON.stringify({ schema: 1, include: ['docs/**'], checklists: [{ path: 'a.md', style: 'grid', idPattern: 'T' }], statusTables: [{ path: 'f.md', idPattern: 'x', cells: 0, columns: [] }], extra: true }) });
-  mkdirSync(path.join(root, 'scripts/kit'), { recursive: true });
-  cpSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/schema'), path.join(root, 'scripts/kit/schema'), { recursive: true });
-  const found = checkConfig(root);
+  const found = readConfigFindings<unknown>(root, 'config/documents.json', 'documents.schema.json').errors ?? [];
   hasPart(found, '/statusTables/0/cells must be >= 1 {"comparison":">=","limit":1}, value 0');
   assert.ok(!found.some(line => line.includes('additionalProperty')), 'a key that no tool reads is no finding (K1069)');
 });

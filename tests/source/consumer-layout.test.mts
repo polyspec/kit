@@ -69,7 +69,7 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   const toolchain = readFixture<{ exceptions?: { tool: string; channel: string }[]; mise: unknown }>(ROOT, 'config/toolchain.json');
   mkdirSync(path.join(consumer, 'config'), { recursive: true });
   writeFileSync(path.join(consumer, 'config/toolchain.json'), `${JSON.stringify({ schema: 1, mise: toolchain.mise }, null, 2)}\n`);
-  // Its suite runs the gates of kit, as kit-check asks of every repository.
+  // Its suite runs the gates of kit, which the consumer chooses in its own Makefile.
   mkdirSync(path.join(consumer, 'make'), { recursive: true });
   cpSync(path.join(ROOT, 'docs/examples/bootstrap.mk'), path.join(consumer, 'make/bootstrap.mk'));
   cpSync(path.join(ROOT, 'scripts/kit/kit.mk'), path.join(consumer, 'make/kit.mk'));
@@ -88,7 +88,7 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
 
   // The steps of the release workflow before release-tools run in its order: the bootstrap, then release-prepare, which a
   // consumer without a preparation of its own runs as no work (K132); release-tag runs before it, and the packages of the tag are
-  // installed again (K269, K911). The release runs no kit-check of its own: release-tag refuses a commit whose CI run did not pass (K755).
+  // installed again (K269, K911). The release runs no gate of its own: release-tag refuses a commit whose CI run did not pass (K755).
   const workflow = readFileSync(path.join(consumer, '.github/workflows/release.yml'), 'utf8');
   // The make steps of the workflow; a step that checks the runner, as for zip, runs no target.
   // The step that runs the bootstrap action of kit (K992) stands for the make commands of the action.
@@ -108,9 +108,9 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   for (const [entry] of DEPENDENCIES) assert.ok(existsSync(path.join(consumer, entry, 'package.json')), `make install-packages did not install ${entry}`);
   // The lint tools of make lint-ts are dependencies of kit, installed with it and linked into node_modules/.bin.
   for (const tool of ['oxlint', 'tsgolint', 'knip', 'api-extractor']) assert.ok(existsSync(path.join(consumer, 'node_modules/.bin', tool)), `make install-packages did not install node_modules/.bin/${tool}`);
-  const result = make('kit-check');
-  assert.equal(result.status, 0, `make kit-check: ${result.stdout}${result.stderr}`);
-  // KIT is the real dist folder of the installed packed kit.
-  assert.ok(result.stdout.includes(`${realpathSync(path.join(consumer, 'node_modules/@polyspec/kit'))}/dist/`), 'make kit-check runs the dist of the installed kit');
+  // KIT is the real dist folder of the installed packed kit: a gate target names its tool there.
+  const result = make('-n', 'owner-validate');
+  assert.equal(result.status, 0, `make -n owner-validate: ${result.stdout}${result.stderr}`);
+  assert.ok(result.stdout.includes(`${realpathSync(path.join(consumer, 'node_modules/@polyspec/kit'))}/dist/`), 'make owner-validate runs the dist of the installed kit');
   assert.equal(run('git', ['status', '--porcelain', '-uall'], consumer), '', 'the bootstrap and the gate targets changed the tracked files of the consumer');
 });

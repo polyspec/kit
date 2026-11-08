@@ -38,11 +38,12 @@ import { createDraft, deleteRelease, makePublic, releaseById, releaseOf, reposit
 import { headings } from './markdown.mts';
 import { fileDigest } from './bootstrap/digest.mts';
 import { writeJson } from './bootstrap/files.mts';
-import { type ComposerManifest, type NpmManifest } from './manifests.mts';
+import { type ComposerManifest, type NpmManifest, PACKAGE } from './manifests.mts';
 import { buildWheel, metadataProblems, wheelMetadata, wheelName } from './release-wheel.mts';
 import { parseJson, readConfig, readConfigFindings } from './schema-validate.mts';
 import { checkedFiles } from './tracked-files.mts';
-import { PACKAGE, writtenByKit } from './kit-check.mts';
+import { PHPUNIT_MANIFEST } from './bootstrap/toolchain-declared.mts';
+import { MISE_LOCKS } from './toolchain-mise.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { execute, run, Stop } from './process.mts';
 import { present } from './present.mts';
@@ -692,9 +693,18 @@ export function undraft(ctx: Context, tag: string): boolean {
 }
 
 /**
+ * Whether a kit utility writes the file `file` (relative to the repository root): the Composer project of PHPUnit that
+ * install-tools installs, or a file of the lock tree that mise writes under .mise/locks (make toolchain-lock). Such a file
+ * belongs to the tools, not to a package of the repository (K167).
+ */
+function writtenByKit(file: string): boolean {
+  return file === PHPUNIT_MANIFEST || file.startsWith(MISE_LOCKS);
+}
+
+/**
  * The problems of the classification of the package files of the checkout: every tracked or new file named package.json,
  * composer.json, Cargo.toml, pyproject.toml, go.mod or VERSION is a key of `manifests` or `notReleased`, or the go.mod of a
- * Go module, or a file that kit writes (writtenByKit of kit-check.mts), which is not released; a listed file exists; no file
+ * Go module, or a file that kit writes (writtenByKit), which is not released; a listed file exists; no file
  * is in two lists.
  */
 export function coverage(ctx: Context): string[] {

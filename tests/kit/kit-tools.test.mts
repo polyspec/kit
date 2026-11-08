@@ -20,7 +20,7 @@ test('a sandbox of the tests holds no copy of scripts/kit', (t) => {
 
 test('the tools of a sandbox are the tools of this checkout', () => {
   assert.equal(KIT, path.resolve(import.meta.dirname, '../../scripts/kit'));
-  assert.ok(existsSync(tool(import.meta.resolve('../../scripts/kit/kit-check.mts'))), tool(import.meta.resolve('../../scripts/kit/kit-check.mts')));
+  assert.ok(existsSync(tool(import.meta.resolve('../../scripts/kit/owner-check.mts'))), tool(import.meta.resolve('../../scripts/kit/owner-check.mts')));
 });
 
 test('a clean consumer can parse its first npm bootstrap before Node exists and gates discover only afterward', (t) => {

@@ -11,7 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { git, gitResult } from './git.mts';
-import { PACKAGE as KIT_PACKAGE } from './kit-check.mts';
+import { PACKAGE as KIT_PACKAGE } from './manifests.mts';
 import { linkFolders, providedFolders } from './link-folders.mts';
 import { declaredCheckouts, providerKey, providers } from './link-providers.mts';
 import type { NpmManifest } from './manifests.mts';

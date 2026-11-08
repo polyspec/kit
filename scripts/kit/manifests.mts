@@ -1,6 +1,11 @@
 // The manifests and locks of npm and Composer as the tools of kit read them: each type is the part of the file that its
 // schema of scripts/kit/schema describes, and each reader validates the file against that schema (readConfig, K158).
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import { readConfig, readJsonFile } from './schema-validate.mts';
+
+/** The name of the package of kit. */
+export const PACKAGE = '@polyspec/kit';
 
 /** An entry of `packages` of an npm lock (lockfileVersion 3). */
 export type NpmLockEntry = {
@@ -80,3 +85,8 @@ export const readComposerManifestFile = (file: string): ComposerManifest => read
 
 /** The Composer lock, or vendor/composer/installed.json of Composer 2, at the path `file`. */
 export const readComposerLockFile = (file: string): ComposerLock => readJsonFile<ComposerLock>(file, 'composer-lock.schema.json');
+
+/** Whether `root` is kit itself: its package.json names the package of kit. */
+export function isSource(root: string): boolean {
+  return existsSync(path.join(root, 'package.json')) && readNpmManifest(root, 'package.json').name === PACKAGE;
+}

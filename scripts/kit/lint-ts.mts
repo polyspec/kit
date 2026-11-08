@@ -19,7 +19,7 @@ import { pathToFileURL } from 'node:url';
 import { foldersOf, lintMain, runLint } from './lint-steps.mts';
 import type { LintStep } from './lint-steps.mts';
 import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
-import { isSource } from './kit-check.mts';
+import { isSource } from './manifests.mts';
 import { present } from './present.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { toolsEnvironment } from './mise-tools.mts';

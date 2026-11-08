@@ -1,33 +1,27 @@
-// Tests of the schema validator and of the configuration check of kit-check: the schemas accept the fixture's
-// configuration and name each error of a configuration that breaks them.
+// Tests of the schema validator: the schemas accept the fixture's configuration and name each error of a configuration
+// that breaks them, when the tool that reads it validates it.
 import assert from 'node:assert/strict';
 import { cpSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { checkConfig } from '../../scripts/kit/kit-check.mts';
 import { ConfigError, parseJson, readConfig, readConfigFindings, SCHEMAS, SchemaError, schemaFile, validate } from '../../scripts/kit/schema-validate.mts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(HERE, 'fixture');
 
-test('the schemas accept the configuration of the fixture', (t) => {
+test('a tool validates its configuration when it reads it, and a key that no tool reads is no finding', (t) => {
   const root = mkdtempSync(path.join(tmpdir(), 'kit-config-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  mkdirSync(path.join(root, 'scripts/kit/schema'), { recursive: true });
-  for (const name of ['checklist']) {
-    cpSync(path.join(HERE, '../../scripts/kit/schema', `${name}.schema.json`), path.join(root, 'scripts/kit/schema', `${name}.schema.json`));
-  }
   mkdirSync(path.join(root, 'config'), { recursive: true });
-  for (const name of ['checklist']) cpSync(path.join(FIXTURE, 'config', `${name}.json`), path.join(root, 'config', `${name}.json`));
-  assert.deepEqual(checkConfig(root), []);
-  const policy = path.join(root, 'config/checklist.json');
-  writeFileSync(policy, JSON.stringify({ schema: 2, hooks: ['pre-push'], idPattern: 'K[0-9]+', extra: true }));
-  const findings = checkConfig(root);
-  assert.deepEqual(findings, [], 'a key that no tool reads and the version key are no finding (K1069)');
-  rmSync(policy);
-  assert.deepEqual(checkConfig(root), [], 'a repository without a declared configuration file has no finding');
+  cpSync(path.join(FIXTURE, 'config/checklist.json'), path.join(root, 'config/checklist.json'));
+  const findings = () => readConfigFindings<unknown>(root, 'config/checklist.json', 'checklist.schema.json').errors ?? [];
+  assert.deepEqual(findings(), []);
+  writeFileSync(path.join(root, 'config/checklist.json'), JSON.stringify({ schema: 2, hooks: ['pre-push'], idPattern: 'K[0-9]+', extra: true }));
+  assert.deepEqual(findings(), [], 'a key that no tool reads and the version key are no finding (K1069)');
+  writeFileSync(path.join(root, 'config/checklist.json'), JSON.stringify({ hooks: ['pre-push'] }));
+  assert.ok(findings().some(line => line.includes("must have required property 'idPattern'")), findings().join('\n'));
 });
 
 test('the validator prints the path, the message and the params of ajv and the value, and refuses an invalid schema', () => {

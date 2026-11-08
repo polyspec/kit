@@ -72,8 +72,8 @@ local development checkout:
   installed kit (S15), which ran the installer of `scripts/kit/bootstrap` beside it; now each repository keeps its own recipes.
 - The PHP lint project `config/php-lint` is read from the kit that runs.
 - `PRINCIPLES.md`, its twin, `.editorconfig` and `.claude/settings.json` are tracked symbolic links to the files of `../kit`.
-- The two workflows stay plain files of each repository, since GitHub follows no symbolic link, and kit-check no longer compares
-  them.
+- The two workflows stay plain files of each repository, since GitHub follows no symbolic link, and no tool of kit compares
+  them (kit-check, which once did, is gone since K1070).
 - `config/layout.kit.yml` and the three manifest schemas that it names stayed copies that kit-sync wrote until K1052: alint 0.18.2 refuses
   every way to read them from kit. An `extends:` outside the repository fails with "`extends:` target … resolves to … which is
   outside the lint root", a symbolic link to the file fails with the same error, and a second `--config` fails with "`--config`

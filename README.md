@@ -10,7 +10,6 @@ them and then owns; kit writes no file of a repository (K1052). kit depends on n
 
 | Concern | Tools (`scripts/kit/`) | Make targets of kit (`scripts/kit/kit.mk`) |
 |---|---|---|
-| Configuration | `kit-check.mts` | `kit-check` |
 | Toolchains | the bootstrap (`bootstrap/bootstrap.mts`: mise, and the node and npm of mise.toml), `install-tools.mts` (`mise install --locked` of `mise.toml` and `mise.lock`, then the wheel backend, the Composer projects and the Rust channels of `install-rust.mts`), `mise-tools.mts`, `toolchain-mise.mts` | `install-tools TOOLS=npm`, `install-tools`, `toolchain-lock` |
 | Folder layout | the alint of `mise.toml` runs `config/layout.yml` over the common rules of `config/layout.kit.yml` | `layout-check` |
 | Lint | `lint-python.mts`, `lint-php.mts`, `lint-rust.mts`, `lint-go.mts`, `lint-ts.mts`, with the copied configuration (docs/operations/tool-inventory.md, Lint configuration) and the ruff, vulture, golangci-lint and deadcode of `mise.toml` and the PHP lint of `install-php-lint.mts` | `lint-python`, `lint-php`, `lint-rust`, `lint-go`, `lint-ts` |
@@ -34,7 +33,6 @@ them and then owns; kit writes no file of a repository (K1052). kit depends on n
 ```sh
 make install-tools TOOLS=npm   # install mise, and the node and npm of mise.toml, with the copied bootstrap (online)
 make install-packages          # npm ci with that npm, @polyspec/kit included (online)
-make kit-check                 # check the configuration against the schemas (offline)
 ```
 
 A repository adopts kit as its installed package and keeps the recipes above in its own Makefile: kit includes no recipe into a
