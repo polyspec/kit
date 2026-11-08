@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // Runs make targets past failures and writes their report (`make ci-targets TARGETS="..."`):
 //
-//   node scripts/kit/ci-targets.mts <report directory> <target>...
+//   node scripts/kit/ci-targets.mts [-k] <report directory> <target>...
 //   node scripts/kit/ci-targets.mts --summary <report directory>
 //
-// The run refuses no tree or place (K1053): it runs wherever it is started. Each target runs as `make -k <target>` to its end, also after an earlier target failed, with its output printed and written
+// The run refuses no tree or place (K1053): it runs wherever it is started. Each target runs as `make <target>`, also after an earlier target failed, and as `make -k <target>`, which keeps going after
+// a failed prerequisite, only when the caller passes -k (K1098); its output is printed and written
 // to <report directory>/targets/<target>.log; record.json and summary.md name each target with its result and, for a failed
 // target, its first failure lines (scripts/kit/target-report.mts). No target has a time limit. The run holds the lock
 // <report directory>.lock (holder-lock.mts), so two runs never write one report. The command ends with status 1 when a target failed or the
@@ -26,15 +27,15 @@ import { ConfigError, parseJson, readJsonFile } from './schema-validate.mts';
 import { errorCode } from './process.mts';
 import { present } from './present.mts';
 
-const USAGE = 'usage: node scripts/kit/ci-targets.mts <report directory> <target>...  |  --summary <report directory>';
+const USAGE = 'usage: node scripts/kit/ci-targets.mts [-k] <report directory> <target>...  |  --summary <report directory>';
 
 /**
- * Runs `targets` with `make -k` and writes the report to `directory`. `output(text, stream)` receives the output of the
+ * Runs `targets` with `make`, with `-k` when `keepGoing` is set, and writes the report to `directory`. `output(text, stream)` receives the output of the
  * targets and `print` the lines of the runner. Returns the exit status: 0 when every target passed and every report write
  * succeeded, 1 otherwise.
  */
-export async function ciTargets({ root, directory, targets, env = process.env, make = 'make', environment, print = line => console.log(line), output = (text, stream) => process[stream].write(text) }: {
-  root: string; directory: string; targets: string[]; env?: NodeJS.ProcessEnv; make?: string; environment?: Record<string, string>;
+export async function ciTargets({ root, directory, targets, env = process.env, make = 'make', keepGoing = false, environment, print = line => console.log(line), output = (text, stream) => process[stream].write(text) }: {
+  root: string; directory: string; targets: string[]; env?: NodeJS.ProcessEnv; make?: string; keepGoing?: boolean; environment?: Record<string, string>;
   print?: (line: string) => void; output?: (text: string, stream: 'stdout' | 'stderr') => void;
 }) {
   const report = path.resolve(root, directory);
@@ -63,7 +64,7 @@ export async function ciTargets({ root, directory, targets, env = process.env, m
       print(`[ci-targets] start ${target.name} (${index + 1}/${targets.length})`);
       const begin = Date.now();
       const log = logPath(report, target.name);
-      const { lines, exit } = await runLogged({ root, target: target.name, log, writer, output, make, env });
+      const { lines, exit } = await runLogged({ root, target: target.name, log, writer, output, make, env, keepGoing });
       const passed = targetPassed(target.name, exit);
       Object.assign(target, { status: passed ? 'passed' : 'failed', ended: now(), elapsedMs: Date.now() - begin });
       if (!passed) target.failures = failureLines(lines, exit);
@@ -129,9 +130,11 @@ export function ciSummary({ root, directory, env = process.env, print = line => 
 
 if (isMain(import.meta.url)) {
   const root = repositoryRoot();
-  const [first, ...rest] = process.argv.slice(2);
+  const argv = process.argv.slice(2);
+  const keepGoing = argv[0] === '-k';
+  const [first, ...rest] = keepGoing ? argv.slice(1) : argv;
   try {
-    if (first === '--summary' && rest.length === 1) {
+    if (first === '--summary' && rest.length === 1 && !keepGoing) {
       // The condition holds exactly one argument after --summary.
       process.exitCode = ciSummary({ root, directory: present(rest[0], 'rest[0]') });
     } else if (first && first !== '--summary' && rest.length > 0) {
@@ -139,7 +142,7 @@ if (isMain(import.meta.url)) {
       if (bad !== undefined) throw Object.assign(new Error(`the target name ${JSON.stringify(bad)} is not a make target name [A-Za-z0-9_.-]+`), { usage: true });
       const repeated = rest.find((name, at) => rest.indexOf(name) !== at);
       if (repeated !== undefined) throw Object.assign(new Error(`the target ${repeated} is listed twice; its log would be overwritten`), { usage: true });
-      process.exitCode = await ciTargets({ root, directory: first, targets: rest });
+      process.exitCode = await ciTargets({ root, directory: first, targets: rest, keepGoing });
     } else {
       console.error(USAGE);
       process.exitCode = 2;

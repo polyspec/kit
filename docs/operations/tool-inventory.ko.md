@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 73548f6fda2e3d49e04f5c0c29e363ca18b74fc1aff3572c406fc9c8814c1b36 -->
+<!-- source-sha256: 07ab75120a3c9eda534d6004e6ac5ab1c92ad651ec649c8ac1484eb1ddcb7f2b -->
 
 # 도구 목록
 
@@ -328,7 +328,7 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 | `rerun-failed`는 현재 tree에서 통과하지 못한 target(failed, running, pending)을 다시 실행 | template, crudui, hyper, ordered-json | 유지 |
 | tree 말고 실행의 또 다른 입력: dependency의 commit | hyper | `--key name=value`, 기록에 `keys`를 두고 run과 rerun은 같은 keys를 요구 |
 | 실패한 target은 마지막 출력 20줄을 기록에 두고 출력 | hyper | 유지 |
-| `make -k <target>`과 target별 log `var/report/full-run/targets/<target>.log`, 마지막 줄바꿈이 없는 출력 다음 줄은 column 0에서 시작 | template(`-k`, log), hyper(column 0, 마지막 줄) | 유지 |
+| `make -k <target>`과 target별 log `var/report/full-run/targets/<target>.log`, 마지막 줄바꿈이 없는 출력 다음 줄은 column 0에서 시작 | template(`-k`, log), hyper(column 0, 마지막 줄) | 유지. `-k`는 호출자가 요청할 때만(K1098) |
 
 ### 버린 동작
 
@@ -517,7 +517,8 @@ Export된 `runCommand`는 자신이 시작한 command만 소유한다. 긴 comma
 
 합친 동작:
 
-- 모든 target은 `make -k <target>`으로 실패 이후에도 끝까지 실행하고, 출력은 화면에 쓰면서 `<report>/targets/<target>.log`에
+- 모든 target은 앞선 target의 실패 이후에도 `make <target>`으로 실행하고, 실패한 prerequisite 뒤에도 계속하는 `make -k <target>`은
+  호출자가 `make -k ci-targets`로 요청할 때만 씁니다(K1098). 출력은 화면에 쓰면서 `<report>/targets/<target>.log`에
   기록합니다(template, crudui, hyper, ordered-json). 실행은 `<report>.lock`을 잡습니다(template, crudui). 이전 실행의 report는
   먼저 지웁니다. target에는 시간 제한이 없습니다.
 - hyper: `make --no-print-directory`, 호출한 make의 변수(`MAKEFLAGS`, `MFLAGS`, `MAKELEVEL`, `MAKEOVERRIDES`)를 넘기지 않음,
@@ -751,7 +752,7 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
 
 그대로 둔 것과 이유:
 
-- `make -k <target>`을 실행하는 runner는 하나입니다. target-report의 `runLogged`입니다. `target-run.mjs`와 그 `runMakeTarget`은 제거했고,
+- `make [-k] <target>`을 실행하는 runner는 하나입니다. target-report의 `runLogged`입니다. `target-run.mjs`와 그 `runMakeTarget`은 제거했고,
   full-run은 target을 `runLogged`로 실행하며 통과 여부는 `targetPassed`로 읽습니다. 더 넓은 동작을 유지합니다. 호출한 make의 환경을
   지우고, 완전한 줄만 넘기고, log 쓰기 실패를 기록합니다. full run의 target log는 명령으로 시작하고 CI report의 log처럼
   `[report] make <target> exited with status N`으로 끝납니다(task K11-1).

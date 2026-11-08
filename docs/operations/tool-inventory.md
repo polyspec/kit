@@ -364,7 +364,7 @@ cell when absent). A state is the leading `[x]` of its cell or item, or the whol
 | `rerun-failed` reruns the targets that did not pass (failed, running, pending) of the current tree | template, crudui, hyper, ordered-json | kept |
 | A further input of a run beside the tree: the commit of a dependency | hyper | `--key name=value`; the record holds `keys`, and a run and a rerun need equal keys |
 | A failed target keeps its last 20 output lines in the record and prints them | hyper | kept |
-| `make -k <target>` and a log per target in `var/report/full-run/targets/<target>.log`; a line after an output without a final newline starts at column 0 | template (`-k`, log), hyper (column 0, last lines) | kept |
+| `make -k <target>` and a log per target in `var/report/full-run/targets/<target>.log`; a line after an output without a final newline starts at column 0 | template (`-k`, log), hyper (column 0, last lines) | kept; `-k` only when the caller asks (K1098) |
 
 ### Dropped behaviors
 
@@ -566,7 +566,8 @@ Dropped behaviors:
 
 Merged behaviors:
 
-- Every target runs as `make -k <target>` to its end, past failures, with its output printed and written to
+- Every target runs as `make <target>`, past the failures of earlier targets, and as `make -k <target>`, which keeps going after a
+  failed prerequisite, only when the caller asks with `make -k ci-targets` (K1098); its output is printed and written to
   `<report>/targets/<target>.log` (template, crudui, hyper, ordered-json); the run holds `<report>.lock` (template, crudui). The
   report of an earlier run is removed first. No target has a time limit.
 - hyper: `make --no-print-directory`, no variable of a calling make (`MAKEFLAGS`, `MFLAGS`, `MAKELEVEL`, `MAKEOVERRIDES`), complete
@@ -826,7 +827,7 @@ Behaviors that differ between the copies and were merged (the wider or safer one
 
 Left as it is, with the reason:
 
-- The runner of `make -k <target>` is one: `runLogged` of target-report. `target-run.mjs` and its `runMakeTarget` are removed;
+- The runner of `make [-k] <target>` is one: `runLogged` of target-report. `target-run.mjs` and its `runMakeTarget` are removed;
   full-run runs its targets through `runLogged` and reads a pass with `targetPassed`. The wider behavior is kept: the environment
   of a calling make is removed, only complete lines are passed on, a failed write of the log is recorded. The log of a target
   of the full run starts with the command and ends with `[report] make <target> exited with status N`, as the log of a CI report

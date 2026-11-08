@@ -295,8 +295,9 @@ owner-validate: ## Check that config/owner-checks.json owns every tracked path a
 
 CI_REPORT ?= var/report/ci-targets
 
-ci-targets: ## Run TARGETS past failures, wherever it is started; write CI_REPORT (logs, record.json, summary.md)
-	$(NODE) $(KIT)/ci-targets.$(KIT_EXT) $(CI_REPORT) $(TARGETS)
+# Each target runs with make -k only when the caller runs make -k ci-targets (K1098).
+ci-targets: ## Run TARGETS past failures, wherever it is started, each with -k under make -k; write CI_REPORT (logs, record.json, summary.md)
+	$(NODE) $(KIT)/ci-targets.$(KIT_EXT) $(if $(findstring k,$(firstword -$(MAKEFLAGS))),-k) $(CI_REPORT) $(TARGETS)
 
 ci-summary: ## Write summary.md of CI_REPORT again from its record, also for a run that stopped; never judges the targets
 	$(NODE) $(KIT)/ci-targets.$(KIT_EXT) --summary $(CI_REPORT)

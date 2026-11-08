@@ -45,7 +45,7 @@ test('every target runs to its end and the report holds a log, a record and a su
   const root = setup(t);
   const result = await run(root, ['good', 'warn']);
   assert.equal(result.status, 0, result.printed.join('\n'));
-  assert.match(result.read('targets/good.log'), /^make --no-print-directory -k good\nran-good\n\[report\] make good exited with status 0\n$/);
+  assert.match(result.read('targets/good.log'), /^make --no-print-directory good\nran-good\n\[report\] make good exited with status 0\n$/);
   const record = result.record();
   assert.equal(record.result, 'passed');
   assert.deepEqual(record.targets.map((target: TargetRecord) => [target.name, target.status, target.log]), [['good', 'passed', 'targets/good.log'], ['warn', 'passed', 'targets/warn.log']]);
@@ -293,4 +293,17 @@ test('the ci-passed command runs with Node built-ins and no installed packages',
   const missing = run({});
   assert.equal(missing.status, 2, missing.stderr);
   assert.match(missing.stdout, /RESULTS is not set/);
+});
+
+// K1098: a target runs with make -k only when the caller asks for it; without it make stops at the first failed prerequisite.
+test('K1098: ci-targets runs make with -k only when the caller asks for it', async (t) => {
+  const root = setup(t, { Makefile: `${MAKEFILE}chain: bad good\n` });
+  const plain = await run(root, ['chain']);
+  assert.equal(plain.status, 1);
+  assert.match(plain.read('targets/chain.log'), /^make --no-print-directory chain\n/);
+  assert.doesNotMatch(plain.read('targets/chain.log'), /ran-good/);
+  const going = await run(root, ['chain'], { keepGoing: true });
+  assert.equal(going.status, 1);
+  assert.match(going.read('targets/chain.log'), /^make --no-print-directory -k chain\n/);
+  assert.match(going.read('targets/chain.log'), /ran-good/);
 });

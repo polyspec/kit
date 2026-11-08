@@ -44,9 +44,9 @@ test('the CI pipeline partitions every kit-gates target across shared, parity an
     });
   assert.deepEqual([...partitions].sort(), [...gates].sort(), 'every original gate occurs once in the workflow partitions');
   const workflow = read(PIPELINE);
-  assert.match(workflow, /run: make ci-targets TARGETS="kit-gates-static /);
-  assert.match(workflow, /run: make ci-targets TARGETS="kit-gates-parity /);
-  assert.match(workflow, /run: make ci-targets TARGETS="kit-gates-runtime-\$\{\{ matrix\.runtime \}\} /);
+  assert.match(workflow, /run: make -k ci-targets TARGETS="kit-gates-static /);
+  assert.match(workflow, /run: make -k ci-targets TARGETS="kit-gates-parity /);
+  assert.match(workflow, /run: make -k ci-targets TARGETS="kit-gates-runtime-\$\{\{ matrix\.runtime \}\} /);
   assert.match(workflow, /run: make kit-ci-plan/, 'the tracked setup planner selects runtime jobs and pinned tools');
   assert.match(workflow, /runner: \$\{\{ steps\.plan\.outputs\.runner \}\}/, 'gate runner selection comes from the validated CI plan');
   for (const name of ['plan', 'shared', 'required']) assert.ok(workflowJob(workflow, name).includes('    runs-on: ubuntu-24.04'), `${name} runs on the supported default runner`);
@@ -149,8 +149,8 @@ test('K734: the pipeline selects exactly one parity path and its final job needs
   assert.ok(api.includes("    if: ${{ needs.plan.outputs.parity_mode == 'phases' }}"));
   assert.ok(bindings.includes("    if: ${{ needs.plan.outputs.parity_mode == 'phases' }}"));
   assert.ok(bindings.includes('        include: ${{ fromJSON(needs.plan.outputs.parity_matrix) }}'));
-  assert.ok(bindings.some(line => line.includes('run: make ci-targets TARGETS="parity-bindings-${{ matrix.implementation }}-check"')));
-  assert.ok(api.some(line => line.includes('run: make ci-targets TARGETS="parity-api-check ')));
+  assert.ok(bindings.some(line => line.includes('run: make -k ci-targets TARGETS="parity-bindings-${{ matrix.implementation }}-check"')));
+  assert.ok(api.some(line => line.includes('run: make -k ci-targets TARGETS="parity-api-check ')));
   assert.deepEqual(workflowNeeds(required, 'required').sort(), [...REQUIRED_NEEDS].sort());
 });
 

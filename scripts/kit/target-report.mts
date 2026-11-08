@@ -1,6 +1,6 @@
 // The report of a run of make targets, so that one CI run leaves the reason of every failure:
 //
-//   <directory>/targets/<target>.log   the output of `make -k <target>`; a log above LIMIT_BYTES keeps its head and its tail
+//   <directory>/targets/<target>.log   the output of `make <target>`; a log above LIMIT_BYTES keeps its head and its tail
 //   <directory>/record.json            the tree, the toolchain versions, and each target with its status, times, first
 //                                      failure lines and warnings; written before and after each target, so a run that
 //                                      stops leaves the target that was running
@@ -170,12 +170,13 @@ export function warningLines(lines: string[]): string[] {
 export const targetPassed = (target: string, exit: string): boolean => exit === `make ${target} exited with status 0`;
 
 /**
- * Runs `make -k <target>` in `root`, which keeps going after a failed prerequisite, and writes its output to the log file
+ * Runs `make <target>` in `root`, with `-k` only when the caller asks for it (`keepGoing`, K1098), which then keeps going after
+ * a failed prerequisite, and writes its output to the log file
  * `log` line by line as the lines come. A line is passed on when it is complete, so the output of standard output and of
  * standard error never joins on one line. `output(text, stream)` receives it too. Resolves the lines and how make ended:
  * `make <target> exited with status 0` is a pass.
  */
-export function runLogged({ root, target, log, writer, output, make = 'make', env = process.env }: {
+export function runLogged({ root, target, log, writer, output, make = 'make', env = process.env, keepGoing = false }: {
   root: string;
   target: string;
   log: string;
@@ -183,10 +184,11 @@ export function runLogged({ root, target, log, writer, output, make = 'make', en
   output: (text: string, stream: Stream) => void;
   make?: string;
   env?: NodeJS.ProcessEnv;
+  keepGoing?: boolean;
 }): Promise<{ lines: string[]; exit: string }> {
   return new Promise((resolve) => {
     const clean = Object.fromEntries(Object.entries(env).filter(([name]) => !CALLER.includes(name)));
-    const command = ['--no-print-directory', '-k', target];
+    const command = ['--no-print-directory', ...(keepGoing ? ['-k'] : []), target];
     mkdirSync(path.dirname(log), { recursive: true });
     const descriptor = openSync(log, 'w');
     const lines: string[] = [];

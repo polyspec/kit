@@ -60,7 +60,7 @@ jobs:
         name: prepare shared CI context
         run: make kit-ci-context-prepare GROUP=shared
       - name: shared gates
-        run: make ci-targets TARGETS="kit-gates-static ${{ join(fromJSON(needs.plan.outputs.shared_targets), ' ') }}"
+        run: make -k ci-targets TARGETS="kit-gates-static ${{ join(fromJSON(needs.plan.outputs.shared_targets), ' ') }}"
       - name: cleanup shared CI context
         if: ${{ always() && steps.context_prepare.outcome != 'skipped' }}
         run: make kit-ci-context-cleanup GROUP=shared
@@ -101,7 +101,7 @@ jobs:
         name: prepare parity CI context
         run: make kit-ci-context-prepare GROUP=parity
       - name: parity gate
-        run: make ci-targets TARGETS="kit-gates-parity ${{ join(fromJSON(needs.plan.outputs.parity_targets), ' ') }}"
+        run: make -k ci-targets TARGETS="kit-gates-parity ${{ join(fromJSON(needs.plan.outputs.parity_targets), ' ') }}"
       - name: cleanup parity CI context
         if: ${{ always() && steps.context_prepare.outcome != 'skipped' }}
         run: make kit-ci-context-cleanup GROUP=parity
@@ -142,7 +142,7 @@ jobs:
         name: prepare parity CI context
         run: make kit-ci-context-prepare GROUP=parity
       - name: API phase
-        run: make ci-targets TARGETS="parity-api-check ${{ join(fromJSON(needs.plan.outputs.parity_targets), ' ') }}"
+        run: make -k ci-targets TARGETS="parity-api-check ${{ join(fromJSON(needs.plan.outputs.parity_targets), ' ') }}"
       - name: cleanup parity CI context
         if: ${{ always() && steps.context_prepare.outcome != 'skipped' }}
         run: make kit-ci-context-cleanup GROUP=parity
@@ -184,7 +184,7 @@ jobs:
         name: prepare parity CI context
         run: make kit-ci-context-prepare GROUP=parity
       - name: binding phase
-        run: make ci-targets TARGETS="parity-bindings-${{ matrix.implementation }}-check"
+        run: make -k ci-targets TARGETS="parity-bindings-${{ matrix.implementation }}-check"
       - name: cleanup parity CI context
         if: ${{ always() && steps.context_prepare.outcome != 'skipped' }}
         run: make kit-ci-context-cleanup GROUP=parity
@@ -224,7 +224,7 @@ jobs:
         name: prepare runtime CI context
         run: make kit-ci-context-prepare GROUP=runtime RUNTIME=${{ matrix.runtime }}
       - name: runtime gate
-        run: make ci-targets TARGETS="kit-gates-runtime-${{ matrix.runtime }} ${{ join(matrix.targets, ' ') }}"
+        run: make -k ci-targets TARGETS="kit-gates-runtime-${{ matrix.runtime }} ${{ join(matrix.targets, ' ') }}"
       - name: cleanup runtime CI context
         if: ${{ always() && steps.context_prepare.outcome != 'skipped' }}
         run: make kit-ci-context-cleanup GROUP=runtime RUNTIME=${{ matrix.runtime }}
