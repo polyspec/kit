@@ -7,7 +7,7 @@
 // implementation (parity-symbols.mts) and reads the error codes from its generated artifact.
 //
 //   node scripts/kit/parity.mts [--phase all|api|bindings] [--declarations] [--unit <id>]... [--implementation <name>]... [--roots [<folder>...]]
-//   node scripts/kit/parity.mts --make-targets
+//   [NAME_PATTERN=<regular expression>] node scripts/kit/parity.mts --make-targets
 //     --declarations  check the declarations only: every rule except R1, R3 and R11; no binding and no extractor runs
 //     --roots [<folder>...]  the implementation roots of a repository without config/parity.json (K1114); a call without
 //                     the declaration and without --roots checks nothing and exits 2
@@ -267,7 +267,22 @@ if (isMain(import.meta.url)) {
         if (!hasImplementationName(entry)) throw new Error(`${DECLARATION} has no usable implementation names`);
         names.push(entry.name);
       }
-      if (new Set(names).size !== names.length || names.some(name => !/^[a-z][a-z0-9-]*$/.test(name))) throw new Error(`${DECLARATION} has no usable unique implementation names`);
+      if (new Set(names).size !== names.length) throw new Error(`${DECLARATION} has no unique implementation names`);
+      // K1089: a name becomes a make target, so a name that a make word cannot hold is refused; the NAME_PATTERN of the caller, as for
+      // plan-new, declares any further rule.
+      const pattern = process.env.NAME_PATTERN || undefined;
+      let compiled: RegExp | undefined;
+      try {
+        compiled = pattern === undefined ? undefined : new RegExp(pattern, 'u');
+      } catch (error) {
+        if (!(error instanceof SyntaxError)) throw error;
+        console.error(`[parity] NAME_PATTERN ${pattern} is no regular expression: ${error.message}`);
+        process.exit(2);
+      }
+      for (const name of names) {
+        if (name === '' || /[\s:=$#%;\\/]/u.test(name)) throw new Error(`the implementation name ${JSON.stringify(name)} of ${DECLARATION} is no make target name`);
+        if (compiled !== undefined && !compiled.test(name)) throw new Error(`the implementation name ${JSON.stringify(name)} of ${DECLARATION} does not match ${pattern}, the NAME_PATTERN of the caller`);
+      }
       console.log(names.join(' '));
     } catch (error) {
       if (!(error instanceof Error)) throw error;

@@ -247,7 +247,7 @@ docs-check: ## Check the documents declared in config/documents.json: translatio
 
 # The plan utilities (plan.mts, K249) read their values from the environment, where make puts its command-line variables.
 plan-new: ## Write the plan NAME=<slug> into docs/plans/<slug>/ with TITLE and TITLE_KO: plan.md, checklist.md and their Korean twins; offline
-	$(NODE) $(KIT)/plan.$(KIT_EXT) plan-new
+	NAME_PATTERN='^[a-z][a-z0-9-]*$$' $(NODE) $(KIT)/plan.$(KIT_EXT) plan-new
 
 plan-split: ## Move the items IDS="<id> <id>" with their sub-items from the checklist of the plan FROM to the plan TO (made with TITLE and TITLE_KO when it does not exist), in both languages; offline
 	$(NODE) $(KIT)/plan.$(KIT_EXT) plan-split
@@ -443,7 +443,7 @@ endif
 endif
 ifneq ($(KIT_BOOTSTRAP_ONLY),1)
 ifneq ($(wildcard config/parity.json),)
-KIT_PARITY_IMPLEMENTATIONS := $(shell $(NODE) $(KIT)/parity.$(KIT_EXT) --make-targets || echo __KIT_PARITY_TARGETS_ERROR__)
+KIT_PARITY_IMPLEMENTATIONS := $(shell NAME_PATTERN='^[a-z][a-z0-9-]*$$' $(NODE) $(KIT)/parity.$(KIT_EXT) --make-targets || echo __KIT_PARITY_TARGETS_ERROR__)
 ifneq ($(filter __KIT_PARITY_TARGETS_ERROR__,$(KIT_PARITY_IMPLEMENTATIONS)),)
 $(error config/parity.json implementation names could not be read safely; fix the parity declaration)
 endif

@@ -2,7 +2,7 @@
 // The utilities that write plans and checklist rows (K249). Each computes the files it would write and writes them only when
 // they pass the checks that docs-check and the Git hooks run on them, so its output never fails those checks:
 //
-//   plan-new   NAME=<slug> TITLE=<English title> TITLE_KO=<Korean title>
+//   plan-new   NAME=<name> TITLE=<English title> TITLE_KO=<Korean title> [NAME_PATTERN=<regular expression>]
 //              writes docs/plans/<slug>/ with plan.md, checklist.md and their Korean twins: the doc-id, the language link,
 //              the header of the checklist table and the revision marker of each Korean file
 //   item-new   PLAN=<slug> ID=<id> TASK= TASK_KO= DELIVERABLES= VERIFICATION=
@@ -45,7 +45,6 @@ import { withLandLock } from './land.mts';
 import { refreshLinked } from './linked-build.mts';
 import { present } from './present.mts';
 
-const SLUG = /^[a-z][a-z0-9-]*$/;
 
 
 /** The text of a Korean twin of `english`: `korean` with the revision marker of `english` after its doc-id. */
@@ -78,10 +77,12 @@ function required(value: string | undefined, name: string): string {
 
 /**
  * Writes the four files of the plan `name` below docs/plans of `root` and returns them as { path: text }. Throws, writing
- * nothing, when `name` is no slug, the plan exists or a title is empty; the other plan folders are not judged (K1082).
+ * nothing, when `name` is no folder name, does not match the `pattern` that the caller declares (K1089), the plan exists or a
+ * title is empty; the other plan folders are not judged (K1082).
  */
-export function newPlan(root: string, { name, title, titleKo }: { name: string; title: string | undefined; titleKo: string | undefined }): Record<string, string> {
-  if (!SLUG.test(name)) throw new Error(`the name ${JSON.stringify(name)} is no slug; a plan is named by [a-z][a-z0-9-]*`);
+export function newPlan(root: string, { name, title, titleKo, pattern }: { name: string; title: string | undefined; titleKo: string | undefined; pattern?: string | undefined }): Record<string, string> {
+  if (name === '' || name === '.' || name === '..' || /[/\\]/.test(name)) throw new Error(`the name ${JSON.stringify(name)} is no folder name; a plan is the folder docs/plans/<name>`);
+  if (pattern !== undefined && !new RegExp(pattern, 'u').test(name)) throw new Error(`the name ${JSON.stringify(name)} does not match ${pattern}, the NAME_PATTERN of the caller`);
   const folder = `${PLANS}/${name}`;
   if (existsSync(path.join(root, folder))) throw new Error(`${folder} exists; a plan is created once`);
   const english = required(title, 'TITLE');
@@ -496,7 +497,7 @@ if (isMain(import.meta.url)) {
   const env = process.env;
   try {
     if (command === 'plan-new') {
-      for (const file of Object.keys(newPlan(root, { name: required(env.NAME, 'NAME'), title: env.TITLE, titleKo: env.TITLE_KO }))) console.log(`[plan] wrote ${file}`);
+      for (const file of Object.keys(newPlan(root, { name: required(env.NAME, 'NAME'), title: env.TITLE, titleKo: env.TITLE_KO, pattern: env.NAME_PATTERN || undefined }))) console.log(`[plan] wrote ${file}`);
     } else if (command === 'item-new') {
       const item = { plan: required(env.PLAN, 'PLAN'), id: required(env.ID, 'ID'), task: env.TASK, taskKo: env.TASK_KO, deliverables: env.DELIVERABLES, verification: env.VERIFICATION };
       const branch = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();

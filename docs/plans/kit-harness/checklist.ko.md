@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 8cebf5fc9385bf5b2bcd3c58d4c220ee17d708b2febace5a82ae5e8aa395d70b -->
+<!-- source-sha256: 4553bd46ce2e58e84d474b6af5d6917aad1c8633c78e8eb468ae9785a316015d -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -216,7 +216,7 @@
 | K1086 | release coverage는 저장소가 그 규칙을 선언할 때만 추적된 모든 manifest를 분류한다 | scripts/kit/release.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1086 tests/kit/release-coverage.test.mts` | [-] 원인: release coverage는 저장소가 자신의 recipe에서 make release-coverage를 호출할 때 도는 release.mts coverage mode에서만 실행됩니다. 그 호출이 규칙의 선언이며 coverage는 다른 어디에서도 돌지 않고, package 파일의 분류는 이 도구가 하는 일 전부이므로 조건으로 바꿀 것이 없습니다 |
 | K1087 | check-commits는 fix 커밋의 No-Red 규칙을 저장소가 선언한 대로만 적용한다 | scripts/kit/check-commits.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1087 tests/kit/check-commits.test.mts` | [o] |
 | K1088 | language-check는 언어 규칙을 저장소가 선언한 대로만 적용한다 | scripts/kit/language-check.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1088 tests/kit/language-check.test.mts` | [o] |
-| K1089 | plan은 plan slug 패턴을 저장소가 선언한 대로만 적용한다 | scripts/kit/plan.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1089 tests/kit/plan.test.mts` | [ ] |
+| K1089 | plan은 plan slug 패턴을 저장소가 선언한 대로만 적용한다 | scripts/kit/plan.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1089 tests/kit/plan.test.mts` | [o] |
 | K1090 | plan item-state는 저장소가 요청한 상태로 항목을 옮기며, 저장소 자신의 상태 변경을 거부하는 kit 고정 전이표가 없다 | scripts/kit/plan.mts, scripts/kit/checklist.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1090 tests/kit/plan.test.mts` | [ ] |
 | K1091 | (957ef0bc) Namespace 충돌 없이 완전한 PHPUnit event identity를 보존한다 | scripts/kit/test-output.mts; scripts/kit/parity-runners.mts; scripts/kit/php-library/phpunit-deadline-subscriber.php; tests/kit/phpunit-identity.test.mts; tests/source/phpunit-identity.test.mts; Makefile; EN/KO specification and development rules | `node --test tests/kit/phpunit-identity.test.mts` (Red: namespace collisions, flow overwrite and a qualified suite accepted another namespace; Green: 4/4); `node --test --test-name-pattern="phpunit\|PHPUnit" tests/kit/run-tests.test.mts` (13/13); `node --test --test-name-pattern="a php suite binding" tests/kit/parity-api.test.mts` (1/1); `node --test tests/source/phpunit-identity.test.mts` (1/1 native, 2 PHPUnit cases); `node --test tests/source/ci-workflow.test.mts` (21/21); docs-check and targeted TypeScript lint passed | [o] |
 | K1092 | install-mise는 호출자가 넘긴 환경만 mise wrapper에 쓰고, var/tools/go.mod를 쓰지 않으며, 다른 checkout의 trusted config를 지우지 않고 고정 설치 플래그를 넘기지 않는다 | scripts/kit/bootstrap/install-mise.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1092 tests/kit/install-mise.test.mts` | [o] |

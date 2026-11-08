@@ -10,6 +10,7 @@ import { wrapBody, commitItem, editItem, newItem, newPlan, setState, splitPlan, 
 import { readChecklist, trackersOf } from '../../scripts/kit/checklist.mts';
 import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import { typeErrors } from '../../scripts/kit/ts-typecheck.mts';
+import { schemaFile, validate } from '../../scripts/kit/schema-validate.mts';
 import { put, tree } from './tree.mts';
 import { KIT_MAKEFILE } from './kit-tools.mts';
 import { initRepository } from './sandbox-repository.mts';
@@ -30,13 +31,50 @@ test('plan-new writes the four files of a plan with their doc-ids, language link
   assert.deepEqual(readChecklist(read(tracker.path), tracker, { strict: true }).items, []);
 });
 
-test('plan-new refuses a name that is no slug, an existing plan and a missing title (K249)', (t) => {
+test('plan-new refuses a name outside the declared pattern, an existing plan and a missing title (K249, K1089)', (t) => {
   const root = tree(t, CONFIG);
   newPlan(root, { name: 'parser', title: 'Parser', titleKo: '파서' });
   assert.throws(() => newPlan(root, { name: 'parser', title: 'Parser', titleKo: '파서' }), /docs\/plans\/parser exists/);
-  assert.throws(() => newPlan(root, { name: 'Parser', title: 'P', titleKo: 'P' }), /the name "Parser" is no slug/);
+  assert.throws(() => newPlan(root, { name: 'Parser', title: 'P', titleKo: 'P', pattern: '^[a-z][a-z0-9-]*$' }), /the name "Parser" does not match/);
   assert.throws(() => newPlan(root, { name: 'lexer', title: ' ', titleKo: '렉서' }), /TITLE is empty/);
   assert.throws(() => newPlan(root, { name: 'lexer', title: 'Lexer', titleKo: '' }), /TITLE_KO is empty/);
+});
+
+// K1089: a plan name follows the pattern that the caller declares; without one, any single folder name is a plan name.
+test('K1089: plan-new applies the name pattern that the caller declares, and only the folder rule without one', (t) => {
+  const root = tree(t, CONFIG);
+  newPlan(root, { name: 'Parser', title: 'P', titleKo: 'P' });
+  assert.throws(() => newPlan(root, { name: 'Lexer', title: 'L', titleKo: 'L', pattern: '^[a-z][a-z0-9-]*$' }), /the name "Lexer" does not match \^\[a-z\]\[a-z0-9-\]\*\$/);
+  newPlan(root, { name: 'lexer', title: 'L', titleKo: 'L', pattern: '^[a-z][a-z0-9-]*$' });
+  for (const name of ['', '.', '..', 'a/b']) assert.throws(() => newPlan(root, { name, title: 'X', titleKo: 'X' }), /is no folder name/);
+  const run = spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url)), 'plan-new'], { cwd: root, env: { ...process.env, NAME: 'Tokens', TITLE: 'T', TITLE_KO: 'T', NAME_PATTERN: '^[a-z]+$' }, encoding: 'utf8' });
+  assert.equal(run.status, 1);
+  assert.match(run.stderr, /does not match/);
+});
+
+// K1089: parity --make-targets checks the implementation names against the NAME_PATTERN of the caller, as plan-new does; without one
+// only what a make target name cannot hold is refused.
+test('K1089: parity --make-targets applies the name pattern that the caller declares, and only the make word rule without one', (t) => {
+  const root = tree(t, { 'config/parity.json': JSON.stringify({ implementations: [{ name: 'Go_ext' }, { name: 'ts' }] }) });
+  const parity = fileURLToPath(new URL('../../scripts/kit/parity.mts', import.meta.url));
+  const run = (env: Record<string, string>) => spawnSync(process.execPath, [parity, '--make-targets'], { cwd: root, env: { ...process.env, ...env }, encoding: 'utf8' });
+  const bare = run({});
+  assert.equal(bare.status, 0, bare.stderr);
+  assert.equal(bare.stdout, 'Go_ext ts\n');
+  const declared = run({ NAME_PATTERN: '^[a-z][a-z0-9-]*$' });
+  assert.equal(declared.status, 1);
+  assert.match(declared.stderr, /Go_ext.*does not match/);
+  put(root, { 'config/parity.json': JSON.stringify({ implementations: [{ name: 'a:b' }] }) });
+  const word = run({});
+  assert.equal(word.status, 1);
+  assert.match(word.stderr, /a:b.*no make target name/);
+  const invalid = run({ NAME_PATTERN: '(' });
+  assert.equal(invalid.status, 2, 'a NAME_PATTERN that is no regular expression is a usage error');
+  // The schema fixes no name pattern: the implementation names, the shared one and an owner part of the caller's naming pass it.
+  const declaration = { implementations: [{ name: 'Go_ext', runner: 'go', roots: ['go'], shares: 'Rust_ext' }] };
+  assert.deepEqual(validate(declaration, schemaFile('parity.schema.json')).filter(line => /\/implementations\/0\/(?:name|shares)/.test(line)), []);
+  const owner = /\^owner\/\[a-z\]/;
+  assert.doesNotMatch(readFileSync(fileURLToPath(new URL('../../scripts/kit/schema/parity.schema.json', import.meta.url)), 'utf8'), owner, 'no owner part pattern of fixed names');
 });
 
 /** A checkout with the plans `names`, each made by newPlan. */

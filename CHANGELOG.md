@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1089: parity --make-targets checks the implementation names against the NAME_PATTERN of its caller, as plan-new does, and without one refuses only a name that a make target cannot hold; a NAME_PATTERN that is no regular expression exits 2, and parity.schema.json fixes no pattern of an implementation name, a shared name or an owner part any more; kit's recipe passes NAME_PATTERN='^[a-z][a-z0-9-]*$' (K1089).
+- K1089: plan-new checks a plan name against the NAME_PATTERN that its caller declares, and without one only that the name is a single folder name; kit's own recipe declares `^[a-z][a-z0-9-]*$` (K1089).
 - K1088: language-check exits 2, a usage error, for a call without --forbid and for a --forbid that is no regular expression (K1088).
 - K1088: language-check forbids the text that its --forbid argument declares, a regular expression such as `\p{Script=Hangul}`, and forbids nothing without it; kit's own recipe declares Hangul, and a repository that keeps the rule names it in its recipe (K1088).
 - K1087: check-commits --range applies only the diff rules that its --rules argument names, commit-red and commit-fix-test, and none without it; the rules apply as the caller declares them (K1087).

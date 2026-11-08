@@ -13,7 +13,7 @@
         "type": "object",
         "required": ["name", "runner", "roots"],
         "properties": {
-          "name": { "description": "The name of the implementation, used by the bindings and documents.", "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "name": { "description": "The name of the implementation, used by the bindings and documents; NAME_PATTERN of the caller of parity --make-targets declares its form (K1089).", "type": "string", "minLength": 1 },
           "prose": { "description": "The names that the documents write for the implementation besides its name, such as \"PHP extension\" for php-extension; R10 reads each, in any case, as the implementation. A prose name is a name of no other implementation and is declared once.", "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^\\S(?:.*\\S)?$" } },
           "runner": { "description": "How a binding runs and reads its outcomes, through the output parsers of scripts/kit/test-output.mts: go (go test -json), cargo (cargo test), node (node --test with the reporter scripts/kit/parity-node-reporter.mts), vitest (node_modules/vitest/vitest.mjs run with the JSON reporter of vitest), php (PHPUnit of the Composer package of the test, TeamCity messages) and python (the python3 of mise.toml, var/tools/mise/shims/python3, -m unittest -v, which gives a test no timeout of its own and prints no elapsed time; the python tool of run-tests runs runners/python.py instead, K371). A case is a subtest, a test named by the case, or a test method test_<case>.", "type": "string", "enum": ["go", "cargo", "node", "vitest", "php", "python"] },
           "roots": { "description": "The directories that hold the implementation and its tests; the whole repository is no root.", "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" } },
@@ -84,7 +84,7 @@
           "shares": {
             "description": "The implementation whose test files this one runs in its own runtime, such as a native extension that runs the tests of the library it replaces. R6 accepts a binding test of this implementation in the roots of the shared one; R5 still judges only this implementation's own roots and tests. It names another implementation of the same runner (K232). Without it the implementation shares no tests (K1117).",
             "type": "string",
-            "pattern": "^[a-z][a-z0-9-]*$"
+            "minLength": 1
           }
         }
       }
@@ -189,7 +189,7 @@
                 "properties": {
                   "kind": { "const": "coverage-part" },
                   "feature": { "type": "string", "minLength": 1 },
-                  "part": { "type": "string", "pattern": "^owner/[a-z][a-z0-9-]*$" }
+                  "part": { "type": "string", "pattern": "^owner/.+$" }
                 }
               },
               {
@@ -198,7 +198,7 @@
                 "properties": {
                   "kind": { "const": "coverage-parts" },
                   "feature": { "type": "string", "minLength": 1 },
-                  "parts": { "type": "array", "minItems": 2, "uniqueItems": true, "items": { "type": "string", "pattern": "^owner/[a-z][a-z0-9-]*$" } }
+                  "parts": { "type": "array", "minItems": 2, "uniqueItems": true, "items": { "type": "string", "pattern": "^owner/.+$" } }
                 }
               },
               {
