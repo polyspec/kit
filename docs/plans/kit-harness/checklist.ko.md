@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 14d77924000ff6203f48ab0886660cd44db78b030e01cb9c0dace8611a19b3ce -->
+<!-- source-sha256: edd13996301126a12f13849c16915d33bed2144f941094f9bafbb12c20add948 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -256,3 +256,4 @@
 | K1125 | 시험은 K1069-K1118 이후 호출자가 선언하는 것을 넘긴다: 호출자의 private path, 문서 규칙, rebuild source, packageFiles, fixture, extension layout, mise 환경, PATH와 concurrency, hook 설치 없음, 중첩 실행의 NODE_TEST_CONTEXT 없음, 모든 저장소의 initRepository, K958 reason 시험 삭제 | `tests/kit`, `tests/source` | the ci workflow passes | [o] |
 | K1126 | Windows에서 owner-check가 빈 make target 목록을 받는다: Git Bash의 make는 database를 CRLF 줄 끝으로 출력하므로 parseMakeDatabase가 Files 절을 찾지 못하고 owner-validate는 config/owner-checks.json의 모든 target을 없다고 한다(오류 42개, CI run 42446319516, bootstrap windows-2025); run 42447489050은 끝나기 전에 취소되어 kit tests (5) 밖의 결과는 알 수 없고, run 42447688905는 Windows bootstrap을 통과했다 | `scripts/kit/owner-check.mts`, `.github/workflows/ci.yml` | the ci workflow passes | [o] |
 | K1127 | php-ext.test.mts의 K1103 case는 확장 없음 확인에 파일이 없는 folder를 이름 짓는다: CI run 42447688905, kit tests (5): tests/kit/php-ext.test.mts:566에서 check --extension ext --build-dir out이 ext/src/config.m4 declares no PHP_NEW_EXTENSION으로 1을 반환했다. ext에 ext/src/vendor.c가 있기 때문이다 | `tests/kit/php-ext.test.mts` | the ci workflow passes | [o] |
+| K1129 | parity 삭제: kit은 구현들이 서로 어떻게 관계되는지 검사하지 않으며, 각 저장소가 자기 테스트를 실행한다 | `scripts/kit/parity*.mts`, `scripts/kit/schema/parity.schema.json`, the parity symbol extractors, the parity targets of `scripts/kit/kit.mk`, the parity reading of `scripts/kit/ci-setup.mts` | typecheck, lint-ts, kit-build and docs-check pass; no parity reference remains | [ ] |
