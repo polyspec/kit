@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // The first step of the bootstrap of a repository (`make install-tools TOOLS=npm` of kit.mk or of a repository's own recipe, before the package
-// @polyspec/kit is installed): installs the mise of config/toolchain.json, then with it the Node.js and the npm of mise.toml at
-// the digests of mise.lock, with the wrappers node, npm and npx of var/tools/bin. The node of the machine only starts this
+// @polyspec/kit is installed): installs the mise of config/toolchain.json, then with it the Node.js and the npm of mise.toml,
+// locked to mise.lock as the locked setting of mise.toml says (K1092), with the wrappers node, npm and npx of var/tools/bin. The node of the machine only starts this
 // script, whatever its release (K171); every later step, npm ci first, runs the npm of mise. npm installs the packages and mise
 // installs the other tools. A repository holds this directory as a copy, so the module imports only Node.js built-ins and the
 // modules of its directory. It runs in the root of the repository.

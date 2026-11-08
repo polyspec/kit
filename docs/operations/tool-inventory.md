@@ -35,7 +35,7 @@ repositories (lines).
 
 mise with `mise.lock` installs the tools of a checkout (K127). `mise.toml` declares them and `mise.lock` pins each archive by
 its sha256 for each platform of linux, macOS and Windows on x64 and arm64 that has its archive, as mise records them; `make toolchain-lock` writes the lock with `mise lock` (K836): it first locks and installs the uv and the python that `mise.toml` declares and names that Python as `UV_PYTHON`, since a `pypi:` tool locks with uv, which takes the first uv on PATH and a managed Python of the home before PATH,
-and `make install-tools` installs it (`scripts/kit/install-tools.mts`, `mise install --locked`), then installs what mise does
+and `make install-tools` installs it (`scripts/kit/install-tools.mts`, `mise install`, locked as the `locked` setting of `mise.toml` says, K1096), then installs what mise does
 not: PHP, which the machine provides and `install-php.mts` wraps as it is (K283, K862, below), the Composer projects of `config/phpunit` and `config/php-lint`, with rustup
 (`install-rust.mts`) the toolchain of `rust-toolchain.toml` with its components (`rustup toolchain install --no-self-update`
 in the checkout, which reads the file; rustup 1.28 no longer installs it as cargo first runs) and the Rust channels of

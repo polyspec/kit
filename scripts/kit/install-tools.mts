@@ -3,9 +3,9 @@
 //
 //   node scripts/kit/install-tools.mts
 //
-// mise installs every tool of mise.toml at the release and digest of mise.lock (`mise install --locked`, by the wrapper
-// var/tools/bin/mise, which keeps mise and the builds of its tools under var/tools/mise); a tool that mise.lock does not pin
-// fails the install. Then kit installs what mise does not: the Composer projects of config/phpunit (phpunit) and config/php-lint, the Rust
+// mise installs every tool of mise.toml with `mise install` and no flag of kit, by the wrapper var/tools/bin/mise, which keeps
+// mise and the builds of its tools under var/tools/mise; whether a tool that mise.lock does not pin fails the install is the
+// locked setting of the repository's mise.toml (K1096). Then kit installs what mise does not: the Composer projects of config/phpunit (phpunit) and config/php-lint, the Rust
 // toolchain of rust-toolchain.toml with its components and the Rust channels of config/toolchain.json exceptions (install-rust.mts,
 // with rustup, which stays the toolchain manager of Rust). The symbol extractors have their own make target, kit-install-symbols,
 // which install-kit runs from the declarations of the repository (kit-install-declared, K861). Each is installed only
@@ -98,7 +98,7 @@ export function installTools({ root = repositoryRoot(), tools, print = () => {} 
   if (selection.all) removeStaleWrappers(root, [MISE_WRAPPER, NODE_WRAPPER, ...Object.keys(NPM_WRAPPERS), ...(php ? PHP_WRAPPERS : []), ...(phpunit ? Object.keys(PHPUNIT_WRAPPERS) : []), ...(phpLint ? Object.keys(PHP_LINT_WRAPPERS) : [])], print);
   else removeStaleWrappers(root, [], print, selectedStaleWrappers(selection.mise));
   // The wrapper sets the environment of mise itself; the installs of kit that follow run the tools of mise.
-  if (selection.all || selection.mise.length > 0) run(mise, ['install', '--locked', ...(selection.all ? [] : selection.mise)], { cwd: root, env: process.platform === 'win32' ? miseEnvironment(root) : process.env }, print);
+  if (selection.all || selection.mise.length > 0) run(mise, ['install', ...(selection.all ? [] : selection.mise)], { cwd: root, env: process.platform === 'win32' ? miseEnvironment(root) : process.env }, print);
   // The wrappers of php come before the installs that run Composer, so that Composer runs on the php of PATH.
   if (selection.php && php) installPhp({ root, print });
   if (selection.phpunit && phpunit) installPhpunit({ root, declared: phpunit, print });

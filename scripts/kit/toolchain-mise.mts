@@ -1,5 +1,5 @@
 // The tools that mise installs into var/tools/mise (K127): their releases in [tools] of mise.toml, and the digests in mise.lock,
-// which `make toolchain-lock` writes with `mise lock` and `make install-tools` installs with `mise install --locked`. Each tool
+// which `make toolchain-lock` writes with `mise lock` and `make install-tools` installs with `mise install` (K1096). Each tool
 // of kit is the key of mise.toml that names its backend; its value is the release, or a table with the release as version:
 //   node          node (the archive of nodejs.org; the bootstrap installs it first, and var/tools/bin/node runs it, K171)
 //   go            go                                     python  python (the python-build-standalone build of mise.lock)

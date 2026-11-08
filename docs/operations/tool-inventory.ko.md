@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 3d6dba3d7f7100c498a0fd69d59f7c46777a30e53038f26c283de025ec3fc47c -->
+<!-- source-sha256: d7524f38d0bd5906d32ec16efd091d567ae6673ed4b641411597dcb32f0f40b5 -->
 
 # 도구 목록
 
@@ -37,7 +37,7 @@
 
 checkout의 도구는 `mise.lock`을 쓰는 mise가 설치합니다(K127). `mise.toml`이 도구를 선언하고 `mise.lock`이 각 archive를
 x64와 arm64의 linux, macOS, Windows 중 archive가 있는 각 platform의 sha256으로 mise가 기록하는 대로 고정합니다. `make toolchain-lock`이 `mise lock`으로 lock을 씁니다(K836).
-`pypi:` 도구는 uv로 lock되고 uv는 PATH의 첫 uv와 PATH보다 먼저 home의 managed Python을 쓰므로, 먼저 `mise.toml`이 선언한 uv와 python을 lock하고 설치한 뒤 그 Python을 `UV_PYTHON`으로 지정합니다. `make install-tools`가 그것을 설치한 뒤(`scripts/kit/install-tools.mts`, `mise install --locked`) mise가 설치하지 않는
+`pypi:` 도구는 uv로 lock되고 uv는 PATH의 첫 uv와 PATH보다 먼저 home의 managed Python을 쓰므로, 먼저 `mise.toml`이 선언한 uv와 python을 lock하고 설치한 뒤 그 Python을 `UV_PYTHON`으로 지정합니다. `make install-tools`가 그것을 설치한 뒤(`scripts/kit/install-tools.mts`, `mise install`, lock 여부는 `mise.toml`의 `locked` 설정, K1096) mise가 설치하지 않는
 것을 설치합니다. PHP는 machine이 제공하며 `install-php.mts`가 그대로 wrapper로 제공하고(K283, K862, 아래), `config/phpunit`과 `config/php-lint`의 Composer project, rustup으로
 설치하는(`install-rust.mts`) `rust-toolchain.toml`의 toolchain과 그 component(checkout에서 파일을 읽는
 `rustup toolchain install --no-self-update`; rustup 1.28은 cargo가 처음 실행될 때 더는 설치하지 않습니다)와 `exceptions`의

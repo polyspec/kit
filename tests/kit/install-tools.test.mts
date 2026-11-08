@@ -1,4 +1,4 @@
-// Tests of scripts/kit/install-tools.mts (K127): install-tools has mise install every tool of mise.lock (`mise install --locked`,
+// Tests of scripts/kit/install-tools.mts (K127): install-tools has mise install every tool of mise.toml (`mise install`, K1096,
 // by the wrapper of the bootstrap) before the tools that mise does not install, takes no tool names, and stops on a failed mise
 // install; toolchain-lock is the mise lock of kit.mk (K836).
 // var/tools/bin/mise is a stub that logs its calls, so no test reaches a network.
@@ -32,8 +32,15 @@ test('install-tools has mise install every tool of mise.lock in the checkout, an
   const { root, stubs } = checkout(t, '[tools]\nruff = "0.17.0"\n');
   const result = start(INSTALL_TOOLS, root, stubs.env);
   assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(stubs.calls(), ['mise install --locked']);
-  assert.match(result.stdout, new RegExp(`^\\[install-tools\\] ${path.join(root, 'var/tools/bin/mise').replaceAll('.', '\\.')} install --locked$`, 'm'));
+  assert.deepEqual(stubs.calls(), ['mise install']);
+  assert.match(result.stdout, new RegExp(`^\\[install-tools\\] ${path.join(root, 'var/tools/bin/mise').replaceAll('.', '\\.')} install$`, 'm'));
+});
+
+test('K1096 install-tools runs mise install with no flag that the caller did not give', (t) => {
+  const { root, stubs } = checkout(t, '[tools]\nruff = "0.17.0"\n');
+  const result = start(INSTALL_TOOLS, root, stubs.env);
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(stubs.calls(), ['mise install']);
 });
 
 test('a second install-tools with var/tools/bin and the shims first on PATH is a clean no-op (K127)', (t) => {
@@ -47,8 +54,8 @@ test('a second install-tools with var/tools/bin and the shims first on PATH is a
   const second = start(INSTALL_TOOLS, root, env);
   assert.equal(first.status, 0, first.stderr);
   assert.equal(second.status, 0, second.stderr);
-  assert.equal(second.stdout, first.stdout, 'the second run does what the first did: mise install --locked, which mise keeps');
-  assert.deepEqual(stubs.calls(), ['mise install --locked', 'mise install --locked']);
+  assert.equal(second.stdout, first.stdout, 'the second run does what the first did: mise install, which mise keeps');
+  assert.deepEqual(stubs.calls(), ['mise install', 'mise install']);
 });
 
 test('a mise install that fails stops install-tools with the error of mise, before any install of kit', (t) => {
@@ -56,7 +63,7 @@ test('a mise install that fails stops install-tools with the error of mise, befo
   const result = start(INSTALL_TOOLS, root, { ...stubs.env, STUB_MISE_FAILS: 'ruff@0.17.0 is not in the lockfile' });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /mise ERROR ruff@0\.17\.0 is not in the lockfile/);
-  assert.match(result.stderr, /\[install-tools\] .*var\/tools\/bin\/mise install --locked ended with exit status 1/);
+  assert.match(result.stderr, /\[install-tools\] .*var\/tools\/bin\/mise install ended with exit status 1/);
 });
 
 test('install-tools selects only declared tools and rejects empty or unknown selectors before mutation', (t) => {
@@ -65,19 +72,19 @@ test('install-tools selects only declared tools and rejects empty or unknown sel
   writeFileSync(path.join(root, 'var/tools/bin/php'), '#!/bin/sh\n', { mode: 0o755 });
   const selected = start(INSTALL_TOOLS, root, stubs.env, 'go', 'python');
   assert.equal(selected.status, 0, selected.stderr);
-  assert.deepEqual(stubs.calls(), ['mise install --locked go python']);
+  assert.deepEqual(stubs.calls(), ['mise install go python']);
   assert.equal(readdirSync(path.join(root, 'var/tools/bin')).includes('go'), false, 'the selected Go shim is not shadowed by a legacy wrapper');
   assert.equal(readdirSync(path.join(root, 'var/tools/bin')).includes('php'), true, 'an unrelated wrapper remains installed');
 
   const unknown = start(INSTALL_TOOLS, root, stubs.env, 'go', 'not-declared');
   assert.equal(unknown.status, 1);
   assert.match(unknown.stderr, /unknown TOOLS selector not-declared; choose /);
-  assert.deepEqual(stubs.calls(), ['mise install --locked go python'], 'unknown selectors fail before another mise install');
+  assert.deepEqual(stubs.calls(), ['mise install go python'], 'unknown selectors fail before another mise install');
 
   const empty = start(INSTALL_TOOLS, root, stubs.env, '');
   assert.equal(empty.status, 1);
   assert.match(empty.stderr, /TOOLS must name one or more declared tool selectors/);
-  assert.deepEqual(stubs.calls(), ['mise install --locked go python'], 'empty selectors fail before another mise install');
+  assert.deepEqual(stubs.calls(), ['mise install go python'], 'empty selectors fail before another mise install');
 });
 
 test('selected tools include only their declared mise prerequisites, and a missing prerequisite fails before install', (t) => {
@@ -85,7 +92,7 @@ test('selected tools include only their declared mise prerequisites, and a missi
   const { root, stubs } = checkout(t, toml);
   const result = start(INSTALL_TOOLS, root, stubs.env, 'deadcode', 'vulture');
   assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(stubs.calls(), ['mise install --locked go:golang.org/x/tools/cmd/deadcode go pypi:vulture python uv']);
+  assert.deepEqual(stubs.calls(), ['mise install go:golang.org/x/tools/cmd/deadcode go pypi:vulture python uv']);
 
   const { root: incomplete, stubs: incompleteStubs } = checkout(t, '[tools]\n"go:golang.org/x/tools/cmd/deadcode" = "0.52.0"\n');
   const missing = start(INSTALL_TOOLS, incomplete, incompleteStubs.env, 'deadcode');
@@ -98,7 +105,7 @@ test('selected tools include only their declared mise prerequisites, and a missi
   writeFileSync(path.join(composerStubs.directory, 'bin/php'), '#!/bin/sh\nprintf "8.4\\n"\n', { mode: 0o755 });
   const composer = start(INSTALL_TOOLS, composerOnly, composerStubs.env, 'composer');
   assert.equal(composer.status, 0, composer.stderr);
-  assert.deepEqual(composerStubs.calls(), ['mise install --locked http:composer'], 'Composer installs its declared PHP prerequisite first');
+  assert.deepEqual(composerStubs.calls(), ['mise install http:composer'], 'Composer installs its declared PHP prerequisite first');
 
   const { root: missingPhp, stubs: missingPhpStubs } = checkout(t, composerToml);
   const rejectedComposer = start(INSTALL_TOOLS, missingPhp, missingPhpStubs.env, 'composer');
@@ -116,7 +123,7 @@ test('selected tools include only their declared mise prerequisites, and a missi
   writeFileSync(path.join(pieStubs.directory, 'bin/php'), '#!/bin/sh\nprintf "8.4\\n"\n', { mode: 0o755 });
   const pie = start(INSTALL_TOOLS, pieOnly, pieStubs.env, 'pie');
   assert.equal(pie.status, 0, pie.stderr);
-  assert.deepEqual(pieStubs.calls(), ['mise install --locked http:pie'], 'TOOLS=pie installs the http:pie of mise.toml');
+  assert.deepEqual(pieStubs.calls(), ['mise install http:pie'], 'TOOLS=pie installs the http:pie of mise.toml');
   const { root: noPie, stubs: noPieStubs } = checkout(t, composerToml, { '.php-version': '8.4\n' });
   const undeclaredPie = start(INSTALL_TOOLS, noPie, noPieStubs.env, 'pie');
   assert.equal(undeclaredPie.status, 1);
@@ -187,7 +194,7 @@ test('K1072: an exception of a tool that is not selected, in any form, refuses n
   const { root, stubs } = checkout(t, '[tools]\nruff = "0.17.0"\n', { 'config/toolchain.json': JSON.stringify({ schema: 1, exceptions }) });
   const result = start(INSTALL_TOOLS, root, stubs.env, 'ruff');
   assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(stubs.calls(), ['mise install --locked ruff']);
+  assert.deepEqual(stubs.calls(), ['mise install ruff']);
 });
 
 test('a declared Rust channel without rustup fails with the one prerequisite of the machine', (t) => {
@@ -207,7 +214,7 @@ test('install-tools installs the exact channel, profile and components of rust-t
   writeFileSync(path.join(stubs.directory, 'bin', 'rustup'), RUSTUP, { mode: 0o755 });
   const result = start(INSTALL_TOOLS, root, stubs.env);
   assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(stubs.calls(), ['mise install --locked', 'rustup toolchain install --no-self-update --profile minimal --component clippy 1.99.0']);
+  assert.deepEqual(stubs.calls(), ['mise install', 'rustup toolchain install --no-self-update --profile minimal --component clippy 1.99.0']);
   assert.match(result.stdout, /^\[install-tools\] rustup toolchain install --no-self-update --profile minimal --component clippy 1\.99\.0$/m);
 });
 

@@ -10,7 +10,7 @@ them and then owns; kit writes no file of a repository (K1052). kit depends on n
 
 | Concern | Tools (`scripts/kit/`) | Make targets of kit (`scripts/kit/kit.mk`) |
 |---|---|---|
-| Toolchains | the bootstrap (`bootstrap/bootstrap.mts`: mise, and the node and npm of mise.toml), `install-tools.mts` (`mise install --locked` of `mise.toml` and `mise.lock`, then the wheel backend, the Composer projects and the Rust channels of `install-rust.mts`), `mise-tools.mts`, `toolchain-mise.mts` | `install-tools TOOLS=npm`, `install-tools`, `toolchain-lock` |
+| Toolchains | the bootstrap (`bootstrap/bootstrap.mts`: mise, and the node and npm of mise.toml), `install-tools.mts` (`mise install` of `mise.toml` and `mise.lock`, locked as the `mise.toml` settings say, then the wheel backend, the Composer projects and the Rust channels of `install-rust.mts`), `mise-tools.mts`, `toolchain-mise.mts` | `install-tools TOOLS=npm`, `install-tools`, `toolchain-lock` |
 | Folder layout | the alint of `mise.toml` runs `config/layout.yml` over the common rules of `config/layout.kit.yml` | `layout-check` |
 | Lint | `lint-python.mts`, `lint-php.mts`, `lint-rust.mts`, `lint-go.mts`, `lint-ts.mts`, with the copied configuration (docs/operations/tool-inventory.md, Lint configuration) and the ruff, vulture, golangci-lint and deadcode of `mise.toml` and the PHP lint of `install-php-lint.mts` | `lint-python`, `lint-php`, `lint-rust`, `lint-go`, `lint-ts` |
 | Hooks and checklists | `git-hooks.mts` (the listed hooks of the repository and the merge drivers), `generated-files.mts`, `holder-lock.mts`, `checklist.mts` | `hooks`, `hooks-check` |
