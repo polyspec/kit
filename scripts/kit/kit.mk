@@ -201,7 +201,7 @@ text-absent: ## Fail while the tracked file FILE holds the stale text TEXT, nami
 
 .PHONY: divergence-check
 divergence-check: ## Fail on an implementation that diverges through a branch on the runtime, a narrowing of its run, a partial or unsupported feature, or an exception without a kind of reason (K315); offline
-	$(NODE) $(KIT)/divergence-check.$(KIT_EXT)
+	$(NODE) $(KIT)/divergence-check.$(KIT_EXT) --roots
 
 .PHONY: language-check
 language-check: ## Fail on Hangul in a comment, an identifier, an error or log message or a test name of the code (K252); offline
@@ -409,7 +409,7 @@ lint-ts: ## Lint the TypeScript of the checkout: oxlint and knip with the config
 # Without UNITS the check is a full run.
 .PHONY: parity-check parity-declarations-check
 parity-check: ## Run every parity binding and check every rule; UNITS="<id>..." selects units and IMPLEMENTATIONS="<name>..." selects runtime bindings and support files (support files run when UNITS is empty), while static declaration checks stay global; offline
-	$(NODE) $(KIT)/parity.$(KIT_EXT) $(foreach unit,$(UNITS),--unit $(unit)) $(foreach implementation,$(IMPLEMENTATIONS),--implementation $(implementation))
+	$(NODE) $(KIT)/parity.$(KIT_EXT) $(foreach unit,$(UNITS),--unit $(unit)) $(foreach implementation,$(IMPLEMENTATIONS),--implementation $(implementation)) --roots
 
 # The parity declaration is the source of the native implementation list. Generate an explicit phony target per implementation so
 # repository setup prerequisites, existing files and a consumer's `.PHONY` declarations cannot bypass the provider recipe.
@@ -442,4 +442,4 @@ endef
 $(foreach implementation,$(KIT_PARITY_IMPLEMENTATIONS),$(eval $(call KIT_PARITY_BINDING_RULE,$(implementation))))
 
 parity-declarations-check: ## Check the parity rules of config/parity.json that need no run: symbols, bindings, tests, error codes, lists, documents; UNITS="<id>..." reports only the findings of the named units, their schema findings included, and of config/parity.json itself (K400, K400-1); RULES="<rule>..." reports only the findings of the named rules, by id or name, and of config/parity.json itself (K414); IDS="<requirement>..." reports only the findings that name one of the requirement ids, and of config/parity.json itself (K414-1); offline
-	$(NODE) $(KIT)/parity.$(KIT_EXT) --declarations $(foreach unit,$(UNITS),--unit $(unit)) $(foreach rule,$(RULES),--rule $(rule)) $(foreach id,$(IDS),--id $(id))
+	$(NODE) $(KIT)/parity.$(KIT_EXT) --declarations $(foreach unit,$(UNITS),--unit $(unit)) $(foreach rule,$(RULES),--rule $(rule)) $(foreach id,$(IDS),--id $(id)) --roots

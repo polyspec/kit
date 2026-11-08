@@ -60,8 +60,7 @@ test('the CI pipeline partitions every kit-gates target across shared, parity an
   const setup = read('scripts/kit/ci-setup.mts');
   assert.match(setup, /declaredMiseTools\(root\)/, 'tool selection uses the same declaration reader as install-tools');
   assert.match(setup, /declaredToolchain\(root\)/);
-  assert.match(setup, /trackedFiles\(root\)/);
-  assert.match(setup, /implementationFolders\(files\)/);
+  assert.match(setup, /\.\.\.config\.runtimes, /, 'the runtimes of the plan are those that config/ci.json declares (K1114)');
   assert.match(workflow, /include: \$\{\{ fromJSON\(needs\.plan\.outputs\.runtimes\) \}\}/);
   assert.match(setup, /declared\.symbolExtractors/);
   assert.match(setup, /`deps-\$\{/, 'the default setup of a runtime is the deps target of the repository (K859)');

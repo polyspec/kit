@@ -45,5 +45,20 @@
   },
   "goModules": {
     "packages/fixture-go": "example.com/kit-fixture-go"
-  }
+  },
+  "packageFiles": [
+    "package.json",
+    "composer.json",
+    "Cargo.toml",
+    "pyproject.toml",
+    "go.mod",
+    "VERSION"
+  ],
+  "writtenFiles": [
+    "config/phpunit/composer.json",
+    ".mise/locks/**"
+  ],
+  "fixtures": [
+    "tests/kit/fixture/**"
+  ]
 }

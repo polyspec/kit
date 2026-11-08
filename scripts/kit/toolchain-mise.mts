@@ -52,9 +52,6 @@ const isMiseTool = (name: string): name is MiseTool => Object.hasOwn(MISE_TOOLS,
 /** The tools of MISE_TOOLS. */
 export const MISE_TOOL_NAMES: MiseTool[] = Object.keys(MISE_TOOLS).filter(isMiseTool);
 
-/** The tree under which `mise lock` writes the uv lock of each pypi: tool, a folder of the repository root. */
-export const MISE_LOCKS = '.mise/locks/';
-
 // The [tools] table of mise.toml of `root`, or undefined without the file.
 function toolsTable(root: string): Record<string, unknown> | undefined {
   if (!existsSync(path.join(root, 'mise.toml'))) return undefined;

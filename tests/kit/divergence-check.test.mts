@@ -4,11 +4,17 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { checkedSources, divergenceFindings, reasonKind } from '../../scripts/kit/divergence-check.mts';
+import { spawnSync } from 'node:child_process';
+import { checkedSources, divergenceFindings, reasonKind, selectedRoots } from '../../scripts/kit/divergence-check.mts';
+import { tool } from './kit-tools.mts';
 
 import { tree } from './tree.mts';
 
-const run = (texts: Record<string, string>) => divergenceFindings(Object.keys(texts), file => texts[file]);
+// The roots of each case are those of its config/parity.json, which the case passes with --parity, or none (K1114).
+const run = (texts: Record<string, string>) => {
+  const read = (file: string) => texts[file];
+  return divergenceFindings(Object.keys(texts), read, texts['config/parity.json'] === undefined ? [] : selectedRoots(['--parity', 'config/parity.json'], read) ?? []);
+};
 const PARITY = JSON.stringify({ implementations: [{ name: 'php', roots: ['packages/php'] }, { name: 'ts', roots: ['packages/ts'] }] });
 
 test('a test that branches on the extension, the runtime or the platform is a finding, in each language (K315)', () => {
@@ -80,9 +86,10 @@ test('the polyfill guard of a declaration is no finding, and a probe that choose
   mkdirSync(path.join(root, 'packages/php/src/generated'), { recursive: true });
   writeFileSync(path.join(root, 'packages/php/src/generated/Gen.php'), "<?php\nnamespace Acme;\nfunction x() {}\nif (function_exists('Acme\\x')) {\n    x();\n}\nif (extension_loaded('acme')) {\n    x();\n}\n");
   const read = (file: string) => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined);
-  const files = checkedSources(root, ['config/parity.json'], read);
+  const roots = selectedRoots(['--parity', 'config/parity.json'], read) ?? [];
+  const files = checkedSources(root, ['config/parity.json'], roots);
   assert.deepEqual(files, ['config/parity.json', 'packages/php/src/generated/Gen.php']);
-  assert.deepEqual(divergenceFindings(files, read), [finding('packages/php/src/generated/Gen.php', 4), finding('packages/php/src/generated/Gen.php', 7).replace('(function_exists)', '(extension_loaded)')]);
+  assert.deepEqual(divergenceFindings(files, read, roots), [finding('packages/php/src/generated/Gen.php', 4), finding('packages/php/src/generated/Gen.php', 7).replace('(function_exists)', '(extension_loaded)')]);
 });
 
 test('K644: global and external PHP capability probes are allowed', () => {
@@ -195,3 +202,27 @@ for (const [use, source] of [
     assert.match(findings[0] ?? '', /a test branches.*process.platform/);
   });
 }
+
+// K1114: the implementation roots are the caller's, from the parity declaration it passes or from --roots; kit has no layout of
+// packages/<runtime>, and a call that names neither is a usage error.
+test('K1114 divergence-check takes the implementation roots from --parity or --roots, and a bare call is a usage error', (t) => {
+  const texts: Record<string, string> = {
+    'lib/php/tests/ModelTest.php': "<?php\n$v = PHP_VERSION;\n",
+    'packages/php/tests/OtherTest.php': "<?php\n$v = PHP_VERSION;\n",
+    'own/parity.json': JSON.stringify({ implementations: [{ name: 'php', roots: ['lib/php'] }] }),
+  };
+  const read = (file: string) => texts[file];
+  assert.equal(selectedRoots([], read), undefined);
+  assert.equal(selectedRoots(['--parity', 'own/parity.json', '--roots', 'lib/php'], read), undefined);
+  assert.deepEqual(selectedRoots(['--roots'], read), []);
+  assert.deepEqual(selectedRoots(['--roots', 'lib/php', 'lib/ts'], read), ['lib/php', 'lib/ts']);
+  assert.deepEqual(selectedRoots(['--parity', 'own/parity.json'], read), ['lib/php']);
+  assert.throws(() => selectedRoots(['--parity', 'config/parity.json'], read), /config\/parity\.json is missing/);
+  const found = divergenceFindings(Object.keys(texts), read, ['lib/php']);
+  assert.deepEqual(found, ['lib/php/tests/ModelTest.php:2: a test branches on the implementation, the runtime or the platform (PHP_VERSION), so it asserts something else in another implementation']);
+  assert.deepEqual(divergenceFindings(Object.keys(texts), read, []), [], 'packages/ is no implementation root by layout');
+  const root = tree(t, { 'README.md': 'x\n' });
+  const bare = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/divergence-check.mts'))], { cwd: root, encoding: 'utf8' });
+  assert.equal(bare.status, 2, bare.stderr);
+  assert.match(bare.stderr, /usage: divergence-check\.mts --parity <path> \| --roots/);
+});

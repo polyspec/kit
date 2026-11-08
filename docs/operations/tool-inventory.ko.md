@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 60491c6d7d68eb30803dbe3928da43db28336e0d8227899dcc0069be7e3bf86e -->
+<!-- source-sha256: 8a9653c1f3f15c4717d85b1200899c719a4c287b4c22d680a85498aab1e434e6 -->
 
 # 도구 목록
 
@@ -397,8 +397,8 @@ K809가 쌍의 규칙을 지웠습니다: `pair-missing`, `doc-id`, `revision`, 
 
 ## Divergence check (K315)
 
-`make divergence-check`(P32)는 구현이 unit이 말하지 않는 방법으로 contract와 달라지면 실패한다. `config/parity.json`의 구현 root(없으면
-runtime별 package 폴더)를 읽고 다음의 파일과 줄을 보고한다: extension, runtime, platform으로 분기하는 test(`extension_loaded`,
+`make divergence-check`(P32)는 구현이 unit이 말하지 않는 방법으로 contract와 달라지면 실패한다. 호출자가 넘긴 구현 root, 곧
+`--parity <path>` parity 선언의 root나 `--roots`의 폴더를 읽고(K1114, 인수 없는 호출은 사용법 오류) 다음의 파일과 줄을 보고한다: extension, runtime, platform으로 분기하는 test(`extension_loaded`,
 `function_exists`, `PHP_VERSION`, `PHP_OS`, `sys.version_info`, `sys.platform`, `process.versions`, `process.platform`,
 `runtime.GOOS`, `runtime.GOARCH`, `cfg!`, `#[cfg(...)]`, `os.name`), 다른 구현이 있는지 읽는 구현의 code(`extension_loaded`), script,
 Makefile, workflow의 `--exclude-group`, `contracts/features.json`의 `partial`이나 `unsupported`, 그리고 reason이 kit이 정한 kind로
@@ -631,10 +631,11 @@ go.mod의 module path에 연결합니다.
   대상 옆에 만들어 이름을 바꾸므로 실패한 실행은 archive를 남기지 않습니다.
 - `publish`: API로 만든 draft release(원격에서 tag를 찾은 뒤 `gh api --method POST repos/O/R/releases`, `--verify-tag`가 요구하던 대로), 각 archive를 그 release의 upload URL로 올리고 id를 `var/release/<tag>.json`에 기록(K79); 다섯 도구는 `gh release create TAG --verify-tag`를 실행했음; archive 이름은 목록 file이 아니라
   설정에서 옵니다(orm은 `assets.txt`를 썼음).
-- `coverage`: 추적되거나 새로운 모든 package.json, composer.json, Cargo.toml, pyproject.toml, go.mod, VERSION file은 `manifests`, `notReleased`,
-  `goModules` 중 하나에 있습니다(template test, orm `unlistedManifests`); 목록에 있지만 없는 file과 두 목록에 있는 file은 결과로 보고합니다(orm, 더 넓음).
-  kit이 쓰는 file은 릴리스되지 않으며 항목이 필요 없습니다(K167): PHPUnit의 Composer project `config/phpunit/composer.json`(make install-tools),
-  `.mise/locks/` 아래 mise의 lock tree(make toolchain-lock)입니다.
+- `coverage`: `config/release.json`의 `packageFiles`가 이름을 나열한 추적되거나 새로운 모든 file(package.json, composer.json, Cargo.toml,
+  pyproject.toml, go.mod, VERSION 등)은 `manifests`, `notReleased`, `goModules` 중 하나에 있습니다(template test, orm `unlistedManifests`);
+  목록에 있지만 없는 file과 두 목록에 있는 file은 결과로 보고하며(orm, 더 넓음), `packageFiles`가 없는 설정도 결과입니다(K1114).
+  `writtenFiles`의 glob에 맞는 file은 도구가 쓰는 file이라 릴리스되지 않으며 항목이 필요 없습니다(K167, K1114). `config/phpunit/composer.json`(make install-tools)과
+  `.mise/locks/**`(make toolchain-lock)가 그 예입니다. `fixtures`의 glob에 맞는 file은 test의 것이라 빠집니다(K1114).
 
 ### 버린 동작
 
@@ -730,7 +731,7 @@ S10 PHP extension의 stub이 있는 저장소는 `packages/php-ext/src/polyspec_
 | `markdown.mts` | `lineBlocks`, `headings` | `|`로 시작하는 모든 줄을 읽던 checklist의 `cells`와 status-table의 `rowCells`(K130: tree의 행과 list item), `changelog.sections`와 release notes의 `## ` 줄(K130: tree의 heading). fence, 산문, link, anchor는 GFM과 YAML front matter를 켠 mdast-util-from-markdown의 syntax tree에서 읽고, heading anchor는 github-slugger와 @mdit-vue/shared(VitePress)의 slug임(K120) | checklist, status-table, changelog |
 | `schema-validate.mts` | `SCHEMAS`, `readConfig`, `readJsonFile`, `parseJson`, `readConfigFindings`, `SchemaError`: kit의 JSON 경계(K158). 도구가 읽는 모든 JSON(파일이나 command의 출력)은 strict Ajv2020이 `scripts/kit/schema`의 schema 파일로 검증하며, ajv의 type guard `ajv.compile<T>(schema)`가 받아들인 뒤에야 호출자가 정한 type `T`를 가집니다. schema를 어기는 data는 `SchemaError`를 던지고, 그 각 줄은 파일이나 command와 ajv error의 JSON Pointer를 밝힙니다. 그 줄을 finding으로 보고하는 check는 `readConfigFindings`로 읽습니다. 각 도구는 자기가 읽는 설정을 읽을 때 검증합니다. config/<name>.json을 이름만으로 검증하는 것은 없습니다(K1070). ajv가 설치되기 전에 도는 bootstrap은 `bootstrap/files.mts`의 `readJsonObject`로 JSON object를 읽고 각 field를 스스로 검사합니다 | checklist와 release의 `loadConfig`에 있던 읽기와 검증 코드, scripts/kit의 모든 `JSON.parse(...) as T`와 `readJson(...) as T`(K158) | JSON을 읽는 모든 도구 |
 | `manifests.mts` | 각자의 schema(`npm-manifest`, `npm-lock`, `composer-manifest`, `composer-lock`)로 검증하는 reader와 함께 `NpmManifest`, `NpmLock`, `ComposerManifest`, `ComposerLock`, 그리고 kit package 이름과 checkout이 kit인지를 주는 `PACKAGE`와 `isSource`(kit-check.mts에서 옮김, K1070) | toolchain-floors, release, release-consumer, kit-check, owner-check에 있던 package.json, package-lock.json, composer.json, composer.lock의 지역 shape(K158) | 위 module들 |
-| `tracked-files.mts` | `checkedFiles`, `KIT_FIXTURE` | release의 `EXCLUDED` | release, lint와 검사 도구 |
+| `tracked-files.mts` | `checkedFiles`, `declaredFixtures`(config/release.json의 `fixtures`, K1114) | release의 `EXCLUDED` | release, lint와 검사 도구 |
 | `target-report.mts` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | target-run의 같은 이름들, target-run의 `LAST_LINES`, ci-targets의 target 이름 pattern, target-report의 `git` | ci-targets, full-run |
 | `pyproject-dependencies.mts` | `dependencyArrays`: `[project]`의 `dependencies`, 각 extra, `[dependency-groups]`의 각 group; `dependencyGroups`: PEP 735의 reference implementation처럼 `{ include-group }` table을 푼 각 group(K177) | dependency group을 빠뜨린 extra만의 읽기 | link |
 
@@ -746,7 +747,7 @@ S10 PHP extension의 stub이 있는 저장소는 `packages/php-ext/src/polyspec_
 - 실패한 git 명령은 어디서나 `git <인자> exited with <status>: <standard error>`로 보고하고, `check-commits --range`는
   range의 커밋을 각 부모와 비교해 판정합니다(K892).
 - `ci-targets`의 target 이름은 `full-run`처럼 글자나 숫자로 시작합니다. `ci-targets`는 make가 option으로 읽는 `-x`도 받았습니다.
-- `release` coverage는 kit fixture뿐 아니라 `node_modules`, `var`, `.tools`도 건너뜁니다.
+- `release` coverage는 `config/release.json`의 `fixtures`뿐 아니라 `node_modules`, `var`, `.tools`도 건너뜁니다(K1114).
 - changelog의 fence 탐색은 `scanFences`의 규칙(닫는 fence는 여는 fence만큼 김)으로 fence를 닫습니다.
 - install-cargo-audit와 install-govulncheck는 build를 `tool-wrappers.run`으로 실행했으며, 이는 실행 전에 명령을 출력하고 없는
   명령을 이름으로 알립니다. K127 이후 둘 다 mise가 build합니다.
@@ -771,11 +772,12 @@ S10 PHP extension의 stub이 있는 저장소는 `packages/php-ext/src/polyspec_
   workspace의 root에서 실행되므로 job은 저장소를 그곳에 checkout합니다. tag의 release는 tag 자신의 tree에 있는
   action을 실행하므로, 저장소가 K992를 채택하기 전의 tag를 dispatch하면 action이 없어 red로 멈춥니다. 소비 저장소는
   `config/ci.json`에 저장소별 setup target을 선언합니다. 각 값은 명령문이 아니라 Make target 이름입니다.
-  schema는 `scripts/kit/schema/ci.schema.json`이며 `ci-setup`이 소비 저장소의 선언을 읽을 때 검증합니다. runtime task는 runtime의 package가 하나도 없으면 `config/ci.json`이 `"runtimes": []`를 선언하지 않는 한 실패합니다. 이 선언은 kit처럼 저장소에 runtime이 없다는 뜻입니다(K955). 예:
+  schema는 `scripts/kit/schema/ci.schema.json`이며 `ci-setup`이 소비 저장소의 선언을 읽을 때 검증합니다. `runtimes`는 CI job을 돌릴 runtime의 목록입니다. ci-setup은 plan의 runtime을 이 목록과 `targets.runtimes`의 key에서만 가져오며 폴더 이름이나 추적된 파일에서는 가져오지 않고, 이 목록이 없으면 실패합니다. `[]`는 kit처럼 runtime이 없다는 선언입니다(K1114). 예:
 
   ```json
   {
     "schema": 1,
+    "runtimes": ["go", "php", "php-ext", "python", "rust", "ts"],
     "setup": {
       "shared": ["orm-install-shared-tools"],
       "parity": ["orm-build-parity-fixtures"],
@@ -795,16 +797,18 @@ S10 PHP extension의 stub이 있는 저장소는 `packages/php-ext/src/polyspec_
   비어 있지 않은 runtime 목록은 Kit 기본값을 대체하므로, 해당 runtime이 필요한 setup과 추적된 native package lock을
   모두 포함해야 합니다. 목록이 비어 있으면 저장소 자신의 `deps-<runtime>` target(ts는 `deps-node`, `deps-go`, `deps-rust`,
   php와 php-ext는 `deps-php`, `deps-python`)을 실행합니다. 이는 package manager의 lock 설치를 얇게 부르는 target입니다(K859).
-  추적된 source 파일에 있는 runtime만 setup합니다. 선언된 target과 기본 target은 선언대로 실행합니다. kit은 먼저 Makefile과
+  plan의 runtime만 setup합니다. 선언된 target과 기본 target은 선언대로 실행합니다. kit은 먼저 Makefile과
   대조하지 않으며, 없는 target은 실행될 때 make가 알립니다(K1068). ci-setup은 package manager, target, parity-check가 스스로 판정하는 것을 거부하지 않습니다(K860).
   PHP runtime job은 선언된 PHP와 Composer 도구를 선택합니다. `packages/php-ext`가 있으면 PHP extension job도 이 도구를
   선택하고 lint/build/test 전에 설치 단계가 필요 없습니다. build는 phpize가 `build/`에 복사한 `gen_stub.php`를 실행합니다. Extension test는 Composer package에 설치된
   PHPUnit을 사용하므로 Kit의 private PHPUnit 선언은 필요하지 않습니다. PHP parity runner가 Composer를 쓰면 parity 도구에도
   Composer를 포함합니다. PHP setup 목록을 직접 지정하는 소비 저장소는 root와 package를 포함해 필요한 Composer project를
   모두 나열해야 합니다.
-  `parityMode`는 선택 항목입니다. 선언이 없으면 `config/parity.json`이 있을 때 `full`, 없을 때 `none`으로 계획합니다(K1068).
+  `parityMode`는 선택 항목입니다. 선언이 없으면 호출자가 `--parity <path>`를 넘길 때 `full`, 넘기지 않을 때 `none`으로 계획합니다(K1068, K1114).
   `full`은 provider의 전체 `parity-check`를 실행합니다. `phases`는 `parity-api-check`를 한 번 실행하고 `parityBindings`가
   선언한 binding마다 job 하나인 `parity-bindings-<implementation>-check` matrix를 실행합니다. 소비 저장소는 concrete target에 setup prerequisite를 추가합니다.
+  ci-setup은 `--parity`가 이름 붙인 경로에서만 parity 선언을 읽습니다(K1114). 그 runner가 parity 도구를 고르고 기본 모드를 정합니다. 그 경로가 없거나,
+  `--parity` 없이 `none`이 아닌 모드를 선언하면 plan이 고칠 방법과 함께 실패합니다(K951).
   마지막 job `required`(ubuntu-24.04)는
   파이프라인의 모든 job을 needs로 하고, plan이 선택한 job이 성공하지 않으면(skip된 경우 포함, K950) 실패합니다. plan이 고르지 않은 job은 skip되며 결과가 아닙니다.
   kit-ci-verify-gates는 없습니다.
@@ -827,7 +831,7 @@ S10 PHP extension의 stub이 있는 저장소는 `packages/php-ext/src/polyspec_
   이는 repository 선언의 실행이며 build artifact나 cache 관리가 아닙니다.
   `parity`는 parity job(`parityMode` full)에서 `kit-gates-parity` 뒤에, 또는 parity-api job(`phases`)에서 `parity-api-check` 뒤에(bindings job은
   `targets.parity`를 실행하지 않습니다), `runtimes.<runtime>`은 그 runtime job에서
-  `kit-gates-runtime-<runtime>` 뒤에 실행됩니다. `targets.runtimes`에 이름이 있는 runtime은 tracked 파일이 고르지 않아도 job을 가집니다.
+  `kit-gates-runtime-<runtime>` 뒤에 실행됩니다. `targets.runtimes`에 이름이 있는 runtime은 `runtimes`가 이름 붙이지 않아도 job을 가집니다.
   config/parity.json이 없는 저장소는 parity job을 돌리지 않으므로 `targets.parity`도 실행하지 않습니다.
   선택 항목인 `tools` map은 setup target이 추가로 요구하는 Kit의 pinned tool selector를 선언합니다. 예를 들어 TypeScript
   generator target이 Go를 필요로 하면 `"tools": { "ts": ["go"] }`로 선언합니다. install-tools가 해당 도구를 TypeScript job과 runtime

@@ -42,8 +42,7 @@ import { type ComposerManifest, type NpmManifest, PACKAGE } from './manifests.mt
 import { buildWheel, metadataProblems, wheelMetadata, wheelName } from './release-wheel.mts';
 import { parseJson, readConfig, readConfigFindings } from './schema-validate.mts';
 import { checkedFiles } from './tracked-files.mts';
-import { PHPUNIT_MANIFEST } from './bootstrap/toolchain-declared.mts';
-import { MISE_LOCKS } from './toolchain-mise.mts';
+import { matchesAny } from './glob.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { execute, run, Stop } from './process.mts';
 import { present } from './present.mts';
@@ -60,8 +59,6 @@ export const PACKAGES_JSON = 'packages.json';
 export const NOTES_LIMIT = 125000;
 export const MODES: readonly string[] = ['archive', 'version', 'git-tag'];
 // The files of a checkout that carry the version or the module of a package; coverage requires each to be classified.
-export const PACKAGE_FILES = ['package.json', 'composer.json', 'Cargo.toml', 'pyproject.toml', 'go.mod', 'VERSION'];
-const MANIFEST_FILES = PACKAGE_FILES.filter(name => name !== 'go.mod');
 const TAG = /^v(?<version>(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))$/;
 const EXACT_VERSION = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
 const MANIFEST_OF: Record<PackageKind, string> = { npm: 'package.json', composer: 'composer.json', wheel: 'pyproject.toml' };
@@ -101,6 +98,11 @@ export interface ReleaseConfig {
   manifests: Record<string, string>;
   notReleased: Record<string, string>;
   goModules: Record<string, string>;
+  // The names of the package files that coverage classifies, the package files that tools write and no tag releases, and the
+  // fixtures that the checks leave out (K1114): the repository's own lists.
+  packageFiles?: string[];
+  writtenFiles?: string[];
+  fixtures?: string[];
 }
 
 /** config/release.json as the schema admits it: the values of the maps are not checked yet, two lists may be absent. */
@@ -161,8 +163,10 @@ export function loadConfig(root: string): ReleaseConfig {
     }
     return read;
   };
-  const manifests = reason('manifests', 'manifests', (key, value) => (!MANIFEST_FILES.includes(path.posix.basename(key))
-    ? `is not a ${MANIFEST_FILES.join(', ')} file`
+  // A manifest is a package file that the repository names, other than the go.mod of a Go module, which goModules lists (K1114).
+  const manifestFiles = (config.packageFiles ?? []).filter(name => name !== 'go.mod');
+  const manifests = reason('manifests', 'manifests', (key, value) => (manifestFiles.length > 0 && !manifestFiles.includes(path.posix.basename(key))
+    ? `is not a ${manifestFiles.join(', ')} file`
     : typeof value === 'string' && MODES.includes(value) ? null : `is ${JSON.stringify(value)}, the allowed values are ${MODES.join(', ')}`));
   const notReleased = reason('notReleased', 'notReleased', (key, value) => (typeof value === 'string' && value.trim() ? null : 'needs a reason, a non-empty string'));
   const goModules = reason('goModules', 'goModules', (key, value) => (typeof value === 'string' && value ? null : 'needs the module path of its go.mod'));
@@ -693,23 +697,17 @@ export function undraft(ctx: Context, tag: string): boolean {
 }
 
 /**
- * Whether a kit utility writes the file `file` (relative to the repository root): the Composer project of PHPUnit that
- * install-tools installs, or a file of the lock tree that mise writes under .mise/locks (make toolchain-lock). Such a file
- * belongs to the tools, not to a package of the repository (K167).
- */
-function writtenByKit(file: string): boolean {
-  return file === PHPUNIT_MANIFEST || file.startsWith(MISE_LOCKS);
-}
-
-/**
- * The problems of the classification of the package files of the checkout: every tracked or new file named package.json,
- * composer.json, Cargo.toml, pyproject.toml, go.mod or VERSION is a key of `manifests` or `notReleased`, or the go.mod of a
- * Go module, or a file that kit writes (writtenByKit), which is not released; a listed file exists; no file
- * is in two lists.
+ * The problems of the classification of the package files of the checkout: every tracked or new file named by `packageFiles` of
+ * the config, such as package.json or go.mod, is a key of `manifests` or `notReleased`, or the go.mod of a Go module, or a file
+ * that a glob of `writtenFiles` matches, which a tool writes and no tag releases (K167, K1114); a listed file exists; no file is
+ * in two lists. A config that names no package file has nothing to classify, which is a problem itself.
  */
 export function coverage(ctx: Context): string[] {
   const { root, config } = ctx;
-  const files = checkedFiles(root).filter(file => PACKAGE_FILES.includes(path.posix.basename(file)));
+  const packageFiles = config.packageFiles ?? [];
+  if (packageFiles.length === 0) return [`${CONFIG} names no packageFiles, so coverage classifies nothing; declare the names of the package files of the repository, such as package.json`];
+  const written = config.writtenFiles ?? [];
+  const files = checkedFiles(root).filter(file => packageFiles.includes(path.posix.basename(file)));
   const goFiles = Object.keys(config.goModules).map(module => `${module === '.' ? '' : `${module}/`}go.mod`);
   const lists = { manifests: Object.keys(config.manifests), notReleased: Object.keys(config.notReleased), goModules: goFiles };
   const problems: string[] = [];
@@ -722,7 +720,7 @@ export function coverage(ctx: Context): string[] {
     }
   }
   for (const file of files) {
-    if (!where.has(file) && !writtenByKit(file)) problems.push(`${file} is neither released nor listed as not released; add it to manifests, notReleased or goModules in ${CONFIG}`);
+    if (!where.has(file) && !matchesAny(written, file)) problems.push(`${file} is neither released nor listed as not released; add it to manifests, notReleased or goModules in ${CONFIG}`);
   }
   return problems;
 }

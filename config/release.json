@@ -22,5 +22,20 @@
     "scripts/kit/symbols/go/go.mod": "the Go module of the go symbol extractor of parity, which make kit-install-symbols builds and the package @polyspec/kit ships in dist/symbols",
     "scripts/kit/symbols/php/composer.json": "the Composer project of the php symbol extractor of parity, which make kit-install-symbols installs and the package @polyspec/kit ships in dist/symbols"
   },
-  "goModules": {}
+  "goModules": {},
+  "packageFiles": [
+    "package.json",
+    "composer.json",
+    "Cargo.toml",
+    "pyproject.toml",
+    "go.mod",
+    "VERSION"
+  ],
+  "writtenFiles": [
+    "config/phpunit/composer.json",
+    ".mise/locks/**"
+  ],
+  "fixtures": [
+    "tests/kit/fixture/**"
+  ]
 }

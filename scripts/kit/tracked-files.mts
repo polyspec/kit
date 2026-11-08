@@ -6,12 +6,25 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { sha256 } from './bootstrap/digest.mts';
 import { git } from './git.mts';
+import { matchesAny } from './glob.mts';
 import { repositoryRoot } from './paths.mts';
 
 const gitPaths = (root: string, ...args: string[]): string[] => git(root, ...args).split('\0').filter(Boolean);
 
-/** The directory of the vendored fixture of kit: its manifests and locks belong to the tests, not to the checkout. */
-export const KIT_FIXTURE = 'tests/kit/fixture/';
+/**
+ * The globs of the fixtures that config/release.json of `root` declares (K1114): tracked files whose manifests and locks belong to
+ * the tests, not to the checkout, such as kit's tests/kit/fixture/**. None when the file or the list is absent; release.mts
+ * validates the file against its schema.
+ */
+export function declaredFixtures(root: string): string[] {
+  const file = path.join(root, 'config/release.json');
+  if (!existsSync(file)) return [];
+  const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'));
+  const fixtures = typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? (parsed as { fixtures?: unknown }).fixtures : undefined;
+  if (fixtures === undefined) return [];
+  if (!Array.isArray(fixtures) || !fixtures.every((glob): glob is string => typeof glob === 'string' && glob !== '')) throw new Error('config/release.json: fixtures is no list of globs');
+  return fixtures;
+}
 
 // The directories of dependency installs, tool installs and run outputs are the ones that Git ignores, so trackedFiles leaves
 // them out without a list of kit: generated-files.mts installs checks that Git ignores each install directory that a repository
@@ -27,8 +40,14 @@ export function trackedFiles(root: string = repositoryRoot()): string[] {
     .sort();
 }
 
-/** The files that the checks and the release coverage read: `trackedFiles` except the kit fixture; Git ignores the install directories. */
-export const checkedFiles = (root: string): string[] => trackedFiles(root).filter(file => !file.startsWith(KIT_FIXTURE));
+/**
+ * The files that the checks and the release coverage read: `trackedFiles` except the fixtures that config/release.json declares
+ * (K1114); Git ignores the install directories.
+ */
+export const checkedFiles = (root: string): string[] => {
+  const fixtures = declaredFixtures(root);
+  return trackedFiles(root).filter(file => !matchesAny(fixtures, file));
+};
 
 /** The paths under `root` that Git ignores, a directory with a trailing `/`. */
 export function ignoredPaths(root: string = repositoryRoot()): string[] {

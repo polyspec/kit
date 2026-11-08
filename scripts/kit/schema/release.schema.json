@@ -101,6 +101,21 @@
     "goModules": {
       "description": "Each Go module by its directory (`.` for the repository root) with its module path; release-tag creates the tag <directory>/vX.Y.Z of each module below the root with vX.Y.Z (K911).",
       "type": "object"
+    },
+    "packageFiles": {
+      "description": "The names of the package files that release coverage classifies, such as package.json, composer.json, Cargo.toml, pyproject.toml, go.mod and VERSION; a manifest key is one of them other than go.mod (K1114). kit sets none.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "writtenFiles": {
+      "description": "Globs of the package files that tools write into the checkout and no tag releases, such as config/phpunit/composer.json and .mise/locks/** (K167, K1114). Read by picomatch with dot: true.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "fixtures": {
+      "description": "Globs of the tracked fixtures of the tests, whose manifests and locks belong to the tests: the checks and release coverage leave them out (K1114). Read by picomatch with dot: true.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
     }
   }
 }

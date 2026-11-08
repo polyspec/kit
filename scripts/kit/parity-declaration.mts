@@ -516,20 +516,17 @@ function readTrackedJson(root: string, files: ReadonlySet<string>, file: string,
   }
 }
 
-// The runtimes of an implementation folder (S5): packages/<runtime>/ holds a port of the main spec, and
-// packages/<component>/<runtime>/ a port of a component; config/layout.kit.yml names the same runtimes.
-const RUNTIMES = new Set(['go', 'php', 'php-ext', 'python', 'rust', 'ts', 'js']);
-
-/** The implementation folders of the checked `files`, sorted: packages/<runtime> and packages/<component>/<runtime>. */
-export function implementationFolders(files: Iterable<string>): string[] {
-  const folders = new Set<string>();
-  for (const file of files) {
-    const [top, first, second, third] = file.split('/');
-    if (top !== 'packages' || first === undefined || second === undefined) continue;
-    if (RUNTIMES.has(first)) folders.add(`packages/${first}`);
-    else if (third !== undefined && RUNTIMES.has(second)) folders.add(`packages/${first}/${second}`);
-  }
-  return [...folders].sort();
+/**
+ * The implementation roots of the `--roots <folder>...` arguments of a tool (K1114): the folders after --roots up to the next
+ * option, sorted; undefined when `args` holds no --roots. kit has no layout of implementation folders: the caller names them, or
+ * the parity declaration that it passes names them.
+ */
+export function rootsArgument(args: readonly string[]): string[] | undefined {
+  const at = args.indexOf('--roots');
+  if (at === -1) return undefined;
+  const roots: string[] = [];
+  for (let index = at + 1; index < args.length && !(args[index] ?? '').startsWith('--'); index += 1) roots.push(args[index] ?? '');
+  return [...new Set(roots)].sort();
 }
 
 /**

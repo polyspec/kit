@@ -16,13 +16,19 @@
 //   5. a configuration exception carries a reason that names no kind that kit defines (REASON_KINDS), in config/duplication.json,
 //      and in the tools and internal tests of config/parity.json.
 // The skipped and narrowed tests are the markers of test-markers-check; the vendored tools and tests of kit are left out.
+//
+//   node scripts/kit/divergence-check.mts --parity <path> | --roots [<folder>...]
+//
+// The implementation roots are the caller's (K1114): the roots of the implementations of the parity declaration at <path>, or
+// the folders after --roots (none for a repository without an implementation). kit has no layout of implementation folders, and
+// a call that names neither is a usage error (exit 2).
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parse as parseJavaScript, type MemberExpression } from 'acorn';
 import { simple } from 'acorn-walk';
 import { isTestFile } from './check-commits.mts';
-import { implementationFolders } from './parity-declaration.mts';
+import { rootsArgument } from './parity-declaration.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { isJsonObject } from './bootstrap/files.mts';
 import { SYMBOLS } from './install-symbols.mts';
@@ -144,15 +150,23 @@ function javascriptMachineMetadataLines(sourceLines: readonly { number: number; 
   return metadataLines;
 }
 
-/** The implementation roots of the repository: those that config/parity.json declares, else the package folders of each runtime. */
-export function implementationRoots(files: readonly string[], read: (file: string) => string | undefined): string[] {
-  const declaration = read('config/parity.json');
-  if (declaration !== undefined) {
-    const parsed: unknown = JSON.parse(declaration);
-    const implementations = typeof parsed === 'object' && parsed !== null ? (parsed as { implementations?: { roots?: string[] }[] }).implementations : undefined;
-    return (implementations ?? []).flatMap(entry => entry.roots ?? []);
-  }
-  return implementationFolders(files);
+/**
+ * The implementation roots that the arguments `args` select (K1114): with `--parity <path>`, the roots of the implementations of
+ * that declaration, which `read` gives; with `--roots`, the folders that follow it. Undefined for a call that names neither, or
+ * both. A declaration that is missing throws.
+ */
+export function selectedRoots(args: readonly string[], read: (file: string) => string | undefined): string[] | undefined {
+  const at = args.indexOf('--parity');
+  const roots = rootsArgument(args);
+  if (at === -1) return roots;
+  if (roots !== undefined) return undefined;
+  const place = args[at + 1];
+  if (place === undefined || place.startsWith('--')) return undefined;
+  const declaration = read(place);
+  if (declaration === undefined) throw new Error(`${place} is missing: the parity declaration that --parity names`);
+  const parsed: unknown = JSON.parse(declaration);
+  const implementations = typeof parsed === 'object' && parsed !== null ? (parsed as { implementations?: { roots?: string[] }[] }).implementations : undefined;
+  return [...new Set((implementations ?? []).flatMap(entry => entry.roots ?? []))].sort();
 }
 
 const within = (root: string, file: string) => file === root || file.startsWith(`${root.replace(/\/$/, '')}/`);
@@ -177,9 +191,8 @@ export function phpPolyfillGuards(sources: Record<string, string>, root: string 
   return guards;
 }
 
-/** The findings of the checked `files` of a repository; `read` gives the text of a file. */
-export function divergenceFindings(files: readonly string[], read: (file: string) => string | undefined): string[] {
-  const roots = implementationRoots(files, read);
+/** The findings of the checked `files` of a repository with the implementation `roots`; `read` gives the text of a file. */
+export function divergenceFindings(files: readonly string[], read: (file: string) => string | undefined, roots: readonly string[]): string[] {
   const phpFunctions = phpFunctionDeclarations(files, roots, read);
   const probed: Record<string, string> = {};
   for (const file of files) {
@@ -278,9 +291,9 @@ function reasonFindings(file: string, text: string, entries: readonly { glob: st
  * The files that the check reads: the tracked files, and the files on the disk below the implementation roots, since the sources
  * that a build generates before the gate are not tracked and are the code of the implementation as well (K329).
  */
-export function checkedSources(root: string, tracked: readonly string[], read: (file: string) => string | undefined): string[] {
+export function checkedSources(root: string, tracked: readonly string[], roots: readonly string[]): string[] {
   const found = new Set(tracked);
-  for (const directory of implementationRoots(tracked, read)) {
+  for (const directory of roots) {
     const folder = path.join(root, directory);
     if (!existsSync(folder)) continue;
     for (const entry of readdirSync(folder, { recursive: true, withFileTypes: true })) {
@@ -304,7 +317,18 @@ if (isMain(import.meta.url)) {
       throw error;
     }
   };
-  const found = divergenceFindings(checkedSources(root, tracked, read), read);
+  let roots: string[] | undefined;
+  try {
+    roots = selectedRoots(process.argv.slice(2), read);
+  } catch (error) {
+    console.error(`[divergence-check] ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
+  }
+  if (roots === undefined) {
+    console.error('[divergence-check] usage: divergence-check.mts --parity <path> | --roots [<folder>...]');
+    process.exit(2);
+  }
+  const found = divergenceFindings(checkedSources(root, tracked, roots), read, roots);
   for (const finding of found) console.error(`[divergence-check] ${finding}`);
   if (found.length) {
     console.error(`[divergence-check] ${found.length} divergences; an implementation holds every unit of the contract and is tested as the others are`);

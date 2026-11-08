@@ -1882,19 +1882,29 @@ test('an exact oracle test file inside an implementation root is tool-owned with
   assert.ok(duplicate.some(item => item.rule === 'declaration' && item.message.includes('has more than one tool owner')), keys(duplicate).join('\n'));
 });
 
-test('a repository with one implementation needs no parity declaration; one with two fails without it (K248-2)', TIMEOUT, async (t) => {
+test('K1114 a repository with one implementation root needs no parity declaration; one with two fails without it (K248-2)', TIMEOUT, async (t) => {
   const git = (root: string) => {
     initRepository(root);
     const added = spawnSync('git', ['add', '-A'], { cwd: root, encoding: 'utf8' });
     assert.equal(added.status, 0, added.stderr);
   };
-  const one = tree(t, { 'packages/ts/src/a.ts': '', 'scripts/b.mts': '' });
+  // The implementation roots are the ones that the caller names (K1114): packages/ is no layout of kit.
+  const one = tree(t, { 'lib/ts/src/a.ts': '', 'scripts/b.mts': '' });
   git(one);
-  assert.deepEqual((await checkParity(one, { execute: false })).findings, []);
-  const two = tree(t, { 'packages/ts/src/a.ts': '', 'packages/validator/go/a.go': '', 'packages/validator/php/A.php': '' });
+  assert.deepEqual((await checkParity(one, { execute: false, roots: ['lib/ts'] })).findings, []);
+  const two = tree(t, { 'lib/ts/src/a.ts': '', 'lib/go/a.go': '', 'packages/validator/php/A.php': '' });
   git(two);
-  const findings = (await checkParity(two, { execute: false })).findings.map(item => item.message);
-  assert.deepEqual(findings, ['config/parity.json does not exist, and packages/ holds 3 implementations (packages/ts, packages/validator/go, packages/validator/php); declare them and their units there (scripts/kit/schema/parity.schema.json)']);
+  // Without the declaration and without roots a call checks nothing: the API refuses it and the command line exits 2 (K1114).
+  await assert.rejects(checkParity(two, { execute: false }), /config\/parity\.json is absent and the caller names no roots\. Fix: pass --roots/);
+  const cli = (...args: string[]) => spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/parity.mts')), '--declarations', ...args], { cwd: two, env: ENV, encoding: 'utf8' });
+  const bare = cli();
+  assert.equal(bare.status, 2, bare.stdout + bare.stderr);
+  assert.match(bare.stderr, /config\/parity\.json is absent and the call names no roots\. Fix: pass --roots/);
+  const none = cli('--roots');
+  assert.equal(none.status, 0, none.stdout + none.stderr);
+  assert.match(none.stdout, /the caller names no implementation root: no parity to check/);
+  const findings = (await checkParity(two, { execute: false, roots: ['lib/go', 'lib/ts'] })).findings.map(item => item.message);
+  assert.deepEqual(findings, ['config/parity.json does not exist, and the caller names 2 implementation roots (lib/go, lib/ts); declare them and their units there (scripts/kit/schema/parity.schema.json)']);
 });
 
 test('parity-declarations-check UNITS runs the rules on the named units while another unit breaks the schema (K517)', TIMEOUT, async (t) => {

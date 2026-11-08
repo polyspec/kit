@@ -437,7 +437,8 @@ tracked.
 ## Divergence check (K315)
 
 `make divergence-check` (P32) fails when an implementation differs from the contract by a way that no unit states. It reads the
-implementation roots of `config/parity.json` (else the package folders of each runtime) and reports the file and the line of: a
+implementation roots that the caller passes, those of the parity declaration of `--parity <path>` or the folders of `--roots`
+(K1114; a bare call is a usage error), and reports the file and the line of: a
 test that branches on the extension, the runtime or the platform (`extension_loaded`, `function_exists`, `PHP_VERSION`,
 `PHP_OS`, `sys.version_info`, `sys.platform`, `process.versions`, `process.platform`, `runtime.GOOS`, `runtime.GOARCH`, `cfg!`,
 `#[cfg(...)]`, `os.name`); code of an implementation that reads whether another implementation is present (`extension_loaded`);
@@ -695,11 +696,12 @@ workflow of the repository (K1059). The repository is data in `config/release.js
   as `--verify-tag` required), each archive uploaded to the upload URL of that release, and its id recorded in
   `var/release/<tag>.json` (K79); the five tools ran `gh release create TAG --verify-tag`. The archive names come
   from the configuration, not from a list file (orm wrote `assets.txt`).
-- `coverage`: every tracked or new package.json, composer.json, Cargo.toml, pyproject.toml, go.mod and VERSION file is in
-  `manifests`, `notReleased` or `goModules` (template test, orm `unlistedManifests`); a listed file that does not exist and a file
-  in two lists are findings (orm, wider). A file that kit writes is not released and needs no entry (K167): the
-  Composer project of PHPUnit, `config/phpunit/composer.json` (make install-tools), and the lock tree of mise under
-  `.mise/locks/` (make toolchain-lock).
+- `coverage`: every tracked or new file whose name `packageFiles` of `config/release.json` lists (such as package.json, composer.json,
+  Cargo.toml, pyproject.toml, go.mod and VERSION) is in `manifests`, `notReleased` or `goModules` (template test, orm
+  `unlistedManifests`); a listed file that does not exist and a file in two lists are findings (orm, wider), and a config without
+  `packageFiles` is a finding itself (K1114). A file that a glob of `writtenFiles` matches is written by a tool, is not released and
+  needs no entry (K167, K1114), such as `config/phpunit/composer.json` (make install-tools) and `.mise/locks/**` (make
+  toolchain-lock); the files that a glob of `fixtures` matches belong to the tests and are left out (K1114).
 
 ### Dropped behaviors
 
@@ -805,7 +807,7 @@ A repository with the S10 stub of a PHP extension excludes `packages/php-ext/src
 | `markdown.mts` | `lineBlocks`, `headings` | `cells` of checklist and `rowCells` of status-table, which read every line that starts with `|` (K130: the rows and list items of the tree), and the `## ` lines of `changelog.sections` and of the release notes (K130: the headings of the tree). Its fences, prose, links and anchors read the syntax tree of mdast-util-from-markdown with GFM and YAML front matter, and heading anchors are the slugs of github-slugger and of @mdit-vue/shared (VitePress) (K120) | checklist, status-table, changelog |
 | `schema-validate.mts` | `SCHEMAS`, `readConfig`, `readJsonFile`, `parseJson`, `readConfigFindings`, `SchemaError`: the JSON boundary of kit (K158). Every JSON that a tool reads, a file or the output of a command, is validated by the strict Ajv2020 against a schema file of `scripts/kit/schema` and has the type `T` that its caller names only once ajv's type guard `ajv.compile<T>(schema)` accepts it; data that breaks the schema throws a `SchemaError` whose lines name the file or the command and the JSON Pointer of each error of ajv. A check that reports those lines as findings reads with `readConfigFindings`. Each tool validates the configuration it reads when it reads it; nothing validates a config/<name>.json by its name alone (K1070). The bootstrap, which runs before ajv is installed, reads a JSON object with `readJsonObject` of `bootstrap/files.mts` and checks each field itself | the read-and-validate code of `loadConfig` in checklist and in release, and every `JSON.parse(...) as T` and `readJson(...) as T` of scripts/kit (K158) | every tool that reads JSON |
 | `manifests.mts` | `NpmManifest`, `NpmLock`, `ComposerManifest`, `ComposerLock` with their readers, each validated against its schema (`npm-manifest`, `npm-lock`, `composer-manifest`, `composer-lock`), and `PACKAGE` and `isSource`, the name of kit's package and whether a checkout is kit (from kit-check.mts, K1070) | the local shapes of package.json, package-lock.json, composer.json and composer.lock in toolchain-floors, release, release-consumer, kit-check and owner-check (K158) | those modules |
-| `tracked-files.mts` | `checkedFiles`, `KIT_FIXTURE` | `EXCLUDED` of release | release, the lint and check tools |
+| `tracked-files.mts` | `checkedFiles`, `declaredFixtures` (the `fixtures` of config/release.json, K1114) | `EXCLUDED` of release | release, the lint and check tools |
 | `target-report.mts` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | the same names in target-run, `LAST_LINES` of target-run, the target-name pattern of ci-targets, `git` of target-report | ci-targets, full-run |
 | `pyproject-dependencies.mts` | `dependencyArrays`, the `dependencies` of `[project]`, each extra and each group of `[dependency-groups]`; `dependencyGroups`, each group with its `{ include-group }` tables resolved as the reference implementation of PEP 735 does (K177) | the read of the extras alone, which missed the dependency groups | link |
 
@@ -822,7 +824,7 @@ Behaviors that differ between the copies and were merged (the wider or safer one
   judges the commits of a range against their parents (K892).
 - A target name for `ci-targets` starts with a letter or a digit, as it did for `full-run`; `ci-targets` accepted `-x`, which
   make reads as an option.
-- `release` coverage skips `node_modules`, `var` and `.tools` as well as the kit fixture.
+- `release` coverage skips `node_modules`, `var` and `.tools` as well as the `fixtures` of `config/release.json` (K1114).
 - The fence scan of a changelog closes a fence by the rule of `scanFences` (the closing fence is as long as the opening one).
 - install-cargo-audit and install-govulncheck ran their build through `tool-wrappers.run`, which prints the command before it
   runs and names the missing command; mise builds both since K127.
@@ -851,12 +853,14 @@ Left as it is, with the reason:
   The action runs at the root of the workspace, so a job checks the repository out there. The release of a tag runs the action of the tag's own tree, so a
   dispatch of a tag older than the repository's adoption of K992 stops red: the action is missing there. A consumer declares
   repository-owned setup targets in `config/ci.json`; each value is a Make target name, not a command. The schema is
-  `scripts/kit/schema/ci.schema.json`, and `ci-setup` validates the consumer declaration when it reads it. A runtime task with no package of a runtime
-fails unless `config/ci.json` declares `"runtimes": []`, which says that the repository has no runtime, as kit does (K955). For example:
+  `scripts/kit/schema/ci.schema.json`, and `ci-setup` validates the consumer declaration when it reads it. `runtimes` lists the runtimes whose CI jobs
+  run; ci-setup takes the runtimes of the plan from it and from the keys of `targets.runtimes` only, never from a folder name or a
+  tracked file, and fails without it; `[]` declares no runtime, as kit does (K1114). For example:
 
   ```json
   {
     "schema": 1,
+    "runtimes": ["go", "php", "php-ext", "python", "rust", "ts"],
     "setup": {
       "shared": ["orm-install-shared-tools"],
       "parity": ["orm-build-parity-fixtures"],
@@ -875,7 +879,7 @@ fails unless `config/ci.json` declares `"runtimes": []`, which says that the rep
   Runtime setup targets are run in that runtime's job and in the full or API parity job. Binding phases use their own explicit setup below.
   A nonempty runtime list replaces Kit's defaults and must include all setup that runtime needs, including its tracked native
   package locks. An empty runtime list runs the repository's own `deps-<runtime>` target (`deps-node` for ts, `deps-go`,
-  `deps-rust`, `deps-php` for php and php-ext, `deps-python`), a thin call of the locked install of its package manager (K859). Only a runtime present in tracked source files is set up. Every declared or
+  `deps-rust`, `deps-php` for php and php-ext, `deps-python`), a thin call of the locked install of its package manager (K859). Only a runtime of the plan is set up. Every declared or
   default target runs as declared: kit does not check it against the Makefile first, and make reports a target that does not exist when it
   runs (K1068). ci-setup refuses nothing that a package manager, a target or parity-check
   judges itself (K860).
@@ -884,7 +888,7 @@ fails unless `config/ci.json` declares `"runtimes": []`, which says that the rep
   with their Composer package, so Kit's private PHPUnit declaration is not required. PHP parity selection includes Composer
   when its runner needs it. A consumer with a nonempty PHP setup list must include every Composer project it needs, including
   root and package projects.
-  `parityMode` is optional: without it the plan is `full` when `config/parity.json` exists and `none` when it does not (K1068).
+  `parityMode` is optional: without it the plan is `full` when the caller passes `--parity <path>` and `none` when it does not (K1068, K1114).
   `full` runs the complete provider `parity-check`; `phases` runs the provider `parity-api-check` once and a
   `parity-bindings-<implementation>-check` matrix with one job for each binding that `parityBindings` declares. A phase consumer
   adds setup prerequisites to those concrete targets.
@@ -903,13 +907,16 @@ fails unless `config/ci.json` declares `"runtimes": []`, which says that the rep
   It installs no symbol extractor implicitly and inherits no runtime or API setup. The repository lists every prerequisite
   its binding needs, including prerequisites of its context targets. API and full parity keep their complete preparation.
   This is execution of repository declarations, not build artifact or cache management.
+  ci-setup reads a parity declaration only at the path that `--parity` names (K1114): its runners, which select the parity tools, and
+  the default mode. A path that is missing, and a declared mode other than `none` without `--parity`, fail the
+  plan with the fix (K951).
   The final job `required` (ubuntu-24.04) needs every job of the pipeline and fails when a job that the plan selected does not
   succeed, including a skipped one (K950); a job that the plan does not select is skipped and is not a result. There is no kit-ci-verify-gates.
   The optional `targets` map names the repository's own check targets of each job: `shared` runs after `kit-gates-static` in the
   shared job, `parity` after `kit-gates-parity` in the parity job (`parityMode` full) or after `parity-api-check` in the parity-api job (`phases`; the
   bindings jobs run no `targets.parity`), and `runtimes.<runtime>` after
-  `kit-gates-runtime-<runtime>` in that runtime's job; a runtime named in `targets.runtimes` has a job even when no tracked file
-  selects it. A repository without config/parity.json runs no parity job, so it never runs `targets.parity`.
+  `kit-gates-runtime-<runtime>` in that runtime's job; a runtime named in `targets.runtimes` has a job even when `runtimes` does
+  not name it. A repository without config/parity.json runs no parity job, so it never runs `targets.parity`.
   The optional `tools` map names extra pinned Kit tool selectors needed by setup targets. For example, a TypeScript generator
   target that needs Go declares `"tools": { "ts": ["go"] }`; install-tools judges and installs that tool in the TypeScript job and in
   parity, which repeats runtime setup. `shared` and `parity` keys select tools for those jobs; install-tools judges each

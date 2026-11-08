@@ -6,9 +6,11 @@
 // and feature itself and keeps the ledger of the cases and test ids that ran, runs the symbol extractor of each
 // implementation (parity-symbols.mts) and reads the error codes from its generated artifact.
 //
-//   node scripts/kit/parity.mts [--phase all|api|bindings] [--declarations] [--unit <id>]... [--implementation <name>]...
+//   node scripts/kit/parity.mts [--phase all|api|bindings] [--declarations] [--unit <id>]... [--implementation <name>]... [--roots [<folder>...]]
 //   node scripts/kit/parity.mts --make-targets
 //     --declarations  check the declarations only: every rule except R1, R3 and R11; no binding and no extractor runs
+//     --roots [<folder>...]  the implementation roots of a repository without config/parity.json (K1114); a call without
+//                     the declaration and without --roots checks nothing and exits 2
 //     --phase all      run every existing phase (the default)
 //     --phase api      run public symbol extractors and all static parity rules; no native bindings run
 //     --phase bindings run native bindings once and requirement checks; public symbol extractors do not run. May select runtimes with --implementation.
@@ -58,7 +60,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { DECLARATION, RULES, finding, findingLine, implementationFolders, readDeclaration } from './parity-declaration.mts';
+import { DECLARATION, RULES, finding, findingLine, readDeclaration, rootsArgument } from './parity-declaration.mts';
 import type { Finding } from './parity-declaration.mts';
 import { errorCatalog, readCodes } from './parity-errors.mts';
 import { runBindings } from './parity-ledger.mts';
@@ -84,18 +86,20 @@ const isParityPhase = (value: string): value is ParityPhase => value === 'all' |
  * the full check; `phase: 'api'` runs R1/R11 without native bindings, and `phase: 'bindings'` runs native bindings and requirement
  * checks without public symbol extraction. Together, `api` and `bindings` cover the full rule set; `execute` runs bindings (R3).
  */
-export async function checkParity(root: string, { execute = true, env = process.env, say = () => {}, units, rules, ids, implementations, phase = 'all' }: { execute?: boolean; env?: NodeJS.ProcessEnv; say?: (text: string) => void; units?: string[] | undefined; rules?: string[] | undefined; ids?: string[] | undefined; implementations?: string[] | undefined; phase?: ParityPhase } = {}): Promise<{ findings: ParityFinding[]; ledger: Ledger }> {
+export async function checkParity(root: string, { execute = true, env = process.env, say = () => {}, units, rules, ids, implementations, phase = 'all', roots }: { execute?: boolean; env?: NodeJS.ProcessEnv; say?: (text: string) => void; units?: string[] | undefined; rules?: string[] | undefined; ids?: string[] | undefined; implementations?: string[] | undefined; phase?: ParityPhase; roots?: readonly string[] | undefined } = {}): Promise<{ findings: ParityFinding[]; ledger: Ledger }> {
   const files = new Set(checkedFiles(root));
   const ledger: Ledger = { runs: [], cases: [] };
   if (!execute && phase !== 'all') return { findings: [finding('declaration', `--declarations cannot be combined with --phase ${phase}`, { place: DECLARATION })], ledger };
   // Parity holds between implementations: a repository with one needs no declaration, and one with two or more fails without it.
+  // The implementation roots are the ones that the caller names with --roots (K1114); kit has no layout of its own. A call
+  // without the declaration and without roots would check nothing, so it is a usage error.
   if (!existsSync(path.join(root, DECLARATION))) {
-    const implementations = implementationFolders(files);
-    if (implementations.length < 2) {
-      say(`${DECLARATION} is absent, and packages/ holds ${implementations.length === 1 ? 'one implementation' : 'no implementation'}: no parity to check`);
+    if (roots === undefined) throw new Error(`${DECLARATION} is absent and the caller names no roots. Fix: pass --roots [<folder>...] with the implementation roots, none for a repository without implementations, or add ${DECLARATION}`);
+    if (roots.length < 2) {
+      say(`${DECLARATION} is absent, and the caller names ${roots.length === 1 ? 'one implementation root' : 'no implementation root'}: no parity to check`);
       return { findings: [], ledger };
     }
-    return { findings: [finding('declaration', `${DECLARATION} does not exist, and packages/ holds ${implementations.length} implementations (${implementations.join(', ')}); declare them and their units there (scripts/kit/schema/parity.schema.json)`)], ledger };
+    return { findings: [finding('declaration', `${DECLARATION} does not exist, and the caller names ${roots.length} implementation roots (${roots.join(', ')}); declare them and their units there (scripts/kit/schema/parity.schema.json)`)], ledger };
   }
   say(`read ${DECLARATION}`);
   // With --unit, the units that break the schema other than the named ones are left out, and the rules run on the rest (K517).
@@ -240,7 +244,14 @@ export async function checkParity(root: string, { execute = true, env = process.
 }
 
 if (isMain(import.meta.url)) {
-  const { values } = parseArgs({ options: { declarations: { type: 'boolean' }, phase: { type: 'string' }, unit: { type: 'string', multiple: true }, implementation: { type: 'string', multiple: true }, rule: { type: 'string', multiple: true }, id: { type: 'string', multiple: true }, 'make-targets': { type: 'boolean' } } });
+  // --roots takes a list of folders, which parseArgs does not read: it is taken out before parseArgs (K1114).
+  const argv = process.argv.slice(2);
+  const roots = rootsArgument(argv);
+  const rootsAt = argv.indexOf('--roots');
+  let rootsEnd = rootsAt + 1;
+  while (rootsAt !== -1 && rootsEnd < argv.length && !(argv[rootsEnd] ?? '').startsWith('--')) rootsEnd += 1;
+  const options = rootsAt === -1 ? argv : [...argv.slice(0, rootsAt), ...argv.slice(rootsEnd)];
+  const { values } = parseArgs({ args: options, options: { declarations: { type: 'boolean' }, phase: { type: 'string' }, unit: { type: 'string', multiple: true }, implementation: { type: 'string', multiple: true }, rule: { type: 'string', multiple: true }, id: { type: 'string', multiple: true }, 'make-targets': { type: 'boolean' } } });
   const say = (text: string) => console.log(`[parity] ${text}`);
   if (values['make-targets']) {
     try {
@@ -270,7 +281,12 @@ if (isMain(import.meta.url)) {
       process.exitCode = 1;
     } else {
       const selectedPhase = phase;
-      const { findings, ledger } = await checkParity(repositoryRoot(), { execute: !values.declarations, env: process.env, say, units: values.unit, rules: values.rule, ids: values.id, implementations: values.implementation, phase: selectedPhase });
+      // A call that names neither the declaration nor the roots would check nothing: a usage error (K1114).
+      if (roots === undefined && !existsSync(path.join(repositoryRoot(), DECLARATION))) {
+        console.error(`[parity] ${DECLARATION} is absent and the call names no roots. Fix: pass --roots [<folder>...] with the implementation roots, none for a repository without implementations, or add ${DECLARATION}`);
+        process.exit(2);
+      }
+      const { findings, ledger } = await checkParity(repositoryRoot(), { execute: !values.declarations, env: process.env, say, units: values.unit, rules: values.rule, ids: values.id, implementations: values.implementation, phase: selectedPhase, roots });
       if (selectedPhase === 'api' && !values.declarations) say('API phase ran no native bindings');
       else if (!values.declarations) say(`${ledger.runs.length} bindings ran, ${ledger.cases.filter(entry => entry.outcome === 'pass').length} cases passed`);
       for (const item of findings) console.error(`[parity] ${findingLine(item)}`);

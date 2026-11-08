@@ -734,6 +734,31 @@ test('coverage skips the folders that Git ignores and the vendored fixture, and 
   assert.deepEqual(release.coverage(context(box)), ['fresh/package.json is neither released nor listed as not released; add it to manifests, notReleased or goModules in config/release.json']);
 });
 
+// K1114: the names of the package files, the files that tools write and the fixtures are lists of config/release.json; kit
+// holds none of its own.
+test('K1114 coverage classifies the package files, written files and fixtures that config/release.json declares', (t) => {
+  const box = releaseSandbox(t);
+  const config = readJson<release.ReleaseConfig>(box.root, 'config/release.json');
+  for (const file of ['extra/deno.json', 'extra/VERSION', 'config/phpunit/composer.json', 'tests/kit/fixture/v/package.json']) {
+    mkdirSync(path.dirname(path.join(box.root, file)), { recursive: true });
+    writeFileSync(path.join(box.root, file), '{}\n');
+  }
+  const { packageFiles, fixtures: declaredFixtures, ...rest } = config;
+  const without = (key: 'packageFiles' | 'fixtures'): release.ReleaseConfig => key === 'packageFiles'
+    ? { ...rest, ...(declaredFixtures === undefined ? {} : { fixtures: declaredFixtures }) }
+    : { ...rest, ...(packageFiles === undefined ? {} : { packageFiles }) };
+  const unclassified = (file: string) => `${file} is neither released nor listed as not released; add it to manifests, notReleased or goModules in config/release.json`;
+  const own = release.coverage(context(box, { config: { ...config, packageFiles: ['package.json', 'composer.json', 'Cargo.toml', 'pyproject.toml', 'go.mod', 'deno.json'] } }));
+  assert.deepEqual(own, [unclassified('extra/deno.json')], 'only the declared names are package files: deno.json is one, VERSION is none');
+  const written = release.coverage(context(box, { config: { ...config, writtenFiles: [] } }));
+  assert.deepEqual(written, [unclassified('config/phpunit/composer.json'), unclassified('extra/VERSION')], 'a file that a tool writes is not released only when writtenFiles declares it');
+  assert.deepEqual(release.coverage(context(box, { config: without('packageFiles') })), ['config/release.json names no packageFiles, so coverage classifies nothing; declare the names of the package files of the repository, such as package.json']);
+  // checkedFiles reads the fixtures of the file of the checkout, as every check does.
+  writeJson(box.root, 'config/release.json', without('fixtures'));
+  const fixtures = release.coverage(context(box, { config: without('fixtures') }));
+  assert.ok(fixtures.includes(unclassified('tests/kit/fixture/v/package.json')), `a fixture is left out only when fixtures declares it: ${fixtures.join('\n')}`);
+});
+
 const cli = (box: Box, args: string[]) => spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/release.mts')), ...args], { cwd: box.root, env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY }, encoding: 'utf8' });
 
 test('the command line runs each step, prints a line per step and exits with 1 on a failure', (t) => {
