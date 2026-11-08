@@ -28,6 +28,8 @@ const DECLARATION: RebuildDeclaration = {
   },
 };
 const tracked = Object.keys(FILES);
+// The tool sources that the test declares, as a caller does with --source (K1080).
+const SOURCES = ['scripts/**/*.mts'];
 
 test('a declaration that classifies every selected tool, each with what its class needs, has no finding', (t) => {
   assert.deepEqual(rebuildFindings(tree(t, FILES), DECLARATION, tracked), []);
@@ -35,7 +37,7 @@ test('a declaration that classifies every selected tool, each with what its clas
 
 test('a selected tool without a class is a finding that names it', (t) => {
   const { 'scripts/kit/release.mts': _, ...tools } = DECLARATION.tools;
-  assert.deepEqual(rebuildFindings(tree(t, FILES), { ...DECLARATION, tools }, tracked), [
+  assert.deepEqual(rebuildFindings(tree(t, FILES), { ...DECLARATION, tools }, tracked, SOURCES), [
     'scripts/kit/release.mts: the tool has no class in config/rebuild.json; declare it ecosystem, replaced, record or policy',
   ]);
 });
@@ -110,4 +112,16 @@ test('the command checks config/rebuild.json of the checkout it runs in and fail
   const failed = run(root);
   assert.equal(failed.status, 1, failed.stdout + failed.stderr);
   assert.match(failed.stderr, /scripts\/kit\/lock\.mts: the tool has no class in config\/rebuild\.json/);
+});
+
+test('the tool sources are the globs that the caller declares; with none, no tool needs a class beyond what config/rebuild.json declares (K1080)', (t) => {
+  const { 'scripts/kit/release.mts': _, ...tools } = DECLARATION.tools;
+  const root = tree(t, FILES);
+  assert.deepEqual(rebuildFindings(root, { ...DECLARATION, tools }, tracked), []);
+  assert.deepEqual(rebuildFindings(root, { ...DECLARATION, tools }, tracked, ['scripts/kit/lint.mts']), []);
+  assert.deepEqual(rebuildFindings(root, { ...DECLARATION, tools }, tracked, ['scripts/kit/release.mts']), [
+    'scripts/kit/release.mts: the tool has no class in config/rebuild.json; declare it ecosystem, replaced, record or policy',
+  ]);
+  // A file that an --exclude glob of the caller drops is no tool source.
+  assert.deepEqual(rebuildFindings(root, { ...DECLARATION, tools }, tracked, ['scripts/kit/release.mts'], ['**/release.mts']), []);
 });

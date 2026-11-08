@@ -1,18 +1,19 @@
 #!/usr/bin/env node
 // Checks the classes of the tools of a checkout (`make rebuild-check`), as config/rebuild.json declares them. S1 forbids a
 // rebuild of what an ecosystem tool does, unless a rebuild record (docs/rebuild/<tool>.md) weighs the tools and says why none
-// fits. kit finds the tool sources by the layout of the repository (TOOL_SOURCES); a repository cannot narrow them, it only
-// classifies them (K286). Every tool source has one class:
+// fits. The caller declares where its tool sources lie with --source <glob> and which of those files are none with
+// --exclude <glob>, both repeatable (K1080); every tracked file that a source selects and no exclude drops has one class, and with
+// no --source the check reads only the classes that config/rebuild.json declares:
 //   ecosystem   it runs or uses an ecosystem tool, named in `tool`
 //   replaced    an ecosystem library replaces it in a registered item, with the `reason`
 //   record      kit keeps its own implementation; `record` is the rebuild record, which names the tool it covers
 //   policy      a rule of polyspec with no ecosystem equivalent, with the `reason` (S8)
-// Whether a tool parses an outside format is a judgement; the check makes it explicit for every tool, so a new tool fails
+// Whether a tool parses an outside format is a judgement; the check makes it explicit for every selected tool, so a new tool fails
 // until it is classified.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { parseArgs } from 'node:util';
 import { matchesAny } from './glob.mts';
-import { isTestFile } from './check-commits.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { readConfigFindings } from './schema-validate.mts';
 import { trackedFiles } from './tracked-files.mts';
@@ -29,27 +30,14 @@ export type RebuildDeclaration = { comment?: string; tools: Record<string, Rebui
 const NEEDS = { ecosystem: ['tool', 'the tool it uses'], replaced: ['reason', 'its reason'], record: ['record', 'its record'], policy: ['reason', 'its reason'] } as const;
 const isKind = (kind: string): kind is keyof typeof NEEDS => Object.hasOwn(NEEDS, kind);
 
-// The places where the tool sources of a repository lie, whatever it declares (K286): its scripts, the scripts, tools and bin of
-// its packages (and of their components), its generators, its benchmarks, its examples and the generators of its fixtures.
-const EXTENSIONS = '{mts,mjs,cjs,js,ts,py,php,sh,mk}';
-const SOURCE = `*.${EXTENSIONS}`;
-const TOOL_SOURCES = [
-  `scripts/**/${SOURCE}`, `packages/*/{scripts,tools,bin}/**/${SOURCE}`, `packages/*/*/{scripts,tools,bin}/**/${SOURCE}`,
-  '**/*_generate.go', `**/*.generate.${EXTENSIONS}`, `benchmarks/**/${SOURCE}`, `examples/**/${SOURCE}`, 'tests/fixtures/*/generate.*',
-];
-// A test is no tool, and a fixture generator is the one test-side tool.
-const isToolSource = (file: string) => matchesAny(TOOL_SOURCES, file) && !file.endsWith('.d.ts') && (!isTestFile(file) || matchesAny(['tests/fixtures/*/generate.*'], file));
-
-/** The tracked tool sources: the files of the layout; every one is the repository's own (K1052). */
-function toolSources(tracked: readonly string[]): string[] {
-  return tracked.filter(isToolSource);
-}
-
-/** The findings of `declaration` against the tracked files of `root`, sorted. */
-export function rebuildFindings(root: string, declaration: RebuildDeclaration, tracked: string[]): string[] {
+/**
+ * The findings of `declaration` against the tracked files of `root`, sorted; `sources` are the globs of the tool sources that the
+ * caller declares and `excludes` the globs of the files among them that are no tool source, such as tests (K1080).
+ */
+export function rebuildFindings(root: string, declaration: RebuildDeclaration, tracked: string[], sources: readonly string[] = [], excludes: readonly string[] = []): string[] {
   const findings: string[] = [];
   const files = new Set(tracked);
-  for (const file of toolSources(tracked)) {
+  for (const file of sources.length ? tracked.filter(file => matchesAny(sources, file) && !matchesAny(excludes, file)) : []) {
     if (!Object.hasOwn(declaration.tools, file)) findings.push(`${file}: the tool has no class in ${DECLARATION}; declare it ecosystem, replaced, record or policy`);
   }
   for (const [file, entry] of Object.entries(declaration.tools)) {
@@ -80,7 +68,8 @@ if (isMain(import.meta.url)) {
     process.exit(1);
   }
   const { value, errors } = readConfigFindings<RebuildDeclaration>(repositoryRoot(), DECLARATION, 'rebuild.schema.json');
-  const findings = errors ?? rebuildFindings(repositoryRoot(), value, trackedFiles(repositoryRoot()));
+  const { values } = parseArgs({ options: { source: { type: 'string', multiple: true }, exclude: { type: 'string', multiple: true } } });
+  const findings = errors ?? rebuildFindings(repositoryRoot(), value, trackedFiles(repositoryRoot()), values.source ?? [], values.exclude ?? []);
   for (const finding of findings) console.error(`[rebuild-check] ${finding}`);
   if (findings.length) process.exitCode = 1;
   else console.log(`[rebuild-check] every tool that ${DECLARATION} selects has its class`);

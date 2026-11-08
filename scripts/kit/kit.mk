@@ -219,8 +219,13 @@ duplication-check: ## Fail while a piece of code exists twice, by the formats, m
 
 .PHONY: rebuild-check rules-check
 
-rebuild-check: ## Check that every tool that config/rebuild.json selects has its class: ecosystem, replaced, record or policy (S1); offline
-	$(NODE) $(KIT)/rebuild-check.$(KIT_EXT)
+# The tool sources of kit for rebuild-check (K1080): its scripts and generators, each glob quoted so the shell expands none.
+REBUILD_SOURCES := --source 'scripts/**/*.{mts,mjs,cjs,js,ts,py,php,sh,mk}' --source 'packages/*/{scripts,tools,bin}/**/*.{mts,mjs,cjs,js,ts,py,php,sh,mk}' --source 'packages/*/*/{scripts,tools,bin}/**/*.{mts,mjs,cjs,js,ts,py,php,sh,mk}' --source '**/*_generate.go' --source '**/*.generate.{mts,mjs,cjs,js,ts,py,php,sh,mk}' --source 'benchmarks/**/*.{mts,mjs,cjs,js,ts,py,php,sh,mk}' --source 'examples/**/*.{mts,mjs,cjs,js,ts,py,php,sh,mk}' --source 'tests/fixtures/*/generate.*'
+# The files among the sources that are no tool source (K1080): the .d.ts declarations and the tests (the test files of check-commits),
+# but a generator of a fixture at tests/fixtures/<name>/generate.* stays a tool source.
+REBUILD_EXCLUDES := --exclude '**/*.d.ts' --exclude '*/**/{test,tests}/**' --exclude 'test/**' --exclude 'tests/**/{*_generate.go,*.generate.*}' --exclude '**/*.{test,spec}.{js,jsx,ts,tsx,cjs,cts,mjs,mts}' --exclude '**/{*_test.go,test_*.py,*_test.py,*Test.php}'
+rebuild-check: ## Check that every tool that config/rebuild.json declares, and every tracked file of the --source globs of REBUILD_SOURCES that no --exclude glob of REBUILD_EXCLUDES drops, has its class: ecosystem, replaced, record or policy (S1, K1080); offline
+	$(NODE) $(KIT)/rebuild-check.$(KIT_EXT) $(REBUILD_SOURCES) $(REBUILD_EXCLUDES)
 
 rules-check: ## Check that every rule of PRINCIPLES.md and AGENTS.md names a check that a CI workflow or a Git hook runs (K248); offline
 	$(NODE) $(KIT)/check-rules.$(KIT_EXT)

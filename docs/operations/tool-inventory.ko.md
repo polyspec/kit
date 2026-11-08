@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 5db781d39d5b29b8a3d9f8bc82c272d41f22171bcabea1d2ed341ebeae2a1102 -->
+<!-- source-sha256: 41b81e3082fe348ba350668f02a24b1c3a721ffb16c2695ce1b9676e1d2388d1 -->
 
 # 도구 목록
 
@@ -387,13 +387,14 @@ K809가 쌍의 규칙을 지웠습니다: `pair-missing`, `doc-id`, `revision`, 
 
 ## Rebuild check (K74, K286)
 
-`make rebuild-check`(S1)는 저장소의 모든 tool source에 class를 요구한다. kit이 tracked 파일 중에서 layout으로 tool source를
-찾고, `config/rebuild.json`은 그것을 분류만 한다(`tools`, `kind`는 `ecosystem`, `replaced`, `record`, `policy`이며 kind마다
-필요한 field가 있다). path 목록이 없으므로 저장소는 gate가 보는 범위를 좁힐 수 없다. tool source는 `scripts/`, `packages/*/`와
-`packages/*/*/`의 `scripts|tools|bin`, `benchmarks/`, `examples/` 아래의 script와 program(`mts`, `mjs`, `cjs`, `js`, `ts`,
-`py`, `php`, `sh`, `mk`), `*_generate.go`와 `*.generate.<script>` generator, `tests/fixtures/*/generate.*`이다. test 파일과
-`.d.ts`는 아니다. 그 밖의 파일은 kit에서 복사한 것도 저장소 자신의 것이다(K1052). class가 없는 tool source는 finding이고, tracked가 아닌
-파일의 class도 finding이다.
+`make rebuild-check`(S1)는 호출자가 고른 모든 tool source에 class를 요구한다. 호출자는 tool source가 있는 곳을 반복 가능한
+`--source <glob>`로 선언한다(K1080). glob이 고른 tracked 파일마다 `config/rebuild.json`에 class가 있어야 한다(`tools`, `kind`는
+`ecosystem`, `replaced`, `record`, `policy`이며 kind마다 필요한 field가 있다). `--source`가 없으면 `config/rebuild.json`이 선언한
+class만 검사한다. kit의 recipe는 `scripts/`, `packages/*/`와 `packages/*/*/`의 `scripts|tools|bin`, `benchmarks/`, `examples/`
+아래의 script와 program(`mts`, `mjs`, `cjs`, `js`, `ts`, `py`, `php`, `sh`, `mk`), `*_generate.go`와 `*.generate.<script>`
+generator, `tests/fixtures/*/generate.*`를 고른다. 호출자는 그중 tool source가 아닌 파일을 반복 가능한 `--exclude <glob>`로 뺀다.
+kit의 recipe는 `.d.ts` 파일과 test 파일을 빼지만 fixture generator는 빼지 않는다. 고른 tool source에 class가 없으면 finding이고, tracked가 아닌 파일의 class도
+finding이다.
 
 ## Divergence check (K315)
 

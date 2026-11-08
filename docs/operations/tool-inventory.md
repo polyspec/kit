@@ -426,13 +426,14 @@ Dropped behaviors:
 
 ## Rebuild check (K74, K286)
 
-`make rebuild-check` (S1) requires a class for every tool source of the repository. kit finds the tool sources by the layout,
-among the tracked files, and `config/rebuild.json` only classifies them (`tools`, with `kind` `ecosystem`, `replaced`, `record`
-or `policy` and the field each kind needs); it has no list of paths, so a repository cannot narrow what the gate sees. The
-tool sources are the scripts and programs (`mts`, `mjs`, `cjs`, `js`, `ts`, `py`, `php`, `sh`, `mk`) under `scripts/`, under
-`scripts|tools|bin` of `packages/*/` and `packages/*/*/`, under `benchmarks/` and under `examples/`, the `*_generate.go` and
-`*.generate.<script>` generators, and `tests/fixtures/*/generate.*`; a test file is none, nor a `.d.ts`; every other file is the repository's own, one that it copied from kit too (K1052). An unclassified tool source is a finding; so is a class of a file that is not
-tracked.
+`make rebuild-check` (S1) requires a class for every tool source that its caller selects. The caller declares where its tool
+sources lie with `--source <glob>`, repeatable (K1080); every tracked file that a glob selects needs a class in
+`config/rebuild.json` (`tools`, with `kind` `ecosystem`, `replaced`, `record` or `policy` and the field each kind needs). With no
+`--source`, only the classes that `config/rebuild.json` declares are checked. The recipe of kit selects its scripts and programs
+(`mts`, `mjs`, `cjs`, `js`, `ts`, `py`, `php`, `sh`, `mk`) under `scripts/`, under `scripts|tools|bin` of `packages/*/` and
+`packages/*/*/`, under `benchmarks/` and under `examples/`, the `*_generate.go` and `*.generate.<script>` generators, and
+`tests/fixtures/*/generate.*`. The caller drops the files among them that are no tool source with `--exclude <glob>`, repeatable;
+the recipe of kit drops the `.d.ts` files and the test files, but not a fixture generator. An unclassified selected tool source is a finding; so is a class of a file that is not tracked.
 
 ## Divergence check (K315)
 
