@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K1075: php-extension sets no naming rule: the extension is the one that PHP_NEW_EXTENSION of packages/php-ext/src/config.m4 declares, its stubs are the src/*.stub.php files, each arginfo header is checked against its own stub, and the Composer names of the extension and the libraries are the repository's own (K1075).
 - K1083: generated-files installs checks the install directories that its arguments declare, a bare directory of the root or <manifest>=<directory> beside each tracked manifest; a call without a declaration, or with an entry of another form such as a=b=c, is a usage error (exit 2), and the layout-check of kit declares var, package.json=node_modules, pyproject.toml=.venv and composer.json=vendor. checkedFiles holds no list of install folders: Git ignores them (K1083).
 - K1073: generated-files staged and tracked run without config/generated.json, as a declaration of no path and no exception; the generated segments are refused as before (K1073).
 - duplication-check reads its formats, minimum lines, ignore-patterns and exclusions from config/duplication.json, with none fixed in kit; exclude is optional, and kit declares its own current values, while a repository with PHP extension stubs excludes packages/php-ext/src/polyspec_*.stub.php itself (K1104).

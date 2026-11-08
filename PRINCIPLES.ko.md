@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 40d654891bff8859f2ec72b78788af816571950f00d4c304f08c4dfdc43cf55a -->
+<!-- source-sha256: 7d0434013f31f746493716b86273308059f2c556ada2303571ebfeb9713f38c8 -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -241,7 +241,8 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
   구현의 root이며, 설정에 상대 경로를 두지 않고, parity-check가 읽는 것과 같다(K905). Composer type이 `project`인 package는
   application이다. S10 library 검사 밖에 있고 config/parity.json이 PHP 구현으로 선언할 때만 extension과 함께 실행되며,
   `make test-php`는 그 test를 자기 package로 실행한다.
-  Enforced by: `make lint-php-ext`, `make test-php-ext`
+  Enforced by: `make lint-php-ext`(각 arginfo header의 stub hash), `make test-php-ext`(build, 선언, unit test). 이름과 하나의 stub은
+  각 저장소가 자기 검사가 있으면 그것으로 지키는 안내 규칙이다(K1075)
 - S11 로컬 링크: 개발 중 각 polyspec 패키지의 설치 폴더(node_modules, vendor, site-packages)는 checkout으로 가는 평범한
   디렉터리 심링크 하나입니다. 패키지 매니저의 링크 단계(npm link, Composer path repository, pip/uv editable)는 쓰지 않습니다
   (K591, K761, K765).

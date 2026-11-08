@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // The PHP extension of a repository (S10): one model and one build for every repository.
 //
-//   node scripts/kit/php-extension.mts check          the names, the one stub and, when present, the arginfo stub hash
+//   node scripts/kit/php-extension.mts check          the extension that config.m4 declares and, when present, the arginfo stub hash of each stub
 //   node scripts/kit/php-extension.mts build [--output <absolute-path>] [--source-copy <source> <output>] [--configure-arg <arg>]
 //                                                     the check, then phpize in a temporary source copy, the arginfo from the gen_stub.php of
 //                                                     var/php-ext/gen-stub (K941), configure and make; publish the library by a rename
@@ -10,9 +10,9 @@
 //                                                     then the unit tests of runtime-targets.mts with the extension loaded
 //
 // In a repository without packages/php-ext, check, build and test say so and pass: every repository runs them in its CI.
-// The PHP library is packages/php, named polyspec/<repository>; the extension lies in packages/php-ext with its sources in src/,
-// is named polyspec/<repository>-php-ext and polyspec_<repository> (a hyphen an underscore), and has one stub,
-// src/polyspec_<repository>.stub.php. phpize, php-config and php are the wrappers of var/tools/bin that install-tools wrote for
+// The extension lies in packages/php-ext with its sources in src/; its name is the one that PHP_NEW_EXTENSION of src/config.m4
+// declares, and its stubs are the src/*.stub.php files, each with its <stub>_arginfo.h (K1075: kit sets no naming rule). The PHP
+// libraries are packages/php and packages/<component>/php. phpize, php-config and php are the wrappers of var/tools/bin that install-tools wrote for
 // the php of PATH (K862), never whatever PATH holds later (K393-1).
 import { createHash } from 'node:crypto';
 import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync, statSync, lstatSync } from 'node:fs';
@@ -34,21 +34,23 @@ const OUTPUT = 'var/php-ext';
 // The folder of gen_stub.php in a checkout (K941): its PHP-Parser is fetched once there, and it is git-ignored with var/.
 const GEN_STUB = `${OUTPUT}/gen-stub`;
 
-/** The names of the extension of the repository `repository`: its Composer package, its extension and its stub. */
-export function extensionNames(repository: string): { composer: string; extension: string; stub: string; arginfo: string } {
-  const extension = `polyspec_${repository.replaceAll('-', '_')}`;
-  return { composer: `polyspec/${repository}-php-ext`, extension, stub: `${EXTENSION}/src/${extension}.stub.php`, arginfo: `${EXTENSION}/src/${extension}_arginfo.h` };
+/** The arginfo header that gen_stub.php writes beside the stub `stub`. */
+export const arginfoOf = (stub: string): string => stub.replace(/\.stub\.php$/, '_arginfo.h');
+
+/**
+ * The names of the extension among `files` as packages/php-ext declares them (K1075): the extension that PHP_NEW_EXTENSION of
+ * src/config.m4 names, which the build enables and loads, and the stubs of src/; or the finding that config.m4 names none.
+ */
+export function extensionNames(files: readonly string[], read: (file: string) => string | undefined): { extension: string; stubs: string[] } | { finding: string } {
+  const config = read(`${EXTENSION}/src/config.m4`);
+  const extension = config === undefined ? undefined : /PHP_NEW_EXTENSION\(\s*\[?([A-Za-z0-9_]+)/.exec(config)?.[1];
+  if (extension === undefined) return { finding: `${EXTENSION}/src/config.m4 declares no PHP_NEW_EXTENSION, which names the extension that the build enables` };
+  const stubs = files.filter(file => path.posix.dirname(file) === `${EXTENSION}/src` && file.endsWith('.stub.php')).sort();
+  return { extension, stubs };
 }
 
 /** The stub hash that gen_stub.php writes into the arginfo header: the sha1 of the stub with its line ends as LF. */
 export const stubHash = (stub: string): string => createHash('sha1').update(stub.replaceAll('\r\n', '\n')).digest('hex');
-
-/** The name of the Composer package of the composer.json text `text`, or undefined. */
-function composerName(text: string | undefined): string | undefined {
-  if (text === undefined) return undefined;
-  const manifest: unknown = JSON.parse(text);
-  return isJsonObject(manifest) && typeof manifest.name === 'string' ? manifest.name : undefined;
-}
 
 /** Whether the Composer manifest `text` is an application (K433): a package of type project, which is no library of S10. */
 export function isApplication(text: string | undefined): boolean {
@@ -65,58 +67,18 @@ export function libraryFolders(files: readonly string[], read: (file: string) =>
   return files.flatMap(file => (/^packages\/(?:[^/]+\/)?php\/composer\.json$/.test(file) && !isApplication(read(file)) ? [path.posix.dirname(file)] : [])).sort();
 }
 
-/**
- * The repository name of the PHP libraries among `files`, and their folders, or a finding: `polyspec/<repository>` in
- * packages/php/composer.json, `polyspec/<repository>-<component>` in packages/<component>/php/composer.json, all of one
- * repository; `read` gives the text of a file or undefined.
- */
-export function repositoryOf(files: readonly string[], read: (file: string) => string | undefined): { repository: string; libraries: string[] } | { finding: string } {
-  const libraries = libraryFolders(files, read);
-  if (libraries.length === 0) {
-    // K616: a repository without a PHP library (its packages/php an application, as fsm's test bed) has an extension that implements
-    // none; its own composer.json names the repository, and no library declaration is matched.
-    const name = composerName(read(`${EXTENSION}/composer.json`));
-    const repository = name === undefined ? undefined : /^polyspec\/([a-z0-9][a-z0-9-]*)-php-ext$/.exec(name)?.[1];
-    if (!repository) return { finding: `${EXTENSION}/composer.json: the extension of a repository without a PHP library is named polyspec/<repository>-php-ext, not ${name ?? 'nothing'}` };
-    return { repository, libraries };
-  }
-  const repositories = new Map<string, string>();
-  for (const folder of libraries) {
-    const component = folder === LIBRARY ? undefined : folder.split('/')[1];
-    const name = composerName(read(`${folder}/composer.json`));
-    const match = name === undefined ? null : /^polyspec\/([a-z0-9][a-z0-9-]*)$/.exec(name);
-    const repository = component === undefined ? match?.[1] : match?.[1]?.endsWith(`-${component}`) ? match[1].slice(0, -(component.length + 1)) : undefined;
-    if (!repository) return { finding: `${folder}/composer.json: the PHP library, whose classes the extension registers, is named polyspec/<repository>${component === undefined ? '' : `-${component}`}, not ${name ?? 'nothing'}` };
-    repositories.set(folder, repository);
-  }
-  const names = [...new Set(repositories.values())];
-  const odd = [...repositories].find(([, repository]) => repository !== names[0]);
-  if (odd) return { finding: `${odd[0]}/composer.json: the PHP libraries name two repositories, ${names[0]} and ${odd[1]}; the repository has one extension` };
-  return { repository: names[0] ?? '', libraries };
-}
-
 /** The findings of the extension among the `files`; none when the repository has no packages/php-ext. */
 export function extensionFindings(files: readonly string[], read: (file: string) => string | undefined): string[] {
   if (!files.some(file => file.startsWith(`${EXTENSION}/`))) return [];
-  const owner = repositoryOf(files, read);
-  if ('finding' in owner) return [owner.finding];
-  const names = extensionNames(owner.repository);
-  const found: string[] = [];
-  const composer = composerName(read(`${EXTENSION}/composer.json`));
-  if (composer !== names.composer) found.push(`${EXTENSION}/composer.json: the extension is named ${names.composer}, not ${composer ?? 'nothing'}`);
-  const stubs = files.filter(file => file.startsWith(`${EXTENSION}/`) && file.endsWith('.stub.php'));
-  for (const stub of stubs.filter(file => file !== names.stub)) found.push(`${stub}: the extension has one stub, ${names.stub}`);
-  const config = read(`${EXTENSION}/src/config.m4`);
-  const declared = config === undefined ? undefined : /PHP_NEW_EXTENSION\(\s*\[?([A-Za-z0-9_]+)/.exec(config)?.[1];
-  if (declared !== names.extension) found.push(`${EXTENSION}/src/config.m4: PHP_NEW_EXTENSION names the extension ${names.extension}, not ${declared ?? 'nothing'}`);
-  const stub = read(names.stub);
-  if (stub === undefined) return [...found, `${names.stub}: the stub of the extension is missing`];
-  const header = read(names.arginfo);
-  if (header !== undefined) {
+  const names = extensionNames(files, read);
+  if ('finding' in names) return [names.finding];
+  return names.stubs.flatMap((stubFile) => {
+    const stub = read(stubFile);
+    const header = read(arginfoOf(stubFile));
+    if (stub === undefined || header === undefined) return [];
     const recorded = /\* Stub hash: ([0-9a-f]+) \*/.exec(header)?.[1];
-    if (recorded !== stubHash(stub)) found.push(`${names.arginfo}: the stub hash is ${recorded ?? 'missing'}, the stub's is ${stubHash(stub)}. Fix: regenerate it with the gen_stub.php that phpize copies into build/ of the extension source: \`php build/gen_stub.php ${names.stub}\` after phpize (K941)`);
-  }
-  return found;
+    return recorded === stubHash(stub) ? [] : [`${arginfoOf(stubFile)}: the stub hash is ${recorded ?? 'missing'}, the stub's is ${stubHash(stub)}. Fix: regenerate it with the gen_stub.php that phpize copies into build/ of the extension source: \`php build/gen_stub.php ${stubFile}\` after phpize (K941)`];
+  });
 }
 
 /** A declaration that Reflection reads: a class, a function or a constant, a JSON value. */
@@ -256,15 +218,15 @@ export function extensionFiles(root: string): string[] {
 /** The text of the file `file` of `root` on the disk, or undefined when there is none. */
 const reader = (root: string) => (file: string) => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined);
 
-/** The names of the extension of `root`, after its check; throws with the findings. */
-function checked(root: string): ReturnType<typeof extensionNames> & { libraries: string[] } {
+/** The names of the extension of `root` and its PHP libraries, after its check; throws with the findings. */
+function checked(root: string): { extension: string; stubs: string[]; libraries: string[] } {
   const files = extensionFiles(root);
   if (!files.some(file => file.startsWith(`${EXTENSION}/`))) throw new Stop(`${EXTENSION} holds no file; the repository has no PHP extension`);
   const found = extensionFindings(files, reader(root));
   if (found.length) throw new Stop(found.join('\n'));
-  const owner = repositoryOf(files, reader(root));
-  if ('finding' in owner) throw new Stop(owner.finding);
-  return { ...extensionNames(owner.repository), libraries: owner.libraries };
+  const names = extensionNames(files, reader(root));
+  if ('finding' in names) throw new Stop(names.finding);
+  return { ...names, libraries: libraryFolders(files, reader(root)) };
 }
 
 // What phpize, configure and make write into a folder that is built in place: a stale one in src/ must never reach a build (K302).
@@ -324,7 +286,7 @@ function generateArginfo(root: string, source: string, stub: string): string {
   } finally {
     release();
   }
-  return path.join(source, path.basename(stub).replace(/\.stub\.php$/, '_arginfo.h'));
+  return path.join(source, path.basename(arginfoOf(stub)));
 }
 
 /** A tracked repository source that `--source-copy` stages into the build (K247-3). */
@@ -369,7 +331,7 @@ function stageSourceCopies(root: string, source: string, copies: readonly Source
   }
 }
 
-function phpized(root: string, label: string, stub: string, sourceCopies: readonly SourceCopy[] = []): { work: string; source: string } {
+function phpized(root: string, label: string, stubs: readonly string[], sourceCopies: readonly SourceCopy[] = []): { work: string; source: string } {
   const work = path.join(root, OUTPUT, `${label}.${process.pid}`);
   const source = path.join(work, 'src');
   rmSync(work, { recursive: true, force: true });
@@ -378,11 +340,11 @@ function phpized(root: string, label: string, stub: string, sourceCopies: readon
     cpSync(path.join(root, EXTENSION, 'composer.json'), path.join(work, 'composer.json'));
     cpSync(path.join(root, EXTENSION, 'src'), source, { recursive: true, filter: isSource });
     stageSourceCopies(root, source, sourceCopies);
-    rmSync(path.join(source, path.basename(stub).replace(/\.stub\.php$/, '_arginfo.h')), { force: true });
+    for (const stub of stubs) rmSync(path.join(source, path.basename(arginfoOf(stub))), { force: true });
     // The tools of the PHP of the checkout are its wrappers, never the ones on PATH.
     console.log(`[php-extension] phpize (${run(toolCommand(root, 'php-config'), ['--version']).trim()})`);
     run(toolCommand(root, 'phpize'), [], { cwd: source });
-    generateArginfo(root, source, stub);
+    for (const stub of stubs) generateArginfo(root, source, stub);
     return { work, source };
   } catch (error) {
     rmSync(work, { recursive: true, force: true });
@@ -406,7 +368,7 @@ export function build(root: string, options: BuildOptions = {}): string {
   }
   const temporaryLibrary = `${library}.tmp.${process.pid}`;
   const sourceCopies = options.sourceCopies ?? [];
-  const { work, source } = phpized(root, 'build', names.stub, sourceCopies);
+  const { work, source } = phpized(root, 'build', names.stubs, sourceCopies);
   try {
     // P8 for C (K334): the flags of php-config do not fail a call whose result must be checked; the compiler's check does.
     const env = { ...process.env, CFLAGS: `${process.env.CFLAGS ?? ''} -Werror=unused-result`.trim() };
@@ -489,7 +451,8 @@ export function declarations(root: string): string[] {
         for (const [name, declared] of Object.entries(found[kind])) if (declared !== null && declared !== undefined) own[kind][name] = declared;
       }
     }
-    return declarationFindings(extension, own, internalClassesOfStub(readFileSync(path.join(root, names.stub), 'utf8')));
+    const internal = new Set(names.stubs.flatMap(stub => [...internalClassesOfStub(readFileSync(path.join(root, stub), 'utf8'))]));
+    return declarationFindings(extension, own, internal);
   } finally {
     rmSync(request, { force: true });
   }
@@ -507,7 +470,7 @@ if (isMain(import.meta.url)) {
     } else if (command === 'check') {
       const found = extensionFindings(files, reader(root));
       if (found.length) throw new Stop(found.join('\n'));
-      console.log('[php-extension] the names, the stub and the arginfo header of the extension match');
+      console.log('[php-extension] the extension is declared and the arginfo header of each stub matches it');
     } else if (command === 'build') {
       build(root, buildOptions(process.argv.slice(3)));
     } else {

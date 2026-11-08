@@ -269,7 +269,8 @@ tool lands, a standard binds the work as written here.
   relative path in a configuration, as parity-check reads them (K905). A Composer package of type `project` is an application:
   it is outside the S10 library checks and is run with the extension only when config/parity.json declares it as a PHP
   implementation, and `make test-php` runs its tests as its own package.
-  Enforced by: `make lint-php-ext`, `make test-php-ext`
+  Enforced by: `make lint-php-ext` (the stub hash of each arginfo header), `make test-php-ext` (the build, the declarations and the
+  unit tests); the names and the single stub are a guided rule that each repository enforces with its own check, if it has one (K1075)
 - S11 Local links: during development each polyspec package's install folder (node_modules, vendor, site-packages) is one
   plain directory symlink to its checkout. No package-manager link step (npm link, Composer path repository, pip/uv editable)
   (K591, K761, K765).

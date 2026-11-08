@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: e1eec1ae0718fd18c89915dda9643976fd5ac093362064604a8470efdad42a86 -->
+<!-- source-sha256: 76546698197fe49020eebf4ee7ceefd5173d0e13e4aa480cfb31d48350bb4211 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -202,7 +202,7 @@
 | K1072 | install-tools는 설치하는 도구의 toolchain 예외만 읽으므로, 선택되지 않은 도구의 예외가 실행을 거부하지 않는다 | scripts/kit/install-tools.mts, scripts/kit/toolchain-exceptions.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1072 tests/kit/install-tools.test.mts` | [ ] |
 | K1073 | generated-files staged는 config/generated.json을 요구하지 않고 stage된 경로를 읽는다 | scripts/kit/generated-files.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1073 tests/kit/generated-files.test.mts` | [o] |
 | K1074 | runtime-targets는 config/parity.json에서 roots만 읽고 배치를 강제하지 않는다: 엄격한 parity 스키마, roots의 테스트 요구, __init__.py 규칙, packages/<runtime> 배치, 추적된 smoke fixture, go.work 모듈 규칙이 없다 | scripts/kit/runtime-targets.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1074 tests/kit/runtime-targets.test.mts` | [~] |
-| K1075 | php-extension은 packages/php-ext가 선언한 확장을 빌드하며, Composer 이름과 확장 이름에 대한 이름 규칙을 두지 않는다 | scripts/kit/php-extension.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1075 tests/kit/php-extension.test.mts` | [~] |
+| K1075 | php-extension은 packages/php-ext가 선언한 확장을 빌드하며, Composer 이름과 확장 이름에 대한 이름 규칙을 두지 않는다 | scripts/kit/php-extension.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1075 tests/kit/php-ext.test.mts` | [o] |
 | K1076 | toolchain-declared는 config/toolchain.json이 선언한 버전을 읽으며, 그 형태에 대한 규칙을 두지 않는다 | scripts/kit/bootstrap/toolchain-declared.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1076 tests/kit/toolchain-declared.test.mts` | [ ] |
 | K1077 | install-vscode는 semver가 최솟값을 주는 모든 범위 형식의 engines.vscode에서 최소 버전을 읽는다 | scripts/kit/install-vscode.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1077 tests/kit/install-vscode.test.mts` | [ ] |
 | K1078 | worktree-setup은 devEngines.packageManager가 필요한 이유를 삭제된 kit include가 아니라 자신이 실행하는 것으로 밝힌다 | scripts/kit/worktree-setup.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1078 tests/kit/worktree-setup.test.mts` | [ ] |

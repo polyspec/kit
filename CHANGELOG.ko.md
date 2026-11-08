@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 73cb5001fc562bc764bf54decd273086b498883d43237678760ae4827300fc89 -->
+<!-- source-sha256: ee61687a579fa035d3cfa1a61e0d510f6a233d700391ea5a48f0afcdd95ae874 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -34,6 +34,7 @@
 - run-tests는 실행의 runner flag와 environment를 호출자가 넘긴 대로만 정한다: node --test, vitest, Playwright의 test별 option은 --timeout이 있을 때만 넘기고, --test-concurrency=1, -count=1 -timeout=0, --test-threads=1, PYTHONUNBUFFERED, NO_COLOR, PYTHON_COLORS, NODE_TEST_CONTEXT 제거를 스스로 하지 않는다(K1094).
 - K1073: generated-files staged와 tracked는 config/generated.json 없이도 path와 exception이 없는 선언으로 실행된다. 생성 segment는 전과 같이 거부한다(K1073).
 - K1083: generated-files installs는 인수가 선언한 설치 폴더를 검사한다. root의 폴더 이름 그대로, 또는 추적된 manifest마다 그 옆의 <manifest>=<directory>이다. 선언이 없거나 a=b=c처럼 다른 형식의 항목이 있으면 사용법 오류(exit 2)이며, kit의 layout-check는 var, package.json=node_modules, pyproject.toml=.venv, composer.json=vendor를 선언한다. checkedFiles는 설치 폴더 목록을 두지 않는다. Git이 그 폴더를 무시한다(K1083).
+- K1075: php-extension은 이름 규칙을 두지 않는다. extension은 packages/php-ext/src/config.m4의 PHP_NEW_EXTENSION이 선언한 것이고, stub은 src/*.stub.php 파일이며, 각 arginfo header는 자기 stub과 대조하고, extension과 library의 Composer 이름은 저장소가 정한다(K1075).
 - PHPUnit event의 fully qualified identity와 독립된 flow를 보존하고 parity mapping의 namespace aliasing을 제거한다(K1091).
 
 ## 0.0.98

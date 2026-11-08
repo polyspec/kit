@@ -96,12 +96,12 @@ rules:
     level: error
     paths: ["packages/**/integration", "packages/**/conformance"]
     message: "K244: an integration or conformance suite lives in tests/integration/<runtime> or tests/conformance/<runtime> of the root"
-  # S10: the PHP extension has one stub, in packages/php-ext/src/; php-extension.mts checks its name.
+  # S10: the stubs of the PHP extension lie in packages/php-ext/src/, where the build reads them.
   - id: php-ext-stub-place
     kind: file_absent
     level: error
     paths: ["**/*.stub.php", "!packages/php-ext/src/*.stub.php"]
-    message: "S10: the stub of the PHP extension is packages/php-ext/src/polyspec_<repository>.stub.php"
+    message: "S10: a stub of the PHP extension lies in packages/php-ext/src/"
   # S5: the root folders of every monorepo, and the dot folders of Git, GitHub, kit and Claude Code. .mise holds .mise/locks/,
   # the uv lock sidecars that make toolchain-lock writes and mise.lock names: lock data that is tracked with mise.lock (K192).
   # .claude holds settings.json, the Claude Code settings, such as the example of kit with the hook of K240.

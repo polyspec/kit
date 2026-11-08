@@ -24,7 +24,7 @@ import { isTestFile } from './check-commits.mts';
 import { DECLARATION as PARITY, implementationFolders, sharedRoots, type ParityConfig } from './parity-declaration.mts';
 import { parseJson } from './schema-validate.mts';
 import { isMain, repositoryRoot, siblingTool } from './paths.mts';
-import { extensionNames, repositoryOf } from './php-extension.mts';
+import { extensionNames } from './php-extension.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { listedTests } from './run-tests.mts';
 import { toolCommand } from './mise-tools.mts';
@@ -241,9 +241,9 @@ function usesVitest(root: string, folder: string): boolean {
 
 /** The library of the PHP extension of `root` that build-php-ext publishes; throws when it is missing. */
 function builtExtension(root: string, files: readonly string[]): string {
-  const owner = repositoryOf(files, file => (files.includes(file) ? readFileSync(path.join(root, file), 'utf8') : undefined));
-  if ('finding' in owner) throw new Error(owner.finding);
-  const library = path.join(root, 'var/php-ext', `${extensionNames(owner.repository).extension}.so`);
+  const names = extensionNames(files, file => (files.includes(file) ? readFileSync(path.join(root, file), 'utf8') : undefined));
+  if ('finding' in names) throw new Error(names.finding);
+  const library = path.join(root, 'var/php-ext', `${names.extension}.so`);
   if (!existsSync(library)) throw new Error(`${path.relative(root, library)} is missing. Fix: make build-php-ext`);
   return library;
 }

@@ -55,18 +55,13 @@ test('K670-1: the build keeps the PHP configuration that loads tokenizer', { tim
   assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
 });
 
-test('the names of an extension follow from the repository, a hyphen an underscore (S10)', () => {
-  assert.deepEqual(extensionNames('demo-codec'), {
-    composer: 'polyspec/demo-codec-php-ext',
-    extension: 'polyspec_demo_codec',
-    stub: 'packages/php-ext/src/polyspec_demo_codec.stub.php',
-    arginfo: 'packages/php-ext/src/polyspec_demo_codec_arginfo.h',
-  });
+test('the names of an extension are what config.m4 and the stubs of src/ declare (K1075)', () => {
+  assert.deepEqual(extensionNames(Object.keys(good()), file => good()[file]), { extension: 'polyspec_demo', stubs: ['packages/php-ext/src/polyspec_demo.stub.php'] });
   assert.equal(stubHash(STUB), /Stub hash: ([0-9a-f]+)/.exec(HEADER)?.[1], 'the hash of gen_stub.php');
   assert.equal(stubHash('a\r\nb\n'), stubHash('a\nb\n'));
 });
 
-test('an extension that follows S10 has no finding, and a repository without one has none', () => {
+test('an extension with a matching header has no finding, and a repository without one has none', () => {
   assert.deepEqual(findings(good()), []);
   const withoutHeader = good();
   delete withoutHeader['packages/php-ext/src/polyspec_demo_arginfo.h'];
@@ -74,24 +69,27 @@ test('an extension that follows S10 has no finding, and a repository without one
   assert.deepEqual(findings({ 'packages/php/composer.json': '{"name": "x"}' }), []);
 });
 
-test('a wrong name, a second stub, a stale header and a library of another name are findings (S10)', () => {
-  assert.deepEqual(findings({ ...good(), 'packages/php-ext/composer.json': '{"name": "polyspec/demo-extension"}' }), ['packages/php-ext/composer.json: the extension is named polyspec/demo-php-ext, not polyspec/demo-extension']);
-  assert.deepEqual(findings({ ...good(), 'packages/php-ext/stubs/other.stub.php': '<?php\n' }), ['packages/php-ext/stubs/other.stub.php: the extension has one stub, packages/php-ext/src/polyspec_demo.stub.php']);
-  assert.deepEqual(findings({ ...good(), 'packages/php-ext/src/config.m4': 'PHP_NEW_EXTENSION([demo], [demo.c])\n' }), ['packages/php-ext/src/config.m4: PHP_NEW_EXTENSION names the extension polyspec_demo, not demo']);
+test('a stale arginfo header is a finding, and a config.m4 without PHP_NEW_EXTENSION is one (S10, K941)', () => {
   const changed = `${STUB}\nfunction more(): void {}\n`;
   assert.deepEqual(findings({ ...good(), 'packages/php-ext/src/polyspec_demo.stub.php': changed }), [`packages/php-ext/src/polyspec_demo_arginfo.h: the stub hash is ${stubHash(STUB)}, the stub's is ${stubHash(changed)}. Fix: regenerate it with the gen_stub.php that phpize copies into build/ of the extension source: \`php build/gen_stub.php packages/php-ext/src/polyspec_demo.stub.php\` after phpize (K941)`]);
-  assert.deepEqual(findings({ ...good(), 'packages/php/composer.json': '{"name": "other/demo"}' }), ['packages/php/composer.json: the PHP library, whose classes the extension registers, is named polyspec/<repository>, not other/demo']);
+  assert.deepEqual(findings({ ...good(), 'packages/php-ext/src/config.m4': 'dnl none\n' }), ['packages/php-ext/src/config.m4 declares no PHP_NEW_EXTENSION, which names the extension that the build enables']);
 });
 
-// K616: a repository whose packages/php is an application (a consumer test bed, as in fsm) declares no PHP library, so its extension
-// implements none and is named after the repository by its own composer.json; the names, the stub and the header are checked as before.
-test('an extension of a repository without a PHP library is named by its own composer.json, with no library to match (K616)', () => {
-  const { 'packages/php/composer.json': _, ...extension } = good();
-  const bed = { ...extension, 'packages/php/composer.json': '{"name": "polyspec/demo", "type": "project"}' };
-  assert.deepEqual(findings(bed), []);
-  assert.deepEqual(findings(extension), []);
-  assert.deepEqual(findings({ ...bed, 'packages/php-ext/composer.json': '{"name": "polyspec/demo-extension"}' }), ['packages/php-ext/composer.json: the extension of a repository without a PHP library is named polyspec/<repository>-php-ext, not polyspec/demo-extension']);
-  assert.deepEqual(findings({ ...bed, 'packages/php-ext/src/config.m4': 'PHP_NEW_EXTENSION([demo], [demo.c])\n' }), ['packages/php-ext/src/config.m4: PHP_NEW_EXTENSION names the extension polyspec_demo, not demo']);
+// K1075: kit sets no naming rule; the Composer names, the extension name and the number of stubs are the repository's own.
+test('K1075 an extension of any name, with libraries of any name and several stubs, has no finding', () => {
+  const renamed: Record<string, string> = {
+    ...good(),
+    'packages/php/composer.json': '{"name": "other/demo"}',
+    'packages/php-ext/composer.json': '{"name": "acme/codec-extension"}',
+    'packages/php-ext/src/config.m4': 'PHP_NEW_EXTENSION([demo], [demo.c])\n',
+    'packages/php-ext/src/other.stub.php': '<?php\n',
+  };
+  assert.deepEqual(findings(renamed), []);
+  assert.deepEqual(extensionNames(Object.keys(renamed), file => renamed[file]), { extension: 'demo', stubs: ['packages/php-ext/src/other.stub.php', 'packages/php-ext/src/polyspec_demo.stub.php'] });
+  const { 'packages/php/composer.json': _, ...bed } = good();
+  assert.deepEqual(findings({ ...bed, 'packages/php/composer.json': '{"name": "polyspec/demo", "type": "project"}', 'packages/php-ext/composer.json': '{"name": "polyspec/demo-extension"}' }), []);
+  const parts = { ...bed, 'packages/validator/php/composer.json': '{"name": "polyspec/demo-validator"}', 'packages/generator/php/composer.json': '{"name": "polyspec/other-generator"}' };
+  assert.deepEqual(findings(parts), []);
 });
 
 // A repository with two PHP libraries, packages/<component>/php, and one extension (S10, K293).
@@ -99,13 +97,6 @@ const components = (): Record<string, string> => {
   const { 'packages/php/composer.json': _, ...rest } = good();
   return { ...rest, 'packages/validator/php/composer.json': '{"name": "polyspec/demo-validator"}', 'packages/generator/php/composer.json': '{"name": "polyspec/demo-generator"}' };
 };
-
-test('an extension of a repository with libraries per component follows S10 when each library is named after its component (K293)', () => {
-  assert.deepEqual(findings(components()), []);
-  assert.deepEqual(findings({ ...components(), 'packages/generator/php/composer.json': '{"name": "polyspec/demo-codec"}' }), ['packages/generator/php/composer.json: the PHP library, whose classes the extension registers, is named polyspec/<repository>-generator, not polyspec/demo-codec']);
-  assert.deepEqual(findings({ ...components(), 'packages/generator/php/composer.json': '{"name": "polyspec/other-generator"}' }), ['packages/validator/php/composer.json: the PHP libraries name two repositories, other and demo; the repository has one extension']);
-  assert.deepEqual(findings({ ...components(), 'packages/php/composer.json': '{"name": "polyspec/demo"}' }), []);
-});
 
 test('a declaration that differs from the library, or that the library lacks, is a finding', () => {
   const method = (returnType: string) => ({ static: false, returnType, parameters: [{ name: 'a', type: 'int' }] });
@@ -483,19 +474,19 @@ test('the sources of the extension are read from the working tree, so generated 
   put(root, generated);
   const checked = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'check'], { cwd: root, encoding: 'utf8' });
   assert.equal(checked.status, 0, checked.stderr);
-  // A second stub among the generated sources is a finding as well.
-  put(root, { 'packages/php-ext/src/other.stub.php': '<?php\n' });
-  const second = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'check'], { cwd: root, encoding: 'utf8' });
-  assert.equal(second.status, 1);
-  assert.match(second.stderr, /other\.stub\.php: the extension has one stub/);
+  // A stale header among the generated sources is a finding as well.
+  put(root, { 'packages/php-ext/src/polyspec_demo.stub.php': `${STUB}\nfunction more(): void {}\n` });
+  const stale = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'check'], { cwd: root, encoding: 'utf8' });
+  assert.equal(stale.status, 1);
+  assert.match(stale.stderr, /polyspec_demo_arginfo\.h: the stub hash is/);
 });
 
 test('the build refuses an extension with a finding before phpize runs', (t) => {
-  const root = tree(t, { ...good(), 'packages/php-ext/composer.json': '{"name": "polyspec/demo-ext"}' });
+  const root = tree(t, { ...good(), 'packages/php-ext/src/config.m4': 'dnl none\n' });
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
   const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
   assert.equal(built.status, 1);
-  assert.match(built.stderr, /the extension is named polyspec\/demo-php-ext, not polyspec\/demo-ext/);
+  assert.match(built.stderr, /config\.m4 declares no PHP_NEW_EXTENSION/);
   assert.equal(existsSync(path.join(root, 'var/php-ext')), false);
 });
 
