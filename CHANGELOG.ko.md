@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 75c5be498d40678decc8b4f6e8e831d8bd6dc02be520d282b25be4076a5cf49f -->
+<!-- source-sha256: f2ff4f866fca5650bfe13e8fb1b1412d53eb6e49684e71422fa8380390984870 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1131: owner-check는 target을 거부하려고 저장소의 recipe 문장을 읽지 않는다: recipe가 ci-targets를 시작하는 target과 CHECK_TARGETS의 모든 target을 고르는 규칙은 통과하며, 저장소의 `fullSuite`가 적은 target은 여전히 거부합니다(K1131).
 
 ## 0.0.100
 

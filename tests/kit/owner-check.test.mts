@@ -103,26 +103,19 @@ test('K1112: every tracked path has an owner only when the repository declares -
   assert.match(unowned.stdout, /new\.bin -> nothing: no rule owns the path/);
 });
 
-test('a target that is not in the Makefile and a target that runs the full suite fail', (t) => {
+test('a target that is not in the Makefile and a declared fullSuite target fail', (t) => {
   const missing = errorsOf(t, { ...DECLARATION, owners: [...DECLARATION.owners, { paths: ['src/**'], targets: ['nope'] }] });
   has(missing, 'the target nope of src/** is not a target of the Makefile');
-  const full = errorsOf(t, { ...DECLARATION, owners: [...DECLARATION.owners, { paths: ['src/**'], targets: ['check'] }] });
-  has(full, 'the target check of src/** runs the full suite');
   const named = errorsOf(t, { ...DECLARATION, fullSuite: ['lint'] });
   has(named, 'the target lint', 'runs the full suite');
   has(errorsOf(t, { ...DECLARATION, fullSuite: ['absent'] }), 'fullSuite names absent');
 });
 
-test('a target that runs ci-targets through $(KIT) of kit.mk is a full-suite target (K71-2)', (t) => {
-  // kit.mk names its tools as $(KIT)/<tool>.$(KIT_EXT), so a repository writes the full run the same way.
-  const makefile = `${MAKEFILE}gate:\n\tnode $(KIT)/ci-targets.$(KIT_EXT) var/report/ci docs-check lint\n`;
-  const full = errorsOf(t, { ...DECLARATION, owners: [...DECLARATION.owners, { paths: ['src/**'], targets: ['gate'] }] }, { ...FILES, Makefile: makefile });
-  has(full, 'the target gate of src/** runs the full suite');
-});
-
-test('a rule that selects every target of CHECK_TARGETS fails', (t) => {
-  const errors = errorsOf(t, { ...DECLARATION, owners: [...DECLARATION.owners, { paths: ['src/**'], targets: ['docs-check', 'unit-test', 'lint'] }] });
-  has(errors, 'a rule selects every target of CHECK_TARGETS');
+// K1131: owner-check reads no recipe text to refuse a target: a target whose recipe starts ci-targets, or a rule that selects
+// every target of CHECK_TARGETS, is the repository's choice; only the fullSuite that it declares is refused.
+test('K1131 a target whose recipe starts ci-targets and a rule of every CHECK_TARGETS target pass unless fullSuite names them', (t) => {
+  const owners = [...DECLARATION.owners, { paths: ['src/**'], targets: ['check'] }, { paths: ['src/**'], targets: ['docs-check', 'unit-test', 'lint'] }];
+  assert.deepEqual(errorsOf(t, { ...DECLARATION, owners }), []);
 });
 
 test('a script, workspace, directory, test file or test target that does not exist fails', (t) => {

@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 562fb592cc7768f329388772581dcc559182fead5fa6635efd0a518698a5bf6d -->
+<!-- source-sha256: d7147dc102b2031f29315c208e91e6b5bbba4dc7c4b621feb5a8cbc337373054 -->
 
 # 도구 목록
 
@@ -415,9 +415,9 @@ finding이다.
   것입니다(crudui는 directory `packages/`를 가정했습니다).
 - `variable`(template, hyper)은 rule의 target에 일치한 경로를 make 변수로 넘깁니다.
 - target은 `CHECK_TARGETS` 순서(template, hyper)로 정렬하고, 다른 check는 선언 순서(crudui)를 유지합니다.
-- full suite target은 recipe가 `ci-targets.mts`(K240 이전에는 `full-run.mts`)를 시작하는 target과 `fullSuite`에 적은 target입니다. template의 고정 이름 `check`,
+- full suite target은 `fullSuite`에 적은 target입니다. K1131 전까지는 recipe가 `ci-targets.mts`(K240 이전에는 `full-run.mts`)를 시작하는 target도 그것이었습니다. template의 고정 이름 `check`,
   `rerun-failed`, clean release check는 `fullSuite`의 항목이 됩니다.
-- `CHECK_TARGETS`의 모든 target을 고르는 rule은 실패합니다(template). `inputs` 검사는 crudui 형식이고, 선언은
+- K1131 전까지 `CHECK_TARGETS`의 모든 target을 고르는 rule은 실패했습니다(template). `inputs` 검사는 crudui 형식이고, 선언은
   `{ check, paths }`의 목록입니다.
 - 모든 추적 경로와 존재하는 모든 변경 경로가 owner를 가져야 한다는 것은 저장소가 recipe에서 `--every-path`로 선언하는 규칙입니다.
   선언이 없으면 어떤 rule도 갖지 않은 경로는 아무것도 고르지 않습니다. kit 자신의 recipe는 이를 선언합니다(K1112).

@@ -452,9 +452,9 @@ Merged behaviors:
   names, a package directory is one outside them (crudui assumed the directory `packages/`).
 - `variable` (template, hyper) passes the matched paths to the targets of a rule as a make variable.
 - Targets are ordered by `CHECK_TARGETS` (template, hyper); the other checks keep the order of the declaration (crudui).
-- The full-suite targets are those whose recipe starts `ci-targets.mts` (`full-run.mts` before K240) and those named in `fullSuite`; template's fixed names
+- The full-suite targets are those named in `fullSuite`; until K1131 a target whose recipe started `ci-targets.mts` (`full-run.mts` before K240) was one too. template's fixed names
   `check`, `rerun-failed` and the clean release check become entries of `fullSuite`.
-- A rule that selects every target of `CHECK_TARGETS` fails (template). The `inputs` check is the crudui form; its
+- Until K1131 a rule that selected every target of `CHECK_TARGETS` failed (template). The `inputs` check is the crudui form; its
   declaration is a list of `{ check, paths }`.
 - That every tracked path, and every changed path that exists, has an owner is a rule the repository declares with
   `--every-path` in its recipe; without it a path that no rule owns selects nothing. kit's own recipe declares it (K1112).

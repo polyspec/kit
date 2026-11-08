@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1131: owner-check no longer reads a repository's recipe text to refuse a target: a target whose recipe starts ci-targets and a rule that selects every target of CHECK_TARGETS pass; the targets that the repository's `fullSuite` names are still refused (K1131).
+
 ## 0.0.100
 
 - Release: kit 0.0.100 with the row K1129, which deletes parity (K1130).

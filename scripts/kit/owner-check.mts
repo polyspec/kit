@@ -8,8 +8,8 @@
 // The declaration is checked on every run, before any owner runs (`--validate` checks only that):
 //   - every glob matches a tracked path (new files that Git does not ignore count), and, when the caller passes --every-path
 //     (K1112), every tracked path matches a rule;
-//   - every target exists in the Makefile or a file it includes and does not run the full suite, no rule selects every
-//     target of CHECK_TARGETS, every script, workspace and package directory exists, every test file exists;
+//   - every target exists in the Makefile or a file it includes and is none of the fullSuite targets that the declaration
+//     names, every script, workspace and package directory exists, every test file exists;
 //   - for `inputs`, each path that a check reads has a rule that selects the check or a target that runs it;
 //   - for `importers`, each path of the rule, or each of its `modules`, is imported by a test of the globs.
 // Every selected check runs to its end, also after an earlier one failed, and the failures are listed together.
@@ -206,16 +206,6 @@ export function suiteTargets(make: MakeDatabase) {
   return expandMake(make.variables.get('CHECK_TARGETS') ?? '', make.variables).split(/\s+/).filter(Boolean);
 }
 
-/**
- * The targets that run the full suite: those the declaration names and those whose recipe starts ci-targets, by its path
- * in kit (`scripts/kit/ci-targets.mts`) or as kit.mk names it (`$(KIT)/ci-targets.$(KIT_EXT)`).
- */
-export function fullSuiteTargets(make: MakeDatabase, declared: string[] = []) {
-  const result = new Set(declared);
-  for (const [name, { recipe }] of make.targets) if (/(?:scripts\/(?:kit\/)?|\$\(KIT\)\/)ci-targets\.(?:mts|\$\(KIT_EXT\))/.test(recipe)) result.add(name);
-  return result;
-}
-
 /** The checks of a rule, each as the name that `inputs` uses and the command that runs it. */
 export function ruleChecks(rule: OwnerRule): Check[] {
   return [
@@ -239,8 +229,7 @@ export type OwnerRules = { everyPath?: boolean };
 export function validate(declaration: OwnerDeclaration, tracked: string[], project: Project, exists: Exists, importers: Importers = noImporters, rules: OwnerRules = {}) {
   const errors: string[] = [];
   const targets = new Set(project.make.targets.keys());
-  const fullSuite = fullSuiteTargets(project.make, declaration.fullSuite);
-  const suite = suiteTargets(project.make);
+  const fullSuite = new Set(declaration.fullSuite);
   const compiled = compile(declaration);
   for (const rule of compiled) {
     const label = rule.paths.join(' ');
@@ -263,7 +252,6 @@ export function validate(declaration: OwnerDeclaration, tracked: string[], proje
   for (const test of declaration.always ?? []) if (!exists(test)) errors.push(`${DECLARATION}: the test ${test} of always does not exist`);
   if (declaration.testTarget && !targets.has(declaration.testTarget)) errors.push(`${DECLARATION}: testTarget ${declaration.testTarget} is not a target of the Makefile or of a file it includes`);
   for (const target of declaration.fullSuite ?? []) if (!targets.has(target)) errors.push(`${DECLARATION}: fullSuite names ${target}, which is not a target of the Makefile or of a file it includes`);
-  if (suite.length && compiled.some(rule => suite.every(target => rule.targets?.includes(target)))) errors.push(`${DECLARATION}: a rule selects every target of CHECK_TARGETS, which is the full suite`);
   // Every tracked path has an owner only when the repository declares the rule (K1112).
   for (const file of rules.everyPath ? tracked : []) {
     if (!compiled.some(rule => rule.expressions.some(expression => expression.test(file)))) errors.push(`${file}: the path matches no owner in ${DECLARATION}; add a rule whose paths match it`);

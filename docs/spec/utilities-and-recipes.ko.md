@@ -1,5 +1,5 @@
 <!-- doc-id: spec-utilities-and-recipes -->
-<!-- source-sha256: cadf08d3719d578e1468728918f5878e88cada3447e8373f98910e81d56c148c -->
+<!-- source-sha256: c17a302746ea48c94c99a3c403f0990893744dc1a879306b06b581af5189f825 -->
 # 유틸리티와 예제
 
 [English](utilities-and-recipes.md)
@@ -67,6 +67,7 @@ kit은 자기가 강제하는 것을 지운다. 각 변경은 Red, Green, 커밋
   - `ci-setup`은 `kit-ci-setup`을 다시 실행하는 설정 target을 거부했다.
   - `run-tests --venv`는 Python이 checkout의 것이 아닌 환경을 거부했다.
 - **Parity.** K1129 전까지 kit은 `config/parity.json`을 읽고 저장소의 구현들이 서로 어떻게 관계되는지 검사했다. 공유 unit, requirement 인용, test 이름과 id, public symbol, divergence, test marker(parity-check, parity-declarations-check, divergence-check, test-markers-check)이며, CI 파이프라인에 parity job이 있었다. parity 삭제: kit은 구현들이 서로 어떻게 관계되는지 검사하지 않으며, 각 저장소가 자기 테스트를 실행한다.
+- **owner 거부.** K1131 전까지 owner-check는 저장소가 무엇을 선언하거나 넘기든, recipe 문장이 ci-targets를 시작하는 target과 make 변수 CHECK_TARGETS의 모든 target을 고르는 규칙을 각각 full suite로 보고 거부했다. 이제는 저장소 자신의 `fullSuite`가 적은 target만 거부한다.
 - **규칙 문장.** PRINCIPLES의 `Enforced by:` 줄은 이 검사들(S11, S12, S13, S15 등)을 적었고 각 삭제와 함께 바뀌었다. K1055 전까지 PRINCIPLES의 본문은 모든 저장소를 kit의 파이프라인(S12), kit의 gate(P31), kit에서만 하는 변경에도 묶었다. 이제 배포되는 PRINCIPLES는 kit이 더는 강제하지 않는 검사를 주장하지 않는다.
 
 작동하는 부분은 kit에서 지우는 바로 그 변경에서 `docs/examples/`의 예제가 된다. 삭제는 kit의 새 패치 릴리즈로 나간다. 저장소는 자기가 설치하는 kit 릴리즈를 고정하므로, 새 릴리즈를 받을 때까지 지금 릴리즈를 유지하고, 받을 때 예제를 보고 자기 레시피를 쓴다.
