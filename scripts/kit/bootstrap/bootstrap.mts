@@ -7,15 +7,19 @@
 // modules of its directory. It runs in the root of the repository.
 //
 //   node scripts/kit/bootstrap/bootstrap.mts
-import { installMise, installNode } from './install-mise.mts';
+import { installMise, installNode, miseEnvironment } from './install-mise.mts';
 import { declaredToolchain } from './toolchain-declared.mts';
 
 /** Installs the mise, the node and the npm that the checkout at `root` declares; throws an Error that names the cause. */
 function bootstrap(root: string, print: (text: string) => void) {
   const declared = declaredToolchain(root);
   if (!declared.mise) throw new Error('config/toolchain.json declares no mise; declare its version and the sha256 of its archive of each platform');
-  installMise({ root, declared: declared.mise, print });
-  installNode({ root, print });
+  // The environment of mise is the caller's: the MISE_* variables that its recipe exports, over the directories of mise of the
+  // checkout, which mise needs to keep its installs and its trust in the checkout (K1092).
+  const caller = Object.entries(process.env).filter((entry): entry is [string, string] => entry[0].startsWith('MISE_') && entry[1] !== undefined);
+  const environment = { ...miseEnvironment(root), ...Object.fromEntries(caller) };
+  installMise({ root, declared: declared.mise, environment, print });
+  installNode({ root, environment, print });
 }
 
 try {

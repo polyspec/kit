@@ -14,7 +14,7 @@
 // step and has no time limit.
 import { existsSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
-import { MISE_WRAPPER, NODE_WRAPPER, miseBinary, miseInstallEnvironment, removeForeignTrusts } from './bootstrap/install-mise.mts';
+import { MISE_WRAPPER, NODE_WRAPPER, miseBinary, miseEnvironment } from './bootstrap/install-mise.mts';
 import { NPM_WRAPPERS } from './bootstrap/install-mise.mts';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
@@ -88,8 +88,6 @@ export function installTools({ root = repositoryRoot(), tools, print = () => {} 
   const selection = installSelection(root, tools);
   const mise = process.platform === 'win32' ? miseBinary(toolsPath(root, 'mise-release')) : toolsPath(root, 'bin', 'mise');
   if (!existsSync(mise)) throw new Error(`${path.relative(root, mise)} is missing; run make install-tools TOOLS=npm, the bootstrap that installs mise`);
-  // The trusted-configs of mise keep the trust of this checkout only: the entries of the home directory, of other checkouts and of removed worktrees go (K397).
-  removeForeignTrusts(root);
   // The Rust channels that the exceptions of rust declare, read only when rust is installed (K1072).
   const exceptions = selection.rust ? readExceptions(root, 'rust') : { exceptions: [], findings: [] };
   if (exceptions.findings.length > 0) throw new Error(exceptions.findings.join('\n'));
@@ -100,7 +98,7 @@ export function installTools({ root = repositoryRoot(), tools, print = () => {} 
   if (selection.all) removeStaleWrappers(root, [MISE_WRAPPER, NODE_WRAPPER, ...Object.keys(NPM_WRAPPERS), ...(php ? PHP_WRAPPERS : []), ...(phpunit ? Object.keys(PHPUNIT_WRAPPERS) : []), ...(phpLint ? Object.keys(PHP_LINT_WRAPPERS) : [])], print);
   else removeStaleWrappers(root, [], print, selectedStaleWrappers(selection.mise));
   // The wrapper sets the environment of mise itself; the installs of kit that follow run the tools of mise.
-  if (selection.all || selection.mise.length > 0) run(mise, ['install', '--locked', ...(selection.all ? [] : selection.mise)], { cwd: root, env: process.platform === 'win32' ? miseInstallEnvironment(root) : process.env }, print);
+  if (selection.all || selection.mise.length > 0) run(mise, ['install', '--locked', ...(selection.all ? [] : selection.mise)], { cwd: root, env: process.platform === 'win32' ? miseEnvironment(root) : process.env }, print);
   // The wrappers of php come before the installs that run Composer, so that Composer runs on the php of PATH.
   if (selection.php && php) installPhp({ root, print });
   if (selection.phpunit && phpunit) installPhpunit({ root, declared: phpunit, print });

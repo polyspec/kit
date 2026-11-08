@@ -3,8 +3,7 @@
 //   go   the Go program of scripts/kit/symbols/go, which reads the types of a module with golang.org/x/tools/go/packages at
 //        the release that its go.mod and go.sum pin, built with `go build` of the Go of mise.toml into bin/kit-symbols-go (the
 //        go of the install that `mise where go` prints in the checkout, not the shim, which would read the mise.toml of a
-//        linked kit checkout, K199), in the Go environment of mise (miseInstallEnvironment: -mod=readonly, GOPATH and GOCACHE
-//        under var/tools) and with
+//        linked kit checkout, K199), in the environment of the caller with the tools of the checkout (K1092) and with
 //        GOWORK=off: the extractor is a module of its own, which lies under node_modules of the consumer, so a go.work of the
 //        consumer does not list it (`go help environment`)
 //   php  the Composer project of scripts/kit/symbols/php, whose composer.lock pins nikic/php-parser, installed into vendor
@@ -17,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { replaceInstall } from './bootstrap/install-tool.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
 import { composerEnvironment } from './install-composer-project.mts';
-import { miseInstallEnvironment, miseWhere } from './bootstrap/install-mise.mts';
+import { miseWhere } from './bootstrap/install-mise.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { declaredToolchain, type InstalledExtractor } from './bootstrap/toolchain-declared.mts';
 import { declaredMiseTools, MISE_TOOLS } from './toolchain-mise.mts';
@@ -57,7 +56,7 @@ const BUILDS: Record<InstalledExtractor, (root: string, next: string, print: (te
   // trust (K199).
   go: (root, next, print) => {
     const go = goCommand(root);
-    run(go, ['build', '-trimpath', '-o', path.join(next, 'bin', 'kit-symbols-go'), '.'], { cwd: path.join(SYMBOLS, 'go'), env: { ...toolsEnvironment(root), ...miseInstallEnvironment(root), GOWORK: 'off' } }, print);
+    run(go, ['build', '-trimpath', '-o', path.join(next, 'bin', 'kit-symbols-go'), '.'], { cwd: path.join(SYMBOLS, 'go'), env: { ...toolsEnvironment(root), GOWORK: 'off' } }, print);
   },
 };
 

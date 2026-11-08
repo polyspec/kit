@@ -47,7 +47,7 @@ The gaps that the measurement found, each with its decision:
   the four platforms by its sha256, each a native binary (nextest ships one universal binary for both Macs, cargo-deny static
   musl binaries for Linux), measured with mise 2026.10.8 at nextest 0.9.146 and cargo-deny 0.20.2.
 - govulncheck and deadcode are built by the `go:` backend, and `mise.lock` records their release only. Their integrity is that
-  of Go, which checks every module against its checksum database (`GOSUMDB`, no module exempt) with `GOFLAGS=-mod=readonly`.
+  of Go in the Go environment of the machine or the repository; kit sets none of it (K1092).
 - Python: `mise.lock` pins the exact python-build-standalone build by its URL and sha256. uv installs no Python where the
   repository sets `UV_PYTHON_DOWNLOADS=never`, as kit's own `mise.toml` does, and takes the python3 shim of mise where the repository sets `UV_PYTHON_PREFERENCE=only-system` (K1048). `pythonBuild` and `uv` left
   `config/toolchain.json`.

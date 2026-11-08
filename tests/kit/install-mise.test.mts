@@ -1,21 +1,20 @@
 // The mise of the bootstrap (scripts/kit/bootstrap/install-mise.mts, K127): first, the bootstrap installs the mise release
 // that config/toolchain.json mise declares into var/tools/mise-release, and with it the node of mise.toml, which the wrapper
 // var/tools/bin/node runs (K171). The archive of the platform
-// is downloaded with its sha256 checked and unpacked, and the wrapper var/tools/bin/mise keeps every directory of mise, and the
-// Go and uv caches of its installs, under var/tools/mise, trusts the config of the checkout, installs only what mise.lock pins
-// and never on its own, keeps uv from downloading a Python, and has Go check every module against the checksum database. A
-// second run installs nothing; another digest is refused with both digests. curl is a PATH stub that copies the archive of the test, so no test reaches a network.
+// is downloaded with its sha256 checked and unpacked, and the wrapper var/tools/bin/mise keeps every directory of mise under
+// var/tools/mise and trusts the config of the checkout; its environment is the caller's, by default the directories of mise
+// (K1092). A second run installs nothing; another digest is refused with both digests. curl is a PATH stub that copies the archive of the test, so no test reaches a network.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { KIT } from './kit-tools.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
-import { miseEnvironment, TOOLS_GO_MOD, trustConfig } from '../../scripts/kit/bootstrap/install-mise.mts';
+import { miseEnvironment } from '../../scripts/kit/bootstrap/install-mise.mts';
 import { toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
 import { archiveTar, toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
 import { lintCommands } from '../../scripts/kit/lint-steps.mts';
@@ -35,7 +34,7 @@ const NODE_INSTALL = '/stub/mise/installs/node/26.11.1';
 /**
  * The release archive of a stub mise, and its URL and sha256; removed with `t.after`. The stub prints its version, prints
  * NODE_INSTALL for `where node`, and appends each `install` to `calls`, failing it while MISE_STUB_FAIL is set. With `lock`,
- * `mise lock` writes that text into mise.lock, and `mise install --locked node` fails, as mise does, while mise.lock pins no node.
+ * `mise lock` writes that text into mise.lock, and `mise install node` fails while mise.lock pins no node, as mise does with locked set.
  */
 function miseRelease(t: TestContext, lock?: string) {
   const directory = mkdtempSync(path.join(tmpdir(), 'kit-mise-release-'));
@@ -44,7 +43,7 @@ function miseRelease(t: TestContext, lock?: string) {
   const calls = path.join(directory, 'calls.log');
   const locked = lock === undefined ? '' : ` && grep -q '^\\[\\[tools.node\\]\\]$' mise.lock`;
   const locks = lock === undefined ? '' : `  lock) echo "$*" >> '${calls}'; cat > mise.lock <<'LOCK'\n${lock}LOCK\n ;;\n`;
-  writeFileSync(path.join(directory, 'mise/bin/mise'), `#!/bin/sh\ncase "$1" in\n  where) echo '${NODE_INSTALL}' ;;\n  install) echo "$*" >> '${calls}'; test -z "$MISE_STUB_FAIL"${locked} ;;\n${locks}  *) echo "${VERSION} ${ASSET[KEY]} (2026-10-11)" ;;\nesac\n`);
+  writeFileSync(path.join(directory, 'mise/bin/mise'), `#!/bin/sh\ncase "$1" in\n  where) echo '${NODE_INSTALL}' ;;\n  trust) mkdir -p "$MISE_STATE_DIR/trusted-configs" && ln -sfn "$(dirname "$2")" "$MISE_STATE_DIR/trusted-configs/checkout" ;;\n  install) echo "$*" >> '${calls}'; test -z "$MISE_STUB_FAIL"${locked} ;;\n${locks}  *) echo "${VERSION} ${ASSET[KEY]} (2026-10-11)" ;;\nesac\n`);
   chmodSync(path.join(directory, 'mise/bin/mise'), 0o755);
   const archive = path.join(directory, 'mise.tar.gz');
   assert.equal(spawnSync('tar', ['-czf', archive, '-C', directory, 'mise']).status, 0);
@@ -64,7 +63,10 @@ function checkout(t: TestContext, sha256: string) {
 
 // The bootstrap of kit runs in the checkout, as the install-tools recipe of a repository runs it.
 const BOOTSTRAP = path.join(KIT, 'bootstrap/bootstrap.mts');
-const bootstrap = (root: string, env: NodeJS.ProcessEnv) => spawnSync(process.execPath, [BOOTSTRAP], { cwd: root, env, encoding: 'utf8' });
+// The caller of the bootstrap exports the environment of mise of the checkout, as a recipe does (K1092); the MISE_* of the run
+// of the test are not the sandbox's, so they go first.
+const sandboxEnvironment = (root: string, env: NodeJS.ProcessEnv): NodeJS.ProcessEnv => ({ ...Object.fromEntries(Object.entries(env).filter(([name]) => !name.startsWith('MISE_'))), ...miseEnvironment(root) });
+const bootstrap = (root: string, env: NodeJS.ProcessEnv, mise: Record<string, string> = {}) => spawnSync(process.execPath, [BOOTSTRAP], { cwd: root, env: { ...sandboxEnvironment(root, env), ...mise }, encoding: 'utf8' });
 
 test('the bootstrap installs the declared mise with its sha256 checked, wraps it, and keeps it on a second run', (t) => {
   const release = miseRelease(t);
@@ -75,9 +77,6 @@ test('the bootstrap installs the declared mise with its sha256 checked, wraps it
   assert.deepEqual(stubs.calls().filter(line => line.startsWith('curl')).map(line => line.split(' ').at(-1)), [release.url]);
   const wrapper = path.join(root, 'var/tools/bin/mise');
   assert.equal(spawnSync(wrapper, ['--version'], { encoding: 'utf8' }).stdout.trim(), `${VERSION} ${ASSET[KEY]} (2026-10-11)`);
-  // mise installs Go, with the test sources of its distribution, under var/tools; the go.mod of var/tools makes it a module
-  // of its own, which the ./... of a repository whose root is a Go module does not walk (K135).
-  assert.equal(readFileSync(path.join(root, 'var/tools/go.mod'), 'utf8'), TOOLS_GO_MOD);
   const text = readFileSync(wrapper, 'utf8');
   const tools = path.join(root, 'var/tools');
   const expected = {
@@ -87,13 +86,6 @@ test('the bootstrap installs the declared mise with its sha256 checked, wraps it
     MISE_CONFIG_DIR: path.join(tools, 'mise/config'),
     MISE_GLOBAL_CONFIG_FILE: path.join(root, 'mise.toml'),
     MISE_GLOBAL_CONFIG_ROOT: root,
-    GOPATH: path.join(tools, 'mise/go'),
-    GOCACHE: path.join(tools, 'mise/cache/go-build'),
-    GOFLAGS: '-mod=readonly -modcacherw',
-    GOSUMDB: 'sum.golang.org',
-    GONOSUMDB: '',
-    GOPRIVATE: '',
-    GOINSECURE: '',
   };
   for (const [name, value] of Object.entries(expected)) assert.match(text, new RegExp(`^${name}=${escape(`'${value}'`)}$`, 'm'), name);
   // mise links its shims to the mise that PATH names, so the directory of the binary comes first, before this wrapper.
@@ -102,7 +94,7 @@ test('the bootstrap installs the declared mise with its sha256 checked, wraps it
   assert.match(text, new RegExp(`^exec ${escape(`'${path.join(tools, 'mise-release/mise/bin/mise')}'`)} "\\$@"$`, 'm'));
   assert.equal(text.includes(homedir()), false, 'the wrapper names no directory of the home');
   // With mise, the bootstrap installs the node of mise.toml and writes its wrapper, which npm runs (K171).
-  assert.deepEqual(release.installs(), ['install --locked node npm:npm']);
+  assert.deepEqual(release.installs(), ['install node npm:npm']);
   assert.equal(readFileSync(path.join(root, 'var/tools/bin/node'), 'utf8').split('\n').at(-2), `exec '${NODE_INSTALL}/bin/node' "$@"`);
   assert.match(readFileSync(path.join(root, 'var/tools/bin/npm'), 'utf8'), new RegExp(`^exec ${escape(`'${NODE_INSTALL}/bin/node'`)} ${escape(`'${NODE_INSTALL}/node_modules/npm/bin/npm-cli.js'`)} `, 'm'));
   const second = bootstrap(root, stubs.env);
@@ -152,7 +144,7 @@ test('a node that mise cannot install, as one that mise.toml or mise.lock does n
   const stubs = toolchainStubs(t, { downloads: { [release.url]: release.archive } });
   const result = bootstrap(root, { ...stubs.env, MISE_STUB_FAIL: '1' });
   assert.equal(result.status, 1, result.stdout);
-  assert.match(result.stderr, /install --locked node npm:npm ended with exit status 1; mise\.toml must declare node and npm:npm, the Node\.js and npm releases of the checkout, and mise\.lock must pin them \(make toolchain-lock\)/);
+  assert.match(result.stderr, /install node npm:npm ended with exit status 1; mise\.toml must declare node and npm:npm, the Node\.js and npm releases of the checkout$/m);
   assert.equal(existsSync(path.join(root, 'var/tools/bin/node')), false);
   assert.equal(existsSync(path.join(root, 'var/tools/bin/npm')), false, 'npm is installed only with the node of the checkout');
 });
@@ -210,25 +202,32 @@ test('toolsPath joins var/tools of the checkout, and lintCommands takes an absol
   assert.throws(() => lintCommands(outside, toolsPath(outside, 'bin'), ['phpstan'], 'install it'), /^Error: var\/tools\/bin\/phpstan is missing; install it$/);
 });
 
-test('trustConfig leaves exactly the trust of the checkout mise.toml (K397)', (t) => {
-  const root = tree(t, { 'mise.toml': '[tools]\nnode = "26.11.1"\n' });
+test('K1092 install-mise writes only the environment of mise into its wrapper, writes no var/tools/go.mod, keeps the trusts of other checkouts, and passes no install flag', (t) => {
+  const release = miseRelease(t);
+  const root = checkout(t, release.sha256);
   const trusted = path.join(root, 'var/tools/mise/state/trusted-configs');
   mkdirSync(trusted, { recursive: true });
-  // The records of an earlier install: the trust of the home directory, and the trust of a worktree that was removed.
-  symlinkSync('/stub/home', path.join(trusted, 'Users-maxkwon-dd34fea3d53e4d0'));
-  symlinkSync(path.join(root, 'gone'), path.join(trusted, 'polyspec-gone-worktree'));
-  // A stub mise that records a trust as mise does: the folder of the file, or the home directory while MISE_GLOBAL_CONFIG_FILE is set.
-  const binary = path.join(root, 'mise-stub');
-  writeFileSync(binary, '#!/bin/sh\ndir="$MISE_STATE_DIR/trusted-configs"\nmkdir -p "$dir"\nif [ -n "${MISE_GLOBAL_CONFIG_FILE:-}" ]; then target=/stub/home; else target=$(dirname "$2"); fi\nln -sfn "$target" "$dir/$(basename "$target")-trust"\n');
-  chmodSync(binary, 0o755);
-  // make exports MISE_GLOBAL_CONFIG_FILE to every recipe (kit.mk), so the install of mise runs with it set.
-  const saved = process.env.MISE_GLOBAL_CONFIG_FILE;
-  process.env.MISE_GLOBAL_CONFIG_FILE = path.join(root, 'mise.toml');
-  t.after(() => { if (saved === undefined) delete process.env.MISE_GLOBAL_CONFIG_FILE; else process.env.MISE_GLOBAL_CONFIG_FILE = saved; });
-  trustConfig({ root, binary });
-  const entries = readdirSync(trusted);
-  assert.deepEqual(entries, [`${path.basename(root)}-trust`]);
-  assert.equal(readlinkSync(path.join(trusted, entries[0] ?? '')), root, 'the one trust is the folder of the checkout mise.toml');
+  // A trust that mise recorded for another checkout.
+  symlinkSync('/stub/other-checkout', path.join(trusted, 'other-checkout'));
+  const result = bootstrap(root, toolchainStubs(t, { downloads: { [release.url]: release.archive } }).env);
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  const text = readFileSync(path.join(root, 'var/tools/bin/mise'), 'utf8');
+  assert.match(text, new RegExp(`^export ${Object.keys(miseEnvironment(root)).join(' ')} PATH$`, 'm'));
+  assert.doesNotMatch(text, /^GO/m);
+  assert.equal(existsSync(path.join(root, 'var/tools/go.mod')), false);
+  assert.equal(readlinkSync(path.join(trusted, 'other-checkout')), '/stub/other-checkout');
+  assert.deepEqual(release.installs(), ['install node npm:npm']);
+});
+
+test('K1092 the bootstrap gives install-mise, its trust and the install of node the MISE_* environment of its caller', (t) => {
+  const release = miseRelease(t);
+  const root = checkout(t, release.sha256);
+  const state = path.join(root, 'elsewhere/state');
+  const result = bootstrap(root, toolchainStubs(t, { downloads: { [release.url]: release.archive } }).env, { MISE_STATE_DIR: state });
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  assert.equal(readlinkSync(path.join(state, 'trusted-configs/checkout')), root, 'mise trust records the trust in the MISE_STATE_DIR of the caller');
+  assert.equal(existsSync(path.join(root, 'var/tools/mise/state/trusted-configs/checkout')), false);
+  assert.match(readFileSync(path.join(root, 'var/tools/bin/mise'), 'utf8'), new RegExp(`^MISE_STATE_DIR=${escape(`'${state}'`)}$`, 'm'));
 });
 
 test('the Windows bootstrap extracts with the bsdtar of Windows, which reads drive paths and zip files, not the GNU tar of Git Bash (K759)', () => {

@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 9514c7fa77655395909f2326b36d1bdaf3c9e70fcc6d41f831e949db861b33b7 -->
+<!-- source-sha256: fc4c57d24bae2bd51d2639d5268262dc10e309f8d729fb16affcad9861c9e34f -->
 
 # 도구 목록
 
@@ -102,7 +102,7 @@ PIE는 저장소가 자기 recipe에서 실행하는 도구입니다. 저장소�
 | cargo-audit | `mise.toml`의 `"github:rustsec/rustsec" = { version, version_prefix = "cargo-audit/v" }`: platform별 native binary, 그 sha256은 `mise.lock`에 | mise로 설치 |
 | cargo-nextest | `mise.toml`의 `"github:nextest-rs/nextest" = { version, version_prefix = "cargo-nextest-" }`: platform별 native binary(macOS는 universal binary), 그 sha256은 `mise.lock`에 | mise로 설치 |
 | cargo-deny | `mise.toml`의 `cargo-deny`(mise registry의 aqua backend, `aqua:EmbarkStudios/cargo-deny`): platform별 native binary, 그 sha256은 `mise.lock`에 | mise로 설치 |
-| govulncheck, deadcode | `mise.toml`의 `"go:golang.org/x/vuln/cmd/govulncheck"`, `"go:golang.org/x/tools/cmd/deadcode"`, `go:` backend가 build; `mise.lock`은 release를 기록하고, Go가 `GOFLAGS=-mod=readonly`로 모든 module을 `GOSUMDB`에 비추어 확인함(선언된 예외) | mise로 설치 |
+| govulncheck, deadcode | `mise.toml`의 `"go:golang.org/x/vuln/cmd/govulncheck"`, `"go:golang.org/x/tools/cmd/deadcode"`, `go:` backend가 build; `mise.lock`은 release를 기록하고, Go가 호출자의 Go 환경에서 module을 확인함. kit은 Go 변수를 정하지 않음(K1092) | mise로 설치 |
 | vulture | `mise.toml`의 `"pypi:vulture"`: `mise.lock`이 mise가 `.mise/locks` 아래에 쓰는 uv lock의 digest를 가짐. 그 sidecar folder는 mise의 문서대로 저장소가 mise.lock과 함께 track합니다. 그것이 없으면 checkout의 `mise install --locked`가 "dependency sidecar … No such file or directory"로 실패하므로(K192) kit은 검사를 더하지 않습니다 (K835) | mise로 설치 |
 | PHPUnit | `config/toolchain.json`의 `phpunit` `{ version }`; `config/phpunit`의 Composer project(`composer.json`, `composer.lock`)로 설치. kit은 자신의 PHP 테스트에만 쓰며, consumer는 PHPUnit을 패키지의 `composer.json`에 둠 | `mise.toml`의 Composer로 설치 |
 

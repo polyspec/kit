@@ -1,5 +1,5 @@
 <!-- doc-id: rebuild-toolchain -->
-<!-- source-sha256: f16bf1242dd9d6b8fd286e35b1730cc20b06fb90f93fe8b821fe3c5baa7b59e6 -->
+<!-- source-sha256: 3729d86cb80fc0ee2b53f0ba2a5a7a8130d5b208afb8a504ba765e187a46a209 -->
 # 재구현 기록: toolchain
 
 [English](toolchain.md)
@@ -47,7 +47,7 @@
   pin했고, 모두 native binary입니다(nextest는 두 Mac에 universal binary 하나, cargo-deny는 Linux에 static musl binary). mise
   2026.10.8, nextest 0.9.146, cargo-deny 0.20.2로 측정했습니다.
 - govulncheck와 deadcode는 `go:` backend가 build하며, `mise.lock`은 release만 기록합니다. 그 무결성은 Go의 것입니다. Go는
-  `GOFLAGS=-mod=readonly`로 모든 module을 checksum database(`GOSUMDB`, 예외 module 없음)에 비추어 확인합니다.
+  machine이나 저장소의 Go 환경에서 동작하며, kit은 그 환경을 하나도 정하지 않습니다(K1092).
 - Python: `mise.lock`은 정확한 python-build-standalone build를 URL과 sha256으로 고정합니다. 저장소가
   `UV_PYTHON_DOWNLOADS=never`를 설정하면(kit 자신의 `mise.toml`이 그렇게 함) uv는 Python을 설치하지 않고, 저장소가 `UV_PYTHON_PREFERENCE=only-system`을 설정하면 mise의 python3 shim을 씁니다(K1048). `pythonBuild`와 `uv`는
   `config/toolchain.json`에서 빠졌습니다.

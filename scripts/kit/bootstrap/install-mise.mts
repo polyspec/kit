@@ -4,10 +4,11 @@
 // then installs the node and the npm of mise.toml with it (installNode), before any package (K171, K938). The archive is mise-v<version>-<os>-<arch>.tar.gz of the GitHub release of mise for
 // this platform (`.tar.gz` on POSIX and `.zip` on Windows); the download is refused unless its sha256 is the digest that the declaration gives for the platform. The
 // wrapper keeps every directory that mise reads or writes under var/tools and records the trust of the config of the checkout
-// (trustConfig); the settings of mise, such as locked, are the repository's own in its mise.toml (K1048).
+// (trustConfig); the settings of mise, such as locked, are the repository's own in its mise.toml (K1048). The environment of the
+// wrapper is the one the caller passes, by default the directories of mise of the checkout (miseEnvironment); install-mise writes
+// nothing else into var/tools and leaves the trusts of other checkouts to mise (K1092).
 import { execFileSync } from 'node:child_process';
-import { existsSync, lstatSync, readdirSync, readlinkSync, realpathSync, rmSync } from 'node:fs';
-import { writeAtomic } from './files.mts';
+import { rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileDigest } from './digest.mts';
 import { installOnce } from './install-tool.mts';
@@ -28,41 +29,15 @@ export const misePlatform = (platform = process.platform, arch = process.arch): 
 
 /**
  * Records the trust of the mise.toml of the checkout `root` with `mise trust` in the state dir of the checkout (MISE_STATE_DIR),
- * run by the mise `binary` with the environment of mise of the checkout. Each shim of the checkout reads that config only once it
+ * run by the mise `binary` with the `environment` of mise that the caller passes, by default that of the checkout (K1092). Each shim of the checkout reads that config only once it
  * is trusted there, so a new worktree is trusted by its own install of mise and no environment variable trusts a path (K208).
- * The trust of the checkout is then the only entry of its trusted-configs: the other entries, of the home directory, of other
- * checkouts and of removed worktrees, are removed.
+ * The other entries of its trusted-configs are mise's own; none is removed (K1092).
  */
-export function trustConfig({ root, binary, print = () => {} }: { root: string; binary: string; print?: (text: string) => void }): void {
-  const environment: NodeJS.ProcessEnv = { ...process.env, ...miseEnvironment(root) };
+export function trustConfig({ root, binary, environment = miseEnvironment(root), print = () => {} }: { root: string; binary: string; environment?: Readonly<Record<string, string>>; print?: (text: string) => void }): void {
+  const env: NodeJS.ProcessEnv = { ...process.env, ...environment };
   // With MISE_GLOBAL_CONFIG_FILE set, `mise trust` trusts the global configuration instead of the file it names, so it is unset here (K208).
-  delete environment.MISE_GLOBAL_CONFIG_FILE;
-  run(binary, ['trust', path.join(root, 'mise.toml')], { cwd: root, env: environment }, print);
-  removeForeignTrusts(root);
-}
-
-/** Removes the entries of trusted-configs of the checkout `root` that trust something other than its own mise.toml. */
-export function removeForeignTrusts(root: string): void {
-  const directory = toolsPath(root, 'mise', 'state', 'trusted-configs');
-  for (const { name } of foreignTrusts(root)) rmSync(path.join(directory, name), { recursive: true, force: true });
-}
-
-/**
- * The entries of trusted-configs of the checkout `root` that trust something other than the mise.toml of the checkout, each with
- * the path it trusts (K397). mise records a trust as a link to the folder of the file, so a link to the home directory trusts every
- * mise.toml under it, and a link to the folder of a removed worktree trusts a folder that no longer holds a config.
- */
-export function foreignTrusts(root: string): { name: string; target: string }[] {
-  const directory = toolsPath(root, 'mise', 'state', 'trusted-configs');
-  if (!existsSync(directory)) return [];
-  const own = new Set([path.resolve(root), realpathSync(root)]);
-  const found: { name: string; target: string }[] = [];
-  for (const name of readdirSync(directory)) {
-    const entry = path.join(directory, name);
-    const target = lstatSync(entry).isSymbolicLink() ? path.resolve(directory, readlinkSync(entry)) : entry;
-    if (!own.has(target)) found.push({ name, target });
-  }
-  return found.sort((left, right) => left.name.localeCompare(right.name));
+  delete env.MISE_GLOBAL_CONFIG_FILE;
+  run(binary, ['trust', path.join(root, 'mise.toml')], { cwd: root, env }, print);
 }
 
 /** The download URL of the mise archive of `version` for the asset `asset`. */
@@ -87,44 +62,18 @@ export function miseEnvironment(root: string): Record<string, string> {
   };
 }
 
-/**
- * The environment of mise itself, which installs and locks the tools: miseEnvironment, and the module and build caches of the
- * Go that builds a tool under var/tools/mise, so nothing outside the checkout changes. Go checks every module that it
- * downloads against its checksum database (GOSUMDB, with no module exempt) and changes no go.mod (-mod=readonly); its module
- * cache stays writable (-modcacherw), so var/tools can be removed.
- */
-export function miseInstallEnvironment(root: string): Record<string, string> {
-  return {
-    ...miseEnvironment(root),
-    GOPATH: toolsPath(root, 'mise', 'go'),
-    GOCACHE: toolsPath(root, 'mise', 'cache', 'go-build'),
-    GOFLAGS: '-mod=readonly -modcacherw',
-    GOSUMDB: 'sum.golang.org',
-    GONOSUMDB: '',
-    GOPRIVATE: '',
-    GOINSECURE: '',
-  };
-}
-
 // The text of the wrapper mise: the environment of mise for the checkout, then the binary. mise links each shim to the mise
 // that PATH names, so the directory of the binary comes first on PATH: a shim that linked this wrapper would run mise itself,
 // since the wrapper drops the name of the shim.
 /**
- * The go.mod of var/tools: mise installs Go there with the test sources of its distribution, and a repository whose root is a Go
- * module walks its whole tree with ./...; a go.mod makes var/tools a module of its own, which the pattern of an enclosing module
- * does not enter (K135). It names no package and requires nothing.
- */
-export const TOOLS_GO_MOD = '// The tools of this checkout, a module of its own so that ./... of the repository does not walk them (kit K135).\nmodule var-tools\n';
-
-/**
  * Installs the declared mise `{ version, sha256 }` (sha256 by platform key) into var/tools/mise-release of `root`, writes the
- * wrapper, and writes the go.mod of var/tools.
+ * wrapper with the `environment` of the caller (by default miseEnvironment of the checkout), and records the trust of mise.toml.
  */
 /** The wrapper of var/tools/bin that runs the installed mise. */
 export const MISE_WRAPPER = 'mise';
 export const miseBinary = (directory: string, platform = process.platform): string => (platform === 'win32' ? path.win32 : path).join(directory, 'mise', 'bin', `mise${platform === 'win32' ? '.exe' : ''}`);
 
-export function installMise({ root, declared, platform = misePlatform(), print = () => {} }: { root: string; declared: { version: string; sha256: Readonly<Record<string, string>> }; platform?: string; print?: (text: string) => void }) {
+export function installMise({ root, declared, platform = misePlatform(), environment = miseEnvironment(root), print = () => {} }: { root: string; declared: { version: string; sha256: Readonly<Record<string, string>> }; platform?: string; environment?: Readonly<Record<string, string>>; print?: (text: string) => void }) {
   const asset = MISE_ASSETS[platform];
   if (!asset) throw new Error(`no mise archive is verified for ${platform}; the verified platforms are ${Object.keys(MISE_ASSETS).join(', ')}`);
   const sha256 = declared.sha256[platform];
@@ -149,20 +98,20 @@ export function installMise({ root, declared, platform = misePlatform(), print =
       rmSync(archive, { force: true });
     },
   });
-  trustConfig({ root, binary: binary(prefix), print });
-  writeNativeWrapper(root, MISE_WRAPPER, { comment: `mise ${declared.version} of this checkout`, executable: binary(prefix), environment: miseInstallEnvironment(root), pathPrefix: [path.dirname(binary(prefix))] }, print);
-  writeAtomic(toolsPath(root, 'go.mod'), TOOLS_GO_MOD);
+  trustConfig({ root, binary: binary(prefix), environment, print });
+  writeNativeWrapper(root, MISE_WRAPPER, { comment: `mise ${declared.version} of this checkout`, executable: binary(prefix), environment, pathPrefix: [path.dirname(binary(prefix))] }, print);
   return result;
 }
 
 /**
  * The directory of the install of the tool `key` of mise.toml of the checkout `root`, which `mise where` prints when the mise of
  * the checkout runs in `root`: mise reads the mise.toml of the checkout, whichever mise.toml governs the directory where the tool
- * later runs, so a tool started by a path under it runs outside the shims (K199).
+ * later runs, so a tool started by a path under it runs outside the shims (K199). mise runs with the `environment` of mise of the
+ * caller, by default that of the checkout.
  */
-export function miseWhere(root: string, key: string): string {
+export function miseWhere(root: string, key: string, environment: Readonly<Record<string, string>> = miseEnvironment(root)): string {
   const command = process.platform === 'win32' ? miseBinary(toolsPath(root, 'mise-release')) : commandPath(root, MISE_WRAPPER);
-  return execFileSync(command, ['where', key], { cwd: root, env: { ...bootstrapEnvironment(root), ...miseEnvironment(root) }, encoding: 'utf8' }).trim();
+  return execFileSync(command, ['where', key], { cwd: root, env: { ...bootstrapEnvironment(root), ...environment }, encoding: 'utf8' }).trim();
 }
 
 /** The wrapper of var/tools/bin that runs the Node.js of mise.toml, which mise installs into var/tools/mise. */
@@ -172,23 +121,24 @@ export const NPM_WRAPPERS = { npm: 'npm-cli.js', npx: 'npx-cli.js' };
 export const nodeBinary = (directory: string, platform = process.platform): string => (platform === 'win32' ? path.win32 : path).join(directory, platform === 'win32' ? 'node.exe' : 'bin/node');
 
 /**
- * Installs the Node.js and the npm of mise.toml at the digests of mise.lock with the mise of the checkout (`mise install --locked
- * node npm:npm`) and writes the wrappers node, npm and npx of var/tools/bin. node starts that node by the absolute path that
+ * Installs the Node.js and the npm of mise.toml with the mise of the checkout (`mise install node npm:npm`; whether mise.lock
+ * must pin them is the locked setting of the repository's mise.toml, K1092) and writes the wrappers node, npm and npx of var/tools/bin. node starts that node by the absolute path that
  * `mise where node` prints; npm and npx run the npm of `mise where npm:npm` with that node. The wrappers run node itself, not the
  * shim of mise: a shim puts the bin directory of the install, with the npm that Node.js bundles, first on the PATH of node.
- * A mise.toml that declares no node or npm, or a mise.lock that does not pin them, fails the install of mise. Returns the path of the node wrapper.
+ * mise runs with the `environment` of mise of the caller, by default that of the checkout, as installMise gives its wrapper (K1092).
+ * A mise.toml that declares no node or npm fails the install of mise. Returns the path of the node wrapper.
  */
-export function installNode({ root, print = () => {} }: { root: string; print?: (text: string) => void }): string {
+export function installNode({ root, environment = miseEnvironment(root), print = () => {} }: { root: string; environment?: Readonly<Record<string, string>>; print?: (text: string) => void }): string {
   const mise = process.platform === 'win32' ? miseBinary(toolsPath(root, 'mise-release')) : commandPath(root, MISE_WRAPPER);
   try {
-    run(mise, ['install', '--locked', 'node', 'npm:npm'], { cwd: root, env: { ...bootstrapEnvironment(root), ...miseEnvironment(root) } }, print);
+    run(mise, ['install', 'node', 'npm:npm'], { cwd: root, env: { ...bootstrapEnvironment(root), ...environment } }, print);
   } catch (error) {
     if (!(error instanceof Error)) throw error;
-    throw new Error(`${error.message}; mise.toml must declare node and npm:npm, the Node.js and npm releases of the checkout, and mise.lock must pin them (make toolchain-lock)`, { cause: error });
+    throw new Error(`${error.message}; mise.toml must declare node and npm:npm, the Node.js and npm releases of the checkout`, { cause: error });
   }
-  const executable = nodeBinary(miseWhere(root, 'node'));
+  const executable = nodeBinary(miseWhere(root, 'node', environment));
   writeNativeWrapper(root, NODE_WRAPPER, { comment: 'the Node.js of mise.toml of this checkout', executable }, print);
-  const npmCli = path.join(miseWhere(root, 'npm:npm'), 'node_modules/npm/bin');
+  const npmCli = path.join(miseWhere(root, 'npm:npm', environment), 'node_modules/npm/bin');
   for (const [name, cli] of Object.entries(NPM_WRAPPERS)) {
     writeNativeWrapper(root, name, { comment: `${name} of mise.toml of this checkout, run with its node`, executable, args: [path.join(npmCli, cli)] }, print);
   }
