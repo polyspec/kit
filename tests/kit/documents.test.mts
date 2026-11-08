@@ -111,7 +111,7 @@ const withChecklist = (t: TestContext, en: string, ko = en) => tree(t, {
   'node_modules/@polyspec/kit/dist/kit-items.json': '[]\n',
 });
 const run2 = (root: string) => {
-  put(root, { 'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], idPattern: ID_PATTERN }) });
+  put(root, { 'config/checklist.json': JSON.stringify({ schema: 1, idPattern: ID_PATTERN }) });
   return run(root);
 };
 
@@ -165,14 +165,14 @@ test('checklist-cross and checklist-place: an ID of two checklists, an orphan su
 
 test('checklist: an invalid config/checklist.json is a finding of the document check', (t) => {
   const root = tree(t, pair('plan.md', 'plan'));
-  put(root, { 'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], idPattern: 5 }) });
+  put(root, { 'config/checklist.json': JSON.stringify({ schema: 1, idPattern: 5 }) });
   hasPart(run(root), 'config/checklist.json: config: ', '/idPattern must be string');
 });
 
 test('a checklist row that names an unregistered kit item is a finding with its file and line (K374)', (t) => {
   // The checklist of kit holds K365 and K369; the consumer names K365 (registered), BK12 (no id) and K99999 and K12345 (unregistered).
   const kit = tree(t, {
-    'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], idPattern: 'K[0-9]+(?:[.-][0-9]+)*' }),
+    'config/checklist.json': JSON.stringify({ schema: 1, idPattern: 'K[0-9]+(?:[.-][0-9]+)*' }),
     'docs/plans/kit/checklist.md': '# Kit\n\n| ID | Task | Deliverables | Verification | State |\n| --- | --- | --- | --- | --- |\n| K365 | a | `a.mts` | `node --test a.test.mts` | [o] |\n| K369 | b | `b.mts` | `node --test b.test.mts` | [o] |\n',
   });
   const rows = [
@@ -186,7 +186,7 @@ test('a checklist row that names an unregistered kit item is a finding with its 
   const consumer = pair(CHECKLIST, 'checklist', `${rows}\n`);
   const en = consumer[CHECKLIST];
   assert.ok(en !== undefined);
-  const root = tree(t, { ...consumer, ...pair(`${PLAN}/plan.md`, 'plan', 'The plan.\n'), ...kitList(kit), 'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], idPattern: ID_PATTERN }) });
+  const root = tree(t, { ...consumer, ...pair(`${PLAN}/plan.md`, 'plan', 'The plan.\n'), ...kitList(kit), 'config/checklist.json': JSON.stringify({ schema: 1, idPattern: ID_PATTERN }) });
   const found = check(root, CONFIG, undefined, RULES).findings;
   const lineOf = (needle: string) => en.split('\n').findIndex(entry => entry.includes(needle)) + 1;
   hasPart(found, `${CHECKLIST}:${lineOf('| T1 |')}:`, 'checklist-kit', 'K99999');
@@ -197,7 +197,7 @@ test('a checklist row that names an unregistered kit item is a finding with its 
 // K374-1: a row names the item of a sibling repository with its name, and a repository whose own ids are K-ids names kit with kit.
 test('a K-id after the name of a sibling repository, or the own K-id of a repository, is no kit item (K374-1)', (t) => {
   const kit = tree(t, {
-    'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], idPattern: 'K[0-9]+(?:[.-][0-9]+)*' }),
+    'config/checklist.json': JSON.stringify({ schema: 1, idPattern: 'K[0-9]+(?:[.-][0-9]+)*' }),
     'docs/plans/kit/checklist.md': '# Kit\n\n| ID | Task | Deliverables | Verification | State |\n| --- | --- | --- | --- | --- |\n| K365 | a | `a.mts` | `node --test a.test.mts` | [o] |\n',
   });
   const header = ['| ID | Task | Deliverables | Verification | State |', '| --- | --- | --- | --- | --- |'];
@@ -205,7 +205,7 @@ test('a K-id after the name of a sibling repository, or the own K-id of a reposi
     const files = pair(CHECKLIST, 'checklist', `${[...header, ...rows].join('\n')}\n${definitions}`);
     const parent = tree(t, siblingPresent ? { 'demo-benchmark/.git/HEAD': 'ref: refs/heads/main\n' } : {});
     const root = path.join(parent, 'repo');
-    put(root, { ...files, ...pair(`${PLAN}/plan.md`, 'plan', 'The plan.\n'), ...kitList(kit), 'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], idPattern }) });
+    put(root, { ...files, ...pair(`${PLAN}/plan.md`, 'plan', 'The plan.\n'), ...kitList(kit), 'config/checklist.json': JSON.stringify({ schema: 1, idPattern }) });
     return check(root, CONFIG, undefined, RULES).findings.filter(line => line.includes('checklist-kit') && line.startsWith(`${CHECKLIST}:`));
   };
   // A repository of T-ids: the item of the sibling demo-benchmark is its own; a bare unregistered K-id is a kit item.
@@ -348,7 +348,7 @@ test('raw-tag: an element without its end tag outside code fails in the document
 // dist/kit-items.json; a missing list is a finding, never a note.
 test('checklist-kit reads the kit item list of the installed kit package, and a missing list is a finding (K957)', (t) => {
   const rows = ['| ID | Task | Deliverables | Verification | State |', '| --- | --- | --- | --- | --- |', '| T1 | waits on K365 | `a.mts` | `node --test a.test.mts` | [ ] |', '| T2 | waits on K99999 | `b.mts` | `node --test b.test.mts` | [ ] |'];
-  const root = tree(t, { ...pair(CHECKLIST, 'checklist', `${rows.join('\n')}\n`), ...pair(`${PLAN}/plan.md`, 'plan', 'The plan.\n'), 'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], idPattern: ID_PATTERN }) });
+  const root = tree(t, { ...pair(CHECKLIST, 'checklist', `${rows.join('\n')}\n`), ...pair(`${PLAN}/plan.md`, 'plan', 'The plan.\n'), 'config/checklist.json': JSON.stringify({ schema: 1, idPattern: ID_PATTERN }) });
   // Without the list the check fails on the list, and no note stands in for the rule.
   const missing = check(root, CONFIG, undefined, RULES);
   hasPart(missing.findings, 'node_modules/@polyspec/kit/dist/kit-items.json: checklist-kit');

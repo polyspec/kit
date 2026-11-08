@@ -11,7 +11,7 @@ import { put, tree } from './tree.mts';
 import { tool } from './kit-tools.mts';
 
 const rules = (message: string) => messageFindings(message).map(found => found.rule);
-const CHECKLIST = { schema: 1, hooks: [], idPattern: '[A-Z][0-9]+(?:[-.][0-9]+)*' };
+const CHECKLIST = { schema: 1, idPattern: '[A-Z][0-9]+(?:[-.][0-9]+)*' };
 // The checklist of the plan p, which kit finds by its folder (K241).
 const PLAN = 'docs/plans/p/checklist.md';
 const plan = (rows: Array<[string, string]>) => `# Plan\n\n| ID | Task | State |\n|---|---|---|\n${rows.map(([id, state]) => `| ${id} | Task ${id} | ${state} |`).join('\n')}\n`;

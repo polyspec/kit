@@ -99,8 +99,8 @@ step runs.
 ## Hooks and checks of a commit (K1053)
 
 kit writes no Git hook and no Claude Code setting, and no utility of kit refuses a commit, a command or the place of a run. A
-repository that wants a check at commit writes its own hook under `.githooks`, lists it in `config/checklist.json` `hooks`, and
-runs `make hooks`; [docs/examples/git-hooks](../examples/git-hooks.md) shows hooks that run the checks of kit. A repository whose
+repository that wants a check at commit writes its own hook, names its folder and the hook to `git-hooks.mts` in its own `hooks`
+recipe (K1099), and runs `make hooks`; [docs/examples/git-hooks](../examples/git-hooks.md) shows hooks that run the checks of kit. A repository whose
 checkout holds the `.githooks/pre-commit` and `.githooks/commit-msg` of an earlier kit removes them or lists them as its own.
 
 ## Never

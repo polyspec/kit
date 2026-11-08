@@ -1,15 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "config/checklist.json",
-  "description": "The Git hooks that a checkout installs, the pattern of the item IDs of the checklists, and the markers of their states and the columns of their tables. The checklists are docs/plans/<plan>/checklist.md, which kit finds itself (K241).",
+  "description": "The pattern of the item IDs of the checklists, and the markers of their states and the columns of their tables. The checklists are docs/plans/<plan>/checklist.md, which kit finds itself (K241); the hooks of a checkout are the arguments of its git-hooks recipe (K1099).",
   "type": "object",
-  "required": ["hooks", "idPattern"],
+  "required": ["idPattern"],
   "properties": {
-    "hooks": {
-      "description": "The tracked hooks of .githooks that every checkout installs beside the hooks of kit.",
-      "type": "array",
-      "items": { "type": "string", "pattern": "^[a-z][a-z-]*$" }
-    },
     "idPattern": {
       "description": "The source of the regular expression that an item ID matches as a whole, such as K[0-9]+(?:[.-][0-9]+)*; an ID that ends in -<number> is a sub-item of the ID without it.",
       "type": "string",

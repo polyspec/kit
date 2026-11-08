@@ -12,7 +12,7 @@ import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
 
 // The checklist declaration of every kit repository, which the commit rules of land read (K892).
-const CHECKLIST = { 'config/checklist.json': JSON.stringify({ schema: 1, hooks: [], idPattern: '[A-Z][0-9]+' }) };
+const CHECKLIST = { 'config/checklist.json': JSON.stringify({ schema: 1, idPattern: '[A-Z][0-9]+' }) };
 
 const git = (cwd: string, ...args: string[]) => {
   const result = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd, encoding: 'utf8' });

@@ -15,7 +15,7 @@ import { put, tree } from './tree.mts';
 import { KIT_MAKEFILE } from './kit-tools.mts';
 import { initRepository } from './sandbox-repository.mts';
 
-const CONFIG = { 'config/checklist.json': '{"schema":1,"hooks":["pre-push"],"idPattern":"T[0-9]+(?:[.-][0-9]+)*"}\n' };
+const CONFIG = { 'config/checklist.json': '{"schema":1,"idPattern":"T[0-9]+(?:[.-][0-9]+)*"}\n' };
 
 test('plan-new writes the four files of a plan with their doc-ids, language links and revision markers (K249)', (t) => {
   const root = tree(t, CONFIG);

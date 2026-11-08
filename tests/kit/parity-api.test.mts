@@ -1968,7 +1968,7 @@ test('parity-declarations-check UNITS runs the rules on the named units while an
 test('R13 reports active gaps separately from a valid held requirement (K656)', TIMEOUT, async (t) => {
   const checklist = (state: string) => `# Held work\n\n| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n| K656 | Held CX-2 behavior | source | \`node test.mts\` | ${state} |\n`;
   const files = {
-    'config/checklist.json': '{"schema":1,"hooks":["pre-push"],"idPattern":"K[0-9]+"}\n',
+    'config/checklist.json': '{"schema":1,"idPattern":"K[0-9]+"}\n',
     'docs/spec/held.md': '# Held behavior\n\n- **CX-2** A requirement remains defined while its checklist item is held.\n- **CX-3** An active requirement remains untraced until a unit tests it.\n',
     'docs/plans/held/checklist.md': checklist('[!] cause: user held it; retry: user reopens the work'),
   };
@@ -1997,7 +1997,7 @@ test('a feature unit whose requirements are all held keeps its bindings but does
   const root = repository(t, {
     files: {
       ...boundFiles,
-      'config/checklist.json': '{"schema":1,"hooks":["pre-push"],"idPattern":"K[0-9]+"}\n',
+      'config/checklist.json': '{"schema":1,"idPattern":"K[0-9]+"}\n',
       'docs/spec/held.md': '# Held behavior\n\n- **CX-2** A held feature remains declared and its native bindings remain owned.\n',
       'docs/plans/held/checklist.md': checklist,
     },
@@ -2029,7 +2029,7 @@ test('a feature unit whose requirements are all held keeps its bindings but does
 
 test('a deferred requirement cannot hide an active or mixed feature unit (K715)', TIMEOUT, async (t) => {
   const files = {
-    'config/checklist.json': '{"schema":1,"hooks":["pre-push"],"idPattern":"K[0-9]+"}\n',
+    'config/checklist.json': '{"schema":1,"idPattern":"K[0-9]+"}\n',
     'docs/spec/held.md': '# Held behavior\n\n- **CX-2** A held feature remains declared.\n',
     'docs/plans/held/checklist.md': '# Held work\n\n| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n| K656 | Held CX-2 behavior | source | `node test.mts` | [!] cause: user held it; retry: user reopens the work |\n',
   };
@@ -2062,7 +2062,7 @@ test('a deferred requirement cannot hide an active or mixed feature unit (K715)'
 
 test('a deferred requirement entry with a key that no tool reads gives no finding (K656, K1069)', TIMEOUT, async (t) => {
   const files = {
-    'config/checklist.json': '{"schema":1,"hooks":["pre-push"],"idPattern":"K[0-9]+"}\n',
+    'config/checklist.json': '{"schema":1,"idPattern":"K[0-9]+"}\n',
     'docs/spec/held.md': '# Held behavior\n\n- **CX-2** A requirement remains defined while its checklist item is held.\n',
     'docs/plans/held/checklist.md': '# Held work\n\n| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n| K656 | Held CX-2 behavior | source | `node test.mts` | [!] cause: user held it; retry: user reopens the work |\n',
   };

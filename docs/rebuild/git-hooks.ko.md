@@ -1,5 +1,5 @@
 <!-- doc-id: rebuild-git-hooks -->
-<!-- source-sha256: ab4a5d8b9a443cddd52a4d9229aeb79494ada6c1326033de5746162d59ac3cdd -->
+<!-- source-sha256: 1b57d8c3c1cc934efa3c1bb9f8ffbfb45a018125598fbf65c5314b5343339c06 -->
 # 재구현 기록: git-hooks
 
 [English](git-hooks.md)
@@ -14,8 +14,8 @@
 
 | 항목 | 요구사항 |
 |---|---|
-| H1 | Git은 config/checklist.json이 나열하는 `.githooks`의 추적되는 hook을 실행합니다(`core.hooksPath`) |
-| H3 | config/checklist.json이 나열하는 hook은 실행할 수 있습니다 |
+| H1 | Git은 호출자가 `--hooks-path`로 넘긴 폴더의 추적되는 hook을 실행합니다(`core.hooksPath`) |
+| H3 | 호출자가 `--hook`으로 넘긴 hook은 실행할 수 있습니다 |
 | H4 | 나열된 hook이 없거나 실행할 수 없을 때, 또는 `core.hooksPath`가 설정되지 않았을 때 `make hooks-check`가 실패합니다 |
 
 ## 평가한 도구

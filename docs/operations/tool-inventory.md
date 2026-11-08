@@ -326,8 +326,8 @@ whose last cell holds the state; the list format of orm is removed. The reposito
 `states` (without it the plan utilities read and write `[ ]`, `[~]`, `[v]`, `[o]`, `[!]` and `[-]`) and the header of its tables in
 `columns`, which the strict reading requires only when it is declared (K1110).
 
-`hooks` lists the tracked hooks of `.githooks` of the repository, its own files; `make hooks` points `core.hooksPath` at
-`.githooks` when the list names one and makes each executable, and kit writes no hook (K1053). `config/generated.json` holds `paths`, the globs of repository paths that are generated on top of the kit segments (a build output
+The hooks of a repository are its own tracked files; its `hooks` recipe names their folder and the hooks to `git-hooks.mts`,
+which points `core.hooksPath` at the folder and makes each executable, and kit writes no hook (K1053) and fixes no folder (K1099). `config/generated.json` holds `paths`, the globs of repository paths that are generated on top of the kit segments (a build output
 folder, for example), and `exceptions`, the globs of paths that stay tracked (test fixtures, for example); its schema is
 `schema/generated.schema.json`. A tracker has `path`, `format` (`table`: a row
 `| ID | ... | state |`; `list`: an item `- [state] ID text`, indented for a sub-item) and `active`; it may have `translation`,
@@ -352,7 +352,7 @@ cell when absent). A state is the leading `[x]` of its cell or item, or the whol
 | Every make invocation sets `core.hooksPath` | template, orm | until K1053 `kit.mk` set it only in a checkout that tracked `.githooks/pre-push`; now only `make hooks` sets it |
 | The content of `pre-push` | all differ in the `cd` to the top level and the comment | until K1053 one content, written by `git-hooks install` and compared by `check`; now the repository's own file |
 | A generated path in a commit (orm `pre-commit` with `make staged-check`, its own exceptions) | orm | until K1053 kit's `pre-commit` ran `make staged-generated-hook`; `generated-files.mts staged` remains a utility (K210) |
-| Hooks other than kit's `pre-commit` and `pre-push` (`pre-commit` of ordered-json, `commit-msg` of orm) | ordered-json, orm | named in `hooks` and checked for existence and mode; their content stays in the repository |
+| Hooks other than kit's `pre-commit` and `pre-push` (`pre-commit` of ordered-json, `commit-msg` of orm) | ordered-json, orm | named with `--hook` in the repository's `hooks` recipe (K1099) and checked for existence and mode; their content stays in the repository |
 | Lock record: checkout, process ID, start time of the process, time taken, command, token; atomic link; start time tells a reused process ID from the holder | crudui | base of `holder-lock.mts`; template and hyper recorded no start time |
 | A lock of an ended holder stays until `clear`; `clear` renames the lock aside and restores it when a new holder took it meanwhile | crudui (`remove-dead`), template and hyper (`clear`) | under the name `clear`, with the claim of flowmark's spec 40 (K28): `clear` links the lock to `<lock>.<first 32 hex digits of the SHA-256 of the record>.clearing` (an existing claim refuses), removes only a lock that still holds the record it checked, and never moves the lock of a running holder; the rename aside left two holders when two clears ran at once |
 | The start time of a process: `/proc/<pid>/stat` field 22 with `btime` on Linux, `ps -o lstart=` elsewhere | crudui | K28: on Linux field 22 with the boot ID of `/proc/sys/kernel/random/boot_id`, because `btime` follows the wall clock; an unreadable `/proc/<pid>/stat` (`hidepid`) asks kill(pid, 0) again and counts as running unless ESRCH. On Windows `powershell.exe -NoProfile -NonInteractive -Command` with `(Get-Process -Id <pid>).StartTime.ToFileTimeUtc()`: Node reads no creation time without a native addon, .NET reads it with `GetProcessTimes`, Windows PowerShell 5.1 ships with every supported Windows, and `wmic` is deprecated. On macOS `ps` stays: sysctl `kern.proc.pid` and `proc_pidinfo` need a native addon, and macOS has no `/proc` |
@@ -384,7 +384,7 @@ cell when absent). A state is the leading `[x]` of its cell or item, or the whol
 | `flock` guard of `full_run.py` | ordered-json | replaced by `holder-lock.mts`; all tools are Node |
 | `user-lock-file` and `checkoutLockFile` | crudui | the path of the lock holds a repository name; the caller passes an absolute path |
 | Progress lines of `test-progress` | crudui | a module of crudui; the gates print one line per step |
-| `scripts/git/check.mjs` (commit subject format, `commit-msg` hook) and the marker and bypass-text rules of `scripts/checklist/check.mjs` | orm | not a gate; the hook is named in `hooks`, the document rules belong to K7 |
+| `scripts/git/check.mjs` (commit subject format, `commit-msg` hook) and the marker and bypass-text rules of `scripts/checklist/check.mjs` | orm | not a gate; the hook is named with `--hook` in the `hooks` recipe (K1099), the document rules belong to K7 |
 ## Document checks (K7.1)
 
 `scripts/kit/check-documents.mts` replaces `check-documents.mts` of template, crudui and hyper and `docs_check.py` of

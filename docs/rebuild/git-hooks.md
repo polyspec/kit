@@ -13,8 +13,8 @@ Verdict: **none fits.** kit keeps `git-hooks.mts`. Measured on 2026-10-13. Since
 
 | Item | Requirement |
 |---|---|
-| H1 | Git runs the tracked hooks of `.githooks` that config/checklist.json lists (`core.hooksPath`) |
-| H3 | the hooks that config/checklist.json lists are executable |
+| H1 | Git runs the tracked hooks of the folder that the caller names with `--hooks-path` (`core.hooksPath`) |
+| H3 | the hooks that the caller names with `--hook` are executable |
 | H4 | `make hooks-check` fails while a listed hook is missing or not executable, or `core.hooksPath` is not set |
 
 ## Tools evaluated

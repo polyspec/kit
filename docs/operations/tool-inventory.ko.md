@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: f3588b1a73fdc2051485c9ba38a15c7d5b14199e0d4415775a826872debcc30c -->
+<!-- source-sha256: d8921a2ccd354217b9fefa856006d3d0ea55144183f74b8d9410221f010cd312 -->
 
 # 도구 목록
 
@@ -294,7 +294,7 @@ K241은 K6.1의 선언된 tracker를 대체했습니다. kit은 checklist를 `do
 `[~]`, `[v]`, `[o]`, `[!]`, `[-]`를 읽고 씁니다), table header를 `columns`에 선언하며, strict reading은 선언된 경우에만 header를
 요구합니다(K1110).
 
-`hooks`는 `.githooks`에서 추적하는 저장소 자신의 hook 목록입니다. 목록이 hook을 지정하면 `make hooks`가 `core.hooksPath`를 `.githooks`로 가리키고 각 hook을 실행 가능하게 하며, kit은 hook을 쓰지 않습니다(K1053). `config/generated.json`의 `paths`는 kit의 segment 밖에서 생성되는 경로(예: build 산출물 폴더)의 glob 목록이고, `exceptions`는 추적된 채 남는 경로(예: test fixture)의 glob 목록입니다. schema는 `schema/generated.schema.json`입니다. tracker는 `path`, `format`(`table`: `| ID | ... | state |`
+저장소의 hook은 추적되는 그 저장소 자신의 파일입니다. 저장소의 `hooks` 레시피가 그 폴더와 hook을 `git-hooks.mts`에 넘기면 `core.hooksPath`가 그 폴더를 가리키고 각 hook이 실행 가능해지며, kit은 hook을 쓰지 않고(K1053) 폴더를 고정하지 않습니다(K1099). `config/generated.json`의 `paths`는 kit의 segment 밖에서 생성되는 경로(예: build 산출물 폴더)의 glob 목록이고, `exceptions`는 추적된 채 남는 경로(예: test fixture)의 glob 목록입니다. schema는 `schema/generated.schema.json`입니다. tracker는 `path`, `format`(`table`: `| ID | ... | state |`
 행, `list`: `- [state] ID text` 항목이며 하위 항목은 들여 씁니다), `active`를 가지고, `translation`, `states`(목록 밖의 state는 오류),
 `column`(state가 있는 table 행의 0부터 센 cell, 없으면 마지막 cell)을 가질 수 있습니다. state는 cell이나 항목 앞의 `[x]`이고,
 cell이 `[`로 시작하지 않으면 cell 전체입니다.
@@ -317,7 +317,7 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 | make를 호출할 때마다 `core.hooksPath`를 설정 | template, orm | K1053 전까지 `kit.mk`는 `.githooks/pre-push`를 추적하는 checkout에서만 설정, 이제는 `make hooks`만 설정 |
 | `pre-commit`과 `pre-push`의 내용 | 전체가 최상위 directory로의 `cd`와 주석에서 다름 | K1053 전까지 내용 하나, `git-hooks install`이 쓰고 `check`가 비교, 이제는 저장소 자신의 파일 |
 | commit에 든 generated 경로(orm의 `pre-commit`과 `make staged-check`, 자체 exceptions) | orm | K1053 전까지 kit의 `pre-commit`이 `make staged-generated-hook`을 실행, `generated-files.mts staged`는 유틸리티로 남음 (K210) |
-| kit의 `pre-commit`, `pre-push`가 아닌 hook(ordered-json의 `pre-commit`, orm의 `commit-msg`) | ordered-json, orm | `hooks`에 적고 존재와 mode를 검사, 내용은 저장소에 둠 |
+| kit의 `pre-commit`, `pre-push`가 아닌 hook(ordered-json의 `pre-commit`, orm의 `commit-msg`) | ordered-json, orm | 저장소의 `hooks` 레시피에 `--hook`으로 적고(K1099) 존재와 mode를 검사, 내용은 저장소에 둠 |
 | lock 기록: checkout, process ID, process 시작 시각, 잡은 시각, command, token, 원자적 link, 시작 시각으로 재사용된 process ID와 holder를 구별 | crudui | `holder-lock.mts`의 기반, template과 hyper는 시작 시각을 기록하지 않았음 |
 | 끝난 holder의 lock은 `clear`까지 남음, `clear`는 lock을 옆으로 rename하고 그 사이 새 holder가 잡았으면 되돌림 | crudui(`remove-dead`), template과 hyper(`clear`) | crudui의 제거 방식을 `clear`라는 이름으로 |
 | process 종료와 SIGINT, SIGTERM, SIGHUP(종료 상태 128 + n)에서 release | template | 유지, process 안의 holder의 기본값, `run`은 신호를 command에 전달 |
@@ -348,7 +348,7 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 | `full_run.py`의 `flock` guard | ordered-json | `holder-lock.mts`로 대체, 모든 도구는 Node |
 | `user-lock-file`과 `checkoutLockFile` | crudui | lock 경로에 저장소 이름이 있음, 호출자가 절대 경로를 넘김 |
 | `test-progress`의 진행 줄 | crudui | crudui의 module, gate는 단계마다 한 줄을 출력 |
-| `scripts/git/check.mjs`(commit subject 형식, `commit-msg` hook)와 `scripts/checklist/check.mjs`의 marker·우회 문구 규칙 | orm | gate가 아님, hook은 `hooks`에 적고 문서 규칙은 K7의 몫 |
+| `scripts/git/check.mjs`(commit subject 형식, `commit-msg` hook)와 `scripts/checklist/check.mjs`의 marker·우회 문구 규칙 | orm | gate가 아님, hook은 `hooks` 레시피에 `--hook`으로 적고(K1099) 문서 규칙은 K7의 몫 |
 ## 문서 검사 (K7.1)
 
 `scripts/kit/check-documents.mts`는 template, crudui, hyper의 `check-documents.mts`와 ordered-json의 `docs_check.py`를 대체합니다.

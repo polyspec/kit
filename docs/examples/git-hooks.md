@@ -3,19 +3,23 @@
 
 [한국어](git-hooks.ko.md)
 
-kit writes no hook. A repository that wants a check at commit keeps its own hooks under `.githooks`, lists them in
-`config/checklist.json`, and runs `make hooks`, which points `core.hooksPath` at `.githooks` and makes each listed hook
-executable. This page shows one working way; copy it, change it, or ignore it.
+kit writes no hook and fixes no hooks folder, merge or driver (K1099). A repository that wants a check at commit keeps its own
+hooks in a folder of its choice, such as `.githooks`, and names the folder and the hooks to `git-hooks.mts` in its own recipe,
+which points `core.hooksPath` at the folder and makes each named hook executable. This page shows one working way; copy it,
+change it, or ignore it.
 
-## `config/checklist.json`
+## The `hooks` recipe of the Makefile
 
-```json
-{
-  "schema": 1,
-  "hooks": ["pre-commit", "commit-msg"],
-  "idPattern": "K[0-9]+(?:[.-][0-9]+)*"
-}
+```make
+HOOK_DECLARATION := --hooks-path .githooks --hook pre-commit --hook commit-msg
+hooks:
+	$(NODE) $(KIT)/git-hooks.$(KIT_EXT) install $(HOOK_DECLARATION)
+hooks-check:
+	$(NODE) $(KIT)/git-hooks.$(KIT_EXT) check $(HOOK_DECLARATION)
 ```
+
+A repository that wants the merge drivers of its changelogs and checklists adds `--merge '<pattern>=<driver>'` and
+`--driver '<name>=<command>'`, as the `HOOK_DECLARATION` of kit's `scripts/kit/kit.mk` does.
 
 ## `.githooks/pre-commit`
 

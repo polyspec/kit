@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The merge driver kit-twin of a Korean twin (K354). `make hooks` declares it in .git/info/attributes for CHANGELOG.ko.md and the
+// The merge driver kit-twin of a Korean twin (K354). kit's `make hooks` declares it in .git/info/attributes for CHANGELOG.ko.md and the
 // Korean checklists, whose English files merge with merge=union, since the lines of a changelog and the rows of a checklist are
 // independent. Git runs it for each such twin of a rebase: the text is the union of both sides without their revision markers, and
 // the marker is the sha256 of the English file as git merges it (the same union of the same three sides), so every commit that the

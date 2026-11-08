@@ -7,19 +7,27 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { hooksIssue, installHooks, installMerges, mergeIssue } from '../../scripts/kit/git-hooks.mts';
+import { declarationOf, hooksIssue, installHooks, installMerges, mergeIssue } from '../../scripts/kit/git-hooks.mts';
 import { checkout, git, run } from './gates-checkout.mts';
 import { KIT_MAKEFILE, tool } from './kit-tools.mts';
 import { korean, put, tree } from './tree.mts';
 
 // The configuration of a repository that declares the pattern of its item IDs (K354-3).
-const CONFIG_JSON = '{ "schema": 1, "hooks": [], "idPattern": "T[0-9]+(?:[.-][0-9]+)*" }\n';
+const CONFIG_JSON = '{ "schema": 1, "idPattern": "T[0-9]+(?:[.-][0-9]+)*" }\n';
 
-const hooks = (work: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), 'install']);
-const check = (work: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), 'check']);
+// The declaration of kit's own recipe (K1099): the merges of the changelogs and checklists and their drivers.
+const DRIVER = 'make --no-print-directory twin-merge MERGE="%O %A %B %P"';
+const KIT_DECLARATION = [
+  '--merge', 'CHANGELOG.md=kit-changelog', '--merge', 'CHANGELOG.ko.md=kit-twin',
+  '--merge', 'docs/plans/*/checklist.md=kit-checklist', '--merge', 'docs/plans/*/checklist.ko.md=kit-twin',
+  ...['kit-twin', 'kit-changelog', 'kit-checklist'].flatMap(name => ['--driver', `${name}=${DRIVER}`]),
+];
+const KIT_MERGES = declarationOf(KIT_DECLARATION);
+const hooks = (work: string, ...args: string[]) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), 'install', ...KIT_DECLARATION, ...args]);
+const check = (work: string, ...args: string[]) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), 'check', ...KIT_DECLARATION, ...args]);
 
-// K1053: kit writes no hook; with no listed hook, make hooks sets no core.hooksPath and declares only the merges.
-test('install writes no hook and sets no core.hooksPath while config/checklist.json lists none; it declares the merges (K1053)', (t) => {
+// K1053: kit writes no hook; with no declared hook, make hooks sets no core.hooksPath and declares only the merges.
+test('install writes no hook and sets no core.hooksPath while the caller declares none; it declares the merges (K1053, K1099)', (t) => {
   const { work } = checkout(t);
   assert.equal(check(work).status, 1, 'the merges are not declared yet');
   const installed = hooks(work);
@@ -31,29 +39,29 @@ test('install writes no hook and sets no core.hooksPath while config/checklist.j
   assert.equal(check(work).status, 0);
   const second = hooks(work);
   assert.match(second.stdout, /^\[git-hooks\] nothing to change\n/);
-  assert.deepEqual(installHooks(work), []);
+  assert.deepEqual(installHooks(work, KIT_MERGES), []);
 });
 
 test('the listed hooks of the repository are checked and made executable, core.hooksPath points at them, and a missing one fails the check', (t) => {
-  const config = { schema: 1, hooks: ['post-merge'], idPattern: 'T[0-9]+(?:[.-][0-9]+)*' };
-  const { work } = checkout(t, { config });
-  const failed = hooks(work);
+  const { work } = checkout(t);
+  const listed = ['--hooks-path', '.githooks', '--hook', 'post-merge'];
+  const failed = hooks(work, ...listed);
   assert.equal(failed.status, 1);
   assert.match(failed.stderr, /\.githooks\/post-merge does not exist; restore it from Git and run make hooks/);
   const hook = path.join(work, '.githooks/post-merge');
   mkdirSync(path.dirname(hook), { recursive: true });
   writeFileSync(hook, '#!/bin/sh\nexit 0\n', { mode: 0o644 });
-  assert.match(check(work).stderr, /\.githooks\/post-merge is not executable/);
-  const installed = hooks(work);
+  assert.match(check(work, ...listed).stderr, /\.githooks\/post-merge is not executable/);
+  const installed = hooks(work, ...listed);
   assert.equal(installed.status, 0, installed.stderr);
   assert.match(installed.stdout, /\.githooks\/post-merge made executable/);
   assert.equal(statSync(hook).mode & 0o100, 0o100);
   assert.equal(readFileSync(hook, 'utf8'), '#!/bin/sh\nexit 0\n', 'install does not rewrite a hook of the repository');
   assert.equal(git(work, 'config', 'core.hooksPath'), '.githooks');
   assert.equal(existsSync(path.join(work, '.githooks/pre-commit')), false, 'kit writes no hook of its own');
-  assert.equal(hooksIssue(work), null);
+  assert.equal(hooksIssue(work, declarationOf([...KIT_DECLARATION, ...listed])), null);
   git(work, 'config', 'core.hooksPath', 'elsewhere');
-  assert.match(check(work).stderr, /core\.hooksPath is "elsewhere", not \.githooks, so Git does not run the hooks; run make hooks/);
+  assert.match(check(work, ...listed).stderr, /core\.hooksPath is "elsewhere", not \.githooks, so Git does not run the hooks; run make hooks/);
 });
 
 test('git-hooks takes only install or check', (t) => {
@@ -61,6 +69,9 @@ test('git-hooks takes only install or check', (t) => {
   const refused = run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), 'remove']);
   assert.equal(refused.status, 2);
   assert.match(refused.stderr, /Usage: node scripts\/kit\/git-hooks\.mts install \| check/);
+  const folderless = run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), 'install', '--hook', 'pre-commit']);
+  assert.equal(folderless.status, 2);
+  assert.match(folderless.stderr, /--hook pre-commit needs --hooks-path/);
 });
 
 // K354-1: the rebase of a branch puts the changelog entry of the branch above the newer entries of main, in the style of the list of
@@ -90,7 +101,7 @@ test('a rebase puts the changelog entry of the branch first, in a tight and in a
     const attributes = path.join(root, '.git/info/attributes');
     mkdirSync(path.dirname(attributes), { recursive: true });
     writeFileSync(attributes, 'CHANGELOG.md merge=union\n');
-    installMerges(root);
+    installMerges(root, KIT_MERGES);
     assert.doesNotMatch(readFileSync(attributes, 'utf8'), /^CHANGELOG\.md merge=union$/m, 'the union of CHANGELOG.md is replaced');
     assert.match(readFileSync(attributes, 'utf8'), /^CHANGELOG\.md merge=kit-changelog$/m);
     const rebase = git('rebase', 'main');
@@ -126,7 +137,7 @@ test('the twin of a changelog that still merges with union holds the marker of t
   assert.ok(git('checkout', '--quiet', 'main').ok);
   write(['- c (T3).', '- a (T1).']);
   assert.ok(git('checkout', '--quiet', 'row').ok);
-  installMerges(root);
+  installMerges(root, KIT_MERGES);
   const attributes = path.join(root, '.git/info/attributes');
   writeFileSync(attributes, readFileSync(attributes, 'utf8').replace('CHANGELOG.md merge=kit-changelog', 'CHANGELOG.md merge=union'));
   const rebase = git('rebase', 'main');
@@ -168,9 +179,9 @@ test('the merges that make hooks declares rebase two branches of changelog lines
   const plain = git('rebase', 'main');
   assert.notEqual(plain.status, 0, 'without the merges of make hooks the rebase conflicts');
   assert.ok(git('rebase', '--abort').ok);
-  assert.notEqual(mergeIssue(root), null);
-  installMerges(root);
-  assert.equal(mergeIssue(root), null);
+  assert.notEqual(mergeIssue(root, KIT_MERGES), null);
+  installMerges(root, KIT_MERGES);
+  assert.equal(mergeIssue(root, KIT_MERGES), null);
   const rebase = git('rebase', 'main');
   assert.equal(rebase.status, 0, `the rebase conflicts: ${rebase.stdout}${rebase.stderr}`);
   for (const key of ['changelog', 'checklist'] as const) {
@@ -206,11 +217,33 @@ test('a rebase merges checklist rows by id, so a row that main closes is kept on
   assert.ok(git('checkout', '--quiet', 'main').ok);
   write([row('T1', '[o]')]);
   assert.ok(git('checkout', '--quiet', 'row').ok);
-  installMerges(root);
+  installMerges(root, KIT_MERGES);
   const rebase = git('rebase', 'main');
   assert.equal(rebase.status, 0, `the rebase conflicts: ${rebase.stdout}${rebase.stderr}`);
   const en = readFileSync(path.join(root, english), 'utf8');
   assert.equal(en, `${head}${row('T1', '[o]')}\n${row('T2', '[ ]')}\n`);
   const ko = readFileSync(path.join(root, english.replace(/\.md$/, '.ko.md')), 'utf8');
   assert.equal(ko, korean(en, en.split('\n').slice(1).join('\n').replace('# P', '# 피')), 'the twin holds the same rows and the marker of the merged English');
+});
+
+// K1099: the tool fixes no folder, attribute or driver: it installs what the caller declares, and a call without a declaration is
+// a usage error that changes nothing.
+test('K1099: git-hooks installs the folder, merges and drivers that the caller declares, and refuses a bare call (exit 2)', (t) => {
+  const { work } = checkout(t);
+  for (const mode of ['install', 'check']) {
+    const bare = run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), mode]);
+    assert.equal(bare.status, 2, `a bare ${mode} is a usage error`);
+  }
+  assert.notEqual(run(work, 'git', ['config', 'merge.kit-twin.driver']).status, 0, 'no driver of kit without a declaration');
+  const attributes = path.join(work, '.git/info/attributes');
+  assert.equal(existsSync(attributes) ? readFileSync(attributes, 'utf8') : '', '', 'no attribute of kit without a declaration');
+  mkdirSync(path.join(work, 'hooks'), { recursive: true });
+  writeFileSync(path.join(work, 'hooks/pre-push'), '#!/bin/sh\nexit 0\n', { mode: 0o644 });
+  const own = ['--hooks-path', 'hooks', '--hook', 'pre-push', '--merge', 'NEWS.md=news', '--driver', 'news=cat %A'];
+  const installed = run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), 'install', ...own]);
+  assert.equal(installed.status, 0, installed.stderr);
+  assert.equal(git(work, 'config', 'core.hooksPath'), 'hooks');
+  assert.equal(git(work, 'config', 'merge.news.driver'), 'cat %A');
+  assert.equal(readFileSync(attributes, 'utf8'), 'NEWS.md merge=news\n');
+  assert.equal(statSync(path.join(work, 'hooks/pre-push')).mode & 0o100, 0o100);
 });

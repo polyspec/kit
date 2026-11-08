@@ -1,5 +1,5 @@
 <!-- doc-id: adoption -->
-<!-- source-sha256: 8198e6200bd68825080bea44d6ef43eccdc5ed3b19de0ff6283f36a919a1d36a -->
+<!-- source-sha256: d20ba7edab9b4f328494322fae35275a2861ca7854c25373e7ab9c2530fc1dc8 -->
 # kit을 채택한 저장소에서 일하기
 
 [English](adoption.md)
@@ -95,7 +95,7 @@ rules-check는 복사한 pipeline을 저장소의 workflow 중 하나로서 step
 ## commit의 hook과 검사 (K1053)
 
 kit은 Git hook도 Claude Code 설정도 쓰지 않으며, kit의 어떤 유틸리티도 commit, 명령, 실행 장소를 거부하지 않는다. commit 때
-검사를 원하는 저장소는 `.githooks` 아래에 자기 hook을 쓰고, `config/checklist.json`의 `hooks`에 나열하고, `make hooks`를
+검사를 원하는 저장소는 자기 hook을 쓰고, 자기 `hooks` 레시피에서 그 폴더와 hook을 `git-hooks.mts`에 넘기고(K1099), `make hooks`를
 실행한다. [docs/examples/git-hooks](../examples/git-hooks.ko.md)가 kit의 검사를 실행하는 hook을 보여 준다. 이전 kit의
 `.githooks/pre-commit`과 `.githooks/commit-msg`가 checkout에 있는 저장소는 그것을 지우거나 자기 hook으로 나열한다.
 

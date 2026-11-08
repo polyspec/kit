@@ -52,7 +52,6 @@ export interface Tracker {
 
 /** config/checklist.json as checklist.schema.json describes it. */
 export interface ChecklistConfig {
-  hooks: string[];
   idPattern: string;
   states?: States;
   columns?: string[];
@@ -82,7 +81,7 @@ export interface ChecklistFinding {
 /** The configuration of the checkout `root`; throws with every finding when it breaks the schema or a rule of the tools. */
 export function loadConfig(root: string): ChecklistConfig {
   const file = path.join(root, CONFIG);
-  if (!existsSync(file)) throw new Error(`${CONFIG} does not exist in ${root}; the repository declares its hooks and the pattern of its item IDs there`);
+  if (!existsSync(file)) throw new Error(`${CONFIG} does not exist in ${root}; the repository declares the pattern of its item IDs there`);
   const { value: config, errors } = readConfigFindings<ChecklistConfig>(root, CONFIG, 'checklist.schema.json');
   if (errors) throw new Error(errors.join('\n'));
   return config;

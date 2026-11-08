@@ -18,9 +18,9 @@ test('a tool validates its configuration when it reads it, and a key that no too
   cpSync(path.join(FIXTURE, 'config/checklist.json'), path.join(root, 'config/checklist.json'));
   const findings = () => readConfigFindings<unknown>(root, 'config/checklist.json', 'checklist.schema.json').errors ?? [];
   assert.deepEqual(findings(), []);
-  writeFileSync(path.join(root, 'config/checklist.json'), JSON.stringify({ schema: 2, hooks: ['pre-push'], idPattern: 'K[0-9]+', extra: true }));
+  writeFileSync(path.join(root, 'config/checklist.json'), JSON.stringify({ schema: 2, idPattern: 'K[0-9]+', extra: true }));
   assert.deepEqual(findings(), [], 'a key that no tool reads and the version key are no finding (K1069)');
-  writeFileSync(path.join(root, 'config/checklist.json'), JSON.stringify({ hooks: ['pre-push'] }));
+  writeFileSync(path.join(root, 'config/checklist.json'), JSON.stringify({ schema: 1 }));
   assert.ok(findings().some(line => line.includes("must have required property 'idPattern'")), findings().join('\n'));
 });
 

@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 9aad5fdeed4a60c86157cee0b19fc10763e9dcf7e06f5b9eb45286d3b7f53bb5 -->
+<!-- source-sha256: d09b79e54f8959f71fb68c1ecc5914af2fc1d3e4ffc32dd079e79ecb0a377100 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -226,7 +226,7 @@
 | K1096 | install-tools는 호출자가 주지 않은 고정 설치 플래그를 넘기지 않는다 | scripts/kit/install-tools.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1096 tests/kit/install-tools.test.mts` | [o] |
 | K1097 | uv-install, lint-rust, lint-php, install-rust는 호출자가 주지 않은 --locked, --profile minimal, --memory-limit=-1 같은 고정 플래그를 넘기지 않는다 | scripts/kit/uv-install.mts, scripts/kit/lint-rust.mts, scripts/kit/lint-php.mts, scripts/kit/install-rust.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1097 tests/kit/lint-steps.test.mts` | [o] |
 | K1098 | ci-targets는 호출자가 요청할 때만 make를 -k로 실행한다 | scripts/kit/ci-targets.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1098 tests/kit/ci-targets.test.mts` | [o] |
-| K1099 | git-hooks는 저장소가 선언한 hooks 폴더, merge attribute, merge driver를 설치하며 kit에 고정된 것은 없다 | scripts/kit/git-hooks.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1099 tests/kit/git-hooks.test.mts` | [ ] |
+| K1099 | git-hooks는 저장소가 선언한 hooks 폴더, merge attribute, merge driver를 설치하며 kit에 고정된 것은 없다 | scripts/kit/git-hooks.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1099 tests/kit/git-hooks.test.mts` | [o] |
 | K1100 | land는 호출자가 이름 붙인 대상 브랜치에 브랜치를 병합하며, 충돌을 고쳐 쓰지 않고 git add -u로 파일을 stage하지 않으며 documents-stamp를 요구하지 않는다 | scripts/kit/land.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1100 tests/kit/land.test.mts` | [ ] |
 | K1101 | parity-runners는 vitest report를 시스템 임시 폴더 아래 새 폴더에 쓰고 매 실행 뒤 지우며, checkout에는 아무것도 쓰지 않는다 | scripts/kit/parity-runners.mts, scripts/kit/parity-ledger.mts, tests/kit/parity-api.test.mts, docs/operations/tool-inventory(.ko).md, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1101 tests/kit/parity-api.test.mts` | [o] |
 | K1102 | release와 release-run은 main ref와 asset 폴더를 호출자에게서 받으며, GITHUB_REPOSITORY가 config/release.json과 달라도 실행을 거부하지 않는다 | scripts/kit/release.mts, scripts/kit/release-run.mts, scripts/kit/kit.mk, .github/workflows/release.yml, workflows/release.yml, tests/kit/release(-run,-wheel).test.mts, tests/kit/release-sandbox.mts, docs/operations/release(.ko).md, docs/operations/tool-inventory(.ko).md, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1102 tests/kit/release.test.mts tests/kit/release-run.test.mts` | [o] |

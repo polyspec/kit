@@ -108,18 +108,22 @@ layout-check: ## Check the folder layout of the checkout (S5) against config/lay
 	$(NODE) $(KIT)/generated-files.$(KIT_EXT) installs var package.json=node_modules pyproject.toml=.venv composer.json=vendor
 	$(NODE) $(KIT)/generated-files.$(KIT_EXT) tracked --binary ELF --binary Mach-O --binary PE
 # ---- Git hooks and merge drivers ---------------------------------------------------------------------------------------
-# scripts/kit/git-hooks.mts reads config/checklist.json, whose hooks are the repository's own files under .githooks; kit writes none
-# (K1053).
+# kit declares its hooks and merges here (K1099): no hook of its own, the merges of its changelogs and checklists (K354), and the
+# drivers, which run twin-merge of this checkout. scripts/kit/git-hooks.mts installs or checks exactly what HOOK_DECLARATION names.
+TWIN_MERGE_DRIVER := make --no-print-directory twin-merge MERGE="%O %A %B %P"
+HOOK_DECLARATION := --merge 'CHANGELOG.md=kit-changelog' --merge 'CHANGELOG.ko.md=kit-twin' \
+	--merge 'docs/plans/*/checklist.md=kit-checklist' --merge 'docs/plans/*/checklist.ko.md=kit-twin' \
+	--driver 'kit-twin=$(TWIN_MERGE_DRIVER)' --driver 'kit-changelog=$(TWIN_MERGE_DRIVER)' --driver 'kit-checklist=$(TWIN_MERGE_DRIVER)'
 .PHONY: hooks hooks-check
 
 twin-merge: ## The merge drivers that make hooks declares: kit-twin of a Korean changelog or checklist (K354), kit-changelog of CHANGELOG.md, whose Unreleased entries it puts newest first (K354-1), and kit-checklist of a checklist, which merges its task rows by ID (K354-3); git runs it with MERGE="<base> <ours> <theirs> <path>"; offline
 	@$(NODE) $(KIT)/twin-merge.$(KIT_EXT) $(MERGE)
 
-hooks: ## Point core.hooksPath at .githooks when config/checklist.json lists a hook, make each listed hook executable, declare the merge drivers and check them
-	$(NODE) $(KIT)/git-hooks.$(KIT_EXT) install
+hooks: ## Install the hooks folder, hooks, merges and merge drivers that HOOK_DECLARATION names, and check them (K1099)
+	$(NODE) $(KIT)/git-hooks.$(KIT_EXT) install $(HOOK_DECLARATION)
 
-hooks-check: ## Fail while a hook that config/checklist.json lists is not installed or a merge driver of make hooks is not declared
-	$(NODE) $(KIT)/git-hooks.$(KIT_EXT) check
+hooks-check: ## Fail while a hook, merge or merge driver that HOOK_DECLARATION names is not installed (K1099)
+	$(NODE) $(KIT)/git-hooks.$(KIT_EXT) check $(HOOK_DECLARATION)
 
 # --- Rules: every tool has its class (S1) and every rule names the check that enforces it (K248) --------------------------
 .PHONY: lint-js build-php-ext lint-php-ext test-php-ext

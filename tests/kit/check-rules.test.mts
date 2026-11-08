@@ -127,7 +127,7 @@ test('a rule that a planned item will enforce names its open item; a closed or u
   const root = tree(t, {
     Makefile: MAKEFILE,
     '.github/workflows/ci.yml': CI,
-    'config/checklist.json': JSON.stringify({ schema: 1, hooks: [], idPattern: 'K[0-9]+' }),
+    'config/checklist.json': JSON.stringify({ schema: 1, idPattern: 'K[0-9]+' }),
     'docs/plans/x/checklist.md': checklist,
     'AGENTS.md': rules('- Open.\n  Enforced by: planned K1', '- Closed.\n  Enforced by: planned K2', '- Unknown.\n  Enforced by: planned K9', '- Both.\n  Enforced by: `make lint`, planned K1'),
   });

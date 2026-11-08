@@ -34,8 +34,10 @@ const commands = (directory: string, ...args: string[]) => {
 
 test('each target runs the tool of its gate with the commit and the keys that the variables name', (t) => {
   const directory = repository(t);
-  assert.deepEqual(commands(directory, 'hooks'), ['$(NODE) scripts/kit/git-hooks.mts install']);
-  assert.deepEqual(commands(directory, 'hooks-check'), ['$(NODE) scripts/kit/git-hooks.mts check']);
+  // K1099: the recipe passes kit's own declaration of its merges and drivers; the tool fixes none.
+  const declaration = "--merge 'CHANGELOG.md=kit-changelog' --merge 'CHANGELOG.ko.md=kit-twin' --merge 'docs/plans/*/checklist.md=kit-checklist' --merge 'docs/plans/*/checklist.ko.md=kit-twin' --driver 'kit-twin=make --no-print-directory twin-merge MERGE=\"%O %A %B %P\"' --driver 'kit-changelog=make --no-print-directory twin-merge MERGE=\"%O %A %B %P\"' --driver 'kit-checklist=make --no-print-directory twin-merge MERGE=\"%O %A %B %P\"'";
+  assert.deepEqual(commands(directory, 'hooks'), [`$(NODE) scripts/kit/git-hooks.mts install ${declaration}`]);
+  assert.deepEqual(commands(directory, 'hooks-check'), [`$(NODE) scripts/kit/git-hooks.mts check ${declaration}`]);
 });
 
 test('the provider parity phase targets fix their selectors and accept a concrete implementation name', (t) => {
@@ -62,7 +64,7 @@ test('the source checkout can dry-run the first npm tool install without a parit
   assert.deepEqual(commands(directory, 'install-tools', 'TOOLS=npm'), ['node scripts/kit/bootstrap/bootstrap.mts']);
 });
 
-// K1053: kit sets core.hooksPath only in make hooks, for the hooks that config/checklist.json lists; a make invocation sets none.
+// K1053: kit sets core.hooksPath only in make hooks, for the hooks that its declaration names (K1099); a make invocation sets none.
 test('a make invocation sets no core.hooksPath, even in a checkout that tracks a pre-commit hook (K1053)', (t) => {
   const directory = repository(t);
   mkdirSync(path.join(directory, '.githooks'));
