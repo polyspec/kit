@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Installs the tools of the checkout into var/tools (`make install-tools`, ONLINE), after the bootstrap installed mise, node and npm of mise.toml:
 //
-//   node scripts/kit/install-tools.mts
+//   node scripts/kit/install-tools.mts [<rustup install flag>...] [<tool>...]
+//
+// An argument that starts with - is a flag of `rustup toolchain install`, such as --no-self-update, which the caller chooses (K1097).
 //
 // mise installs every tool of mise.toml with `mise install` and no flag of kit, by the wrapper var/tools/bin/mise, which keeps
 // mise and the builds of its tools under var/tools/mise; whether a tool that mise.lock does not pin fails the install is the
@@ -84,7 +86,7 @@ function installSelection(root: string, selected: readonly string[] | undefined)
 }
 
 /** Installs the tools of mise.lock and the declared tools that mise does not install into var/tools of `root`. */
-export function installTools({ root = repositoryRoot(), tools, print = () => {} }: { root?: string; tools?: readonly string[]; print?: (text: string) => void } = {}): void {
+export function installTools({ root = repositoryRoot(), tools, rustupFlags = [], print = () => {} }: { root?: string; tools?: readonly string[]; rustupFlags?: readonly string[]; print?: (text: string) => void } = {}): void {
   const selection = installSelection(root, tools);
   const mise = process.platform === 'win32' ? miseBinary(toolsPath(root, 'mise-release')) : toolsPath(root, 'bin', 'mise');
   if (!existsSync(mise)) throw new Error(`${path.relative(root, mise)} is missing; run make install-tools TOOLS=npm, the bootstrap that installs mise`);
@@ -103,8 +105,8 @@ export function installTools({ root = repositoryRoot(), tools, print = () => {} 
   if (selection.php && php) installPhp({ root, print });
   if (selection.phpunit && phpunit) installPhpunit({ root, declared: phpunit, print });
   if (selection.phpLint && phpLint) installPhpLint({ root, declared: phpLint, print });
-  if (selection.rust && existsSync(path.join(root, 'rust-toolchain.toml'))) installRustToolchain({ root, print });
-  if (rustChannels.length > 0) installRustChannels({ root, channels: rustChannels, print });
+  if (selection.rust && existsSync(path.join(root, 'rust-toolchain.toml'))) installRustToolchain({ root, flags: rustupFlags, print });
+  if (rustChannels.length > 0) installRustChannels({ root, channels: rustChannels, flags: rustupFlags, print });
 }
 
 /**
@@ -134,8 +136,10 @@ function selectedStaleWrappers(mise: readonly string[]): string[] {
 
 if (isMain(import.meta.url)) {
   try {
-    const tools = process.argv.length > 2 ? process.argv.slice(2) : undefined;
-    installTools({ ...(tools === undefined ? {} : { tools }), print: text => console.log(`[install-tools] ${text}`) });
+    const args = process.argv.slice(2);
+    const rustupFlags = args.filter(arg => arg.startsWith('-'));
+    const names = args.filter(arg => !arg.startsWith('-'));
+    installTools({ ...(names.length > 0 ? { tools: names } : {}), rustupFlags, print: text => console.log(`[install-tools] ${text}`) });
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     console.error(`[install-tools] ${error.message}`);

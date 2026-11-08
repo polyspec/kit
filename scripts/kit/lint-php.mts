@@ -12,9 +12,10 @@
 //   - the autoload files of each Composer package (`autoload.files` of its composer.json) hold only declarations of namespaced
 //     functions and constants (S2), read with nikic/php-parser by autoload-files.php beside the symbol extractor (K377).
 // The stubs of a PHP extension (*.stub.php) are the input of php-src's gen_stub.php and are left out. A missing tool or
-// configuration is a failure with its fix, never a skip; lint-steps.mts runs the steps.
+// configuration is a failure with its fix, never a skip; lint-steps.mts runs the steps. The arguments of the command line go
+// to PHPStan as the caller writes them, such as --memory-limit=-1; kit passes none of its own (K1097).
 //
-//   node scripts/kit/lint-php.mts
+//   node scripts/kit/lint-php.mts [<PHPStan arguments>]
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { composerVendor, packageAutoloader } from './composer-vendor.mts';
@@ -25,9 +26,6 @@ import type { LintStep } from './lint-steps.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { present } from './present.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
-
-// PHPStan needs more memory as a package grows, and php.ini stops it at 128M; a limit only stops the analysis (K346).
-const PHPSTAN_MEMORY_LIMIT = '--memory-limit=-1';
 
 /** The autoload files of the Composer package `folder` (relative to `root`), as the paths of `root`: `autoload.files` (K377). */
 function autoloadFilesOf(root: string, folder: string): string[] {
@@ -61,8 +59,8 @@ function rootNeon(root: string, folder: string): string[] {
   return own === undefined || folder === '.' ? [] : [`--configuration=${path.relative(path.join(root, folder), path.join(root, own))}`];
 }
 
-/** The steps of the lint of `root`; throws when a tool, a configuration or the autoloader of a package is missing. */
-export function lintSteps(root: string): LintStep[] {
+/** The steps of the lint of `root`, PHPStan with the arguments `args` of the caller; throws when a tool, a configuration or the autoloader of a package is missing. */
+export function lintSteps(root: string, args: readonly string[] = []): LintStep[] {
   // A repository without PHP sources has nothing to lint: no tool and no configuration is needed (K319).
   const files = checkedFiles(root);
   const sources = files.filter(file => file.endsWith('.php') && !file.endsWith('.stub.php'));
@@ -78,7 +76,7 @@ export function lintSteps(root: string): LintStep[] {
     if (own.length === 0) continue;
     const autoloader = packageAutoloader(root, folder, packages);
     if (!autoloader) throw new Error(`${path.relative(root, path.join(composerVendor(path.join(root, folder)), 'autoload.php'))} is missing, and no Composer project above ${folder} has one; PHPStan resolves the calls of the package with its autoloader: run composer install in ${folder}, or in the project that requires it`);
-    steps.push({ label: `phpstan ${folder}`, command: present(tools.phpstan, 'tools.phpstan'), args: ['analyse', '--no-progress', '--error-format=raw', PHPSTAN_MEMORY_LIMIT, ...rootNeon(root, folder), `--autoload-file=${path.relative(path.join(root, folder), path.join(root, autoloader))}`, ...own], cwd: folder, isolatedTemporaryDirectory: true });
+    steps.push({ label: `phpstan ${folder}`, command: present(tools.phpstan, 'tools.phpstan'), args: ['analyse', '--no-progress', '--error-format=raw', ...args, ...rootNeon(root, folder), `--autoload-file=${path.relative(path.join(root, folder), path.join(root, autoloader))}`, ...own], cwd: folder, isolatedTemporaryDirectory: true });
   }
   return steps;
 }

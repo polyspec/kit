@@ -23,7 +23,7 @@ The user's rule (2026-10-29): during development the official install folder of 
 |---|---|
 | Release installation | The installed-package bootstrap uses native locked installation such as npm ci; no sibling checkout is a prerequisite. Composer installs the selected release manifest and lock. |
 | npm, Composer and Cargo | kit wraps no install (K859): each repository installs with the locked command of its package manager (`npm ci`, `composer install`, `cargo fetch --locked`) in its own `deps-<runtime>` target, and `make link` then links each installed provider folder. |
-| Python source helper | uv-install runs `uv sync --locked` of the tracked lock, then links each installed provider package folder in site-packages to the same package of its checkout. The release's dist-info stays the installed record; no editable build and no build backend run (K765). `uv pip check` validates the installed distributions. |
+| Python source helper | uv-install runs `uv sync` of the tracked lock with the flags of its caller, `--locked` from the `uv-install` recipe (K1097), then links each installed provider package folder in site-packages to the same package of its checkout. The release's dist-info stays the installed record; no editable build and no build backend run (K765). `uv pip check` validates the installed distributions. |
 
 link-check describes source connections; they are not a universal version or peer-dependency solver. npm ls --all is the native diagnostic when peer validation is required. No kit-written resolver or substituted installed version repairs such a mismatch. Composer and uv failures are preserved rather than hidden.
 

@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4b4e1585133ea6e80f6df56722ada54c45b06002ac3120bc436c3d4d8b936707 -->
+<!-- source-sha256: 3fe1f5b8c88ec4a34ccac527ff44498fb1f0d94fa762410f989fbac3a94d88e0 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -9,6 +9,7 @@
 - K1068: ci-setup은 config/ci.json이 선언한 것을 계획하고 준비하며 다른 파일과 대조하지 않습니다. parityBindings가 config/parity.json의 implementation을 모두 이름할 필요가 없고, binding이 없는 implementation은 binding job을 받지 않으며 선언된 binding은 job 하나를 받습니다. parityMode는 선택 항목이며(없으면 config/parity.json이 있을 때 full, 없을 때 none), binding의 setup은 parityMode phases를 요구하지 않습니다. implementation에 binding이 없어도 되는지는 저장소 자신의 규칙입니다. 선언된 setup·binding·context target과 기본 deps-<runtime> target은 Makefile과 먼저 대조하지 않고 선언대로 실행하며, 없는 target은 실행될 때 make가 알립니다(K1068).
 - kit-check는 저장소의 config/<name>.json을 그 이름의 kit schema로 검증하지 않습니다. scripts/kit/kit-check.mts, make target `kit-check`, `kit-gates`와 `kit-gates-static`의 자리, CI step이 사라졌고, `PACKAGE`와 `isSource`는 manifests.mts로, `writtenByKit`는 release.mts로 옮겼습니다. 각 도구가 자기가 읽는 설정을 검증합니다. 레시피가 아직 kit-check를 실행하는 저장소는 도구가 없으므로 그 호출을 지울 때까지 실패합니다(K1070).
 - kit의 각 schema는 그 도구가 읽는 key만 검사합니다. 어떤 schema도 기술하지 않은 key를 거부하지 않고(additionalProperties false 삭제), version key schema, 그 도구가 읽지 않는 reason(duplication exclude, generated exceptions와 tracked, parity internal), config/ci.json의 모든 runtime의 setup을 요구하지 않으며, kit의 어떤 도구도 읽지 않는 ciExempt를 기술하지 않습니다(K1069).
+- K1097: uv-install, lint-rust, lint-php, install-rust는 자기 고정 flag를 넘기지 않습니다. uv sync는 SYNC flag를 쓰인 그대로 받고, lint-rust는 명령줄 인자를 cargo clippy에, lint-php는 PHPStan에 넘기며, exceptions의 Rust channel은 rustup 설정의 profile로 설치됩니다. kit 자신의 recipe는 uv sync와 clippy에 --locked를, PHPStan에 --memory-limit=-1을 넘깁니다(K1097).
 - K1096: install-tools는 kit의 flag 없이 `mise install`을 실행합니다. mise.lock이 각 도구를 pin해야 하는지는 저장소 mise.toml의 locked 설정이 정하므로, kit의 --locked에 기댄 저장소는 mise.toml의 [settings]에 `locked = true`를 둡니다(K1096).
 - K1095: install-composer-project와 PHP symbol extractor는 호출자의 환경으로, --working-dir 외에는 kit의 flag 없이 `composer install`을 실행합니다. kit은 COMPOSER_HOME이나 COMPOSER_CACHE_DIR를 정하지 않고 --no-interaction, --no-progress, --no-scripts, --no-plugins, --prefer-dist를 넘기지 않으며, installComposerProject는 plugins 인자를 받지 않습니다. project의 composer.json이 plugin을 허용합니다(K1095).
 - K1093: kit의 유틸리티는 호출자의 환경으로 도구를 시작하며 MISE_*나 PATH를 스스로 정하지 않습니다. mise-tools는 더 이상 toolsEnvironment를 export하지 않으므로, kit.mk의 recipe 밖에서 유틸리티를 실행하는 호출자는 checkout의 mise 환경을 export하고 var/tools/bin과 shim을 PATH 맨 앞에 직접 둡니다(K1093).
@@ -18,6 +19,7 @@
 - K1076: config/toolchain.json은 mise, PHPUnit, PHP의 버전을 어떤 형식의 텍스트로든 선언하며, 설치는 그것을 그대로 넘깁니다. kit은 <major>.<minor>.<patch>나 <major>.<minor> 형태를 정하지 않습니다(K1076).
 - K1072: install-tools는 rust를 설치할 때만 rust의 toolchain 예외를 읽고, kit은 항목의 channel과 scope만 읽습니다. 다른 도구의 항목, kit이 읽지 않는 필드, channel의 형식은 어떤 설치도 거부하지 않습니다(K1072).
 - K1097: uv-install, lint-rust, lint-php, install-rust는 자기 고정 flag를 넘기지 않습니다. uv sync는 SYNC flag를 쓰인 그대로 받고, lint-rust는 명령줄 인자를 cargo clippy에, lint-php는 PHPStan에 넘기며, exceptions의 Rust channel은 rustup 설정의 profile로 설치됩니다. kit 자신의 recipe는 uv sync와 clippy에 --locked를, PHPStan에 --memory-limit=-1을 넘깁니다(K1097).
+- K1097: uv-install, lint-rust, lint-php, install-rust는 자기 고정 flag를 넘기지 않습니다. uv sync는 SYNC flag를 쓰인 그대로 받고, lint-rust는 명령줄 인자를 cargo clippy에, lint-php는 PHPStan에 넘기며, exceptions의 Rust channel은 rustup 설정의 profile로 설치되므로 nightly는 이제 minimal이 아닌 rustup의 기본 profile로 설치됩니다. install-tools는 -로 시작하는 인자를 `rustup toolchain install`에 넘기므로 --no-self-update는 호출자의 flag입니다. kit 자신의 recipe는 uv sync와 clippy에 --locked를, PHPStan에 --memory-limit=-1을, rustup에 --no-self-update를 넘깁니다(K1097).
 - K1096: install-tools는 kit의 flag 없이 `mise install`을 실행합니다. mise.lock이 각 도구를 pin해야 하는지는 저장소 mise.toml의 locked 설정이 정하므로, kit의 --locked에 기댄 저장소는 mise.toml의 [settings]에 `locked = true`를 둡니다(K1096).
 - K1095: install-composer-project와 PHP symbol extractor는 호출자의 환경으로, --working-dir 외에는 kit의 flag 없이 `composer install`을 실행합니다. kit은 COMPOSER_HOME이나 COMPOSER_CACHE_DIR를 정하지 않고 --no-interaction, --no-progress, --no-scripts, --no-plugins, --prefer-dist를 넘기지 않으며, installComposerProject는 plugins 인자를 받지 않습니다. project의 composer.json이 plugin을 허용합니다(K1095).
 - K1093: kit의 유틸리티는 호출자의 환경으로 도구를 시작하며 MISE_*나 PATH를 스스로 정하지 않습니다. mise-tools는 더 이상 toolsEnvironment를 export하지 않으므로, kit.mk의 recipe 밖에서 유틸리티를 실행하는 호출자는 checkout의 mise 환경을 export하고 var/tools/bin과 shim을 PATH 맨 앞에 직접 둡니다(K1093).

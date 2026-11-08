@@ -37,8 +37,8 @@ mise with `mise.lock` installs the tools of a checkout (K127). `mise.toml` decla
 its sha256 for each platform of linux, macOS and Windows on x64 and arm64 that has its archive, as mise records them; `make toolchain-lock` writes the lock with `mise lock` (K836): it first locks and installs the uv and the python that `mise.toml` declares and names that Python as `UV_PYTHON`, since a `pypi:` tool locks with uv, which takes the first uv on PATH and a managed Python of the home before PATH,
 and `make install-tools` installs it (`scripts/kit/install-tools.mts`, `mise install`, locked as the `locked` setting of `mise.toml` says, K1096), then installs what mise does
 not: PHP, which the machine provides and `install-php.mts` wraps as it is (K283, K862, below), the Composer projects of `config/phpunit` and `config/php-lint`, with rustup
-(`install-rust.mts`) the toolchain of `rust-toolchain.toml` with its components (`rustup toolchain install --no-self-update`
-in the checkout, which reads the file; rustup 1.28 no longer installs it as cargo first runs) and the Rust channels of
+(`install-rust.mts`) the toolchain of `rust-toolchain.toml` with its components (`rustup toolchain install` with the flags
+that the caller gives, `--no-self-update` from kit's recipe (K1097), in the checkout, which reads the file; rustup 1.28 no longer installs it as cargo first runs) and the Rust channels of
 `exceptions`; rustup judges what is installed (K861). With no `TOOLS` selectors this remains the full install. `make install-tools TOOLS="go python"`
 installs only those mise tools and their declared prerequisites; selectors are the exact names of `TOOLS` in `scripts/kit/toolchain-mise.mts`.
 `deadcode`, `govulncheck` and `golangciLint` also install Go, `vulture` installs Python and uv, Python installs the declared wheel
@@ -1381,7 +1381,7 @@ snapshot, and `parity-declarations-check` runs no extractor.
 - rustdoc JSON is unstable (rust-lang/rust#76578), so the rust extractor runs the Rust nightly of the `config/toolchain.json`
   `exceptions` entry with tool `rust` whose scope holds the crate, with `RUSTUP_AUTO_INSTALL=0`; its retry condition is
   "rustdoc JSON is stable". This is the only use of a nightly. `make install-tools` installs each Rust channel of the exceptions with
-  `rustup toolchain install <channel> --profile minimal` (`install-rust.mts`), and a missing rustup fails with its install.
+  `rustup toolchain install <channel>` and the profile of rustup's own settings (`install-rust.mts`, K1097), and a missing rustup fails with its install.
 - An extractor that is not installed, a missing or doubled nightly, a failing tool and an output that is no list of ids are R1
   findings that name the extractor and the entry.
 

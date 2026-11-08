@@ -51,7 +51,7 @@ ${failing ? `case "${tool}" in "${failing}") echo "found a problem" >&2; exit 1;
 
 const ALL = [
   `phpcs -q -s --report=emacs packages/php/src/Demo.php packages/php/tests/DemoTest.php [root]`,
-  `phpstan analyse --no-progress --error-format=raw --memory-limit=-1 --autoload-file=vendor/autoload.php src/Demo.php tests/DemoTest.php [php]`,
+  `phpstan analyse --no-progress --error-format=raw --autoload-file=vendor/autoload.php src/Demo.php tests/DemoTest.php [php]`,
 ];
 
 test('the PHP extractor used for autoload-file lint is declared for install-tools', () => {
@@ -131,12 +131,13 @@ test('a repository without PHP sources lints nothing, with no tool and no config
   assert.deepEqual(lintSteps(tree(t, { 'docs/a.md': '# a\n' })), []);
 });
 
-// K346: the memory that PHPStan needs grows with the package, and php.ini stops it at 128M; a limit only stops the analysis.
-test('phpstan runs with no memory limit, so a large package is analysed (K346)', (t) => {
-  const steps = lintSteps(checkout(t).root).filter(step => step.label.startsWith('phpstan'));
-  assert.equal(steps.length, 1);
-  const step = present(steps[0], 'the phpstan step');
-  assert.ok(step.args.includes('--memory-limit=-1'), step.args.join(' '));
+// K1097: the memory limit of PHPStan is the caller's argument, as kit's own recipe passes --memory-limit=-1 (K346).
+test('phpstan takes the arguments of the caller and passes no memory limit of its own (K1097)', (t) => {
+  const { root } = checkout(t);
+  const step = present(lintSteps(root).find(candidate => candidate.label.startsWith('phpstan')), 'the phpstan step');
+  assert.equal(step.args.some(arg => arg.startsWith('--memory-limit')), false, step.args.join(' '));
+  const given = present(lintSteps(root, ['--memory-limit=-1']).find(candidate => candidate.label.startsWith('phpstan')), 'the phpstan step');
+  assert.ok(given.args.includes('--memory-limit=-1'), given.args.join(' '));
 });
 
 // K377: an autoload file of a Composer package holds only declarations of namespaced functions and constants (S2), and the

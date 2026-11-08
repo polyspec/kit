@@ -1,5 +1,5 @@
 <!-- doc-id: spec-utilities-and-recipes -->
-<!-- source-sha256: 6d2b4099caf1404543cb387de25e7d982a3f2ee849150fa10a3b9a7765449300 -->
+<!-- source-sha256: bed94729d3727dbcd7735960fb5730054d68c9fa29aa11f3c1a332dceac2186b -->
 # 유틸리티와 예제
 
 [English](utilities-and-recipes.md)
@@ -41,7 +41,7 @@ Qualified parity binding은 qualified identity와 비교하며 다른 namespace�
 kit은 어떤 것도 강제하지 않는다. 특히 다음과 같다.
 
 - kit은 저장소에 레시피를 include시키지 않는다.
-- kit은 다른 도구의 설정을 정하지 않는다. 명령줄에서도, 환경변수에서도, 유틸리티가 실행하는 도구의 환경에서도 그렇다. 도구 설치기는 자기가 설치하는 것을 어디에 두는지 정하며, 그것은 설치기 자신의 일이다. mise 설치기는 호출자가 다른 환경을 넘기지 않으면 자기가 설치하는 mise의 디렉터리와 그 shim이 읽는 checkout의 설정 파일을 정한다(`MISE_DATA_DIR`, `MISE_CACHE_DIR`, `MISE_STATE_DIR`, `MISE_CONFIG_DIR`, `MISE_GLOBAL_CONFIG_FILE`, `MISE_GLOBAL_CONFIG_ROOT`). Go에는 환경을 주지 않고, `var/tools`에 다른 파일을 쓰지 않으며, mise가 기록한 trust를 지우지 않는다(K1092). 이 중 어느 것도 저장소의 도구가 어떻게 동작할지를 정하지 않는다. 같은 방식으로 PHP의 lint는 PHPStan에 메모리 제한을 두지 않게 하고(`--memory-limit=-1`), 패키지의 Composer가 쓴 autoloader를 준다(`--autoload-file`). 메모리 제한은 PHPStan이 어떤 설정 파일에서도 읽지 않는 프로세스의 한계다.
+- kit은 다른 도구의 설정을 정하지 않는다. 명령줄에서도, 환경변수에서도, 유틸리티가 실행하는 도구의 환경에서도 그렇다. 도구 설치기는 자기가 설치하는 것을 어디에 두는지 정하며, 그것은 설치기 자신의 일이다. mise 설치기는 호출자가 다른 환경을 넘기지 않으면 자기가 설치하는 mise의 디렉터리와 그 shim이 읽는 checkout의 설정 파일을 정한다(`MISE_DATA_DIR`, `MISE_CACHE_DIR`, `MISE_STATE_DIR`, `MISE_CONFIG_DIR`, `MISE_GLOBAL_CONFIG_FILE`, `MISE_GLOBAL_CONFIG_ROOT`). Go에는 환경을 주지 않고, `var/tools`에 다른 파일을 쓰지 않으며, mise가 기록한 trust를 지우지 않는다(K1092). 이 중 어느 것도 저장소의 도구가 어떻게 동작할지를 정하지 않는다. PHP의 lint는 PHPStan에 패키지의 Composer가 쓴 autoloader를 준다(`--autoload-file`). 그것이 없으면 PHPStan은 패키지의 호출을 해석하지 못한다. `--locked`, `--profile minimal`, `--memory-limit=-1` 같은 flag는 호출자의 것이다. 유틸리티는 호출자가 준 인자를 넘기고 자기 것은 넘기지 않는다(K1097).
 - kit은 저장소의 CI, hook, gate에 어떤 결과도 필수로 요구하지 않는다.
 - kit은 저장소의 레시피나 예제를 검사하는 기능을 제공하지 않는다.
 

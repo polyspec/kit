@@ -171,10 +171,10 @@ test('K861: install-tools runs rustup toolchain install for each declared Rust c
   writeFileSync(path.join(stubs.directory, 'bin', 'rustup'), RUSTUP, { mode: 0o755 });
   const first = start(INSTALL_TOOLS, root, stubs.env);
   assert.equal(first.status, 0, first.stderr);
-  assert.deepEqual(stubs.calls().filter(line => line.startsWith('rustup')), ['rustup toolchain install nightly-2026-10-01 --profile minimal']);
+  assert.deepEqual(stubs.calls().filter(line => line.startsWith('rustup')), ['rustup toolchain install nightly-2026-10-01']);
   const kept = start(INSTALL_TOOLS, root, stubs.env);
   assert.equal(kept.status, 0, kept.stderr);
-  assert.deepEqual(stubs.calls().filter(line => line.startsWith('rustup')).slice(1), ['rustup toolchain install nightly-2026-10-01 --profile minimal'], 'kit judges no installed channel; rustup keeps it');
+  assert.deepEqual(stubs.calls().filter(line => line.startsWith('rustup')).slice(1), ['rustup toolchain install nightly-2026-10-01'], 'kit judges no installed channel; rustup keeps it');
 });
 
 test('K861: install-tools installs no symbol extractor; their make targets are the one path', (t) => {
@@ -214,8 +214,8 @@ test('install-tools installs the exact channel, profile and components of rust-t
   writeFileSync(path.join(stubs.directory, 'bin', 'rustup'), RUSTUP, { mode: 0o755 });
   const result = start(INSTALL_TOOLS, root, stubs.env);
   assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(stubs.calls(), ['mise install', 'rustup toolchain install --no-self-update --profile minimal --component clippy 1.99.0']);
-  assert.match(result.stdout, /^\[install-tools\] rustup toolchain install --no-self-update --profile minimal --component clippy 1\.99\.0$/m);
+  assert.deepEqual(stubs.calls(), ['mise install', 'rustup toolchain install --profile minimal --component clippy 1.99.0']);
+  assert.match(result.stdout, /^\[install-tools\] rustup toolchain install --profile minimal --component clippy 1\.99\.0$/m);
 });
 
 test('a rust-toolchain.toml without rustup fails with the one prerequisite of the machine (K151)', (t) => {
@@ -270,7 +270,7 @@ test('the make target install-tools runs its tools online, and TOOLS=npm runs th
   // The tools run with the node of the checkout by its absolute path; the bootstrap, which installs it, with the node of the
   // machine (K171).
   const node = path.join(root, 'var/tools/bin/node');
-  assert.equal(dry('install-tools').stdout.trim(), `online-wrapper ${node} scripts/kit/install-tools.mts`);
+  assert.equal(dry('install-tools').stdout.trim(), `online-wrapper ${node} scripts/kit/install-tools.mts --no-self-update`);
   // In kit, `make install-tools TOOLS=npm` is the first step of a checkout: install-tools.mts imports modules that import the
   // packages of package-lock.json, which npm ci installs only after it.
   assert.equal(dry('install-tools', 'TOOLS=npm').stdout.trim(), 'online-wrapper node scripts/kit/bootstrap/bootstrap.mts');

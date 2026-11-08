@@ -51,7 +51,7 @@ test('K850: the command passes SYNC to uv sync as written, with flag values, and
   const sync = '--quiet --all-packages --no-editable --group dev --project . --no-install-project';
   writeFileSync(path.join(root, '.links'), 'provider\n');
   assert.equal(uvInstallCommand([root], { ...env, UV_SYNC: sync }, line => lines.push(line)), 0, lines.join(''));
-  assert.match(readFileSync(log, 'utf8'), new RegExp(`^sync --locked ${sync}$`, 'm'));
+  assert.match(readFileSync(log, 'utf8'), new RegExp(`^sync ${sync}$`, 'm'));
   assert.equal(existsSync(path.join(checkout, 'src/polyspec_new_unreleased/RELEASE')), false, 'the sync wrote no file into the checkout');
   assert.equal(readFileSync(path.join(checkout, 'src/polyspec_new_unreleased/__init__.py'), 'utf8'), before);
   assert.equal(realpathSync(path.join(site, 'polyspec_new_unreleased')), path.join(checkout, 'src/polyspec_new_unreleased'));
@@ -116,10 +116,10 @@ test('K856: the installer reinstalls a distribution whose package folder a remov
   rmSync(path.join(site, 'polyspec_new_unreleased'), { recursive: true });
   const lines: string[] = [];
   assert.equal(uvInstallCommand([root], { ...env, UV_FIXTURE_KEEP: 'yes' }, line => lines.push(line)), 0, lines.join(''));
-  assert.match(readFileSync(log, 'utf8'), /^sync --locked --reinstall-package polyspec_new_unreleased$/m);
+  assert.match(readFileSync(log, 'utf8'), /^sync --reinstall-package polyspec_new_unreleased$/m);
   mkdirSync(path.join(site, 'polyspec_new_unreleased'));
   writeFileSync(path.join(site, 'polyspec_new_unreleased/__init__.py'), '');
   rmSync(log);
   assert.equal(uvInstallCommand([root], { ...env, UV_FIXTURE_KEEP: 'yes' }, line => lines.push(line)), 0, lines.join(''));
-  assert.match(readFileSync(log, 'utf8'), /^sync --locked$/m, 'a complete distribution is not reinstalled');
+  assert.match(readFileSync(log, 'utf8'), /^sync$/m, 'a complete distribution is not reinstalled');
 });

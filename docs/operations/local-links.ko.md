@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 6292c20fc0de40b97259ae041c0311afb55231fc9fee8572f7f8190bd81ab141 -->
+<!-- source-sha256: 1b70ba82836c76bd41d4e17e2cf215b3f9d312b5f488a245d410d69a760b4074 -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -24,7 +24,7 @@
 |---|---|
 | Release 설치 | 설치 package bootstrap은 npm ci 같은 native locked 설치를 사용하며 sibling checkout이 선행 조건이 아니다. Composer는 선택한 release manifest와 lock을 설치한다. |
 | npm, Composer, Cargo | kit은 설치를 감싸지 않는다(K859). 각 저장소는 자기 `deps-<runtime>` target에서 package manager의 lock 설치(`npm ci`, `composer install`, `cargo fetch --locked`)를 실행하고, 그 뒤 `make link`가 설치된 각 provider 폴더를 link한다. |
-| Python source helper | uv-install은 tracked lock의 `uv sync --locked`를 실행한 뒤 site-packages에 설치된 provider 패키지 폴더를 각 checkout의 같은 패키지로 link한다. 설치 record는 release의 dist-info이며 editable build와 build backend는 실행하지 않는다(K765). `uv pip check`가 설치 distribution을 검증한다. |
+| Python source helper | uv-install은 호출자의 flag로 tracked lock의 `uv sync`를 실행한 뒤(`uv-install` recipe가 `--locked`를 넘김, K1097) site-packages에 설치된 provider 패키지 폴더를 각 checkout의 같은 패키지로 link한다. 설치 record는 release의 dist-info이며 editable build와 build backend는 실행하지 않는다(K765). `uv pip check`가 설치 distribution을 검증한다. |
 
 link-check는 source 연결을 설명하며 모든 version과 peer dependency를 해석하는 공통 solver가 아니다. peer 검증이 필요하면 native 진단은 npm ls --all이다. Kit 전용 resolver나 위장된 설치 version으로 불일치를 보정하지 않는다. Composer와 uv 실패도 숨기지 않는다.
 

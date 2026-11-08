@@ -30,7 +30,7 @@ function checkout(t: TestContext): string {
   return root;
 }
 
-const CLIPPY = ['clippy', '--workspace', '--all-targets', '--locked'];
+const CLIPPY = ['clippy', '--workspace', '--all-targets'];
 // K802: clippy runs through the cargo link with the checkouts of the link declaration (K448-5), so in a linked checkout a
 // polyspec git dependency compiles against the sibling checkout, not against its tag.
 const LINKED = [siblingTool(new URL('../../scripts/kit/lint-rust.mts', import.meta.url).href, 'link'), 'cargo', '.', ...CLIPPY];
@@ -57,6 +57,10 @@ test('every workspace runs after an earlier one failed, and each failure is name
 });
 
 // K1050: the lints and their levels are the [lints] of Cargo.toml and the clippy.toml of the repository; the lint sets none.
+test('clippy takes the arguments of the caller, such as --locked, after its own (K1097)', (t) => {
+  for (const step of lintSteps(checkout(t), ['--locked'])) assert.deepEqual(step.args.slice(-4), [...CLIPPY, '--locked']);
+});
+
 test('clippy runs with no lint level and no configuration of kit (K1050)', (t) => {
   for (const step of lintSteps(checkout(t))) assert.equal(step.env, undefined);
 });

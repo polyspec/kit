@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 0aadfbf8348a85b34c099a609afd661e93e84cddbc95d19bbfd2cf4df0a52d1a -->
+<!-- source-sha256: 7e47cf595122dd36a479e030ffab0f82a186d142d14e9686eb94bdfd18cd8f42 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -224,7 +224,7 @@
 | K1094 | run-tests는 호출자가 넘긴 대로만 테스트 실행의 환경과 runner 플래그를 설정한다 | scripts/kit/run-tests.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1094 tests/kit/run-tests.test.mts` | [ ] |
 | K1095 | install-composer-project와 install-symbols는 호출자가 넘긴 대로만 Composer 환경과 플래그를 설정한다 | scripts/kit/install-composer-project.mts, scripts/kit/install-symbols.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1095 tests/kit/install-symbols.test.mts` | [o] |
 | K1096 | install-tools는 호출자가 주지 않은 고정 설치 플래그를 넘기지 않는다 | scripts/kit/install-tools.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1096 tests/kit/install-tools.test.mts` | [o] |
-| K1097 | uv-install, lint-rust, lint-php, install-rust는 호출자가 주지 않은 --locked, --profile minimal, --memory-limit=-1 같은 고정 플래그를 넘기지 않는다 | scripts/kit/uv-install.mts, scripts/kit/lint-rust.mts, scripts/kit/lint-php.mts, scripts/kit/install-rust.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1097 tests/kit/lint-steps.test.mts` | [ ] |
+| K1097 | uv-install, lint-rust, lint-php, install-rust는 호출자가 주지 않은 --locked, --profile minimal, --memory-limit=-1 같은 고정 플래그를 넘기지 않는다 | scripts/kit/uv-install.mts, scripts/kit/lint-rust.mts, scripts/kit/lint-php.mts, scripts/kit/install-rust.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1097 tests/kit/lint-steps.test.mts` | [o] |
 | K1098 | ci-targets는 호출자가 요청할 때만 make를 -k로 실행한다 | scripts/kit/ci-targets.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1098 tests/kit/ci-targets.test.mts` | [ ] |
 | K1099 | git-hooks는 저장소가 선언한 hooks 폴더, merge attribute, merge driver를 설치하며 kit에 고정된 것은 없다 | scripts/kit/git-hooks.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1099 tests/kit/git-hooks.test.mts` | [ ] |
 | K1100 | land는 호출자가 이름 붙인 대상 브랜치에 브랜치를 병합하며, 충돌을 고쳐 쓰지 않고 git add -u로 파일을 stage하지 않으며 documents-stamp를 요구하지 않는다 | scripts/kit/land.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1100 tests/kit/land.test.mts` | [ ] |

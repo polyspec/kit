@@ -6,7 +6,7 @@ import test, { type TestContext } from 'node:test';
 import { installRustToolchain } from '../../scripts/kit/install-rust.mts';
 
 // The calls of a rustup stub that installRustToolchain makes for the rust-toolchain.toml `lines`, with what it printed.
-function installed(t: TestContext, lines: string[]) {
+function installed(t: TestContext, lines: string[], flags: string[] = []) {
   const root = mkdtempSync(path.join(os.tmpdir(), 'kit-install-rust-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const bin = path.join(root, 'bin');
@@ -22,7 +22,7 @@ function installed(t: TestContext, lines: string[]) {
   process.env.PATH = bin;
   process.env.RUSTUP_CALLS = calls;
   try {
-    installRustToolchain({ root, print: line => printed.push(line) });
+    installRustToolchain({ root, flags, print: line => printed.push(line) });
   } finally {
     if (previousPath === undefined) delete process.env.PATH;
     else process.env.PATH = previousPath;
@@ -34,12 +34,17 @@ function installed(t: TestContext, lines: string[]) {
 
 test('installRustToolchain explicitly installs the declared channel, profile, components and targets', (t) => {
   const { printed, calls } = installed(t, ['[toolchain]', 'channel = "1.99.0"', 'profile = "minimal"', 'components = ["clippy", "rustfmt"]', 'targets = ["aarch64-unknown-linux-gnu"]']);
-  assert.deepEqual(printed, ['rustup toolchain install --no-self-update --profile minimal --component clippy --component rustfmt --target aarch64-unknown-linux-gnu 1.99.0']);
-  assert.equal(calls, 'toolchain install --no-self-update --profile minimal --component clippy --component rustfmt --target aarch64-unknown-linux-gnu 1.99.0\n');
+  assert.deepEqual(printed, ['rustup toolchain install --profile minimal --component clippy --component rustfmt --target aarch64-unknown-linux-gnu 1.99.0']);
+  assert.equal(calls, 'toolchain install --profile minimal --component clippy --component rustfmt --target aarch64-unknown-linux-gnu 1.99.0\n');
 });
 
 // K840: rustup judges rust-toolchain.toml; without a channel it installs the active toolchain, so kit passes what is declared.
 test('installRustToolchain passes a rust-toolchain.toml without a channel to rustup, which installs the active toolchain (K840)', (t) => {
-  assert.equal(installed(t, ['[toolchain]', 'profile = "minimal"']).calls, 'toolchain install --no-self-update --profile minimal\n');
-  assert.equal(installed(t, ['[toolchain]', 'channel = "stable"']).calls, 'toolchain install --no-self-update stable\n');
+  assert.equal(installed(t, ['[toolchain]', 'profile = "minimal"']).calls, 'toolchain install --profile minimal\n');
+  assert.equal(installed(t, ['[toolchain]', 'channel = "stable"']).calls, 'toolchain install stable\n');
+});
+
+test('K1097 installRustToolchain passes the flags of the caller, such as --no-self-update, and none of its own', (t) => {
+  assert.equal(installed(t, ['[toolchain]', 'channel = "stable"']).calls, 'toolchain install stable\n');
+  assert.equal(installed(t, ['[toolchain]', 'channel = "stable"'], ['--no-self-update']).calls, 'toolchain install --no-self-update stable\n');
 });

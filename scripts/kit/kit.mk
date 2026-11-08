@@ -77,7 +77,7 @@ install-tools: ## Install all locked tools or selected tool names of toolchain-m
 ifeq ($(TOOLS),npm)
 	$(ONLINE) $(BOOTSTRAP_NODE) $(KIT)/bootstrap/bootstrap.$(KIT_EXT)
 else
-	$(ONLINE) $(NODE) $(KIT)/install-tools.$(KIT_EXT) $(TOOLS)
+	$(ONLINE) $(NODE) $(KIT)/install-tools.$(KIT_EXT) --no-self-update $(TOOLS)
 endif
 
 # toolchain-lock is mise lock (K836) with the mise of config/toolchain.json, which the bootstrap installs (make install-tools
@@ -386,8 +386,8 @@ land: ## Land the branch BRANCH on main (K394): rebases it on main in its worktr
 
 # uv-install follows application source/workspace declarations with native locked sync and installed-distribution checks.
 .PHONY: uv-install
-uv-install: ## Install declared Python sources in DIR with one native uv sync --locked and check installed distributions; SYNC passes its uv sync flags as written (K850)
-	UV_SYNC="$(SYNC)" $(ONLINE) $(NODE) $(KIT)/uv-install.$(KIT_EXT) $(DIR)
+uv-install: ## Install declared Python sources in DIR with one native uv sync and check installed distributions; the recipe passes --locked and SYNC passes its uv sync flags as written (K850, K1097)
+	UV_SYNC="--locked $(SYNC)" $(ONLINE) $(NODE) $(KIT)/uv-install.$(KIT_EXT) $(DIR)
 
 unlink: ## Remove the links of PROJECT and the go.work files that link wrote, of the runtime of RUNTIME when given; make install restores the locked installs, Python's included; offline
 	$(NODE) $(KIT)/link.$(KIT_EXT) unlink$(if $(PROJECT), --project $(PROJECT))$(if $(RUNTIME), --runtime $(RUNTIME))
@@ -407,11 +407,11 @@ release-assets release-candidate-assets: export GOWORK = $(if $(shell git ls-fil
 lint-python: ## Lint the Python of the checkout: ruff with ruff.toml, and vulture on each package; offline
 	$(NODE) $(KIT)/lint-python.$(KIT_EXT)
 
-lint-php: ## Lint the PHP of the checkout: phpcs with phpcs.xml.dist, and PHPStan with phpstan.dist.neon on each Composer package; offline
-	$(NODE) $(KIT)/lint-php.$(KIT_EXT)
+lint-php: ## Lint the PHP of the checkout: phpcs with phpcs.xml.dist, and PHPStan with phpstan.dist.neon and no memory limit on each Composer package; offline
+	$(NODE) $(KIT)/lint-php.$(KIT_EXT) --memory-limit=-1
 
-lint-rust: ## Lint the Rust of the checkout: cargo clippy in each Cargo workspace, with the lints of its Cargo.toml
-	$(NODE) $(KIT)/lint-rust.$(KIT_EXT)
+lint-rust: ## Lint the Rust of the checkout: cargo clippy --locked in each Cargo workspace, with the lints of its Cargo.toml
+	$(NODE) $(KIT)/lint-rust.$(KIT_EXT) --locked
 
 lint-go: ## Lint the Go of the checkout: golangci-lint with .golangci.yml, and deadcode -test, in each Go module; offline once the modules are downloaded
 	$(NODE) $(KIT)/lint-go.$(KIT_EXT)

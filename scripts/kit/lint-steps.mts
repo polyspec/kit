@@ -71,12 +71,16 @@ export function runLint(name: string, steps: readonly LintStep[], root: string, 
   return failed;
 }
 
-/** Runs the lint `name` of the repository root with the steps of `lintSteps` when the module `url` is the main module, and sets the exit code. */
-export function lintMain(url: string, name: string, lintSteps: (root: string) => LintStep[]): void {
+/**
+ * Runs the lint `name` of the repository root with the steps of `lintSteps` when the module `url` is the main module, and sets
+ * the exit code; the arguments of its command line are the caller's arguments of the tool (K1097).
+ */
+export function lintMain(url: string, name: string, lintSteps: (root: string, args: readonly string[]) => LintStep[]): void {
   if (!isMain(url)) return;
   try {
     const root = repositoryRoot();
-    const steps = lintSteps(root);
+    // The arguments of the command line go to the tool of the lint as the caller wrote them (K1097).
+    const steps = lintSteps(root, process.argv.slice(2));
     const failed = runLint(name, steps, root, text => process.stdout.write(text));
     if (failed.length) {
       console.error(`[${name}] ${failed.length} of ${steps.length} steps failed: ${failed.join('; ')}`);
