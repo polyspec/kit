@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: dd9085ec63441a4c92d30d0d447c9cbb47e8919a6c8892add906fd7e0c24f881 -->
+<!-- source-sha256: 73cb5001fc562bc764bf54decd273086b498883d43237678760ae4827300fc89 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -33,6 +33,7 @@
 - ci-targets는 호출자가 make -k ci-targets(node ci-targets.mts -k)로 요청할 때만 각 target을 make -k로 실행한다. 예시 ci-pipeline.yml은 make -k ci-targets를 실행한다(K1098).
 - run-tests는 실행의 runner flag와 environment를 호출자가 넘긴 대로만 정한다: node --test, vitest, Playwright의 test별 option은 --timeout이 있을 때만 넘기고, --test-concurrency=1, -count=1 -timeout=0, --test-threads=1, PYTHONUNBUFFERED, NO_COLOR, PYTHON_COLORS, NODE_TEST_CONTEXT 제거를 스스로 하지 않는다(K1094).
 - K1073: generated-files staged와 tracked는 config/generated.json 없이도 path와 exception이 없는 선언으로 실행된다. 생성 segment는 전과 같이 거부한다(K1073).
+- K1083: generated-files installs는 인수가 선언한 설치 폴더를 검사한다. root의 폴더 이름 그대로, 또는 추적된 manifest마다 그 옆의 <manifest>=<directory>이다. 선언이 없거나 a=b=c처럼 다른 형식의 항목이 있으면 사용법 오류(exit 2)이며, kit의 layout-check는 var, package.json=node_modules, pyproject.toml=.venv, composer.json=vendor를 선언한다. checkedFiles는 설치 폴더 목록을 두지 않는다. Git이 그 폴더를 무시한다(K1083).
 - PHPUnit event의 fully qualified identity와 독립된 flow를 보존하고 parity mapping의 namespace aliasing을 제거한다(K1091).
 
 ## 0.0.98

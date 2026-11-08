@@ -6,9 +6,10 @@
 //
 //   node scripts/kit/generated-files.mts staged   fail while a staged path is generated or an executable object, and no exception of
 //                                                 the config allows it
-//   node scripts/kit/generated-files.mts installs fail while an install directory of the checkout is not ignored by Git (K372): node_modules
-//                                                 beside each package.json, the vendor directory of each composer.json, .venv beside each
-//                                                 pyproject.toml and var at the root; `make layout-check` runs it
+//   node scripts/kit/generated-files.mts installs <directory> | <manifest>=<directory>...
+//                                                 fail while an install directory that the arguments declare is not ignored by Git (K372,
+//                                                 K1083): a bare directory of the root, such as var, or the directory beside each tracked
+//                                                 <manifest>, such as package.json=node_modules; the vendor-dir of a composer.json counts
 //   node scripts/kit/generated-files.mts tracked  fail while a tracked file is generated, an executable object (K416) or a text file
 //                                                 whose first comment line among its first 5 lines is a generated-file header
 //                                                 (Code generated ... DO NOT EDIT), unless the config allows it (K426); `make layout-check` runs it
@@ -188,34 +189,51 @@ export function stagedPaths(root: string) {
   return run.stdout.split('\0').filter(Boolean);
 }
 
-/** The install directories of the checkout `root` and the folder of the manifest that makes each one (K372); the root's var is always one. */
-export function installDirectories(root: string): { directory: string; folder: string }[] {
-  const found = [{ directory: 'var', folder: '.' }];
+/**
+ * The install directories that the arguments `declared` name, each with the folder of the .gitignore that ignores it (K372, K1083):
+ * a bare directory such as `var` is a directory of the root, and `<manifest>=<directory>` is the directory beside each tracked file
+ * named <manifest>, such as `package.json=node_modules`. Beside a composer.json it is the vendor-dir of that composer.json when it
+ * sets one (Composer's own rule, as composer-vendor.mts reads it). An entry of another form throws.
+ */
+export function installDirectories(root: string, declared: readonly string[]): { directory: string; folder: string }[] {
+  const found: { directory: string; folder: string }[] = [];
+  const pairs = declared.flatMap((entry) => {
+    const [manifest, directory, ...more] = entry.split('=');
+    if (directory === undefined && manifest) {
+      found.push({ directory: entry, folder: '.' });
+      return [];
+    }
+    if (!manifest || !directory || more.length > 0) throw new Error(`generated-files installs: ${JSON.stringify(entry)} is neither <directory> nor <manifest>=<directory>`);
+    return [{ manifest, directory }];
+  });
+  if (pairs.length === 0) return found;
   for (const file of trackedFiles(root)) {
     const folder = path.posix.dirname(file);
     const name = path.posix.basename(file);
-    if (name === 'package.json') found.push({ directory: path.posix.join(folder, 'node_modules'), folder });
-    if (name === 'pyproject.toml') found.push({ directory: path.posix.join(folder, '.venv'), folder });
-    // A Composer project keeps its packages in the vendor-dir of its composer.json, which defaults to vendor (Composer's own rule, as
-    // composer-vendor.mts reads it); a Go vendor folder is a committed source, so only a composer.json makes one of these.
-    if (name === 'composer.json') {
-      const { config } = readJsonObject(root, file);
-      const vendorDir = isJsonObject(config) ? config['vendor-dir'] : undefined;
-      const directory = path.posix.normalize(path.posix.join(folder, typeof vendorDir === 'string' ? vendorDir : 'vendor'));
+    for (const { directory: declaredDirectory } of pairs.filter(pair => pair.manifest === name)) {
+      let directory = path.posix.join(folder, declaredDirectory);
+      if (name === 'composer.json') {
+        const { config } = readJsonObject(root, file);
+        const vendorDir = isJsonObject(config) ? config['vendor-dir'] : undefined;
+        if (typeof vendorDir === 'string') directory = path.posix.normalize(path.posix.join(folder, vendorDir));
+      }
       if (directory !== '.' && directory !== '..' && !directory.startsWith('../')) found.push({ directory, folder });
     }
   }
   return found;
 }
 
+/** Whether `entry` is a declaration of installs (K1083): a directory, or <manifest>=<directory> with both parts and one `=`. */
+export const isInstallDeclaration = (entry: string): boolean => /^[^=]+(?:=[^=]+)?$/.test(entry);
+
 /**
- * The install directories of `root` that Git does not ignore, as lines naming the directory and the .gitignore to change (K372).
- * `git check-ignore` takes the directory with its trailing slash, so a directory-only pattern such as vendor/ matches it whether or
- * not it exists. A symlink, such as a worktree's link to the install of main, is a file to Git: it is checked without the slash, which
- * a pattern such as vendor matches and vendor/ does not (K814).
+ * The install directories that `declared` names in `root` that Git does not ignore, as lines naming the directory and the .gitignore
+ * to change (K372). `git check-ignore` takes the directory with its trailing slash, so a directory-only pattern such as vendor/
+ * matches it whether or not it exists. A symlink, such as a worktree's link to the install of main, is a file to Git: it is checked
+ * without the slash, which a pattern such as vendor matches and vendor/ does not (K814).
  */
-export function installFindings(root: string): string[] {
-  return installDirectories(root).flatMap(({ directory, folder }) => {
+export function installFindings(root: string, declared: readonly string[]): string[] {
+  return installDirectories(root, declared).flatMap(({ directory, folder }) => {
     const entry = lstatSync(path.join(root, directory), { throwIfNoEntry: false })?.isSymbolicLink() ? directory : `${directory}/`;
     const run = gitResult(root, 'check-ignore', '-q', entry);
     if (run.error) throw run.error;
@@ -228,8 +246,10 @@ export function installFindings(root: string): string[] {
 
 if (isMain(import.meta.url)) {
   const [mode, ...rest] = process.argv.slice(2);
-  if ((mode !== 'staged' && mode !== 'installs' && mode !== 'tracked') || rest.length > 0) {
-    console.error('Usage: node scripts/kit/generated-files.mts staged|installs|tracked');
+  // installs checks what the caller declares, so a call that declares nothing, or an entry of another form, is a usage error (K1083).
+  const usage = mode === 'installs' ? rest.length === 0 || !rest.every(isInstallDeclaration) : (mode !== 'staged' && mode !== 'tracked') || rest.length > 0;
+  if (usage) {
+    console.error('Usage: node scripts/kit/generated-files.mts staged|tracked, or installs <directory> | <manifest>=<directory>...');
     process.exitCode = 2;
   } else if (mode === 'tracked') {
     const root = repositoryRoot();
@@ -238,10 +258,10 @@ if (isMain(import.meta.url)) {
     if (found.length > 0) process.exitCode = 1;
     else console.log('[generated-files] no tracked file is generated');
   } else if (mode === 'installs') {
-    const found = installFindings(repositoryRoot());
+    const found = installFindings(repositoryRoot(), rest);
     for (const line of found) console.error(`[generated-files] ${line}`);
     if (found.length > 0) process.exitCode = 1;
-    else console.log('[generated-files] every install directory is ignored by Git');
+    else console.log('[generated-files] every declared install directory is ignored by Git');
   } else {
     const root = repositoryRoot();
     const config = loadGeneratedConfig(root);

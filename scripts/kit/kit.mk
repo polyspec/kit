@@ -102,10 +102,10 @@ toolchain-lock: ## Write mise.lock with mise lock: the digests of the tools of m
 # alint (mise.toml, installed by install-tools) checks the tree against config/layout.yml, which extends
 # the common rules of the repository, such as the config/layout.kit.yml that kit ships as an example, with its map.
 .PHONY: layout-check
-layout-check: ## Check the folder layout of the checkout (S5) against config/layout.yml with the alint of mise.toml, and that Git ignores each install directory (K372), and that no tracked file is generated (K426); offline
+layout-check: ## Check the folder layout of the checkout (S5) against config/layout.yml with the alint of mise.toml, and that Git ignores each install directory that its recipe declares (K372, K1083), and that no tracked file is generated (K426); offline
 	@test -x $(ALINT) || { echo "layout-check: $(ALINT) is missing; run make install-tools"; exit 1; }
 	$(ALINT) check --config config/layout.yml --color never --compact .
-	$(NODE) $(KIT)/generated-files.$(KIT_EXT) installs
+	$(NODE) $(KIT)/generated-files.$(KIT_EXT) installs var package.json=node_modules pyproject.toml=.venv composer.json=vendor
 	$(NODE) $(KIT)/generated-files.$(KIT_EXT) tracked
 # ---- Git hooks and merge drivers ---------------------------------------------------------------------------------------
 # scripts/kit/git-hooks.mts reads config/checklist.json, whose hooks are the repository's own files under .githooks; kit writes none

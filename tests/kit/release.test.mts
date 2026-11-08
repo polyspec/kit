@@ -720,8 +720,10 @@ test('coverage takes the files that kit writes as not released, and still names 
   assert.deepEqual(release.coverage(context(box)), owned.map(file => `${file} is neither released nor listed as not released; add it to manifests, notReleased or goModules in config/release.json`));
 });
 
-test('coverage skips node_modules, var, .tools and the vendored fixture, and reads new files that Git does not ignore', (t) => {
+test('coverage skips the folders that Git ignores and the vendored fixture, and reads new files that Git does not ignore (K1083)', (t) => {
   const box = releaseSandbox(t);
+  // The repository declares its install folders by ignoring them; kit holds no list of its own (K1083).
+  writeFileSync(path.join(box.root, '.gitignore'), '.stubs/\nvar/\nnode_modules/\n.tools/\n');
   for (const directory of ['node_modules/x', 'sub/node_modules/y', 'var/z', '.tools/w', 'tests/kit/fixture/v']) {
     mkdirSync(path.join(box.root, directory), { recursive: true });
     writeFileSync(path.join(box.root, directory, 'package.json'), '{}');

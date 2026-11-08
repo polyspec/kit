@@ -13,11 +13,9 @@ const gitPaths = (root: string, ...args: string[]): string[] => git(root, ...arg
 /** The directory of the vendored fixture of kit: its manifests and locks belong to the tests, not to the checkout. */
 export const KIT_FIXTURE = 'tests/kit/fixture/';
 
-// The directories of dependency installs, tool installs and run outputs, which no check of the repository reads. Git must ignore
-// each of them, which installDirectories and installFindings of generated-files.mts check (K372): node_modules beside a
-// package.json, the vendor directory of a composer.json, .venv beside a pyproject.toml and var at the root. vendor is not in this
-// list, because a Go vendor folder is a committed source; the check covers only the Composer vendor directory.
-const INSTALLED = /(^|\/)(node_modules|var|\.tools)\//;
+// The directories of dependency installs, tool installs and run outputs are the ones that Git ignores, so trackedFiles leaves
+// them out without a list of kit: generated-files.mts installs checks that Git ignores each install directory that a repository
+// declares (K372, K1083), such as node_modules beside a package.json, the vendor directory of a composer.json and var.
 
 /**
  * The files of the checkout under `root`, tracked or new and not ignored, that exist as regular files. An unresolved merge
@@ -29,8 +27,8 @@ export function trackedFiles(root: string = repositoryRoot()): string[] {
     .sort();
 }
 
-/** The files that the checks and the release coverage read: `trackedFiles` except the kit fixture and the installed and output directories. */
-export const checkedFiles = (root: string): string[] => trackedFiles(root).filter(file => !file.startsWith(KIT_FIXTURE) && !INSTALLED.test(file));
+/** The files that the checks and the release coverage read: `trackedFiles` except the kit fixture; Git ignores the install directories. */
+export const checkedFiles = (root: string): string[] => trackedFiles(root).filter(file => !file.startsWith(KIT_FIXTURE));
 
 /** The paths under `root` that Git ignores, a directory with a trailing `/`. */
 export function ignoredPaths(root: string = repositoryRoot()): string[] {

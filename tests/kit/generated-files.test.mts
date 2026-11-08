@@ -12,7 +12,9 @@ import { tree } from './tree.mts';
 
 const GENERATED_CONFIG = JSON.stringify({ schema: 1, paths: [], exceptions: [{ path: 'tests/*/fixtures/**', reason: 'test fixtures' }] });
 const check = (work: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/generated-files.mts')), 'staged']);
-const installs = (work: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/generated-files.mts')), 'installs']);
+// The install directories that the Makefile of kit declares (K1083), which the K372 cases check.
+const DECLARED = ['var', 'package.json=node_modules', 'pyproject.toml=.venv', 'composer.json=vendor'];
+const installs = (work: string, declared: readonly string[] = DECLARED) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/generated-files.mts')), 'installs', ...declared]);
 const stage = (work: string, file: string, text: string | Buffer = 'x\n') => {
   mkdirSync(path.dirname(path.join(work, file)), { recursive: true });
   writeFileSync(path.join(work, file), text);
@@ -197,4 +199,23 @@ test('K1073 staged runs without config/generated.json: a plain path passes and a
   const refused = check(work);
   assert.equal(refused.status, 1, refused.stderr);
   assert.match(refused.stderr, /node_modules\/x\/index\.js is a generated file/);
+});
+
+// K1083: the install directories are the ones the caller declares; without a declaration nothing is checked, and a bare directory
+// is one of the root.
+test('K1083 installs checks only the declared install directories, and a call that declares none is a usage error', (t) => {
+  const composer = checkout(t, { files: { 'composer.json': '{}\n' } });
+  const none = installs(composer.work, []);
+  assert.equal(none.status, 2, none.stderr);
+  assert.match(none.stderr, /Usage: .*installs <directory> \| <manifest>=<directory>/);
+  const other = installs(composer.work, ['package.json=node_modules']);
+  assert.equal(other.status, 0, other.stderr);
+  const bare = installs(composer.work, ['build']);
+  assert.equal(bare.status, 1, bare.stderr);
+  assert.match(bare.stderr, /build\/ is not ignored by Git .*add build\/ to \.gitignore/);
+  for (const entry of ['=vendor', 'composer.json=', 'a=b=c']) {
+    const malformed = installs(composer.work, [entry]);
+    assert.equal(malformed.status, 2, `${entry}: ${malformed.stderr}`);
+    assert.match(malformed.stderr, /Usage: /, entry);
+  }
 });

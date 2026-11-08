@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 91f7863441fb9c233565c17a4c73ab2839ac365be7241b93c433beb94204de4f -->
+<!-- source-sha256: e1eec1ae0718fd18c89915dda9643976fd5ac093362064604a8470efdad42a86 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -210,7 +210,7 @@
 | K1080 | rebuild-check는 config/rebuild.json이 선언한 도구를 검사하며, 모든 저장소가 분류해야 하는 kit 고정 도구 목록이 없다 | scripts/kit/rebuild-check.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1080 tests/kit/rebuild-check.test.mts` | [ ] |
 | K1081 | check-documents는 저장소가 선언한 문서를 검사하며, 행이 kit checklist 항목을 이름 붙여야 한다는 요구와 kit에 고정된 checklist 위치가 없다 | scripts/kit/check-documents.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1081 tests/kit/check-documents.test.mts` | [ ] |
 | K1082 | checklist는 저장소의 plan 폴더를 읽으며, plan 폴더가 가져야 하는 파일의 고정 목록이 없다 | scripts/kit/checklist.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1082 tests/kit/checklist.test.mts` | [ ] |
-| K1083 | generated-files는 저장소가 선언한 무시 대상 설치 폴더를 검사하며, kit에 고정된 무시 목록이 없다 | scripts/kit/generated-files.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1083 tests/kit/generated-files.test.mts` | [~] |
+| K1083 | generated-files는 저장소가 선언한 무시 대상 설치 폴더를 검사하며, kit에 고정된 무시 목록이 없다 | scripts/kit/generated-files.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1083 tests/kit/generated-files.test.mts` | [o] |
 | K1084 | release는 태그와 변경 기록에서 파싱하는 것만 요구하며, 그 이상으로 kit에 고정된 태그 형식이나 변경 기록 형식이 없다 | scripts/kit/release.mts, scripts/kit/changelog.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1084 tests/kit/release.test.mts` | [ ] |
 | K1085 | parity-declaration은 저장소가 그 규칙을 선언할 때만 owner를 config/release.json과 contracts/features.json에 대조한다 | scripts/kit/parity-declaration.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1085 tests/kit/parity-declaration.test.mts` | [ ] |
 | K1086 | release coverage는 저장소가 그 규칙을 선언할 때만 추적된 모든 manifest를 분류한다 | scripts/kit/release.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1086 tests/kit/release-coverage.test.mts` | [ ] |
