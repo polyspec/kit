@@ -8,7 +8,7 @@ import path from 'node:path';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { initRepository } from './sandbox-repository.mts';
-import { KIT_MAKEFILE, tool } from './kit-tools.mts';
+import { KIT_MAKEFILE } from './kit-tools.mts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(HERE, 'fixture');
@@ -86,11 +86,9 @@ export function checkout(t: Pick<TestContext, 'after'>, { state = '[ ]', config 
   return { work, remote };
 }
 
-/** A checkout with the hooks installed through `git-hooks install` and everything committed. */
+/** A checkout with everything committed; it declares no hook, as kit installs none of its own (K1099). */
 export function prepared(t: Pick<TestContext, 'after'>, options?: CheckoutOptions) {
   const made = checkout(t, options);
-  const installed = run(made.work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), 'install']);
-  if (installed.status !== 0) throw new Error(`git-hooks install failed: ${installed.stderr}`);
   commitAll(made.work, 'docs(checklist): Add the checklist (#T1)');
   return made;
 }

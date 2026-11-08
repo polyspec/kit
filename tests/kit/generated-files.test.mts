@@ -6,9 +6,7 @@ import { mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { checkout, commitIndex, git, prepared, run } from './gates-checkout.mts';
-import { loadGeneratedConfig } from '../../scripts/kit/generated-files.mts';
 import { tool } from './kit-tools.mts';
-import { tree } from './tree.mts';
 
 // The generated folders and executable kinds that kit's own config/generated.json and Makefile declare (K1105).
 const SEGMENTS = ['**/node_modules/**', '**/vendor/**', '**/.venv/**', '**/venv/**', '**/__pycache__/**', '**/target/**', '**/dist/**', '**/*.egg-info/**'];
@@ -183,13 +181,6 @@ test('a tracked generated file, executable object or generated-header file is re
   rmSync(path.join(source.work, 'src/app.py'));
   const unread = tracked(source.work);
   assert.equal(unread.status, 0, unread.stderr);
-});
-
-// K958: an exception is an unconditional exemption from the generated-file and duplication checks, so it carries the reason that
-// tracked takes, and the schema refuses an exception without one.
-test('an exception of config/generated.json without a reason fails the schema (K958)', (t) => {
-  const root = tree(t, { 'config/generated.json': JSON.stringify({ schema: 1, paths: [], exceptions: [{ path: 'tests/*/fixtures/**' }] }) });
-  assert.throws(() => loadGeneratedConfig(root), /reason/);
 });
 
 // K1073: staged reads config/generated.json only for its paths and exceptions; a checkout without one runs as a declaration of none.

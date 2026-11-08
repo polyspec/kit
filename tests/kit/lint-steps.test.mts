@@ -19,7 +19,7 @@ test('the lint utilities pass no configuration or rule of kit to the tools they 
 // K1097: a flag such as --locked, --profile minimal or --memory-limit=-1 is the caller's to pass; the utilities that install or
 // lint pass none of their own.
 test('K1097 uv-install, lint-rust, lint-php and install-rust pass no fixed flag that the caller did not give', () => {
-  const FIXED = [/'--locked'/, /'--profile', 'minimal'/, /--memory-limit/];
+  const FIXED = [/'--locked'/, /'--profile', 'minimal'/, /'--memory-limit/];
   const found = ['uv-install', 'lint-rust', 'lint-php', 'install-rust'].flatMap(name => {
     const source = readFileSync(new URL(`../../scripts/kit/${name}.mts`, import.meta.url), 'utf8');
     return FIXED.filter(pattern => pattern.test(source)).map(pattern => `${name}: ${pattern.source}`);

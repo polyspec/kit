@@ -16,6 +16,8 @@ const FILES: Record<string, string> = {
   'packages/go/go.mod': 'module example.com/demo\n',
   'packages/codec/go/go.mod': 'module example.com/codec\n',
   'tests/kit/fixture/packages/fixture-go/go.mod': 'module example.com/fixture\n',
+  // The checkout declares its fixture, as kit does, so the checks leave it out (K1114).
+  'config/release.json': '{ "fixtures": ["tests/kit/fixture/**"] }\n',
 };
 
 // Each tool is a stub that logs its call; `stub` is "<tool> <shell line>", which that tool runs after it logs, and `stubs` gives such a

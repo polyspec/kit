@@ -8,7 +8,7 @@ import test from 'node:test';
 import { declaredRust, goWorkFile, readGoMod } from '../../scripts/kit/toolchain-files.mts';
 import { repositoryRoot } from '../../scripts/kit/paths.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
-import { miseWhere } from '../../scripts/kit/bootstrap/install-mise.mts';
+import { miseEnvironment, miseWhere } from '../../scripts/kit/bootstrap/install-mise.mts';
 
 const GO_ENV = { ...process.env, GOTOOLCHAIN: 'local' };
 
@@ -23,9 +23,10 @@ function goShim(root: string) {
   return root;
 }
 
-test('go workspace discovery uses the checkout mise environment when the caller has none (K476)', () => {
+// K1093: kit sets no environment of mise; the caller passes the environment of mise of the checkout, as a recipe of kit.mk does.
+test('go workspace discovery runs with the mise environment that the caller passes (K476, K1093)', () => {
   const root = repositoryRoot();
-  const environment = { PATH: process.env.PATH ?? '' };
+  const environment = { ...miseEnvironment(root), PATH: process.env.PATH ?? '' };
   const workspace = goWorkFile(root, 'scripts/kit/symbols/go', environment);
   assert.ok(workspace === null || path.isAbsolute(workspace), `unexpected go env GOWORK output ${JSON.stringify(workspace)}`);
 });

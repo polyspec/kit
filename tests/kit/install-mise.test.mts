@@ -32,7 +32,7 @@ const NODE_INSTALL = '/stub/mise/installs/node/26.11.1';
 
 /**
  * The release archive of a stub mise, and its URL and sha256; removed with `t.after`. The stub prints its version, prints
- * NODE_INSTALL for `where node`, and appends each `install` to `calls`, failing it while MISE_STUB_FAIL is set. With `lock`,
+ * NODE_INSTALL for `where node`, and appends each `install` to `calls`, failing it while STUB_MISE_FAIL is set. With `lock`,
  * `mise lock` writes that text into mise.lock, and `mise install node` fails while mise.lock pins no node, as mise does with locked set.
  */
 function miseRelease(t: TestContext, lock?: string) {
@@ -42,7 +42,7 @@ function miseRelease(t: TestContext, lock?: string) {
   const calls = path.join(directory, 'calls.log');
   const locked = lock === undefined ? '' : ` && grep -q '^\\[\\[tools.node\\]\\]$' mise.lock`;
   const locks = lock === undefined ? '' : `  lock) echo "$*" >> '${calls}'; cat > mise.lock <<'LOCK'\n${lock}LOCK\n ;;\n`;
-  writeFileSync(path.join(directory, 'mise/bin/mise'), `#!/bin/sh\ncase "$1" in\n  where) echo '${NODE_INSTALL}' ;;\n  trust) mkdir -p "$MISE_STATE_DIR/trusted-configs" && ln -sfn "$(dirname "$2")" "$MISE_STATE_DIR/trusted-configs/checkout" ;;\n  install) echo "$*" >> '${calls}'; test -z "$MISE_STUB_FAIL"${locked} ;;\n${locks}  *) echo "${VERSION} ${ASSET[KEY]} (2026-10-11)" ;;\nesac\n`);
+  writeFileSync(path.join(directory, 'mise/bin/mise'), `#!/bin/sh\ncase "$1" in\n  where) echo '${NODE_INSTALL}' ;;\n  trust) mkdir -p "$MISE_STATE_DIR/trusted-configs" && ln -sfn "$(dirname "$2")" "$MISE_STATE_DIR/trusted-configs/checkout" ;;\n  install) echo "$*" >> '${calls}'; test -z "$STUB_MISE_FAIL"${locked} ;;\n${locks}  *) echo "${VERSION} ${ASSET[KEY]} (2026-10-11)" ;;\nesac\n`);
   chmodSync(path.join(directory, 'mise/bin/mise'), 0o755);
   const archive = path.join(directory, 'mise.tar.gz');
   assert.equal(spawnSync('tar', ['-czf', archive, '-C', directory, 'mise']).status, 0);
@@ -141,7 +141,7 @@ test('a node that mise cannot install, as one that mise.toml or mise.lock does n
   const release = miseRelease(t);
   const root = checkout(t, release.sha256);
   const stubs = toolchainStubs(t, { downloads: { [release.url]: release.archive } });
-  const result = bootstrap(root, { ...stubs.env, MISE_STUB_FAIL: '1' });
+  const result = bootstrap(root, { ...stubs.env, STUB_MISE_FAIL: '1' });
   assert.equal(result.status, 1, result.stdout);
   assert.match(result.stderr, /install node npm:npm ended with exit status 1; mise\.toml must declare node and npm:npm, the Node\.js and npm releases of the checkout$/m);
   assert.equal(existsSync(path.join(root, 'var/tools/bin/node')), false);

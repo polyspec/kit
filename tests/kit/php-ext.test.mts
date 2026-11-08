@@ -498,7 +498,7 @@ test('a repository without an extension passes the check, the build and the test
   const root = tree(t, { 'packages/php/composer.json': '{"name": "polyspec/demo"}' });
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
   for (const command of ['check', 'build', 'test']) {
-    const result = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), command], { cwd: root, encoding: 'utf8' });
+    const result = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), command, ...LAYOUT, ...(command === 'test' ? ['--', '--roots', 'packages/php-ext'] : [])], { cwd: root, encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /the repository has no PHP extension/);
   }

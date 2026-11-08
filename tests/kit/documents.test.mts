@@ -84,7 +84,7 @@ test('link: code is not read, a reference needs its definition, an absolute link
 
 test('private-path: a home directory path fails', (t) => {
   const root = tree(t, pair('a.md', 'alpha', 'Run /Users/someone/work/run.sh now.\n'));
-  hasPart(run(root), 'a.md:4:5: private-path: the document holds the path /Users/someone/ into a home directory');
+  hasPart(run(root), 'a.md:4:5: private-path: the document holds the path /Users/someone/, under a private prefix that the repository declares; write a repository-relative path');
   assert.deepEqual(run(tree(t, pair('a.md', 'alpha', 'Run scripts/run.sh now.\n'))), []);
 });
 

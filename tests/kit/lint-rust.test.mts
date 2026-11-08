@@ -17,6 +17,8 @@ const FILES: Record<string, string> = {
   // A comment after the table header is TOML; the reader of the manifest reads the table.
   'benchmarks/rust/Cargo.toml': '[package]\nname = "bench"\n\n[workspace] # the benchmarks\n',
   'tests/kit/fixture/packages/fixture-rust/Cargo.toml': '[package]\nname = "fixture"\n\n[workspace]\n',
+  // The checkout declares its fixture, as kit does, so the checks leave it out (K1114).
+  'config/release.json': '{ "fixtures": ["tests/kit/fixture/**"] }\n',
 };
 
 function checkout(t: TestContext): string {

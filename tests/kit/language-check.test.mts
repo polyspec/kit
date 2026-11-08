@@ -6,6 +6,7 @@ import test from 'node:test';
 import { languageFindings } from '../../scripts/kit/language-check.mts';
 import { tree } from './tree.mts';
 import { tool } from './kit-tools.mts';
+import { initRepository } from './sandbox-repository.mts';
 
 // The text that kit's own recipe forbids, as language-check --forbid reads it (K1088).
 const HANGUL = /\p{Script=Hangul}/u;
@@ -52,7 +53,7 @@ test('K1088: language-check finds the text that --forbid declares, and refuses a
   const root = tree(t, { 'src/a.ts': '// 주석\nexport const a = 1;\n' });
   const check = tool(import.meta.resolve('../../scripts/kit/language-check.mts'));
   const git = (...args: string[]) => spawnSync('git', args, { cwd: root, encoding: 'utf8' });
-  git('init', '-q');
+  initRepository(root);
   git('add', '-A');
   const run = (...args: string[]) => spawnSync(process.execPath, [check, ...args], { cwd: root, encoding: 'utf8' });
   const bare = run();

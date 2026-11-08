@@ -288,7 +288,7 @@ test('K939 the make run of an entry sees the var and the node_modules of the che
   assert.equal(spawnSync('unzip', ['-p', zip, 'src/gen/out.txt'], { encoding: 'utf8' }).stdout, 'clean');
 });
 
-test('K939 the pack runs exactly make -C <checkout> <target> with the tools of the checkout on PATH and no npm call other than npm pack', (t) => {
+test('K939 the pack runs exactly make -C <checkout> <target> with the PATH of its caller and no npm call other than npm pack (K1093)', (t) => {
   const box = releaseSandbox(t, { mutate(root) {
     const makefile = path.join(root, 'Makefile');
     writeFileSync(makefile, `${existsSync(makefile) ? readFileSync(makefile, 'utf8') : ''}\nfixture-once:\n\tmkdir -p packages/fixture-php/src/gen && printf once > packages/fixture-php/src/gen/out.txt\n`);
@@ -313,8 +313,8 @@ test('K939 the pack runs exactly make -C <checkout> <target> with the tools of t
   const call = /^-C (\S+) fixture-once\tPATH=(.+)$/.exec(first);
   assert.ok(call, first);
   assert.equal(call[1], box.root, 'make runs in the checkout');
-  const path0 = known(call[2], 'PATH').split(path.delimiter)[0];
-  assert.equal(path0, path.join(box.root, 'var/tools/bin'), 'the tools of the checkout come first on PATH');
+  // kit sets no PATH of its own: the caller puts the tools of the checkout on its PATH (K1093).
+  assert.equal(known(call[2], 'PATH'), env.PATH, 'make runs with the PATH of the caller');
   assert.deepEqual(box.npmCalls().filter(entry => entry.args[0] !== 'pack'), [], 'the pack starts no package manager but npm pack');
 });
 

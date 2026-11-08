@@ -14,7 +14,7 @@ test('a package at the repository root is declared with the directory . and its 
   const config = {
     schema: 1, repositoryUrl: 'https://example.com/polyspec/root', changelog: 'CHANGELOG.md',
     packages: [{ kind: 'npm', directory: '.', name: '@polyspec/root', product: 'root', runtime: 'ts' }],
-    manifests: { 'package.json': 'archive' }, notReleased: {}, goModules: {},
+    manifests: { 'package.json': 'archive' }, notReleased: {}, goModules: {}, packageFiles: ['package.json'],
   };
   const root = tree(t, { 'config/release.json': JSON.stringify(config), 'package.json': JSON.stringify({ name: '@polyspec/root', version: '1.0.0' }), 'CHANGELOG.md': '# Changelog\n' });
   const loaded = loadConfig(root);

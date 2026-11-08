@@ -82,9 +82,9 @@ test('a record must exist and name the tool it covers', (t) => {
   ]);
 });
 
-test('a tool source that the layout finds is a finding, whatever the declaration names (K286)', (t) => {
+test('a tool source that the --source globs of the caller find is a finding, whatever the declaration names (K286, K1080)', (t) => {
   const files = { ...FILES, 'packages/codec/tools/make.mjs': '', 'benchmarks/run.js': '' };
-  assert.deepEqual(rebuildFindings(tree(t, files), DECLARATION, Object.keys(files)), [
+  assert.deepEqual(rebuildFindings(tree(t, files), DECLARATION, Object.keys(files), ['packages/*/tools/**/*.mjs', 'benchmarks/**/*.js']), [
     'benchmarks/run.js: the tool has no class in config/rebuild.json; declare it ecosystem, replaced, record or policy',
     'packages/codec/tools/make.mjs: the tool has no class in config/rebuild.json; declare it ecosystem, replaced, record or policy',
   ]);
@@ -107,7 +107,7 @@ test('K455: every tool of the checkout that rebuild-check reads has its class in
 test('the command checks config/rebuild.json of the checkout it runs in and fails with each finding', (t) => {
   const root = tree(t, { ...FILES, 'config/rebuild.json': JSON.stringify({ ...DECLARATION, tools: { 'scripts/kit/lint.mts': { kind: 'ecosystem', tool: 'ruff' } } }) });
   // The tool of this checkout runs in the sandbox, as kit-tools.mts runs the tools of kit.
-  const run = (cwd: string) => spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/rebuild-check.mts'))], { cwd, encoding: 'utf8' });
+  const run = (cwd: string) => spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/rebuild-check.mts')), '--source', 'scripts/**/*.mts'], { cwd, encoding: 'utf8' });
   spawnSync('git', ['add', '-A'], { cwd: root });
   const failed = run(root);
   assert.equal(failed.status, 1, failed.stdout + failed.stderr);

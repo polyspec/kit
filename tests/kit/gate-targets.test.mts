@@ -75,6 +75,9 @@ test('a make invocation sets no core.hooksPath, even in a checkout that tracks a
 
 test('kit.mk runs the rebuild check and the rules check in every repository that includes it (K248)', (t) => {
   const directory = repository(t);
-  assert.deepEqual(commands(directory, 'rebuild-check'), ['$(NODE) scripts/kit/rebuild-check.mts']);
+  // The tool sources and the files that are none are the --source and --exclude globs of kit's recipe (K1080).
+  const rebuild = commands(directory, 'rebuild-check');
+  assert.equal(rebuild.length, 1, rebuild.join('\n'));
+  assert.match(rebuild[0] ?? '', /^\$\(NODE\) scripts\/kit\/rebuild-check\.mts --source 'scripts\/\*\*\/\*\.\{mts,[^']*\}'( --(source|exclude) '[^']+')+$/);
   assert.deepEqual(commands(directory, 'rules-check'), ['$(NODE) scripts/kit/check-rules.mts']);
 });

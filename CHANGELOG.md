@@ -8,6 +8,7 @@
 ## 0.0.99
 
 - Release: kit 0.0.99 with the rows K1068–K1085, K1087–K1118 and K1120–K1125, which make each tool read only what it uses and what the repository or its caller declares; K1086 is not part of it (K1119).
+- K1125: the tests of kit pass what the caller declares since K1069–K1118 (private paths, document rules, rebuild sources, packageFiles, fixtures, the extension layout, the mise environment, PATH and concurrency), install no hook, start a nested run without NODE_TEST_CONTEXT, create every repository through initRepository, and drop the K958 reason test, since no tool reads the reason (K1125).
 - K1124: checklist.schema.json refuses no key of states that it does not describe, as no schema of kit does (K1069, K1124).
 - K1123: php-extension leaves out the files below a folder that the caller skips, whether they are tracked or only on the disk (K1123).
 - K1122: runtime-targets reads a root with a trailing slash as its folder, so tools/ and tools run once, in tools (K1122).

@@ -226,7 +226,7 @@ test('K1114 divergence-check takes the implementation roots from --parity or --r
   const root = tree(t, { 'README.md': 'x\n' });
   const bare = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/divergence-check.mts'))], { cwd: root, encoding: 'utf8' });
   assert.equal(bare.status, 2, bare.stderr);
-  assert.match(bare.stderr, /usage: divergence-check\.mts --parity <path> \| --roots/);
+  assert.match(bare.stderr, /usage: divergence-check\.mts \[--reason-kind <kind>\]\.\.\. \[--feature-state <state>\]\.\.\. --parity <path> \| --roots/);
 });
 
 test('the kinds of reason and the refused feature states are the rules the caller declares; none declared refuses none (K1079)', () => {

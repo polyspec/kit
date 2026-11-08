@@ -79,8 +79,9 @@ test('a passing file prints the start and the result of each test and a summary,
 
 test('a directory runs the test files below it', async (t) => {
   const root = checkout(t, { 'tests/one/a.test.mjs': `${SPEC}test('a', () => {});\n`, 'tests/one/b.test.mjs': `${SPEC}test('b', () => {});\n` });
-  // The child reporter writes to the process, so the recorded results count the files that ran.
-  const result = await runInProcess(root, ['node', '--results', 'var/report/one.json', 'tests/one']);
+  // The child reporter writes to the process, so the recorded results count the files that ran. The files run one at a time, as
+  // the recipes of kit pass --test-concurrency=1 (K1094).
+  const result = await runInProcess(root, ['node', '--results', 'var/report/one.json', '--', '--test-concurrency=1', 'tests/one']);
   assert.equal(result.status, 0, output(result));
   const record = readStub(path.join(root, 'var/report/one.json'), RESULTS);
   assert.deepEqual(record.cases.map(({ id, status }) => [id, status]), [['tests/one/a.test.mjs › a', 'pass'], ['tests/one/b.test.mjs › b', 'pass']]);
