@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 4f5513f16f793c18d938da8beadf89a37e9660239614f64be667d3a71ddff5e3 -->
+<!-- source-sha256: bdd9f58a5042d8f7fa8999ba272c9a21e5d427657561800de2e2df1fea9f9607 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -208,7 +208,7 @@
 | K1078 | worktree-setup은 devEngines.packageManager가 필요한 이유를 삭제된 kit include가 아니라 자신이 실행하는 것으로 밝힌다 | scripts/kit/worktree-setup.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1078 tests/kit/worktree-setup.test.mts` | [ ] |
 | K1079 | divergence-check는 예외 사유와 기능 상태를 저장소가 선언한 규칙으로 판단하며, kit에 고정된 종류 목록이나 기능 상태 규칙이 없다 | scripts/kit/divergence-check.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1079 tests/kit/divergence-check.test.mts` | [o] |
 | K1080 | rebuild-check는 config/rebuild.json이 선언한 도구를 검사하며, 모든 저장소가 분류해야 하는 kit 고정 도구 목록이 없다 | scripts/kit/rebuild-check.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1080 tests/kit/rebuild-check.test.mts` | [o] |
-| K1081 | check-documents는 저장소가 선언한 문서를 검사하며, 행이 kit checklist 항목을 이름 붙여야 한다는 요구와 kit에 고정된 checklist 위치가 없다 | scripts/kit/check-documents.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1081 tests/kit/check-documents.test.mts` | [ ] |
+| K1081 | check-documents는 저장소가 선언한 문서를 검사하며, 행이 kit checklist 항목을 이름 붙여야 한다는 요구와 kit에 고정된 checklist 위치가 없다 | scripts/kit/check-documents.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1081 tests/kit/check-documents.test.mts` | [o] |
 | K1082 | checklist는 저장소의 plan 폴더를 읽으며, plan 폴더가 가져야 하는 파일의 고정 목록이 없다 | scripts/kit/checklist.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1082 tests/kit/checklist.test.mts` | [ ] |
 | K1083 | generated-files는 저장소가 선언한 무시 대상 설치 폴더를 검사하며, kit에 고정된 무시 목록이 없다 | scripts/kit/generated-files.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1083 tests/kit/generated-files.test.mts` | [o] |
 | K1084 | release는 태그와 변경 기록에서 파싱하는 것만 요구하며, 그 이상으로 kit에 고정된 태그 형식이나 변경 기록 형식이 없다 | scripts/kit/release.mts, scripts/kit/changelog.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1084 tests/kit/release.test.mts` | [ ] |

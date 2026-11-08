@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K1081: check-documents finds checklist items outside a plan folder only when its caller passes `--checklist-place`; kit's recipe passes it (K1081).
 - K1080: rebuild-check selects the tool sources that its caller declares with `--source <glob>`, and drops the files that it declares with `--exclude <glob>`, such as tests and `.d.ts` files, with no layout fixed in kit; with no --source it checks only the classes that config/rebuild.json declares. kit's recipe declares its own sources and excludes, so kit selects what it selected before; a repository that keeps the old selection passes the same `--exclude` globs (K1080).
 - K1079: divergence-check refuses only by the rules its caller declares: `--reason-kind <kind>` for the kinds of reason of a configuration exception and `--feature-state <state>` for the states of contracts/features.json it refuses; with neither it finds nothing of those kinds, and kit's recipe declares its own kinds and states (K1079).
 - K1117: duplication-check and install-php assume no `packages/php-ext` folder: duplication-check leaves out no stub path of its own, so a repository excludes the S10 stub of its PHP extension in config/duplication.json, and install-php leaves out a missing php-config or phpize in every repository, where a repository with `packages/php-ext` failed; the build of an extension, which runs phpize, fails without them. The R6 row of tool-inventory and the `shares` description of parity.schema.json state that an implementation shares tests only by its `shares` declaration (K1117).

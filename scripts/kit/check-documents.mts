@@ -10,7 +10,8 @@
 //   raw-tag         in the same documents, every raw HTML tag outside code is paired, unless it is void or self-closing (K895)
 //   checklist-*     the checklists of the plan folders hold only tasks and their markers and states are valid (the strict reading
 //                   of scripts/kit/checklist.mts), an item ID is unique among them and a sub-item has its parent in its checklist
-//                   (checklist-cross), and no other document under docs/ holds checklist items (checklist-place)
+//                   (checklist-cross), and, when the caller passes --checklist-place, no other document under docs/ holds
+//                   checklist items (checklist-place, K1081)
 //   checklist-kit   a task row names in its Task, Verification or state a kit item id (K<n> or K<n>-<m>) that the checklists of
 //                   the kit hold none of (K374); the kit is this checkout, or else the item list dist/kit-items.json of the installed
 //                   kit package, which a missing list fails (K957)
@@ -22,6 +23,7 @@
 // has none). The command prints its findings and exits with status 1, or prints the count of what it checked.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { parseArgs } from 'node:util';
 import { changelogFindings } from './changelog.mts';
 import { verificationFindings } from './verification.mts';
 import { checklistsFindings, CHECKLIST_COLUMNS, CONFIG as CHECKLIST_CONFIG, loadConfig as loadChecklists, readChecklist, trackersOf, undeclaredChecklists, workingPlanFiles } from './checklist.mts';
@@ -49,6 +51,9 @@ export type DocumentsConfig = {
   statusTables?: { path: string; idPattern: string; cells: number; columns: { index: number; enum?: string[]; pattern?: string }[] }[];
   changelogs?: string[];
 };
+
+/** The rules that the caller declares with the arguments of its recipe; a rule that is not declared finds nothing (K1081). */
+export type DocumentRules = { checklistPlace?: boolean };
 
 /** A finding of a file, with the line and column it names when it names them. */
 export type DocumentFinding = { rule: string; message: string; line?: number | undefined; column?: number | undefined };
@@ -247,7 +252,7 @@ function kitRowFindings(checklists: readonly Tracker[], available: (file: string
 }
 
 /** The findings of the checkout at `root` under `config`, as printed lines, sorted. */
-export function check(root: string, config: DocumentsConfig, progress?: (line: string) => void) {
+export function check(root: string, config: DocumentsConfig, progress?: (line: string) => void, rules: DocumentRules = {}) {
   const cache = new Map<string, string>();
   const read = (file: string) => {
     if (!cache.has(file)) cache.set(file, readFileSync(path.join(root, file), 'utf8'));
@@ -298,9 +303,9 @@ export function check(root: string, config: DocumentsConfig, progress?: (line: s
       for (const [file, entry] of kitRowFindings(checklists, available, new Set(ids), reader)) add(file, entry);
     }
   }
-  // A document under docs/ that holds checklist items but is no checklist of a plan folder is read by no gate (K235).
+  // A document under docs/ that holds checklist items but is no checklist of a plan folder is read by no gate (K235), when the caller declares the rule (K1081).
   const prose = documents.filter(name => name.startsWith('docs/'));
-  for (const name of undeclaredChecklists(checklists, prose.flatMap(english => [english, koreanOf(english)]).filter(file => existsSync(path.join(root, file))).map(file => ({ path: file, text: read(file) })))) {
+  for (const name of rules.checklistPlace ? undeclaredChecklists(checklists, prose.flatMap(english => [english, koreanOf(english)]).filter(file => existsSync(path.join(root, file))).map(file => ({ path: file, text: read(file) }))) : []) {
     add(name, { rule: 'checklist-place', message: 'the document holds checklist items but is no checklist of a plan folder; move the items into docs/plans/<plan>/checklist.md' });
   }
   progress?.(`step checklists: ${found.length === beforeChecklists ? 'passed' : `${found.length - beforeChecklists} findings`} (${compactSeconds(performance.now() - checklistStarted)})`);
@@ -333,7 +338,9 @@ if (isMain(import.meta.url)) {
   }
   const config = readConfig<DocumentsConfig>(root, CONFIG, 'documents.schema.json');
   console.log(`[check-documents] reading the documents selected by ${CONFIG}`);
-  const { findings, documents, checklists } = check(root, config, line => console.log(`[check-documents] ${line}`));
+  // The rules of the repository, from the arguments of its recipe (K1081).
+  const { values } = parseArgs({ options: { 'checklist-place': { type: 'boolean' } } });
+  const { findings, documents, checklists } = check(root, config, line => console.log(`[check-documents] ${line}`), { checklistPlace: values['checklist-place'] ?? false });
   for (const line of findings) console.error(`[check-documents] ${line}`);
   if (findings.length) {
     console.error(`[check-documents] ${findings.length} findings in ${documents} document pairs`);
