@@ -172,9 +172,9 @@ export function trackedRuleFindings(root: string, config: GeneratedConfig): stri
   });
 }
 
-/** The configuration of the checkout `root`; throws with every finding when it breaks the schema, and when it is missing. */
+/** The configuration of the checkout `root`, or no path and no exception when it declares none (K1073); throws with every finding when it breaks the schema. */
 export function loadGeneratedConfig(root: string): GeneratedConfig {
-  if (!existsSync(path.join(root, CONFIG))) throw new Error(`${CONFIG} does not exist in ${root}; the repository declares its generated-file exceptions there`);
+  if (!existsSync(path.join(root, CONFIG))) return { schema: 1, paths: [], exceptions: [] };
   const { value, errors } = readConfigFindings<GeneratedConfig>(root, CONFIG, 'generated.schema.json');
   if (errors) throw new Error(errors.join('\n'));
   return value;

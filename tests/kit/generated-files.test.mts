@@ -183,3 +183,18 @@ test('an exception of config/generated.json without a reason fails the schema (K
   const root = tree(t, { 'config/generated.json': JSON.stringify({ schema: 1, paths: [], exceptions: [{ path: 'tests/*/fixtures/**' }] }) });
   assert.throws(() => loadGeneratedConfig(root), /reason/);
 });
+
+// K1073: staged reads config/generated.json only for its paths and exceptions; a checkout that declares none still has every
+// generated segment refused.
+test('K1073 staged runs without config/generated.json: a plain path passes and a generated segment is still refused', (t) => {
+  const { work } = checkout(t, { files: { 'src/a.ts': 'x\n' } });
+  rmSync(path.join(work, 'config/generated.json'));
+  stage(work, 'src/b.ts');
+  const plain = check(work);
+  assert.equal(plain.status, 0, plain.stderr);
+  assert.match(plain.stdout, /no generated file is staged/);
+  stage(work, 'node_modules/x/index.js');
+  const refused = check(work);
+  assert.equal(refused.status, 1, refused.stderr);
+  assert.match(refused.stderr, /node_modules\/x\/index\.js is a generated file/);
+});

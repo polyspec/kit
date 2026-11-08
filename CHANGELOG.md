@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K1073: generated-files staged and tracked run without config/generated.json, as a declaration of no path and no exception; the generated segments are refused as before (K1073).
 - duplication-check reads its formats, minimum lines, ignore-patterns and exclusions from config/duplication.json, with none fixed in kit; exclude is optional, and kit declares its own current values, while a repository with PHP extension stubs excludes packages/php-ext/src/polyspec_*.stub.php itself (K1104).
 - ci-targets runs each target with make -k only when the caller asks for it with make -k ci-targets (node ci-targets.mts -k); the example ci-pipeline.yml runs make -k ci-targets (K1098).
 - run-tests sets the runner flags and the environment of a run only as the caller passes them: the per-test option of node --test, vitest and Playwright only with --timeout, and no --test-concurrency=1, -count=1 -timeout=0, --test-threads=1, PYTHONUNBUFFERED, NO_COLOR, PYTHON_COLORS or removal of NODE_TEST_CONTEXT of its own (K1094).

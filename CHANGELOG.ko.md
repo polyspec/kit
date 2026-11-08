@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 55c940e48184cc17d0a38e9ab8b5c45f283fc08bf893adcc241825b1970ac6de -->
+<!-- source-sha256: dd9085ec63441a4c92d30d0d447c9cbb47e8919a6c8892add906fd7e0c24f881 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -32,6 +32,7 @@
 - duplication-check는 format, 최소 줄 수, ignore-pattern, 제외를 config/duplication.json에서 읽고 kit에 고정한 값은 없다. exclude는 선택이며, kit은 지금의 자기 값을 선언하고, PHP extension stub이 있는 저장소는 packages/php-ext/src/polyspec_*.stub.php를 스스로 제외한다(K1104).
 - ci-targets는 호출자가 make -k ci-targets(node ci-targets.mts -k)로 요청할 때만 각 target을 make -k로 실행한다. 예시 ci-pipeline.yml은 make -k ci-targets를 실행한다(K1098).
 - run-tests는 실행의 runner flag와 environment를 호출자가 넘긴 대로만 정한다: node --test, vitest, Playwright의 test별 option은 --timeout이 있을 때만 넘기고, --test-concurrency=1, -count=1 -timeout=0, --test-threads=1, PYTHONUNBUFFERED, NO_COLOR, PYTHON_COLORS, NODE_TEST_CONTEXT 제거를 스스로 하지 않는다(K1094).
+- K1073: generated-files staged와 tracked는 config/generated.json 없이도 path와 exception이 없는 선언으로 실행된다. 생성 segment는 전과 같이 거부한다(K1073).
 - PHPUnit event의 fully qualified identity와 독립된 flow를 보존하고 parity mapping의 namespace aliasing을 제거한다(K1091).
 
 ## 0.0.98
