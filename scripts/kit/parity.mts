@@ -58,7 +58,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { toolsEnvironment } from './mise-tools.mts';
 import { DECLARATION, RULES, finding, findingLine, implementationFolders, readDeclaration } from './parity-declaration.mts';
 import type { Finding } from './parity-declaration.mts';
 import { errorCatalog, readCodes } from './parity-errors.mts';
@@ -271,7 +270,7 @@ if (isMain(import.meta.url)) {
       process.exitCode = 1;
     } else {
       const selectedPhase = phase;
-      const { findings, ledger } = await checkParity(repositoryRoot(), { execute: !values.declarations, env: toolsEnvironment(repositoryRoot()), say, units: values.unit, rules: values.rule, ids: values.id, implementations: values.implementation, phase: selectedPhase });
+      const { findings, ledger } = await checkParity(repositoryRoot(), { execute: !values.declarations, env: process.env, say, units: values.unit, rules: values.rule, ids: values.id, implementations: values.implementation, phase: selectedPhase });
       if (selectedPhase === 'api' && !values.declarations) say('API phase ran no native bindings');
       else if (!values.declarations) say(`${ledger.runs.length} bindings ran, ${ledger.cases.filter(entry => entry.outcome === 'pass').length} cases passed`);
       for (const item of findings) console.error(`[parity] ${findingLine(item)}`);

@@ -6,7 +6,7 @@ import { existsSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { git } from './git.mts';
-import { toolCommand, toolsEnvironment } from './mise-tools.mts';
+import { toolCommand } from './mise-tools.mts';
 import { execute } from './process.mts';
 import { checkedFiles } from './tracked-files.mts';
 
@@ -82,7 +82,7 @@ function builtFor(root: string, output: string, env: NodeJS.ProcessEnv): number 
 /** Runs `tsc --noEmit -p` in each of `folders` and returns the failures with the output of tsc. */
 export function typeErrors(root: string, folders: readonly string[]): { folder: string; output: string }[] {
   const failures: { folder: string; output: string }[] = [];
-  const env = toolsEnvironment(root);
+  const env = { ...process.env };
   const compile = (folder: string) => {
     const checker = checkerOf(root, folder);
     return execute(checker.command, checker.args, { cwd: path.join(root, folder), env });

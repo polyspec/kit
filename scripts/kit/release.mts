@@ -48,7 +48,7 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { execute, run, Stop } from './process.mts';
 import { present } from './present.mts';
 import { linksOutsideCheckout } from './link.mts';
-import { toolCommand, toolsEnvironment } from './mise-tools.mts';
+import { toolCommand } from './mise-tools.mts';
 import { packedPackageManifest } from './pack-manifest.mts';
 
 export const MAIN = 'origin/main';
@@ -440,7 +440,7 @@ function madeFiles(ctx: Context, commit: string, folder: string, makes: ReleaseG
     for (const { target, outputs } of makes) {
       for (const output of outputs) rmSync(path.join(root, folder, output), { recursive: true, force: true });
       ctx.log(`[release] ${commit}: make ${target} in the checkout, for ${folder}`);
-      const result = execute('make', ['-C', root, target], { cwd: root, env: toolsEnvironment(root, ctx.env) });
+      const result = execute('make', ['-C', root, target], { cwd: root, env: ctx.env });
       if (result.error) throw new Stop(`make could not start for ${target}: ${result.error.message}`);
       if (result.status !== 0) throw new Stop(`make ${target} failed at ${commit} with exit status ${result.status}: ${(result.stdout + result.stderr).trim()}`);
       // A byproduct of the target, changed or untracked and not declared, would enter the checkout unpacked; the declared outputs of

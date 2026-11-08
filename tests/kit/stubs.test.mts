@@ -7,7 +7,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
+import { toolsEnvironment } from './tools-environment.mts';
 import { versionStubs } from './toolchain-stubs.mts';
 import { parseJson } from '../../scripts/kit/schema-validate.mts';
 import { known } from './known.mts';

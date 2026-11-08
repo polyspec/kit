@@ -22,7 +22,6 @@ import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { isSource } from './manifests.mts';
 import { present } from './present.mts';
 import { checkedFiles } from './tracked-files.mts';
-import { toolsEnvironment } from './mise-tools.mts';
 import { checkerOf, tsconfigFolders } from './ts-typecheck.mts';
 
 /** Resolve a declared lint dependency through Node's native package lookup, including linked providers and hoisted installs. */
@@ -44,7 +43,7 @@ export function lintSteps(root: string): LintStep[] {
   const tools = Object.fromEntries(Object.entries({ oxlint: 'oxlint', knip: 'knip', 'api-extractor': '@microsoft/api-extractor' })
     .map(([binary, name]) => [binary, lintDependency(provider, name, binary).command]));
   const backend = lintDependency(provider, 'oxlint-tsgolint', 'tsgolint');
-  const env = { PATH: [backend.binDirectory, toolsEnvironment(root).PATH ?? ''].join(path.delimiter) };
+  const env = { PATH: [backend.binDirectory, process.env.PATH ?? ''].join(path.delimiter) };
   const packages = foldersOf(root, 'api-extractor.json');
   return [
     // The unix format names the file, line, column and rule of each finding on one line; oxlint picks the github format under CI, whose annotations

@@ -8,7 +8,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { toolCommand, toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
+import { toolCommand } from '../../scripts/kit/mise-tools.mts';
+import { toolsEnvironment } from '../kit/tools-environment.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 

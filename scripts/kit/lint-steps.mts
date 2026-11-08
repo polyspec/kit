@@ -6,7 +6,6 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { isMain, repositoryRoot } from './paths.mts';
-import { toolsEnvironment } from './mise-tools.mts';
 import { execute } from './process.mts';
 import type { Outcome } from './process.mts';
 import { checkedFiles } from './tracked-files.mts';
@@ -40,7 +39,7 @@ export function runLint(name: string, steps: readonly LintStep[], root: string, 
   const failed: string[] = [];
   for (const step of steps) {
     // A step runs the tools of mise.toml from their shims, in the environment of mise of the checkout.
-    const env = { ...toolsEnvironment(root), ...step.env };
+    const env = { ...process.env, ...step.env };
     const temporaryDirectory = step.isolatedTemporaryDirectory
       ? mkdtempSync(path.join(env.TMPDIR ?? tmpdir(), 'kit-lint-step-'))
       : undefined;

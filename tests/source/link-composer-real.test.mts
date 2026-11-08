@@ -9,7 +9,8 @@ import test from 'node:test';
 import { link } from '../../scripts/kit/link.mts';
 import { initRepository } from '../kit/sandbox-repository.mts';
 import { put } from '../kit/tree.mts';
-import { toolCommand, toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
+import { toolCommand } from '../../scripts/kit/mise-tools.mts';
+import { toolsEnvironment } from '../kit/tools-environment.mts';
 import { readJsonFile } from '../../scripts/kit/schema-validate.mts';
 import { isJsonObject, readJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 

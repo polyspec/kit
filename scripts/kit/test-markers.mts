@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { isTestFile } from './check-commits.mts';
 import { calleeName, isNode, parseScript, walk } from './script-ast.mts';
 import { isMain, repositoryRoot } from './paths.mts';
-import { toolCommand, toolsEnvironment } from './mise-tools.mts';
+import { toolCommand } from './mise-tools.mts';
 import { parseJson } from './schema-validate.mts';
 import { trackedFiles } from './tracked-files.mts';
 
@@ -53,7 +53,7 @@ type PythonReading = { path: string; markers: { line: number; marker: string }[]
 
 /** The findings of the Python test `text` of `file`, read by the python3 of the checkout `root` (K345). */
 function pythonFindings(root: string, file: string, text: string): string[] {
-  const result = spawnSync(toolCommand(root, 'python3'), ['-I', PYTHON_HELPER, '-'], { cwd: root, env: toolsEnvironment(root), input: text, encoding: 'utf8' });
+  const result = spawnSync(toolCommand(root, 'python3'), ['-I', PYTHON_HELPER, '-'], { cwd: root, input: text, encoding: 'utf8' });
   if (result.error || result.status !== 0) throw new Error(`the marker helper ${PYTHON_HELPER} could not read ${file}: ${result.error?.message ?? result.stderr.trim()}`);
   const [reading] = parseJson<PythonReading[]>(result.stdout, 'python-markers.schema.json', `${PYTHON_HELPER} ${file}`);
   if (reading === undefined) throw new Error(`${PYTHON_HELPER} printed no reading of ${file}`);

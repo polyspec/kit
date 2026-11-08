@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { checkParity } from '../../scripts/kit/parity.mts';
 import { installExtractor } from '../../scripts/kit/install-symbols.mts';
 import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
-import { toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
+import { toolsEnvironment } from '../kit/tools-environment.mts';
 import { tree } from '../kit/tree.mts';
 import { sandboxMise, sandboxShims } from './real-tools.mts';
 

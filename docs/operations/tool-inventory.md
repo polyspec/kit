@@ -52,7 +52,8 @@ binary swapped while its marker stays passes the check. mise keeps its data, cac
 its installs and its shims in `var/tools/mise`, and the wrapper `var/tools/bin/mise` sets that environment; nothing outside the
 checkout changes. A tool of `mise.toml` is reached through its shim in `var/tools/mise/shims` (`scripts/kit/mise-tools.mts`):
 kit's own kit.mk exports the environment of mise of the checkout to each of its recipes and puts `var/tools/bin` and the shims
-first on PATH; a repository sets its own recipes (K1054).
+first on PATH; a repository sets its own recipes (K1054). A utility of kit starts its tools with the environment of its caller
+and sets no MISE_* or PATH of its own, so the recipe that runs it exports them (K1093).
 `var/tools/bin` holds only the wrappers that kit writes for the declarations of the checkout: mise, npm and npx of the
 bootstrap, php, php-config and phpize of the declared PHP, phpunit, phpcs and phpstan of the declared Composer projects. `make install-tools` removes every other file there
 before it installs, such as a wrapper of an older kit for a tool that now comes from mise, which would shadow its shim (K149).
@@ -1510,7 +1511,7 @@ lock and its hashes.
 - **Settings of uv are the repository's own (K1048):** kit sets none. kit's own `mise.toml` sets in its `[env]`
   `UV_CACHE_DIR=var/tools/mise/cache/uv`, `UV_PYTHON_DOWNLOADS=never` (uv downloads no interpreter) and `UV_NO_CONFIG=1` (no
   `uv.toml` of the home or of the system is read), as [docs/examples/native-settings](../examples/native-settings.md) shows;
-  `UV_PYTHON_PREFERENCE=only-system` makes uv take the python3 of mise, which `toolsEnvironment` puts first on PATH.
+  `UV_PYTHON_PREFERENCE=only-system` makes uv take the python3 of mise, which the recipe of the caller puts first on PATH (K1093).
 
 ## Editor tools (K80)
 

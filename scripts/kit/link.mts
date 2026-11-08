@@ -28,7 +28,7 @@ import { projectEnvironment, uvLink } from './uv-install.mts';
 import { composerVendorDir, environmentLinks, folderFindings, hasPythonPackages, linkFolders, type ProvidedFolder, providedFolders, providerDependencyFindings } from './link-folders.mts';
 import { assertIgnored, declaredCheckouts, type Ecosystem, EXCLUDED, goModule, LINKS_FILE, mainCheckout, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, type Tool, trackedManifests, workTreeOf } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
-import { toolCommand, toolsEnvironment } from './mise-tools.mts';
+import { toolCommand } from './mise-tools.mts';
 import { isMain } from './paths.mts';
 import { errorCode, execute, run } from './process.mts';
 import { acquireHolderLock } from './holder-lock.mts';
@@ -57,7 +57,7 @@ function consumerTool(top: string, name: 'npm' | 'composer' | 'uv' | 'go' | 'car
   if (given) return { command: given, env };
   if (name === 'cargo') return { command: 'cargo', env };
   // The tool of the checkout, else the one on PATH (K947).
-  return { command: toolCommand(top, name), env: toolsEnvironment(top, env) };
+  return { command: toolCommand(top, name), env };
 }
 
 /** The real path of `file`, or undefined when it does not exist; any other error is thrown. */

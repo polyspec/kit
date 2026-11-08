@@ -6,7 +6,7 @@ import test from 'node:test';
 import { phpunitEvents, type Sink } from '../../scripts/kit/test-output.mts';
 import { parseTestEvent } from '../../scripts/kit/test-gap.mts';
 import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
-import { toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
+import { toolsEnvironment } from '../kit/tools-environment.mts';
 import { tree } from '../kit/tree.mts';
 const ROOT = path.resolve(import.meta.dirname, '../..');
 

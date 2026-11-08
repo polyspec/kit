@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: fc4c57d24bae2bd51d2639d5268262dc10e309f8d729fb16affcad9861c9e34f -->
+<!-- source-sha256: f386790242d72a3bbb69834ebfd19a190a622c50fd8247a91b88c52ce57780e7 -->
 
 # 도구 목록
 
@@ -48,7 +48,8 @@ bootstrap(`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`)
 비교하지 않습니다(K933). marker만 읽으므로 marker가 남은 채 바뀐 binary는 검사를 통과합니다. mise는 data, cache, state, config와 설치물, shim을 `var/tools/mise`에 두며, wrapper
 `var/tools/bin/mise`가 그 환경을 정합니다. checkout 밖은 아무것도 바뀌지 않습니다. `mise.toml`의 도구는 `var/tools/mise/shims`의
 shim으로 실행합니다(`scripts/kit/mise-tools.mts`). kit 자신의 kit.mk는 checkout의 mise 환경을 자기 각 recipe에 export하고 `var/tools/bin`과 shim을
-PATH 맨 앞에 둡니다. 저장소는 자기 recipe를 정합니다(K1054). `var/tools/bin`에는 kit이 checkout의 선언에 따라 쓰는 wrapper만 있습니다: bootstrap의 mise, npm, npx와
+PATH 맨 앞에 둡니다. 저장소는 자기 recipe를 정합니다(K1054). kit의 유틸리티는 호출자의 환경으로 도구를 시작하고 MISE_*나 PATH를
+스스로 정하지 않으므로, 그 유틸리티를 실행하는 recipe가 이를 export합니다(K1093). `var/tools/bin`에는 kit이 checkout의 선언에 따라 쓰는 wrapper만 있습니다: bootstrap의 mise, npm, npx와
 선언된 PHP의 php, php-config, phpize, 선언된 Composer project의 phpunit, phpcs, phpstan입니다. 전체 `make install-tools`는 설치 전에 그 밖의 file을 모두 지웁니다. 예를
 들어 이제 mise에서 오는 도구에 대해 이전 kit이 쓴 wrapper는 그 shim을 가립니다(K149). 설치된 도구를 검사하는 target은 없습니다. 도구가 없으면 그 도구를 실행하는 target이 실패합니다(K854). bootstrap과 mise가 설치하지 않는
 도구의 선언은 `scripts/kit/bootstrap/toolchain-declared.mts`가, `mise.toml`의 도구와 `mise.lock`의 digest는
@@ -1379,7 +1380,7 @@ catalog pattern은 catalog에서 빈 줄도 주석(`#` 또는 `//`로 시작하�
 - **uv의 설정은 저장소 자신의 것(K1048):** kit은 아무것도 설정하지 않습니다. kit 자신의 `mise.toml`은 `[env]`에
   `UV_CACHE_DIR=var/tools/mise/cache/uv`, `UV_PYTHON_DOWNLOADS=never`(uv는 interpreter를 내려받지 않음), `UV_NO_CONFIG=1`(home이나
   system의 `uv.toml`을 읽지 않음)을 설정하며, [docs/examples/native-settings](../examples/native-settings.ko.md)가 그 예를 보여 줍니다.
-  `UV_PYTHON_PREFERENCE=only-system`이면 uv는 `toolsEnvironment`가 PATH 앞에 두는 mise의 python3을 씁니다.
+  `UV_PYTHON_PREFERENCE=only-system`이면 uv는 호출자의 recipe가 PATH 앞에 두는 mise의 python3을 씁니다(K1093).
 
 ## Editor tools (K80)
 

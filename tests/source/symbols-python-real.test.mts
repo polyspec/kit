@@ -9,7 +9,7 @@ import { existsSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
+import { toolsEnvironment } from '../kit/tools-environment.mts';
 import { pythonListed } from '../../scripts/kit/parity-symbols.mts';
 import { tree } from '../kit/tree.mts';
 import { sandboxShims } from './real-tools.mts';

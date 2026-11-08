@@ -15,7 +15,6 @@ import type { TestContext } from 'node:test';
 import { KIT } from './kit-tools.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 import { miseEnvironment } from '../../scripts/kit/bootstrap/install-mise.mts';
-import { toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
 import { archiveTar, toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
 import { lintCommands } from '../../scripts/kit/lint-steps.mts';
 import { toolchainStubs } from './toolchain-stubs.mts';
@@ -240,7 +239,6 @@ test('the Windows bootstrap extracts with the bsdtar of Windows, which reads dri
 test('miseEnvironment and kit.mk set no setting of mise or uv; the mise.toml and uv configuration of the repository decide them (K1048)', () => {
   const settings = ['MISE_LOCKED', 'MISE_AUTO_INSTALL', 'UV_PYTHON_DOWNLOADS', 'UV_NO_CONFIG', 'UV_CACHE_DIR'];
   assert.deepEqual(Object.keys(miseEnvironment('/checkout')).filter(name => settings.includes(name)), []);
-  assert.equal(toolsEnvironment('/checkout', {}).UV_PYTHON, undefined, 'kit names no Python for uv');
   const make = readFileSync(new URL('../../scripts/kit/kit.mk', import.meta.url), 'utf8');
   assert.deepEqual(settings.filter(name => new RegExp(`\\b${name}\\b`).test(make)), []);
 });

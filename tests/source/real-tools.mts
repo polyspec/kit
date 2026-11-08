@@ -7,7 +7,8 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
-import { toolCommand, toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
+import { toolCommand } from '../../scripts/kit/mise-tools.mts';
+import { toolsEnvironment } from '../kit/tools-environment.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 

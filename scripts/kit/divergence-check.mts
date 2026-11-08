@@ -27,7 +27,6 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { isJsonObject } from './bootstrap/files.mts';
 import { SYMBOLS } from './install-symbols.mts';
 import { parserAutoloader } from './lint-php.mts';
-import { toolsEnvironment } from './mise-tools.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { errorCode } from './process.mts';
 import { codeText, SCRIPT_FILE } from './script-ast.mts';
@@ -173,7 +172,7 @@ export function phpPolyfillGuards(sources: Record<string, string>, root: string 
   const guards = new Map<string, number>();
   if (Object.keys(sources).length === 0) return guards;
   // php from the PATH of the tools environment of the checkout, as the autoload step of lint-php runs it (K886).
-  const printed = execFileSync('php', [path.join(SYMBOLS, 'php', 'autoload-files.php'), '--guards', parserAutoloader(root)], { cwd: root, env: toolsEnvironment(root), input: JSON.stringify(sources), encoding: 'utf8' });
+  const printed = execFileSync('php', [path.join(SYMBOLS, 'php', 'autoload-files.php'), '--guards', parserAutoloader(root)], { cwd: root, input: JSON.stringify(sources), encoding: 'utf8' });
   for (const line of printed.split('\n').filter(Boolean)) guards.set(line, (guards.get(line) ?? 0) + 1);
   return guards;
 }

@@ -1,13 +1,11 @@
 // The one way kit reaches a tool that mise installs (K127): the shim of mise in var/tools/mise/shims, which runs the release of
 // mise.lock for the checkout. A shim needs the environment of mise of the checkout (miseEnvironment of
-// bootstrap/install-mise.mts), which kit.mk exports to every recipe of kit; toolsEnvironment builds it for a command that kit starts
-// itself, with var/tools/bin (npm, npx, mise and the wrappers of the Composer projects) and the shims first on PATH, so a uv
-// whose repository prefers the Python of the system (UV_PYTHON_PREFERENCE=only-system) takes the python3 shim of mise; kit names
-// no Python for uv (K1048). A shim resolves the tools from the directory that it runs in, so a tool of mise runs in the
-// checkout.
+// bootstrap/install-mise.mts), and a tool that a shim starts finds the others on PATH: the caller passes both, as the recipes of
+// kit.mk export MISE_* and put var/tools/bin and the shims first on PATH; a utility starts a tool with the environment it was
+// given and sets no MISE_* or PATH of its own (K1093). kit names no Python for uv (K1048). A shim resolves the tools from the
+// directory that it runs in, so a tool of mise runs in the checkout.
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { miseEnvironment } from './bootstrap/install-mise.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
 
 /** The directory of the shims of mise, relative to the root of the checkout; for messages. */
@@ -24,13 +22,4 @@ export function toolCommand(root: string, name: string): string {
   const extensions = process.platform === 'win32' ? ['.exe', '.cmd', ''] : [''];
   const tried = [toolsPath(root, 'bin'), shimsPath(root)].flatMap(directory => extensions.map(extension => path.join(directory, `${name}${extension}`)));
   return tried.find(file => existsSync(file)) ?? name;
-}
-
-/**
- * `base` with the environment of mise of the checkout `root`, and var/tools/bin and the shims first on PATH, each once.
- */
-export function toolsEnvironment(root: string, base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  const first = [toolsPath(root, 'bin'), shimsPath(root)];
-  const rest = (base.PATH ?? '').split(path.delimiter).filter(entry => entry && !first.includes(path.resolve(entry)));
-  return { ...base, ...miseEnvironment(root), PATH: [...first, ...rest].join(path.delimiter) };
 }

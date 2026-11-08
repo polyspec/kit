@@ -45,7 +45,7 @@ import { composerVendor, packageVendorFile } from './composer-vendor.mts';
 import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress, type Sink, type TestRef } from './test-output.mts';
 // stopGroup is the group stop of process-group.mts, which run-command shares (K430).
 import { signalGroup, stopGroup, watchRoot, type SpawnedRoot } from './process-group.mts';
-import { toolCommand as miseCommand, toolsEnvironment } from './mise-tools.mts';
+import { toolCommand as miseCommand } from './mise-tools.mts';
 import { writeJson } from './bootstrap/files.mts';
 import { isMain, repositoryRoot, siblingTool, TEST_ROOT } from './paths.mts';
 import { inputsDigest } from './tracked-files.mts';
@@ -293,7 +293,7 @@ export function listedTests(argv: string[], root = repositoryRoot(), callerEnv: 
   const { command, args } = toolCommand({ ...options, args: [...options.args, '--list-tests'] }, root);
   // The tool of the checkout starts with the mise of the checkout, as a run in make does (K411), and with the autoloader
   // of the run, which its deadline prepend loads (K827).
-  const env = toolsEnvironment(root, callerEnv);
+  const env = { ...callerEnv };
   delete env.KIT_PHPUNIT_AUTOLOAD;
   Object.assign(env, phpunitAutoload(options, root));
   const scan = mkdtempSync(path.join(tmpdir(), 'kit-php-scan-'));
@@ -357,7 +357,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
   // The reporters run in the --cwd directory, so they take the repository root from TEST_ROOT.
   // The runner and its tool start with the mise of the checkout, so a run outside make, in a shell without its MISE_* variables,
   // trusts the mise.toml of the checkout and finds its tools; the variables that the run sets itself come after (K411).
-  const env: NodeJS.ProcessEnv = { ...toolsEnvironment(root, process.env), KIT_TEST_RESULT: resultFile, [TEST_ROOT]: root, ...(python ? { PYTHONUNBUFFERED: '1', NO_COLOR: '1', PYTHON_COLORS: '0' } : {}), ...(reporter ? { [TEST_EVENTS]: String(TEST_EVENTS_FD) } : {}) };
+  const env: NodeJS.ProcessEnv = { ...process.env, KIT_TEST_RESULT: resultFile, [TEST_ROOT]: root, ...(python ? { PYTHONUNBUFFERED: '1', NO_COLOR: '1', PYTHON_COLORS: '0' } : {}), ...(reporter ? { [TEST_EVENTS]: String(TEST_EVENTS_FD) } : {}) };
   delete env.KIT_PHPUNIT_AUTOLOAD;
   delete env.KIT_TEST_EVENTS;
   Object.assign(env, phpunitAutoload(options, root));

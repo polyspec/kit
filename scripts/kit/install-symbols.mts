@@ -17,7 +17,7 @@ import { replaceInstall } from './bootstrap/install-tool.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
 import { composerEnvironment } from './install-composer-project.mts';
 import { miseWhere } from './bootstrap/install-mise.mts';
-import { toolCommand, toolsEnvironment } from './mise-tools.mts';
+import { toolCommand } from './mise-tools.mts';
 import { declaredToolchain, type InstalledExtractor } from './bootstrap/toolchain-declared.mts';
 import { declaredMiseTools, MISE_TOOLS } from './toolchain-mise.mts';
 import { isMain, repositoryRoot } from './paths.mts';
@@ -56,7 +56,7 @@ const BUILDS: Record<InstalledExtractor, (root: string, next: string, print: (te
   // trust (K199).
   go: (root, next, print) => {
     const go = goCommand(root);
-    run(go, ['build', '-trimpath', '-o', path.join(next, 'bin', 'kit-symbols-go'), '.'], { cwd: path.join(SYMBOLS, 'go'), env: { ...toolsEnvironment(root), GOWORK: 'off' } }, print);
+    run(go, ['build', '-trimpath', '-o', path.join(next, 'bin', 'kit-symbols-go'), '.'], { cwd: path.join(SYMBOLS, 'go'), env: { ...process.env, GOWORK: 'off' } }, print);
   },
 };
 

@@ -15,7 +15,7 @@ import { existsSync, lstatSync, readFileSync, realpathSync, rmSync } from 'node:
 import path from 'node:path';
 import { isMain, repositoryRoot } from './paths.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
-import { SHIMS, toolCommand, toolsEnvironment } from './mise-tools.mts';
+import { SHIMS, toolCommand } from './mise-tools.mts';
 import { present } from './present.mts';
 
 const MAKE = (directory: string): string => `make it from the checkout Python, with make python-venv DIR=${directory} or ${SHIMS}/uv venv --python ${SHIMS}/python3 ${directory}`;
@@ -60,7 +60,7 @@ export function existingVenvProblem(directory: string, root: string = repository
   const interpreter = path.join(directory, 'bin/python');
   if (!existsSync(interpreter)) return `${relative} has no bin/python`;
   const venv = pythonVersion(interpreter, env);
-  const checkout = pythonVersion(toolCommand(root, 'python3'), toolsEnvironment(root, env));
+  const checkout = pythonVersion(toolCommand(root, 'python3'), env);
   if (venv !== checkout) return `${relative} runs Python ${venv}, the checkout Python is ${checkout}`;
   return undefined;
 }
@@ -80,7 +80,7 @@ export function makeVenv({ root = repositoryRoot(), directory, env = process.env
     print(`${relative} unchanged: a venv of the checkout Python`);
     return;
   }
-  run(uv, ['venv', '--quiet', '--python', python, directory], { cwd: root, env: toolsEnvironment(root, env) }, print);
+  run(uv, ['venv', '--quiet', '--python', python, directory], { cwd: root, env: env }, print);
   try {
     const problem = existingVenvProblem(directory, root, env);
     if (problem) throw new Error(problem);

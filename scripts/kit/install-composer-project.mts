@@ -10,10 +10,10 @@
 // checkout, else the one on PATH (K947).
 import path from 'node:path';
 import { quote, run, toolsPath, wrapperText, writeWrapper } from './bootstrap/tool-wrappers.mts';
-import { toolCommand, toolsEnvironment } from './mise-tools.mts';
+import { toolCommand } from './mise-tools.mts';
 
-/** The environment of a Composer of kit: the tools of mise, with the home and the cache of Composer in var/tools/composer. */
-export const composerEnvironment = (root: string): NodeJS.ProcessEnv => toolsEnvironment(root, { ...process.env, COMPOSER_HOME: toolsPath(root, 'composer', 'home'), COMPOSER_CACHE_DIR: toolsPath(root, 'composer', 'cache') });
+/** The environment of a Composer of kit: the environment of the caller, with the home and the cache of Composer in var/tools/composer. */
+export const composerEnvironment = (root: string): NodeJS.ProcessEnv => ({ ...process.env, COMPOSER_HOME: toolsPath(root, 'composer', 'home'), COMPOSER_CACHE_DIR: toolsPath(root, 'composer', 'cache') });
 
 /**
  * Installs the Composer project of the folder `project` (relative to `root`) into var/tools/<folder> with `composer install`;

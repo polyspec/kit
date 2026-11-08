@@ -8,7 +8,8 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 import { uvInstallCommand, uvLink } from '../../scripts/kit/uv-install.mts';
-import { toolCommand, toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
+import { toolCommand } from '../../scripts/kit/mise-tools.mts';
+import { toolsEnvironment } from '../kit/tools-environment.mts';
 
 const ROOT = path.resolve(import.meta.dirname, '../..');
 

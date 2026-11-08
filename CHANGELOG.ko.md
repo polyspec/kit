@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d1fae5eb1fee45e6c24cd60a8c30aa9b96d26aa30f67a6bdea73ced63235050e -->
+<!-- source-sha256: b2d1bf44567571484accbbbb2e0f27dc094b1f7fd5ce63a6516f5d6826291e3e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -9,6 +9,7 @@
 - K1068: ci-setup은 config/ci.json이 선언한 것을 계획하고 준비하며 다른 파일과 대조하지 않습니다. parityBindings가 config/parity.json의 implementation을 모두 이름할 필요가 없고, binding이 없는 implementation은 binding job을 받지 않으며 선언된 binding은 job 하나를 받습니다. parityMode는 선택 항목이며(없으면 config/parity.json이 있을 때 full, 없을 때 none), binding의 setup은 parityMode phases를 요구하지 않습니다. implementation에 binding이 없어도 되는지는 저장소 자신의 규칙입니다. 선언된 setup·binding·context target과 기본 deps-<runtime> target은 Makefile과 먼저 대조하지 않고 선언대로 실행하며, 없는 target은 실행될 때 make가 알립니다(K1068).
 - kit-check는 저장소의 config/<name>.json을 그 이름의 kit schema로 검증하지 않습니다. scripts/kit/kit-check.mts, make target `kit-check`, `kit-gates`와 `kit-gates-static`의 자리, CI step이 사라졌고, `PACKAGE`와 `isSource`는 manifests.mts로, `writtenByKit`는 release.mts로 옮겼습니다. 각 도구가 자기가 읽는 설정을 검증합니다. 레시피가 아직 kit-check를 실행하는 저장소는 도구가 없으므로 그 호출을 지울 때까지 실패합니다(K1070).
 - kit의 각 schema는 그 도구가 읽는 key만 검사합니다. 어떤 schema도 기술하지 않은 key를 거부하지 않고(additionalProperties false 삭제), version key schema, 그 도구가 읽지 않는 reason(duplication exclude, generated exceptions와 tracked, parity internal), config/ci.json의 모든 runtime의 setup을 요구하지 않으며, kit의 어떤 도구도 읽지 않는 ciExempt를 기술하지 않습니다(K1069).
+- K1093: kit의 유틸리티는 호출자의 환경으로 도구를 시작하며 MISE_*나 PATH를 스스로 정하지 않습니다. mise-tools는 더 이상 toolsEnvironment를 export하지 않으므로, kit.mk의 recipe 밖에서 유틸리티를 실행하는 호출자는 checkout의 mise 환경을 export하고 var/tools/bin과 shim을 PATH 맨 앞에 직접 둡니다(K1093).
 - K1092: install-mise는 호출자가 넘긴 환경을 mise wrapper에 씁니다. 기본값은 checkout의 mise 디렉터리이며 Go에는 환경을 주지 않습니다. var/tools/go.mod를 쓰지 않고, 다른 checkout의 trust를 지우지 않으며(install-tools도 마찬가지), node와 npm은 `mise install node npm:npm`으로 설치합니다. lock 여부는 mise.toml의 locked 설정입니다(K1092).
 - K1078: worktree-setup은 devEngines.packageManager가 필요한 자신의 이유를 밝힙니다. 새 worktree에서 그 npm으로 npm ci를 실행해 make install이 실행하는 @polyspec/kit 유틸리티가 node_modules에 있게 합니다. 이유는 더 이상 K1054가 삭제한 kit include를 이름 붙이지 않습니다(K1078).
 - K1077: install-vscode는 어떤 형식의 semver 범위에서든 engines.vscode의 최소 버전을 읽습니다. ^X.Y.Z 범위만 받던 제한이 없어졌습니다(K1077).
