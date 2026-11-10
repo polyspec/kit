@@ -41,7 +41,8 @@ test('native wrappers preserve spaced arguments and exit status on POSIX and Win
   assert.throws(() => run(command, ['fail']), (error: unknown) => error instanceof Stop && error.message.includes('exited with 7') && error.message.includes('wrapper failure'));
 });
 
-// A command that a signal ended names the signal, not an exit status of null (K1165).
+// A command that a signal ended names the signal, not an exit status of null (K1165). Windows has no POSIX signal: there a
+// command that kills itself ends with an exit status, which the message names.
 test('the bootstrap run names the signal that ended a command (K1165)', () => {
-  assert.throws(() => runWrapped('sh', ['-c', 'kill -TERM $$'], {}, () => {}), /signal SIGTERM/);
+  assert.throws(() => runWrapped('sh', ['-c', 'kill -TERM $$'], {}, () => {}), process.platform === 'win32' ? /ended with exit status \d+/ : /signal SIGTERM/);
 });
