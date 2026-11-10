@@ -148,12 +148,12 @@ export function createProgress({ write, heartbeatMs = 5000, timeoutMs, onTimeout
      * End the run and return `{ passed, failed, skipped, timedOut, ran, ok, cases }`; `cases` holds `{ id, status, elapsedMs }`
      * of each test, `status` being `pass`, `fail`, `timeout` or `skip`. Tests still running are failures. A failed
      * group, a nonzero `exitCode` of the tool, or a run in which no test passed, failed or ran out of time fails the run
-     * even when no test failed: a run that only skipped checked nothing. When no test failed, the summary of a nonzero
-     * `exitCode` names the last `errors`, the error lines of the tool, so that it says why the tool exited; it also names
-     * the `build` errors, the compiler errors of a package that did not build. The counts go to `resultFile` so that the
+     * even when no test failed: a run that only skipped checked nothing. The summary of a nonzero `exitCode` states that
+     * status and no guess at its cause, which the lines of the tool above it show (K1172); it also names the `build`
+     * errors, which test2json reports for a package that did not build. The counts go to `resultFile` so that the
      * runner can require that a test ran.
      */
-    close(label: string, { exitCode = 0, errors = [], build = [] }: { exitCode?: number | null | undefined; errors?: readonly string[] | undefined; build?: readonly string[] | undefined } = {}) {
+    close(label: string, { exitCode = 0, build = [] }: { exitCode?: number | null | undefined; build?: readonly string[] | undefined } = {}) {
       clearInterval(timer);
       for (const id of running.keys()) this.fail(id, undefined, 'the test did not finish');
       const ran = counts.passed + counts.failed + counts.timedOut;
@@ -163,9 +163,8 @@ export function createProgress({ write, heartbeatMs = 5000, timeoutMs, onTimeout
       // A group can fail while every test in it passed, for example on a failed hook of a file.
       const groupsFailed = groupCounts.failed === 1 ? ', 1 group failed' : `, ${groupCounts.failed} groups failed`;
       const summary = `${counts.passed} passed, ${counts.failed} failed, ${counts.timedOut} timed out, ${counts.skipped} skipped${groupCounts.failed ? groupsFailed : ''}${none ? ', no test ran' : ''}`;
-      const unexplained = counts.failed + counts.timedOut + groupCounts.failed + skipped.length === 0;
-      const why = !unexplained ? '' : errors.length ? `: ${errors.slice(-3).join('; ')}` : ' and printed no error line';
-      const exit = exitCode === 0 ? '' : `, the tool exited with ${exitCode}${why}`;
+      // The exit status is a fact; the lines of the tool, printed above, show its cause (K1172).
+      const exit = exitCode === 0 ? '' : `, the tool exited with ${exitCode}`;
       const named = skipped.length ? `; skipped cases: ${skipped.join('; ')}` : '';
       const built = build.length ? `; build errors: ${build.slice(0, 10).join('; ')}${build.length > 10 ? `; and ${build.length - 10} more` : ''}` : '';
       line(`${failed ? '✖' : '✔'} ${label}: ${summary}${named}${exit}${built} (${compactSeconds(now() - started)})`);

@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: d7147dc102b2031f29315c208e91e6b5bbba4dc7c4b621feb5a8cbc337373054 -->
+<!-- source-sha256: eea6ec7a9ccd6f5665ecc0367dc2a0397d23b9dcb405612d2ed3c3a571deecf9 -->
 
 # 도구 목록
 
@@ -463,8 +463,8 @@ PHPUnit TeamCity event는 fully qualified class, method, data set을 `TestRef.id
   `HYPER_TEST_RESULT`) 파일에 쓰고, count가 오지 않으면 실행기가 실패합니다.
 - test를 하나도 등록하지 않은 node test 파일(crudui)과, module이 모든 test를 등록하기 전에 process가 끝난 파일(crudui
   `load-check`)은 실패합니다. test case를 시작하지 않은 Go package는 skip으로 보고합니다(crudui).
-- 실패한 실행의 요약은 tool의 error 줄과 build되지 않은 Go package의 build error를 적습니다(template). timeout 줄은 멈추는
-  command를 적습니다(crudui).
+- 실패한 실행의 요약은 그 위에 줄이 출력된 tool의 exit status와 build되지 않은 Go package의 build error를 적습니다(template).
+  timeout 줄은 멈추는 command를 적습니다(crudui).
 - 모든 tool은 자기 process group에서 실행되므로(K141), 멈춤은 mise shim이 실행하는 interpreter처럼 tool이 시작한 process에도
   닿습니다. 실행기는 test가 timeout을 넘었을 때와 실행기 자신이 SIGINT, SIGTERM, SIGHUP을 받았을 때 group을 SIGTERM으로 멈추고,
   5 s 뒤에도 tool이 닫히지 않으면 SIGKILL로 멈추며, signal을 받은 경우 그 signal로 끝납니다. 실행기 자신의 SIGKILL만 group을

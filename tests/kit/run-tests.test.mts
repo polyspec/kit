@@ -403,8 +403,8 @@ test('the progress closes a run as failed when a test failed, a group failed, th
 
   const exiting = counts();
   exiting.start('t'); exiting.pass('t', 1);
-  assert.equal(exiting.close('suite', { exitCode: 2, errors: ['error: link failed'] }).ok, false);
-  assert.match(known(lines.at(-1), 'lines.at(-1)'), /the tool exited with 2: error: link failed/); // close wrote its summary line.
+  assert.equal(exiting.close('suite', { exitCode: 2 }).ok, false);
+  assert.match(known(lines.at(-1), 'lines.at(-1)'), /the tool exited with 2 \(/); // close wrote its summary line.
 
   const empty = counts();
   empty.start('t'); empty.skip('t');
@@ -1343,4 +1343,22 @@ test('K1170: with enforceTimeLimit off the deadline of a case reaches the runner
   const deadline = (seconds: string) => new RegExp(`ATest::testRaises(?: \\(timeout ${seconds}s\\)| uses PHPUnit's configured ${seconds}s timeout)`);
   assert.match(result.stdout, deadline('3\\.0'), output(result));
   assert.match(result.stdout, /ATest::testRaises uses PHPUnit's configured 7\.0s timeout/, output(result));
+});
+
+// An error inside PHPUnit, here a test file that does not parse, ends PHPUnit with 255 after its Message: and Location:
+// lines; the summary states that exit status and no guess at the output above it (K1172).
+test('K1172: the summary of a run that exits non-zero states the exit status and no guess at the lines of the tool', { skip: process.platform === 'win32' ? 'the PHPUnit of the fixture runs through a POSIX symlink' : false, timeout: 60_000 }, (t) => {
+  const vendor = path.resolve(KIT, '../../var/tools/phpunit/vendor');
+  assert.ok(existsSync(path.join(vendor, 'bin/phpunit')), `${vendor}/bin/phpunit is missing; make install-tools installs PHPUnit`);
+  const root = checkout(t, {
+    'composer.json': '{"name": "fixture/internal-error"}\n',
+    'phpunit.xml': '<phpunit><testsuites><testsuite name="t"><directory>tests</directory></testsuite></testsuites></phpunit>\n',
+    'tests/ATest.php': '<?php\nfinal class ATest extends PHPUnit\\Framework\\TestCase {\n    public function testA(): void { $x = ; }\n}\n',
+  });
+  symlinkSync(vendor, path.join(root, 'vendor'));
+  const result = runner(root, ['phpunit', '--cwd', root]);
+  assert.equal(result.status, 1, output(result));
+  assert.match(result.stdout, /\bMessage: +syntax error/, output(result));
+  const summary = known(result.stdout.trimEnd().split('\n').findLast((line) => line.includes('the tool exited with')), 'the summary line');
+  assert.match(summary, /the tool exited with 255 \(\d/, output(result));
 });

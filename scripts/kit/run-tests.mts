@@ -77,9 +77,6 @@ const DEFAULT_TIMEOUT_SECONDS = 30;
 const PYTHON_RUNNER = fileURLToPath(new URL('./runners/python.py', import.meta.url));
 // The python tests start the runner through runpy: a -c start keeps the current directory first on sys.path, as -m does (K371).
 export const PYTHON_START = "import runpy, sys; runpy.run_path(sys.argv[1], run_name='__main__')";
-// A line in which a tool reports an error: `error: ...` and `error[E0425]: ...` of cargo and rustc, `fatal error: ...`,
-// `panic: ...` of Go and `PHP Fatal error: ...`.
-const ERROR_LINE = /^(?:error(?:\[\w+\])?:|fatal error:|panic:|PHP Fatal error:)/i;
 
 /** The options of a run: the tool, the timeout of each test, the directory, the arguments of the tool and the record. */
 export type RunOptions = {
@@ -486,14 +483,8 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
     }) : undefined;
     const sink = progress && toProgress(progress);
     // The branches below are the tools that this runner reads, which have a progress and so a sink.
-    // The error lines of the tool, which the summary names when the tool exits without a failing test.
-    const errors: string[] = [];
     // The compiler errors of a Go package that does not build, which the summary names.
     const buildErrors: string[] = [];
-    const noting = (handle: (text: string) => void) => (text: string) => {
-      if (ERROR_LINE.test(text.trim())) errors.push(text.trim());
-      handle(text);
-    };
     // The tools that this runner reads have the standard output piped, and cargo and python the standard error too.
     // The process-up report of each tool (K549): node and vitest report it through their reporter; runners/python.py writes
     // PROCESS_UP first, and a --module harness and PHPUnit report it with their first output. go reports the start of each
@@ -514,12 +505,12 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
         if (/^running \d+ tests?$/m.test(data)) up(label);
         events.stdout(data);
       });
-      readline.createInterface({ input: present(child.stderr, 'child.stderr') }).on('line', noting((line) => { // The stream is piped for this tool.
+      readline.createInterface({ input: present(child.stderr, 'child.stderr') }).on('line', (line) => { // The stream is piped for this tool.
         // cargo names each test binary before it starts it.
         const binary = /^\s*(?:Running|Doc-tests)\s+(?:unittests\s+)?(\S+)/.exec(line);
         if (binary) launch(present(binary[1], 'binary[1]')); // The group always takes part in a match.
         events.stderr(line);
-      }));
+      });
     } else if (python) {
       // unittest writes its progress to standard error; the standard output of the tests is printed as it is.
       const events = pythonEvents(present(sink, 'sink')); // A tool that this runner reads has a sink.
@@ -531,7 +522,6 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
           data = data.replace(`${PROCESS_UP}\n`, '');
           upOnce();
         }
-        for (const text of data.split('\n')) if (ERROR_LINE.test(text.trim())) errors.push(text.trim());
         events(data);
       });
       // python is a tool that this runner reads, so it has a progress.
@@ -554,10 +544,10 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
       const phpunit = options.tool === 'go' ? undefined : phpunitEvents(toolSink);
       const go = phpunit === undefined ? goEvents(goSink, buildErrors) : undefined;
       readers.push(present(phpunit ?? go, 'the reader of the tool'));
-      readline.createInterface({ input: present(child.stdout, 'child.stdout') }).on('line', noting(go ?? ((line) => {
+      readline.createInterface({ input: present(child.stdout, 'child.stdout') }).on('line', go ?? ((line) => {
         upOnce();
         return present(phpunit, 'phpunit')(line);
-      }))); // A tool that this runner reads has a sink. // The stream is piped for this tool.
+      })); // A tool that this runner reads has a sink. // The stream is piped for this tool.
     }
     if (reporter) {
       // The pipe of the test events is the stream that spawn opened for TEST_EVENTS_FD: a readable one, checked here.
@@ -585,7 +575,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
     let exit;
     if (progress) {
       for (const reader of readers) reader.end();
-      const counts = progress.close(label, { exitCode: timedOut || gapExpired ? 0 : code, errors, build: buildErrors });
+      const counts = progress.close(label, { exitCode: timedOut || gapExpired ? 0 : code, build: buildErrors });
       exit = counts.ok && !timedOut ? 0 : 1;
     } else {
       // node --test and vitest print their summary from inside the tool; a tool that then ends on a signal or a nonzero

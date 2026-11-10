@@ -505,8 +505,8 @@ Merged behaviors:
   `KIT_TEST_RESULT` (hyper's `HYPER_TEST_RESULT`) and the runner fails when no counts arrive.
 - A node test file that registers no test fails (crudui), and so does a file whose process ends before its module registered
   every test (crudui `load-check`). A Go package that started no test case is reported as skipped (crudui).
-- The summary of a failed run names the error lines of the tool, and the build errors of a Go package that does not build
-  (template); the timeout line names the command that it stops (crudui).
+- The summary of a failed run names the exit status of the tool, whose lines are printed above it, and the build errors of a Go
+  package that does not build (template); the timeout line names the command that it stops (crudui).
 - Every tool runs in its own process group (K141), so a stop reaches the processes that the tool started, such as the
   interpreter that the mise shim runs. The runner stops the group with SIGTERM and, when the tool has not closed after 5 s,
   with SIGKILL: at a test's timeout, and when the runner receives SIGINT, SIGTERM or SIGHUP, after which it ends on that
