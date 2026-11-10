@@ -1,8 +1,7 @@
-// Vitest reporter printing through the shared progress lines. Vitest stops a test at its own timeout (--testTimeout); this
-// reporter shows every test starting, still running and ending.
+// Vitest reporter printing through the shared progress lines. Vitest keeps its own limits, such as --testTimeout, which the
+// caller passes; this reporter shows every test starting, still running and ending.
 import path from 'node:path';
 import { createProgress, type Progress } from './test-progress.mts';
-import { writeTestEvent } from './test-gap.mts';
 import { testRoot } from './paths.mts';
 import { present } from './present.mts';
 
@@ -50,8 +49,7 @@ export default class ProgressReporter {
   declare suites: Set<string>;
 
   onInit(): void {
-    // The test events go to run-tests, which runs the gap watch of each test (K371-1).
-    this.progress = createProgress({ write: (text: string) => process.stdout.write(text), onEvent: writeTestEvent });
+    this.progress = createProgress({ write: (text: string) => process.stdout.write(text) });
     this.suites = new Set();
   }
 
@@ -59,13 +57,6 @@ export default class ProgressReporter {
     // A module has moduleId, and a suite and a case have module.
     const file = path.relative(ROOT, entity.module?.moduleId ?? present(entity.moduleId, 'entity.moduleId'));
     return entity.fullName ? `${file} › ${entity.fullName.replaceAll(' > ', ' › ')}` : file;
-  }
-
-  // A worker reports a module queued when it takes the module, before it loads the file: the worker is up (K549). The worker of
-  // the next module starts after a module ends, so the start-up bound holds until a worker takes it. With modules in parallel,
-  // a gap after a test while another module's worker starts has the start-up bound.
-  onTestModuleQueued(testModule: ReportedModule): void {
-    writeTestEvent({ kind: 'up', id: this.id(testModule) });
   }
 
   onTestModuleStart(testModule: ReportedModule): void {
@@ -78,7 +69,6 @@ export default class ProgressReporter {
     const duration = testModule.diagnostic().duration;
     if (errors.length || testModule.state() === 'failed') this.progress.fail(id, duration, errorText(errors));
     else this.progress.pass(id, duration);
-    writeTestEvent({ kind: 'launch', id: `the module after ${id}` });
   }
 
   // A suite is a group, so the failure of its own hooks is printed with its elapsed time.

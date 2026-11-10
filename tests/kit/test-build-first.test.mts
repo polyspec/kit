@@ -1,5 +1,5 @@
 // Go and Cargo pre-test builds are operations without deadlines. Their output streams while they run;
-// actual tests retain their own timeout, and build failures stop the run before any test starts.
+// tests keep the limits of their tool, and build failures stop the run before any test starts.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { signalGroup } from '../../scripts/kit/process-group.mts';
@@ -51,20 +51,20 @@ async function runTool(root: string, args: string[], options: { path?: string } 
   }
 }
 
-test('go tests whose build takes longer than the timeout run, since the build is no test time (K549-1)', { timeout: 60_000 }, async (t) => {
-  const { status, text } = await runTool(goCheckout(t, {}), ['go', '--timeout', '2', './...']);
+test('go tests run after a long build, which no limit bounds (K549-1, K1175)', { timeout: 60_000 }, async (t) => {
+  const { status, text } = await runTool(goCheckout(t, {}), ['go', './...']);
   assert.equal(status, 0, text);
-  assert.match(text, /1 passed, 0 failed, 0 timed out/);
+  assert.match(text, /1 passed, 0 failed/);
 });
 
-test('cargo tests whose build takes longer than the timeout run, since the build is no test time (K549-1)', { timeout: 60_000 }, async (t) => {
+test('cargo tests run after a long build, which no limit bounds (K549-1, K1175)', { timeout: 60_000 }, async (t) => {
   const root = tree(t);
   const bin = path.join(root, 'bin');
   const file = path.join(bin, 'cargo');
   stub(file, `${compiling(file)}\nif (!process.argv.includes('--no-run')) { process.stderr.write('     Running unittests src/lib.rs (target/debug/deps/x-1)\\n'); process.stdout.write('\\nrunning 1 test\\ntest a ... ok\\n\\ntest result: ok. 1 passed; 0 failed\\n'); }`);
-  const { status, text } = await runTool(root, ['cargo', '--timeout', '2', 'a'], { path: `${bin}${path.delimiter}${process.env.PATH ?? ''}` });
+  const { status, text } = await runTool(root, ['cargo', 'a'], { path: `${bin}${path.delimiter}${process.env.PATH ?? ''}` });
   assert.equal(status, 0, text);
-  assert.match(text, /1 passed, 0 failed, 0 timed out/);
+  assert.match(text, /1 passed, 0 failed/);
 });
 
 test('pre-test builds survive arbitrary clock advances and stream progress before completion (K682)', async (t) => {
@@ -86,7 +86,7 @@ test('pre-test builds survive arbitrary clock advances and stream progress befor
   release = () => {
     for (const file of ['build-clock-advanced', 'build-output-observed']) writeFileSync(path.join(root, file), '');
   };
-  const running = run(['go', '--timeout', '2', './...'], { root, write: text => {
+  const running = run(['go', './...'], { root, write: text => {
     lines.push(text);
     if (text.includes('compiling workspace step')) writeFileSync(path.join(root, 'build-output-observed'), '');
   } });
@@ -97,12 +97,12 @@ test('pre-test builds survive arbitrary clock advances and stream progress befor
   assert.equal(status, 0, lines.join(''));
   assert.match(lines.join(''), /\[build\] [^\n]+: started/);
   assert.match(lines.join(''), /\[build\] [^\n]+: ended with exit code 0 \([^)]+\)/);
-  assert.match(lines.join(''), /1 passed, 0 failed, 0 timed out/);
+  assert.match(lines.join(''), /1 passed, 0 failed/);
 });
 
 test('a build that fails stops the run with its output and its exit code (K549-1)', { timeout: 60_000 }, async (t) => {
   const root = goCheckout(t, { build: "process.stderr.write('p/bad.go:3:9: syntax error: unexpected {\\n'); process.exitCode = 1;" });
-  const { status, text } = await runTool(root, ['go', '--timeout', '2', './...']);
+  const { status, text } = await runTool(root, ['go', './...']);
   assert.equal(status, 1, text);
   assert.match(text, /p\/bad\.go:3:9: syntax error/);
   assert.match(text, /✖ go \. \.\/\.\.\.: the build of the tests `[^`]*go test -exec=true \.\/\.\.\.` ended with exit code 1/);
@@ -137,7 +137,7 @@ function orphanCheckout(t: TestContext, stage: 'build' | 'tool') {
 
 function assertOrphanRun(result: { status: number; text: string }, pids: string) {
   assert.equal(result.status, 0, result.text);
-  assert.match(result.text, /1 passed, 0 failed, 0 timed out/);
+  assert.match(result.text, /1 passed, 0 failed/);
   const recorded = readFileSync(pids, 'utf8').split(',').map(Number);
   assert.equal(recorded.length, 2);
   for (const pid of recorded) {
@@ -148,7 +148,7 @@ function assertOrphanRun(result: { status: number; text: string }, pids: string)
 
 test('an exited builder cannot leave a descendant holding its output pipes (K682-1)', { timeout: 5000 }, async (t) => {
   const { root, pids } = orphanCheckout(t, 'build');
-  const result = await runTool(root, ['go', '--timeout', '2', './...']);
+  const result = await runTool(root, ['go', './...']);
   assertOrphanRun(result, pids);
   assert.match(result.text, /descendant final output/);
   assert.match(result.text, /\[build\] [^\n]+: ended with exit code 0/);
@@ -157,6 +157,6 @@ test('an exited builder cannot leave a descendant holding its output pipes (K682
 test('an exited test tool drains output and keeps passing counts without leaving pipe-holding descendants (K682-2)', { timeout: 5000 }, async (t) => {
   const { root, pids } = orphanCheckout(t, 'tool');
   const stdout = t.mock.method(process.stdout, 'write');
-  assertOrphanRun(await runTool(root, ['go', '--timeout', '2', './...']), pids);
+  assertOrphanRun(await runTool(root, ['go', './...']), pids);
   assert.match(stdout.mock.calls.map(call => String(call.arguments[0])).join(''), /descendant final output/);
 });

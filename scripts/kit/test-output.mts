@@ -313,8 +313,7 @@ export function pythonEvents(sink: Sink): Reader<string> {
     described = undefined;
   };
   const lines = startResultLines(sink, {
-    // The elapsed time that runners/python.py prints after the outcome (K371) is optional: a line with or without it reads the same.
-    result: /^(.+?) \.\.\. (ok|FAIL|ERROR|skipped\b.*?|expected failure|unexpected success)(?: \(\d+\.\d+s\))?$/,
+    result: /^(.+?) \.\.\. (ok|FAIL|ERROR|skipped\b.*?|expected failure|unexpected success)$/,
     pending: /^(.+?) \.\.\. $/,
     // The words of the object are two of those that `result` matches; any other word is looked up as undefined.
     outcome: word => ({ ok: 'pass', 'expected failure': 'todo' } as Record<string, Outcome>)[word] ?? (word.startsWith('skipped') ? 'skip' : 'fail'),

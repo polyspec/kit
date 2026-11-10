@@ -483,34 +483,31 @@ Dropped behaviors:
 
 `scripts/kit/run-tests.mts` replaces `run-tests.mts` of template, crudui and hyper and `test.py` of ordered-json. Its progress
 reporters are `test-progress.mts`, `node-reporter.mts` and `vitest-reporter.mts`, and its parsers of the go, cargo, PHPUnit and
-unittest output are in `test-output.mts` (K47); `test-exit-deadline.mts` is preloaded into
-each node test file and fails a file whose process outlives its last test by the test timeout, naming its open handles (K72), and `test-hooks.mts` is the `setup` and `teardown` helper of tests.
+unittest output are in `test-output.mts` (K47), and `test-hooks.mts` is the `setup` and `teardown` helper of tests.
 
 PHPUnit TeamCity events preserve the fully qualified class, method and data set as `TestRef.id`, and the native display name as `TestRef.name`. A flow retains its own running identities. Equal basenames in different namespaces are distinct (K1091).
 
 Merged behaviors:
 
 - Tools: `node`, `vitest`, `go`, `cargo`, `phpunit` (template and crudui) and `python` (K17); hyper has the first, the last and `vitest`. Each test
-  prints its start, a line while it runs, and its result with the elapsed time; each test has its own timeout
-  (`--timeout`, 30 s by default), enforced by the runner; a `--timeout` that the caller passes also reaches the per-test option of
-  `node --test`, vitest and Playwright. Every interval without a
-  test event has the same timeout (K371-1): before the first test, between tests and after the last one, the runner stops the tool
-  and prints `no test started within N s after <last event>` with the elapsed time of the run. The runner adds no flag and no
-  environment of its own (K1094): concurrency, caching and whole-run limits are the caller's arguments after `--`, such as
+  prints its start, a line while it runs, and its result with the elapsed time. kit sets no time limit (K1175): a run ends when
+  its tool exits, and its result is the exit status of the tool and the counts; each tool keeps its own limits, such as the
+  `--test-timeout` of `node --test`, the `--testTimeout` of vitest, the `timeout` of Playwright and the `-timeout` of go test. The
+  runner adds no flag and no
+  environment of its own (K1094): concurrency, caching and time limits are the caller's arguments after `--`, such as
   `--test-concurrency=1`, `-count=1 -timeout=0` (go test otherwise limits a test binary to 10 minutes) or `-- --test-threads=1`,
   and the environment is the caller's, so a caller inside `node --test` starts it without `NODE_TEST_CONTEXT` and a caller with
   `FORCE_COLOR` passes `PYTHON_COLORS=0` to the python tool.
-- A run in which no test passed, failed or ran out of time fails. template counted a skipped test as a test; hyper and crudui did
+- A run in which no test passed or failed fails. template counted a skipped test as a test; hyper and crudui did
   not, and kit takes theirs, because a run that only skipped verified nothing. The reporters write their counts to the file in
   `KIT_TEST_RESULT` (hyper's `HYPER_TEST_RESULT`) and the runner fails when no counts arrive.
 - A node test file that registers no test fails (crudui), and so does a file whose process ends before its module registered
   every test (crudui `load-check`). A Go package that started no test case is reported as skipped (crudui).
 - The summary of a failed run names the exit status of the tool, whose lines are printed above it, and the build errors of a Go
-  package that does not build (template); the timeout line names the command that it stops (crudui).
+  package that does not build (template).
 - Every tool runs in its own process group (K141), so a stop reaches the processes that the tool started, such as the
-  interpreter that the mise shim runs. The runner stops the group with SIGTERM and, when the tool has not closed after 5 s,
-  with SIGKILL: at a test's timeout, and when the runner receives SIGINT, SIGTERM or SIGHUP, after which it ends on that
-  signal. Only a SIGKILL of the runner itself leaves the group running.
+  interpreter that the mise shim runs. When the runner receives SIGINT, SIGTERM or SIGHUP, or its parent ends, it stops the
+  group with SIGTERM and, when the tool has not closed after 5 s, with SIGKILL, and then ends on that signal. Only a SIGKILL of the runner itself leaves the group running.
 The native defunct-group observation is a POSIX source test. Linux source CI runs its Linux case and macOS bootstrap runs its macOS case; every bootstrap platform retains the common native process ownership checks. CI declares the source file and its runner operating-system condition explicitly, with one execution per required platform.
 
 The exported `runCommand` owns only the commands it starts. Long commands have no inactivity deadline option. Exceeding the output limit requests the same cooperative shutdown, stops output collection and waits for owned child close before returning the output-limit failure, even when the child exits with status zero. On POSIX interruption it stops admitting commands, requests termination with SIGTERM and waits for owned child close events and group cleanup before exiting with the interrupted status. Its cleanup grace is one second; only a group that remains after that grace receives SIGKILL. Output closure alone does not shorten the grace of a surviving descendant. Normal completion sends no forceful signal to a group that has ended. On POSIX a group identifier can remain while all members are defunct: cleanup reads native process states, does not signal or wait a survivor grace for Z or X members, and still awaits its owned child close event. An orphan zombie cannot execute and is left to its system reaper; it is not a live survivor. Unknown states remain live for cleanup, and the native POSIX snapshot must contain its state field. An abrupt process exit cannot await asynchronous cleanup; its synchronous exit hook is an emergency force-stop of still-owned groups, not the interruption path. Stopped-process tests reject executing descendants; the harness must reap its own children before reporting interruption complete.
@@ -526,24 +523,19 @@ The exported `runCommand` owns only the commands it starts. Long commands have n
 - `python` (K17) runs `python3 -m unittest <arguments> -v` and reads its standard error: a test prints `<description> ... `
   when it starts and its outcome when it ends, the same shape as the serial libtest output of cargo, so one parser of start
   and result lines reads both. `ok` passes, `expected failure` is a todo (no pass), `skipped` is skipped, `FAIL`, `ERROR` and `unexpected
-  success` fail; a docstring line after the description keeps the id of the description. The runner applies the timeout.
-- Timeout and elapsed time per test, by language (K371): node --test has its own `--test-timeout` per test; go test's `-timeout` is
-  per test binary, so the runner applies the limit per test; cargo has no per-test timeout, so the runner applies it; PHPUnit's
-  `enforceTimeLimit` needs the pcntl extension and per-test attributes, so the runner applies it. python runs `runners/python.py`
-  (standard library only, no package in any environment): it runs unittest as `-m unittest -v` does, arms a signal timer per test
-  (`signal.setitimer`, started in `startTest`, cleared in `stopTest`) that fails a test with `the test outlived its timeout of <seconds>s`,
-  and prints the elapsed time of each test on its line (`ok (0.012s)`), which the parser reads with or without it. A `--module`
-  harness keeps `-m <module>`.
+  success` fail; a docstring line after the description keeps the id of the description. A `--module` harness runs
+  `-m <module>` instead of `-m unittest`.
 - `--results <file>` (K18) writes the record of a run, passed or not, through a temporary file and a rename: the counts, every
-  test as `{id, status, elapsedMs}` (`pass`, `fail`, `timeout` or `skip`), the tool, the elapsed time of the run and `inputs`,
+  test as `{id, status, elapsedMs}` (`pass`, `fail` or `skip`), the tool, the elapsed time of the run and `inputs`,
   the `inputsDigest` of the `--inputs` paths (the `--cwd` directory by default) over the tracked and non-ignored files. The
   progress module records the tests, so the reporters of node and vitest and the parsers of the other tools need nothing
   more. A check compares `inputs` with the current files to tell a stale record.
 
 Dropped behaviors:
 
-- Python `unittest` runs with signal timeouts in each test file (`test.py`): the `python` tool runs `runners/python.py` with the
-  timeout of each test (K17, K371), so the signal timer is kept in one runner and no test file sets it.
+- Python `unittest` runs with signal timeouts in each test file (`test.py`), and every time limit of kit on a run (K371,
+  K1175): the per-test timeout, the gap watch, the exit deadline of a node test file and the PHPUnit deadline extension. Each
+  tool keeps its own limits.
 - crudui's `recordSuiteRun` of a conformance record and its start of cargo through `run-rust-command.mjs`, template's
   `tools.mjs` entry of vitest, and hyper's `toolPath`: repository specific. The runner starts `cargo` and `go` from `PATH`
   (the Makefile puts `var/tools` first) and vitest from `node_modules/vitest/vitest.mjs`.

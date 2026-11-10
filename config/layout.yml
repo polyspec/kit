@@ -82,7 +82,3 @@ rules:
       # The extension of the PHP extension tests (S10): its stub is PHP, which gen_stub.php reads, as data of the tests.
       - "!tests/kit/php-ext-fixture/**"
       - "!scripts/kit/symbols/**"
-      # PHPUnit prepends the deadline file into the PHP of its run, so only a PHP file can be it.
-      - "!scripts/kit/php-library/**"
-      # The runner of the python tests runs unittest inside the Python of the tests, which only a program of that language can do (K371).
-      - "!scripts/kit/runners/**"

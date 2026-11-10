@@ -2,7 +2,6 @@
 import path from 'node:path';
 import type { FullConfig, FullResult, Reporter, Suite, TestCase, TestError, TestResult } from '@playwright/test/reporter';
 import { createProgress, type Progress } from './test-progress.mts';
-import { writeTestEvent } from './test-gap.mts';
 import { testRoot } from './paths.mts';
 
 interface ActiveCase {
@@ -22,8 +21,7 @@ export default class PlaywrightProgressReporter implements Reporter {
   onBegin(_config: FullConfig, _suite: Suite): void {
     this.root = testRoot();
     this.active = new Map();
-    this.progress = createProgress({ write: text => process.stdout.write(text), onEvent: writeTestEvent });
-    writeTestEvent({ kind: 'up', id: 'Playwright Test' });
+    this.progress = createProgress({ write: text => process.stdout.write(text) });
   }
 
   id(test: TestCase): string {
@@ -60,7 +58,6 @@ export default class PlaywrightProgressReporter implements Reporter {
     const elapsed = active.elapsedMs || Date.now() - active.started;
     const details = errorText(result);
     if (result.status === 'skipped' || outcome === 'skipped') this.progress.skip(id);
-    else if (result.status === 'timedOut') this.progress.timedOut(id, elapsed, details);
     else if (outcome === 'expected' || outcome === 'flaky') this.progress.pass(id, elapsed);
     else this.progress.fail(id, elapsed, details);
   }

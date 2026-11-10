@@ -58,7 +58,7 @@ test('a failed run names every failed case and file with its whole error, howeve
     ...Array.from({ length: 200 }, (_, index) => `[  1.0s] ✔ tests/kit/late.test.mts › case ${index} (0.0s)`),
     '[  2.0s] ✖ tests/kit/release.test.mts (1.0s)',
     '           Error: the file failed as a whole',
-    '[  3.0s] ✖ node --test: 200 passed, 2 failed, 0 timed out, 0 skipped (3.0s)',
+    '[  3.0s] ✖ node --test: 200 passed, 2 failed, 0 skipped (3.0s)',
   ].join('\n');
   assert.throws(() => assertReportedCasesPassed({ output, passed: 200, failed: 2 }), (error: Error) => {
     for (const part of ['tests/kit/early.test.mts › breaks first', 'the first line', 'the second line of the error', 'tests/kit/release.test.mts', 'the file failed as a whole']) {

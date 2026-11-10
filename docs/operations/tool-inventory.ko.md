@@ -443,31 +443,29 @@ finding이다.
 ## 테스트 실행기 (K8.1-2)
 
 `scripts/kit/run-tests.mts`는 template, crudui, hyper의 `run-tests.mts`와 ordered-json의 `test.py`를 대체합니다. 진행 reporter는
-`test-progress.mts`, `node-reporter.mts`, `vitest-reporter.mts`이며, go, cargo, PHPUnit, unittest 출력의 parser는 `test-output.mts`에 있습니다(K47). `test-exit-deadline.mts`는 각 node test 파일에 preload되어, 마지막 test 뒤 test timeout이 지나도 살아 있는 파일을 열린 handle 이름과 함께 실패시키며(K72),
-`test-hooks.mts`는 test의 `setup`과 `teardown` helper입니다.
+`test-progress.mts`, `node-reporter.mts`, `vitest-reporter.mts`이며, go, cargo, PHPUnit, unittest 출력의 parser는 `test-output.mts`에 있습니다(K47). `test-hooks.mts`는 test의 `setup`과 `teardown` helper입니다.
 
 PHPUnit TeamCity event는 fully qualified class, method, data set을 `TestRef.id`로, native display name을 `TestRef.name`으로 보존한다. 각 flow는 실행 중인 identity를 별도로 유지한다. 서로 다른 namespace의 같은 basename은 구별한다(K1091).
 
 합친 동작:
 
 - tool: `node`, `vitest`, `go`, `cargo`, `phpunit`(template, crudui), `python`(K17); hyper는 첫째, 마지막, `vitest`를 가집니다. 각 test는 시작,
-  실행 중 한 줄, 경과 시간과 함께 결과를 출력하고, test마다 자기 timeout(`--timeout`, 기본 30 s)을 가집니다. 실행기가 timeout을
-  적용하며, 호출자가 넘긴 `--timeout`은 `node --test`, vitest, Playwright의 test별 option에도 전달됩니다. test event가 없는 모든 구간(첫 test 전, test 사이, 마지막 test 뒤)도 같은
-  timeout을 가집니다(K371-1): 실행기는 tool을 멈추고 `no test started within N s after <마지막 event>`를 실행 경과 시간과 함께
-  출력합니다. 실행기는 자기 flag와 environment를 더하지 않습니다(K1094): 동시 실행, cache, 전체 실행 제한은 `--` 뒤의 호출자
+  실행 중 한 줄, 경과 시간과 함께 결과를 출력합니다. kit은 시간 제한을 두지 않습니다(K1175): 실행은 tool이 끝날 때 끝나고,
+  그 결과는 tool의 exit status와 count입니다. 각 tool은 `node --test`의 `--test-timeout`, vitest의 `--testTimeout`, Playwright의
+  `timeout`, go test의 `-timeout`처럼 자기 제한을 그대로 가집니다. 실행기는 자기 flag와 environment를 더하지 않습니다(K1094):
+  동시 실행, cache, 시간 제한은 `--` 뒤의 호출자
   인자입니다. 예를 들어 `--test-concurrency=1`, `-count=1 -timeout=0`(없으면 go test가 test binary를 10분으로 제한합니다),
   `-- --test-threads=1`입니다. environment도 호출자의 것이므로 `node --test` 안의 호출자는 `NODE_TEST_CONTEXT` 없이 시작하고,
   `FORCE_COLOR`가 있는 호출자는 python tool에 `PYTHON_COLORS=0`을 넘깁니다.
-- pass, fail, timeout인 test가 하나도 없는 실행은 실패합니다. template은 skip한 test도 test로 셌고 hyper와 crudui는 세지 않았으며,
+- pass나 fail인 test가 하나도 없는 실행은 실패합니다. template은 skip한 test도 test로 셌고 hyper와 crudui는 세지 않았으며,
   skip만 한 실행은 아무것도 검증하지 않았으므로 kit은 후자를 따릅니다. reporter는 count를 `KIT_TEST_RESULT`(hyper의
   `HYPER_TEST_RESULT`) 파일에 쓰고, count가 오지 않으면 실행기가 실패합니다.
 - test를 하나도 등록하지 않은 node test 파일(crudui)과, module이 모든 test를 등록하기 전에 process가 끝난 파일(crudui
   `load-check`)은 실패합니다. test case를 시작하지 않은 Go package는 skip으로 보고합니다(crudui).
 - 실패한 실행의 요약은 그 위에 줄이 출력된 tool의 exit status와 build되지 않은 Go package의 build error를 적습니다(template).
-  timeout 줄은 멈추는 command를 적습니다(crudui).
 - 모든 tool은 자기 process group에서 실행되므로(K141), 멈춤은 mise shim이 실행하는 interpreter처럼 tool이 시작한 process에도
-  닿습니다. 실행기는 test가 timeout을 넘었을 때와 실행기 자신이 SIGINT, SIGTERM, SIGHUP을 받았을 때 group을 SIGTERM으로 멈추고,
-  5 s 뒤에도 tool이 닫히지 않으면 SIGKILL로 멈추며, signal을 받은 경우 그 signal로 끝납니다. 실행기 자신의 SIGKILL만 group을
+  닿습니다. 실행기는 자신이 SIGINT, SIGTERM, SIGHUP을 받거나 parent가 끝나면 group을 SIGTERM으로 멈추고, 5 s 뒤에도 tool이
+  닫히지 않으면 SIGKILL로 멈춘 뒤 그 signal로 끝납니다. 실행기 자신의 SIGKILL만 group을
   남깁니다.
 Native defunct-group 관측은 POSIX source test이다. Linux source CI와 macOS bootstrap이 각 platform의 case를 실행하며 모든 bootstrap platform은 공통 native process 소유 검사를 유지한다. CI는 source file과 runner 운영체제 조건을 명시하고 필요한 platform별로 한 번 실행한다.
 
@@ -483,22 +481,16 @@ Export된 `runCommand`는 자신이 시작한 command만 소유한다. 긴 comma
 - `python`(K17)은 `python3 -m unittest <arguments> -v`를 실행하고 표준 오류를 읽습니다. test는 시작할 때 `<description> ... `을,
   끝날 때 결과를 쓰며, 이는 cargo의 직렬 libtest 출력과 같은 모양이므로 시작·결과 줄 parser 하나가 둘을 읽습니다. `ok`는
   pass, `expected failure`는 todo(통과가 아님), `skipped`는 skip, `FAIL`, `ERROR`, `unexpected success`는 fail입니다. description 뒤의 docstring 줄은
-  description의 id를 유지합니다. timeout은 실행기가 적용합니다.
-- test별 timeout과 경과 시간(K371): node --test는 test별 `--test-timeout`을 가집니다. go test의 `-timeout`은 test binary별이라 실행기가
-  test별로 적용합니다. cargo는 test별 timeout이 없어 실행기가 적용합니다. PHPUnit의 `enforceTimeLimit`은 pcntl extension과 test별
-  attribute가 필요해 실행기가 적용합니다. python은 `runners/python.py`를 실행합니다(표준 라이브러리만 사용, 어떤 환경에도 package 불필요):
-  `-m unittest -v`와 같이 unittest를 실행하고, test마다 signal timer(`signal.setitimer`, `startTest`에서 시작하고 `stopTest`에서 해제)를
-  걸어 `the test outlived its timeout of <seconds>s`로 실패시키며, 각 test의 줄에 경과 시간(`ok (0.012s)`)을 씁니다. parser는 경과 시간이
-  있든 없든 읽습니다. `--module` harness는 `-m <module>`을 유지합니다.
+  description의 id를 유지합니다. `--module` harness는 `-m unittest` 대신 `-m <module>`을 실행합니다.
 - `--results <file>`(K18)은 성공 여부와 관계없이 실행 기록을 임시 파일과 rename으로 씁니다. 기록은 count, 각 test의
-  `{id, status, elapsedMs}`(`pass`, `fail`, `timeout`, `skip`), tool, 실행 경과 시간, 그리고 `--inputs` 경로(기본은 `--cwd`
+  `{id, status, elapsedMs}`(`pass`, `fail`, `skip`), tool, 실행 경과 시간, 그리고 `--inputs` 경로(기본은 `--cwd`
   directory)의 추적 파일과 무시되지 않은 파일에 대한 `inputsDigest`인 `inputs`입니다. test 기록은 progress module이 하므로
   node·vitest reporter와 다른 tool의 parser는 더 할 일이 없습니다. 검사는 `inputs`를 현재 파일과 비교해 오래된 기록을 가려냅니다.
 
 버린 동작:
 
-- test 파일마다 signal timeout을 거는 Python `unittest` 실행(`test.py`): 대신 `python` tool이 test별 timeout으로
-  `runners/python.py`를 실행하여 signal timer가 실행기 한 곳에만 있습니다(K17, K371).
+- test 파일마다 signal timeout을 거는 Python `unittest` 실행(`test.py`)과 실행에 대한 kit의 모든 시간 제한(K371, K1175): test별
+  timeout, gap watch, node test 파일의 exit deadline, PHPUnit deadline extension. 각 tool은 자기 제한을 그대로 가집니다.
 - crudui의 conformance record를 쓰는 `recordSuiteRun`과 `run-rust-command.mjs`를 통한 cargo 시작, template의 `tools.mjs`
   vitest 진입점, hyper의 `toolPath`는 저장소 전용입니다. 실행기는 `cargo`와 `go`를 `PATH`에서 시작하고(Makefile이 `var/tools`를
   앞에 둠) vitest는 `node_modules/vitest/vitest.mjs`로 시작합니다.

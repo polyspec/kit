@@ -1,5 +1,5 @@
-// node:test reporter printing through the shared progress lines. node --test enforces the timeout of each test
-// (--test-timeout); this reporter shows every test starting, still running and ending. A file that reports no test case
+// node:test reporter printing through the shared progress lines. node --test keeps its own limits, such as --test-timeout,
+// which the caller passes; this reporter shows every test starting, still running and ending. A file that reports no test case
 // fails, and so does a run in which no test ran.
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
@@ -8,7 +8,6 @@ import { Transform, type TransformCallback } from 'node:stream';
 import type { EventData } from 'node:test';
 import type { TestEvent } from 'node:test/reporters';
 import { createProgress, type Progress } from './test-progress.mts';
-import { OPERATION_EVENT, parseTestEvent, PROCESS_UP, writeTestEvent } from './test-gap.mts';
 import { testRoot } from './paths.mts';
 import { present } from './present.mts';
 
@@ -41,8 +40,7 @@ export default class ProgressReporter extends Transform {
 
   constructor() {
     super({ writableObjectMode: true });
-    // The test events go to run-tests, which runs the gap watch of each test (K371-1).
-    this.progress = createProgress({ write: (text: string) => this.push(text), onEvent: writeTestEvent });
+    this.progress = createProgress({ write: (text: string) => this.push(text) });
     this.names = new Map();
     // Failed completions not yet matched by their failure report, by test key.
     this.completedFailures = new Map();
@@ -76,11 +74,7 @@ export default class ProgressReporter extends Transform {
     const { type, data } = event;
     if (type === 'test:dequeue') {
       const { id, group } = this.id(data);
-      // node starts the process of a file when it dequeues the file: its start is no test time until it is up (K549).
-      if (group) {
-        this.running = realpathSync(present(data.file, 'file')); // group implies file.
-        writeTestEvent({ kind: 'launch', id });
-      }
+      if (group) this.running = realpathSync(present(data.file, 'file')); // group implies file.
       this.progress.start(id, { group });
     } else if (type === 'test:complete') {
       const { id, group } = this.id(data);
@@ -116,18 +110,8 @@ export default class ProgressReporter extends Transform {
         if (data.file) this.failedFiles.add(realpathSync(data.file));
         this.progress.fail(`${file} › ${(error as TestFailure)?.failureType === 'hookFailed' ? 'hook' : data.name}`, duration, failureText(error));
       }
-    } else if (type === 'test:stdout') {
-      for (const line of data.message.split(/(?<=\n)/)) {
-        if (line === `${PROCESS_UP}\n`) {
-          // The preload reports process readiness; this control line is not test output.
-          writeTestEvent({ kind: 'up', id: data.file ? path.relative(ROOT, data.file) : '' });
-        } else if (line.startsWith(OPERATION_EVENT)) {
-          const event = parseTestEvent(line.slice(OPERATION_EVENT.length).trimEnd());
-          if (event.kind !== 'operation-start' && event.kind !== 'operation-end') throw new Error(`not an operation event: ${line}`);
-          writeTestEvent(event);
-        } else this.push(line);
-      }
-    } else if (type === 'test:stderr') this.push(data.message);
+    } else if (type === 'test:stdout') this.push(data.message);
+    else if (type === 'test:stderr') this.push(data.message);
     // A diagnostic other than the counts of the summary, such as an error after a test ended, is printed (K1146).
     else if (type === 'test:diagnostic' && !/^(?:tests|suites|pass|fail|cancelled|skipped|todo|duration_ms) [\d.]+$/.test(data.message)) this.push(`${data.message}\n`);
     callback();

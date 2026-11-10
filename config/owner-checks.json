@@ -11,8 +11,6 @@
     { "paths": ["**/*.{ts,mts,cts,js,mjs,cjs,tsx,jsx,py,php,go,rs}"], "targets": ["suppression-check"] },
     { "paths": ["scripts/kit/schema/**"], "importers": ["tests/kit/*.test.mts"], "modules": ["scripts/kit/schema-validate.mts"] },
     { "paths": ["scripts/kit/symbols/**"], "importers": ["tests/kit/*.test.mts"], "modules": ["scripts/kit/install-symbols.mts", "scripts/kit/php-extension.mts"] },
-    { "paths": ["scripts/kit/runners/**"], "importers": ["tests/kit/*.test.mts"], "modules": ["scripts/kit/run-tests.mts"] },
-    { "paths": ["scripts/kit/php-library/**"], "importers": ["tests/kit/*.test.mts"], "modules": ["scripts/kit/run-tests.mts"] },
     { "paths": ["scripts/kit/twin-merge.mts"], "importers": ["tests/kit/*.test.mts"], "modules": ["scripts/kit/git-hooks.mts"] },
     { "paths": ["tests/kit/php-ext-fixture/**"], "tests": ["tests/kit/php-ext.test.mts"] },
     { "paths": ["tests/kit/php-ext-fixture/**/*.php"], "targets": ["lint-php", "duplication-check"] },

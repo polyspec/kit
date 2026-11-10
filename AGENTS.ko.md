@@ -114,8 +114,8 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   실행하는 wrapper script이며, environment를 담지 못하는 symbolic link가 아닙니다. 한 checkout의 도구는 다른 checkout의 도구로
   실행되지 않습니다(`scripts/kit/bootstrap/tool-wrappers.mts`).
   Enforced by: `tests/kit/install-php.test.mts`
-- Own: 모든 검사는 같은 tree에 같은 결과를 냅니다. 도구는 임시 파일과 rename으로 쓰고, 단계마다 한 줄을 출력하며, 시간 제한이 없습니다. 테스트
-  case는 자기 timeout을 가집니다. 네트워크 조회는 make recipe가 `$(ONLINE)`으로 실행하는 명령(예: `install-tools`와
+- Own: 모든 검사는 같은 tree에 같은 결과를 냅니다. 도구는 임시 파일과 rename으로 쓰고, 단계마다 한 줄을 출력하며, 시간 제한이 없습니다. kit은
+  테스트에도 시간 제한을 두지 않고, 테스트 tool은 자기 제한을 그대로 가집니다. 네트워크 조회는 make recipe가 `$(ONLINE)`으로 실행하는 명령(예: `install-tools`와
   `release-assets`의 명령)나 자기 lock이 이름한 것을 받는 package manager(K1014)만 하고, 결과는 commit된 기록, 설치, 또는
   저장소 자신의 release archive입니다. kit은 다른 저장소의 package를 내려받지 않습니다(K865).
   Enforced by: `make kit-test-shard`

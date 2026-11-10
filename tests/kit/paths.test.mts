@@ -91,7 +91,7 @@ test('no tool of scripts/kit runs another tool by the path scripts/kit/<tool>.mt
   assert.deepEqual(found, [], 'these lines run a tool by its source path');
 });
 
-test('run-tests loads its reporters and its preload beside itself', () => {
+test('run-tests loads its reporters beside itself', () => {
   const text = readFileSync(path.join(KIT, 'run-tests.mts'), 'utf8');
-  assert.equal(/['"`](?:test-exit-deadline|node-reporter|vitest-reporter)\.mts['"`]/.test(text), false, 'run-tests names a reporter or the preload with the extension .mts');
+  assert.equal(/['"`](?:node-reporter|vitest-reporter)\.mts['"`]/.test(text), false, 'run-tests names a reporter with the extension .mts');
 });

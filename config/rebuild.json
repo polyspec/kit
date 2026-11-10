@@ -306,14 +306,6 @@
       "kind": "policy",
       "reason": "the report of a run of make targets, polyspec's CI contract"
     },
-    "scripts/kit/test-exit-deadline.mts": {
-      "kind": "ecosystem",
-      "tool": "node:test after hook"
-    },
-    "scripts/kit/test-gap.mts": {
-      "kind": "policy",
-      "reason": "the gap watch of run-tests (K371-1), which bounds each interval without a test event by the per-test timeout for every tool: no ecosystem timer watches the test events of a child process, and the events of node and vitest come from their reporters through a pipe"
-    },
     "scripts/kit/test-hooks.mts": {
       "kind": "ecosystem",
       "tool": "node:test before and after hooks"
@@ -382,25 +374,9 @@
       "kind": "policy",
       "reason": "the rule of P30 that a development consumer links each 0.0.x provider that its link declaration names and never copies it (K305-1, K869); it reads the links that npm and Composer make"
     },
-    "scripts/kit/php-library/phpunit-deadline-extension.php": {
-      "kind": "ecosystem",
-      "tool": "PHPUnit 13.4 extension lifecycle events and resolved Configuration API deliver the configured size deadline for each prepared test"
-    },
-    "scripts/kit/php-library/phpunit-deadline-prepend.php": {
-      "kind": "ecosystem",
-      "tool": "the PHP CLI auto_prepend_file setting loads the PHPUnit deadline extension after the Composer autoloader and before PHPUnit starts"
-    },
-    "scripts/kit/php-library/phpunit-deadline-subscriber.php": {
-      "kind": "ecosystem",
-      "tool": "PHPUnit 13.4 PreparationStarted events expose the test metadata used to report its configured timeout"
-    },
     "scripts/kit/run-command.mts": {
       "kind": "ecosystem",
       "tool": "node:child_process spawn with a process group of its own (K430)"
-    },
-    "scripts/kit/runners/python.py": {
-      "kind": "ecosystem",
-      "tool": "unittest, the standard runner of the Python tests (S3), run with the semantics of python -m unittest"
     },
     "scripts/kit/suppression-check.mts": {
       "kind": "policy",

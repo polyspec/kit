@@ -100,7 +100,7 @@ test('goEvents ends a benchmark at its result line, at the next benchmark that i
   const result = progress.close('go test', { exitCode: 0, build: [] });
   const text = lines.join('');
   assert.equal(result.ok, true, text);
-  assert.deepEqual([result.passed, result.failed, result.timedOut], [5, 0, 0], text);
+  assert.deepEqual([result.passed, result.failed], [5, 0], text);
   assert.doesNotMatch(text, /did not finish/);
   assert.match(text, /BenchmarkWrite\/notes=0-11 \t +1\t +59735625 ns\/op/);
 });

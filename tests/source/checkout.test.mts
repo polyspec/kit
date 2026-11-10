@@ -137,15 +137,15 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const) {
   });
 }
 
-test('a test that run-tests times out ends the process group of its nested run', CASE, async (t) => {
+test('a test that node --test times out at the limit the caller passes ends the process group of its nested run (K1175)', CASE, async (t) => {
   const { directory, sleepPid } = stubCheckout(t, true);
-  const child = spawn(process.execPath, [RUNNER, 'node', '--timeout', '1', '--', path.join(directory, 'stub.test.mts')], { cwd: directory, stdio: 'ignore', env: OUTSIDE });
+  const child = spawn(process.execPath, [RUNNER, 'node', '--', '--test-timeout=1000', path.join(directory, 'stub.test.mts')], { cwd: directory, stdio: 'ignore', env: OUTSIDE });
   t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); });
   await until(() => sleepPid() !== undefined);
   const pid = sleepPid();
   assert.ok(pid);
   const exited = new Promise(resolve => child.once('exit', code => resolve(code)));
-  // run-tests ends the test at its 1 s timeout; node:test aborts it and runCheckoutSmoke signals the group.
+  // node --test ends the test at its 1 s timeout; node:test aborts it and runCheckoutSmoke signals the group.
   assert.equal(await exited, 1, 'the run of a timed-out test fails');
   await until(() => !alive(pid));
 });

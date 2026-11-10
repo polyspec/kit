@@ -9,12 +9,6 @@ import { fileURLToPath } from 'node:url';
 
 import { readJsonFile } from '../../scripts/kit/schema-validate.mts';
 
-/** One JSON line of the reporter's event stream. */
-function reporterEvent(value: unknown): { kind: string; id: string } {
-  assert.ok(typeof value === 'object' && value !== null && 'kind' in value && 'id' in value && typeof value.kind === 'string' && typeof value.id === 'string', `not a reporter event: ${JSON.stringify(value)}`);
-  return { kind: value.kind, id: value.id };
-}
-
 const reporter = fileURLToPath(import.meta.resolve('../../scripts/kit/playwright-reporter.mts'));
 
 function report(callbacks: string) {
@@ -29,16 +23,14 @@ reporter.onEnd({ status: 'passed' });
 `);
   const result = spawnSync(process.execPath, [script], {
     encoding: 'utf8',
-    env: { ...process.env, KIT_TEST_ROOT: process.cwd(), KIT_TEST_EVENTS: '3', KIT_TEST_RESULT: resultFile },
-    stdio: ['ignore', 'pipe', 'pipe', 'pipe'],
+    env: { ...process.env, KIT_TEST_ROOT: process.cwd(), KIT_TEST_RESULT: resultFile },
   });
   try {
     return {
       status: result.status,
       output: result.stdout,
       error: result.stderr,
-      events: String(result.output?.[3] ?? '').trim().split('\n').filter(Boolean).map(line => reporterEvent(JSON.parse(line))),
-      summary: existsSync(resultFile) ? readJsonFile<{ passed: number; failed: number; skipped: number; timedOut: number; ran: number; cases: { id: string; status: string }[] }>(resultFile, 'test-result.schema.json') : null,
+      summary: existsSync(resultFile) ? readJsonFile<{ passed: number; failed: number; skipped: number; ran: number; cases: { id: string; status: string }[] }>(resultFile, 'test-result.schema.json') : null,
     };
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -58,18 +50,16 @@ reporter.onTestEnd(skipped, { duration: 0, retry: 0, status: 'skipped', errors: 
   assert.ok(result.summary, `${result.output}\n${result.error}`);
   assert.deepEqual(result.summary?.cases.map(item => item.status), ['pass', 'skip']);
   assert.deepEqual([result.summary?.passed, result.summary?.failed, result.summary?.skipped, result.summary?.ran], [1, 0, 1, 1]);
-  assert.ok(result.events.some(event => event.kind === 'start' && event.id.includes('store.spec.ts')));
-  assert.ok(result.events.some(event => event.kind === 'end' && event.id.includes('store.spec.ts')));
 });
 
-test('Playwright timeout callbacks are recorded as a timed out case (K747)', () => {
+test('a case that Playwright ends at its own timeout fails (K747, K1175)', () => {
   const result = report(`const test = { id: 'timeout-id', titlePath: () => ['', 'waits'], location: { file: '/project/tests/slow.spec.ts' }, retries: 0, repeatEachIndex: 0, outcome: () => 'unexpected', parent: { project: () => ({ name: '' }) } };
 reporter.onTestBegin(test, { duration: 0, retry: 0, status: 'failed' });
 reporter.onTestEnd(test, { duration: 8, retry: 0, status: 'timedOut', error: { message: 'Test timeout' }, errors: [{ message: 'Test timeout' }] });`);
   assert.equal(result.status, 1, `${result.output}\n${result.error}`);
   assert.ok(result.summary, `${result.output}\n${result.error}`);
-  assert.deepEqual(result.summary?.cases.map(item => item.status), ['timeout']);
-  assert.deepEqual([result.summary?.failed, result.summary?.timedOut, result.summary?.ran], [0, 1, 1]);
+  assert.deepEqual(result.summary?.cases.map(item => item.status), ['fail']);
+  assert.deepEqual([result.summary?.failed, result.summary?.ran], [1, 1]);
 });
 
 test('Playwright list-only or zero-case reporter runs fail the executed-case guard (K747)', () => {
@@ -79,7 +69,7 @@ test('Playwright list-only or zero-case reporter runs fail the executed-case gua
   assert.match(result.output, /no test ran/);
 });
 
-test('the native Playwright CLI enforces a case timeout and run-tests closes the process group (K747)', { timeout: 30_000 }, async (t) => {
+test('the native Playwright CLI enforces the case timeout that the caller passes, and run-tests closes the process group (K747, K1175)', { timeout: 30_000 }, async (t) => {
   const root = process.cwd();
   const directory = mkdtempSync(path.join(root, 'tests/kit/playwright-native-'));
   const file = path.join(directory, 'timeout.spec.ts');
@@ -96,7 +86,7 @@ test('native timeout', async () => {
   await new Promise(() => {});
 });
 `);
-  const command = spawn(process.execPath, [fileURLToPath(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'playwright', '--timeout', '1', '--', path.relative(root, file)], {
+  const command = spawn(process.execPath, [fileURLToPath(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'playwright', '--', '--timeout=1000', path.relative(root, file)], {
     cwd: root,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -118,7 +108,7 @@ test('native timeout', async () => {
   }
   assert.equal(status, 1, output);
   assert.match(output, /native timeout/);
-  assert.match(output, /1 passed, 0 failed, 1 timed out, 1 skipped/);
+  assert.match(output, /1 passed, 1 failed, 1 skipped/);
   assert.match(output, /timeout\.spec\.ts › default › native pass/);
   const pid = Number(readFileSync(pidFile, 'utf8'));
   assert.ok(Number.isInteger(pid) && pid > 0);

@@ -125,7 +125,7 @@ and its Korean twin, as such an example; a repository's AGENTS.md links to its c
   environment: a tool of one checkout never runs with the tools of another (`scripts/kit/bootstrap/tool-wrappers.mts`).
   Enforced by: `tests/kit/install-php.test.mts`
 - Own: Every check gives the same result for the same tree. A tool writes through a temporary file and a rename, prints a line
-  for each step, and has no time limit; a test case has its own timeout. A network query is made only by a command that a
+  for each step, and has no time limit; kit sets none on a test either, whose tool keeps its own limits. A network query is made only by a command that a
   make recipe runs through `$(ONLINE)`, such as those of `install-tools` and `release-assets`, and its result is a committed
   record, an installation or a release archive of the repository itself, or by a package manager that fetches what its own
   lock names (K1014); kit downloads no package of another repository (K865).
