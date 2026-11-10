@@ -1,10 +1,20 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f856fc79cc1fc22f7a8b52fc21d2017aadfe99f8eb042bebdbe23a09949b05fc -->
+<!-- source-sha256: 97b128001a17373ce887413e25ed7d6e5c4fa6296691aa7b3a3721708470bcee -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.104
+
+- 릴리즈: K1167, K1168, K1170 행을 담아 kit 0.0.104를 낸다. bare URL이 Markdown 읽기를 멈추지 않고, check-documents는 검사가 예외를 던진 문서를 그 문서의 finding으로 보고하며, 각 PHPUnit case의 deadline은 enforceTimeLimit와 상관없이 runner에 닿는다(K1171).
+
+- K1170: PHPUnit deadline extension은 enforceTimeLimit와 상관없이 subscriber를 등록한다. 그래서 native 시간 제한을 끈 저장소도 runner의 deadline 사건을 받고, runner가 유일한 한도가 될 수 있다(K1170).
+
+- K1168: check-documents는 검사가 예외를 던진 문서를 그 오류와 함께 그 문서의 finding으로 보고하고 나머지 문서를 계속 검사한다. 실행은 끝에서 실패한다(K1168).
+
+- K1167: GFM autolink-literal 변환이 위치 없는 link node로 바꾸는 bare URL이 Markdown 읽기를 멈추지 않는다. bare URL은 link가 아니므로 parse가 그 변환을 빼며, 모든 node는 parser의 위치를 그대로 가진다(K1167).
 
 ## 0.0.103
 

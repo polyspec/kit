@@ -5,6 +5,16 @@
 
 ## Unreleased
 
+## 0.0.104
+
+- Release: kit 0.0.104 with the rows K1167, K1168 and K1170, so that a bare URL no longer stops the Markdown reads, check-documents reports a document whose check throws as a finding of that document, and the PHPUnit deadline of each case reaches the runner whatever enforceTimeLimit says (K1171).
+
+- K1170: The PHPUnit deadline extension registers its subscriber whatever enforceTimeLimit says, so a repository that turns off the native time limit keeps the deadline events of the runner, which can then be the only bound (K1170).
+
+- K1168: check-documents reports a document whose check throws as a finding of that document, with the error, and checks the other documents; the run fails at the end (K1168).
+
+- K1167: A bare URL that the GFM autolink-literal transform turns into a link node without a position no longer stops the Markdown reads: the parse leaves that transform out, since a bare URL is no link, so every node keeps the position of the parser (K1167).
+
 ## 0.0.103
 
 - Release: kit 0.0.103 with the rows K1136–K1165, which give each test reader the output of a test that did not finish and stop every tool of kit from dropping the output, the errors or the failures of the commands that it runs (K1166).

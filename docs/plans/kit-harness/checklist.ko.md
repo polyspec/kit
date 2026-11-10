@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 2b7497654aa80a868caa1ec131a3a168c53f473edf49384a29af4411d2cc9bf7 -->
+<!-- source-sha256: 55cb879cc269e6cdd4cb5b298131622d108833c795e65bb4ecc992bf06713d43 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -297,4 +297,4 @@
 | K1167 | GFM autolink-literal 변환이 위치 없는 link node로 바꾸는 bare URL이 Markdown 읽기를 멈추지 않는다. bare URL은 link가 아니므로 parse가 그 변환을 빼며, 모든 node는 parser의 위치를 그대로 가진다 | `scripts/kit/markdown.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1167 tests/kit/markdown.test.mts` | [o] |
 | K1168 | check-documents는 검사가 예외를 던진 문서를 그 오류와 함께 그 문서의 finding으로 보고하고 나머지 문서를 계속 검사한다. 실행은 끝에서 실패한다 | `scripts/kit/check-documents.mts`, `scripts/kit/checklist.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1168 tests/kit/documents.test.mts` | [o] |
 | K1170 | PHPUnit deadline extension은 enforceTimeLimit와 상관없이 subscriber를 등록한다. 그래서 native 시간 제한을 끈 저장소도 runner의 deadline 사건을 받고, runner가 유일한 한도가 될 수 있다 | `scripts/kit/php-library/phpunit-deadline-extension.php` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1170 tests/kit/run-tests.test.mts` | [o] |
-| K1171 | K1167, K1168, K1170 행을 담아 kit 0.0.104를 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [ ] |
+| K1171 | K1167, K1168, K1170 행을 담아 kit 0.0.104를 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |
