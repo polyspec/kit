@@ -5,6 +5,12 @@
 
 ## Unreleased
 
+## 0.0.105
+
+- Release: kit 0.0.105 with the row K1175, so that kit sets no time limit on a test run: each tool keeps its own limits, and the exit status of the tool decides the run (K1176).
+
+- K1175: kit sets no time limit on a test run. run-tests drops its --timeout option, the gap watch, the per-test watchdog and the timed-out status and count, the stop at a timeout (SIGQUIT, SIGTERM, SIGKILL), the test-exit-deadline preload of node, the PHPUnit deadline extension and its event pipe KIT_TEST_EVENTS, runners/python.py and every timeout flag it passed to a tool. A run ends when its tool exits, and its result is the tool's exit status and counts; a caller passes a tool's own limit after --, such as --test-timeout=60000. An interrupt of the run, or the end of its parent, still stops the tool's process group. A caller that still passes --timeout to run-tests now passes it to the tool (K1175).
+
 ## 0.0.104
 
 - Release: kit 0.0.104 with the rows K1167, K1168, K1170, K1172 and K1174, so that a bare URL no longer stops the Markdown reads, check-documents reports a document whose check throws as a finding of that document, the PHPUnit deadline of each case reaches the runner whatever enforceTimeLimit says, and the summary of a run that exits non-zero states the exit status with no guess at the lines of the tool (K1171).

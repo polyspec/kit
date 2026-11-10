@@ -1,10 +1,16 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d08dc661624ae808a943b88bf3511da723a87e1a2dc6c2f405ddf469b3a35e5c -->
+<!-- source-sha256: 1b6d235c9bc0fb193af901ee3eae33ae498e27539c55b0ec4ef775aa63cba211 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.105
+
+- 릴리즈: K1175 행을 담아 kit 0.0.105를 낸다. kit은 test 실행에 시간 제한을 두지 않고, 각 도구는 자기 제한을 그대로 가지며, 실행은 도구의 exit status로 판정된다(K1176).
+
+- K1175: kit은 test 실행에 시간 제한을 두지 않는다. run-tests는 --timeout 옵션, gap watch, test별 watchdog과 timed out status와 count, timeout 때의 정지(SIGQUIT, SIGTERM, SIGKILL), node의 test-exit-deadline preload, PHPUnit deadline extension과 그 사건 pipe KIT_TEST_EVENTS, runners/python.py, 도구에 넘기던 모든 timeout flag를 지운다. 실행은 도구가 끝날 때 끝나고, 그 결과는 도구의 exit status와 count다. 호출자는 도구 자신의 제한을 `--` 뒤에 넘긴다(예: --test-timeout=60000). 실행을 interrupt하거나 parent가 끝나면 여전히 도구의 process group을 멈춘다. run-tests에 아직 --timeout을 넘기는 호출자는 이제 그것을 도구에 넘긴다(K1175).
 
 ## 0.0.104
 
