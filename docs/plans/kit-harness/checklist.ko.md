@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 831c272d3801fc3b8b311badb26addfde2d09bc4e33b54836f774da7d3aa2da7 -->
+<!-- source-sha256: f762f5c2f5c2a616f3e630154228809c5a9f2d434121bca83d8f6487d922cadc -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -263,9 +263,9 @@
 | K1133 | K1131, K1132 행을 담아 kit 0.0.101을 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |
 | K1134 | uv-install의 uv sync나 pip install이 실패하면, 설치 전에 지운 provider 링크 가운데 다른 것으로 바뀌지 않은 것을 모두 되돌린 뒤 실패를 보고한다. 그래서 실패한 설치는 환경의 링크를 찾은 그대로 남긴다 | `scripts/kit/uv-install.mts`, `scripts/kit/link-folders.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1134 tests/kit/uv-install.test.mts` | [o] |
 | K1135 | K1134 행을 담아 kit 0.0.102를 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |
-| K1136 | goEvents는 package가 끝났을 때나 stream이 끝났을 때 끝나지 않은 test마다 그 출력과 끝나지 않은 줄을 실패로 준다. go의 runner timeout은 SIGTERM 전에 group에 SIGQUIT를 보내, Go가 모든 goroutine의 stack을 실행 중인 test의 출력으로 쓰게 한다 | `scripts/kit/test-output.mts`, `scripts/kit/run-tests.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1136 tests/kit/test-output.test.mts` | [ ] |
-| K1137 | goEvents는 result line에서 통과한 benchmark에 뒤이어 fail event가 오면, 예를 들어 b.Cleanup이 실패하면, 그 benchmark를 실패로 만든다 | `scripts/kit/test-output.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1137 tests/kit/test-output.test.mts` | [ ] |
-| K1138 | phpunitEvents는 testFailed를 받고 testFinished를 받지 못한 test의 실패 메시지를, 예를 들어 PHP fatal error 뒤에도, 남기며 읽지 않는 TeamCity 메시지를, testStdOut을 포함해, 출력한다 | `scripts/kit/test-output.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1138 tests/kit/test-output.test.mts` | [ ] |
-| K1139 | startResultLines는 stream이 끝날 때 줄 끝이 없는 나머지 출력을 출력하고, 끝나지 않은 test에 그 시작 뒤에 온 출력을 준다 | `scripts/kit/test-output.mts`, `scripts/kit/run-tests.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1139 tests/kit/test-output.test.mts` | [ ] |
-| K1140 | pythonEvents는 test의 description으로 읽은 줄 뒤에 test 시작이 오지 않으면 그 줄을 출력한다 | `scripts/kit/test-output.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1140 tests/kit/test-output.test.mts` | [ ] |
-| K1141 | 끝나지 않은 test는 test가 끝나지 않았다는 문장만이 아니라 reader가 모은 출력과 함께 실패한다. 각 reader는 progress가 닫히기 전에 stream을 끝낸다 | `scripts/kit/test-output.mts`, `scripts/kit/run-tests.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1141 tests/kit/test-output.test.mts` | [ ] |
+| K1136 | goEvents는 package가 끝났을 때나 stream이 끝났을 때 끝나지 않은 test마다 그 출력과 끝나지 않은 줄을 실패로 준다. go의 runner timeout은 SIGTERM 전에 group에 SIGQUIT를 보내, Go가 모든 goroutine의 stack을 실행 중인 test의 출력으로 쓰게 한다 | `scripts/kit/test-output.mts`, `scripts/kit/run-tests.mts` | `node scripts/kit/run-tests.mts node --timeout 60 -- --test-concurrency=1 --test-name-pattern=K1136 tests/kit/test-output.test.mts tests/kit/run-tests.test.mts` | [o] |
+| K1137 | goEvents는 result line에서 통과한 benchmark에 뒤이어 fail event가 오면, 예를 들어 b.Cleanup이 실패하면, 그 benchmark를 실패로 만든다 | `scripts/kit/test-output.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1137 tests/kit/test-output.test.mts` | [o] |
+| K1138 | phpunitEvents는 testFailed를 받고 testFinished를 받지 못한 test의 실패 메시지를, 예를 들어 PHP fatal error 뒤에도, 남기며 읽지 않는 TeamCity 메시지를, testStdOut을 포함해, 출력한다 | `scripts/kit/test-output.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1138 tests/kit/test-output.test.mts` | [o] |
+| K1139 | startResultLines는 stream이 끝날 때 줄 끝이 없는 나머지 출력을 출력하고, 끝나지 않은 test에 그 시작 뒤에 온 출력을 준다 | `scripts/kit/test-output.mts`, `scripts/kit/run-tests.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1139 tests/kit/test-output.test.mts` | [o] |
+| K1140 | pythonEvents는 test의 description으로 읽은 줄 뒤에 test 시작이 오지 않으면 그 줄을 출력한다 | `scripts/kit/test-output.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1140 tests/kit/test-output.test.mts` | [o] |
+| K1141 | 끝나지 않은 test는 test가 끝나지 않았다는 문장만이 아니라 reader가 모은 출력과 함께 실패한다. 각 reader는 progress가 닫히기 전에 stream을 끝낸다 | `scripts/kit/test-output.mts`, `scripts/kit/run-tests.mts` | `node scripts/kit/run-tests.mts node --timeout 60 -- --test-concurrency=1 --test-name-pattern=K1141 tests/kit/run-tests.test.mts` | [o] |

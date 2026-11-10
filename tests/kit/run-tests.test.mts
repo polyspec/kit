@@ -582,6 +582,28 @@ test('go tests run through the go shim of the checkout and pass', async (t) => {
   assert.match(result.text, /✔ go \. \.\/\.\.\.: 1 passed/);
 });
 
+// The stub writes the stacks of its goroutines as Go does on SIGQUIT and ends, so the dump belongs to the running test (K1136).
+test('a go test that outlives the timeout gets SIGQUIT first, and fails with the goroutine stacks (K1136)', { timeout: 60_000 }, async (t) => {
+  const root = tree(t);
+  const event = (output: string) => JSON.stringify({ Action: 'output', Package: 'p', Test: 'TestHang', Output: output });
+  goShim(root, `console.log(JSON.stringify({ Action: 'start', Package: 'p' })); console.log(JSON.stringify({ Action: 'run', Package: 'p', Test: 'TestHang' }));
+process.on('SIGQUIT', () => { console.log(${JSON.stringify(event('SIGQUIT: quit\n'))}); console.log(${JSON.stringify(event('goroutine 19 [select]:\n'))}); process.exit(2); });
+process.on('SIGTERM', () => process.exit(1));
+setInterval(() => {}, 1000);`);
+  const result = await inProcess(t, ['go', '--timeout', '1', './...'], { root });
+  assert.equal(result.status, 1, result.text);
+  assert.match(result.text, /p › TestHang[^\n]*\n\s+the test did not finish before the output of go test ended\n\s+SIGQUIT: quit\n\s+goroutine 19 \[select\]:/, result.text);
+});
+
+// A test whose binary ends without an outcome, as after os.Exit, fails with the output that it wrote (K1141).
+test('a go test that never finished fails with its output, not only with the text that it did not finish (K1141)', async (t) => {
+  const root = tree(t);
+  goShim(root, `for (const e of [{ Action: 'start', Package: 'p' }, { Action: 'run', Package: 'p', Test: 'TestExit' }, { Action: 'output', Package: 'p', Test: 'TestExit', Output: '    exit_test.go:4: PROBE before os.Exit\\n' }]) console.log(JSON.stringify(e)); process.exit(1);`);
+  const result = await inProcess(t, ['go', './...'], { root });
+  assert.equal(result.status, 1, result.text);
+  assert.match(result.text, /✖ p › TestExit[^\n]*\n\s+the test did not finish before the output of go test ended\n\s+exit_test\.go:4: PROBE before os\.Exit/, result.text);
+});
+
 test('a go tool that reports no test fails the run', async (t) => {
   const root = tree(t);
   goShim(root, `console.log(JSON.stringify({ Action: 'start', Package: 'p' })); console.log(JSON.stringify({ Action: 'pass', Package: 'p', Elapsed: 0 }));`);

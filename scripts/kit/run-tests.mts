@@ -25,7 +25,8 @@
 // Every tool runs in its own process group (spawn's `detached`), so a stop reaches the processes that the tool started, such
 // as the interpreter that the mise shim runs (K141). The runner stops the group with SIGTERM and, when the tool has not
 // closed after a grace period, with SIGKILL: at a test's timeout, and when the runner itself receives SIGINT, SIGTERM or
-// SIGHUP, after which it ends on that signal. Only a SIGKILL of the runner itself, which no process can handle, leaves the
+// SIGHUP, after which it ends on that signal. At a timeout go first gets SIGQUIT, on which Go writes the stack of every
+// goroutine into the output of the running test, and the group stop follows after the grace period (K1136). Only a SIGKILL of the runner itself, which no process can handle, leaves the
 // group running. PHPUnit's own limit (enforceTimeLimit, php-invoker) does not replace this stop (K899): it is a SIGALRM of
 // pcntl with restarting system calls, which stops a busy loop or sleep() but not a test blocked in a libpq wait, a socket read
 // or a child process, and a test past its limit is only risky, with exit status 0; PHPUnit kills no process, not even with
@@ -439,6 +440,20 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
     // A tool that could not start has no pid and no group to stop.
     const stop = () => { if (child.pid !== undefined) stopping ??= stopGroup(child.pid, closed, graceMs, undefined, spawnedChild); };
     stopRunning = stop;
+    // The stop at a timeout: go first gets SIGQUIT, on which the Go runtime writes the stack of every goroutine into the output of
+    // the running test and the test binary ends, and the group stop follows after the grace period (K1136).
+    const stopAtTimeout = () => {
+      const pid = child.pid;
+      if (options.tool !== 'go' || pid === undefined) return stop();
+      stopping ??= (async () => {
+        if (signalGroup(pid, 'SIGQUIT', undefined, spawnedChild) !== 'ended') {
+          let timer: NodeJS.Timeout | undefined;
+          await Promise.race([closed, new Promise<void>(resolve => { timer = setTimeout(resolve, graceMs); })]);
+          clearTimeout(timer);
+        }
+        await stopGroup(pid, closed, graceMs, undefined, spawnedChild);
+      })();
+    };
     // Drain output after stopping descendants of a leader that has already exited.
     child.once('exit', stop);
     // The gap watch (K371-1): an interval without a test event outlives the timeout, so the tool is stopped and the run fails.
@@ -451,7 +466,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
         const text = `${problem}; the run elapsed ${compactSeconds(Date.now() - began)}; stopping \`${command} ${args.slice(0, 2).join(' ')}\``;
         if (progress) progress.expire(text);
         else write(`⏱ ${label}: ${text}\n`);
-        stop();
+        stopAtTimeout();
       },
     });
     let timedOut = false;
@@ -460,7 +475,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
       timeoutMs: options.timeoutSeconds * 1000,
       command: `${command} ${args.slice(0, 2).join(' ')}`,
       // A test runs out of time only after the tool started, so the child has its pid.
-      onTimeout: () => { timedOut = true; stop(); },
+      onTimeout: () => { timedOut = true; stopAtTimeout(); },
       resultFile,
       onEvent: event => gap.event(event),
     }) : undefined;
@@ -483,8 +498,12 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
     let reported = false;
     const upOnce = () => { if (!reported) { reported = true; up(label); } };
     const launch = (id: string) => gap.event({ kind: 'launch', id });
+    // The readers of the output, which are told that it ended before the progress closes, so that a test that did not finish
+    // fails with the output that its reader collected (K1141).
+    const readers: { end(): void }[] = [];
     if (cargo) {
       const events = cargoEvents(present(sink, 'sink')); // A tool that this runner reads has a sink.
+      readers.push(events);
       present(child.stdout, 'child.stdout').setEncoding('utf8').on('data', (data: string) => { // The stream is piped for this tool.
         // libtest writes `running <n> tests` when the binary starts.
         if (/^running \d+ tests?$/m.test(data)) up(label);
@@ -499,6 +518,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
     } else if (python) {
       // unittest writes its progress to standard error; the standard output of the tests is printed as it is.
       const events = pythonEvents(present(sink, 'sink')); // A tool that this runner reads has a sink.
+      readers.push(events);
       present(child.stderr, 'child.stderr').setEncoding('utf8').on('data', (written: string) => { // The stream is piped for this tool.
         let data = written;
         if (options.module !== undefined) upOnce();
@@ -527,10 +547,12 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
         skip: (test) => { const result = toolSink.skip(test); ended(test); return result; },
       };
       const phpunit = options.tool === 'go' ? undefined : phpunitEvents(toolSink);
-      readline.createInterface({ input: present(child.stdout, 'child.stdout') }).on('line', noting(phpunit === undefined ? goEvents(goSink, buildErrors) : (line) => {
+      const go = phpunit === undefined ? goEvents(goSink, buildErrors) : undefined;
+      readers.push(present(phpunit ?? go, 'the reader of the tool'));
+      readline.createInterface({ input: present(child.stdout, 'child.stdout') }).on('line', noting(go ?? ((line) => {
         upOnce();
-        return phpunit(line);
-      })); // A tool that this runner reads has a sink. // The stream is piped for this tool.
+        return present(phpunit, 'phpunit')(line);
+      }))); // A tool that this runner reads has a sink. // The stream is piped for this tool.
     }
     if (reporter) {
       // The pipe of the test events is the stream that spawn opened for TEST_EVENTS_FD: a readable one, checked here.
@@ -557,6 +579,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
     const code = status ?? (signal ? 1 : 0);
     let exit;
     if (progress) {
+      for (const reader of readers) reader.end();
       const counts = progress.close(label, { exitCode: timedOut || gapExpired ? 0 : code, errors, build: buildErrors });
       exit = counts.ok && !timedOut ? 0 : 1;
     } else {

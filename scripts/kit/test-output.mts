@@ -22,6 +22,9 @@ export type Sink = {
   raw(text: string): unknown;
 };
 
+/** A reader of the output of a tool: called with each portion of the output, and `end` when the output has ended. */
+export type Reader<T> = ((data: T) => unknown) & { end(): void };
+
 /** The sink call of the outcome of a test. */
 type Outcome = 'pass' | 'fail' | 'skip' | 'todo';
 
@@ -39,9 +42,10 @@ type GoEvent = { Action?: string; Package?: string; Test?: string; Output?: stri
  * writes, and test2json sends a name that it reads without the line end as its own event, so a reader that wakes between the
  * two writes splits the line (K919). The output of a benchmark that ends without a result line reaches the sink as lines.
  * Neither these lines nor the text of a failure hold the lines of its runs or the line of its bare name, which go prints for
- * a benchmark with sub-benchmarks.
+ * a benchmark with sub-benchmarks. A test that did not finish when its package ended, as after a panic or os.Exit, or when the
+ * output ended, as after a stop at its timeout, fails with its output (K1136); `end` ends the output.
  */
-export function goEvents(sink: Sink, build: string[] = []): (line: string) => unknown {
+export function goEvents(sink: Sink, build: string[] = []): Reader<string> {
   const output = new Map<string | undefined, string>();
   // The output of each test after its last line end, which a later output event of the test continues.
   const partial = new Map<string | undefined, string>();
@@ -59,21 +63,33 @@ export function goEvents(sink: Sink, build: string[] = []): (line: string) => un
   const started = new Map<string | undefined, number>();
   // The benchmarks of each package that started and have not ended, oldest first; benchmarks run one at a time.
   const benchmarks = new Map<string | undefined, TestRef[]>();
-  const endBenchmarks = (pkg: string | undefined, keep: (open: TestRef) => boolean, outcome: 'pass' | 'fail') => {
+  const endBenchmarks = (pkg: string | undefined, keep: (open: TestRef) => boolean, outcome: 'pass' | 'fail', reason = 'its package failed before the benchmark printed its result') => {
     const open = benchmarks.get(pkg) ?? [];
     for (const benchmark of open.filter(entry => !keep(entry)).reverse()) {
       const text = unmatched(benchmark);
       if (outcome === 'pass') {
         for (const entry of text) sink.line(entry);
         sink.pass(benchmark);
-      } else sink.fail(benchmark, 0, ['its package failed before the benchmark printed its result', ...text].join('\n'));
+      } else sink.fail(benchmark, 0, [reason, ...text].join('\n'));
+      close(pkg, benchmark.id);
     }
     benchmarks.set(pkg, open.filter(keep));
   };
   const forget = (pkg: string | undefined, name: string) => benchmarks.set(pkg, (benchmarks.get(pkg) ?? []).filter(entry => entry.name !== name));
-  // The benchmarks that passed at their result line; a later outcome event of one, should go emit it, is not counted twice.
+  // The tests of each package that started and have not ended, in the order they started (K1136).
+  const open = new Map<string | undefined, Map<string, TestRef>>();
+  const close = (pkg: string | undefined, id: string) => open.get(pkg)?.delete(id);
+  // The lines of a failure: the output of the test without the lines that go prints around each run.
+  const failureText = (id: string | undefined): string[] => take(id).split('\n').filter(entry => entry.trim() && !/^\s*(?:=== RUN|--- FAIL|=== (?:PAUSE|CONT))/.test(entry));
+  // Fails each test of `pkg` that did not finish, the latest first, with its output (K1136).
+  const unfinished = (pkg: string | undefined, reason: string) => {
+    for (const test of [...(open.get(pkg)?.values() ?? [])].reverse()) sink.fail(test, 0, [reason, ...failureText(test.id)].join('\n'));
+    open.delete(pkg);
+  };
+  // The benchmarks that passed at their result line; a later pass or skip of one, should go emit it, is not counted twice, and a
+  // later fail, as of a failed b.Cleanup, fails it (K1137).
   const resulted = new Set<string>();
-  return line => {
+  const read = (line: string): unknown => {
     // GoEvent is the format of test2json, the writer of go test -json; a line that is no event is output of its own.
     let event: GoEvent;
     try {
@@ -94,12 +110,18 @@ export function goEvents(sink: Sink, build: string[] = []): (line: string) => un
     // A go test event names its package; test2json writes Package on every event of a test or a package.
     const test: TestRef = { id: present(id, 'the package of a go test event'), name: present(event.Test ?? event.Package, 'the package of a go test event') };
     const group = !event.Test;
-    if (resulted.has(test.id) && ['pass', 'fail', 'skip'].includes(event.Action ?? '')) return undefined;
+    if (resulted.has(test.id) && ['pass', 'skip'].includes(event.Action ?? '')) return undefined;
+    if (resulted.has(test.id) && event.Action === 'fail') {
+      resulted.delete(test.id);
+      return sink.fail(test, (event.Elapsed ?? 0) * 1000, ['the benchmark failed after its result line', ...failureText(id)].join('\n'));
+    }
     switch (event.Action) {
       case 'start': started.set(event.Package, 0); benchmarks.set(event.Package, []); return sink.start(test, { group: true });
       case 'run':
         if (group) return undefined;
         started.set(event.Package, (started.get(event.Package) ?? 0) + 1);
+        if (!open.has(event.Package)) open.set(event.Package, new Map());
+        open.get(event.Package)?.set(test.id, test);
         if (test.name.startsWith('Benchmark')) {
           endBenchmarks(event.Package, open => test.name.startsWith(`${open.name}/`), 'pass');
           benchmarks.get(event.Package)?.push(test);
@@ -115,6 +137,7 @@ export function goEvents(sink: Sink, build: string[] = []): (line: string) => un
         if (test.name.startsWith('Benchmark') && new RegExp(`^${RegExp.escape(test.name)}(?:-\\d+)?\\s+\\d+\\s.*\\bns/op\\b`).test(text)) {
           sink.line(text.trimEnd());
           forget(event.Package, test.name);
+          close(event.Package, test.id);
           take(id);
           resulted.add(test.id);
           return sink.pass(test);
@@ -123,8 +146,10 @@ export function goEvents(sink: Sink, build: string[] = []): (line: string) => un
         return;
       }
       case 'pass':
-        if (group) endBenchmarks(event.Package, () => false, 'pass');
-        else forget(event.Package, test.name);
+        if (group) {
+          endBenchmarks(event.Package, () => false, 'pass');
+          unfinished(event.Package, 'the test did not finish before its package ended');
+        } else { forget(event.Package, test.name); close(event.Package, test.id); }
         if (test.name.startsWith('Benchmark')) for (const entry of unmatched(test)) sink.line(entry);
         else take(id);
         if (group && !started.get(event.Package)) {
@@ -137,7 +162,8 @@ export function goEvents(sink: Sink, build: string[] = []): (line: string) => un
         // test2json writes Elapsed on every pass event.
         return sink.pass(test, present(event.Elapsed, 'event.Elapsed') * 1000);
       case 'skip': {
-        if (!group) forget(event.Package, test.name);
+        if (group) unfinished(event.Package, 'the test did not finish before its package ended');
+        else { forget(event.Package, test.name); close(event.Package, test.id); }
         take(id);
         if (group && started.has(event.Package) && !started.get(event.Package)) {
           sink.pass(test);
@@ -146,14 +172,24 @@ export function goEvents(sink: Sink, build: string[] = []): (line: string) => un
         return sink.skip(test);
       }
       case 'fail': {
-        if (group) endBenchmarks(event.Package, () => false, 'fail');
-        else forget(event.Package, test.name);
-        const text = take(id).split('\n').filter(entry => !/^\s*(?:=== RUN|--- FAIL|=== (?:PAUSE|CONT))/.test(entry)).join('\n');
-        return sink.fail(test, (event.Elapsed ?? 0) * 1000, text);
+        if (group) {
+          endBenchmarks(event.Package, () => false, 'fail');
+          unfinished(event.Package, 'the test did not finish before its package failed');
+        } else { forget(event.Package, test.name); close(event.Package, test.id); }
+        return sink.fail(test, (event.Elapsed ?? 0) * 1000, failureText(id).join('\n'));
       }
       default: return undefined;
     }
   };
+  return Object.assign(read, {
+    // The output ended, as after a stop at a timeout: each test that did not finish fails with its output (K1136).
+    end(): void {
+      for (const pkg of new Set([...benchmarks.keys(), ...open.keys()])) {
+        endBenchmarks(pkg, () => false, 'fail', 'the output of go test ended before the benchmark printed its result');
+        unfinished(pkg, 'the test did not finish before the output of go test ended');
+      }
+    },
+  });
 }
 
 /**
@@ -172,12 +208,15 @@ function startResultLines(sink: Sink, { result, pending, outcome, idOf, other, i
   // The start of a test whose output is printed before its result, and the line of the result alone: `start` matches the
   // line of the test's name (its first group is the name), `end` the result word, the first group of the line.
   interleaved?: { start: RegExp; end: RegExp };
-}): (data: string) => void {
+}): Reader<string> {
   let current: TestRef | undefined;
   let buffer = '';
+  // The lines that the running test printed, which a test that does not finish fails with (K1139).
+  let since: string[] = [];
   const start = (name: string): void => {
     if (current !== undefined) return;
     current = idOf(name);
+    since = [];
     sink.start(current);
   };
   const line = (text: string): unknown => {
@@ -191,6 +230,7 @@ function startResultLines(sink: Sink, { result, pending, outcome, idOf, other, i
         current = undefined;
         return undefined;
       }
+      if (current !== undefined && text.trim()) since.push(text.trimEnd());
       return other(text);
     }
     // Both groups of `result` always take part in a match.
@@ -200,7 +240,7 @@ function startResultLines(sink: Sink, { result, pending, outcome, idOf, other, i
     current = undefined;
     return undefined;
   };
-  return (data) => {
+  const read = (data: string): void => {
     buffer += data;
     let end: number;
     while ((end = buffer.indexOf('\n')) !== -1) {
@@ -210,6 +250,16 @@ function startResultLines(sink: Sink, { result, pending, outcome, idOf, other, i
     const started = pending.exec(buffer);
     if (started) start(present(started[1], 'started[1]')); // The group of `pending` always takes part in a match.
   };
+  return Object.assign(read, {
+    // The output ended: its rest without a line end is read as a line, and a test that did not finish fails with its lines (K1139).
+    end(): void {
+      const rest = buffer;
+      buffer = '';
+      if (rest !== '' && !(current !== undefined && pending.test(rest))) line(rest);
+      if (current !== undefined) sink.fail(current, 0, ['the test did not finish before the output ended', ...since].join('\n'));
+      current = undefined;
+    },
+  });
 }
 
 /**
@@ -218,7 +268,7 @@ function startResultLines(sink: Sink, { result, pending, outcome, idOf, other, i
  * run of whitespace before `...`: libtest-mimic, the harness of data-driven tests (harness = false), pads each name to the
  * longest one. cargo names each test binary on standard error before running it.
  */
-export function cargoEvents(sink: Sink): { stdout: (data: string) => void; stderr(text: string): void } {
+export function cargoEvents(sink: Sink): { stdout: (data: string) => void; stderr(text: string): void; end(): void } {
   let binary = 'cargo';
   const lines = startResultLines(sink, {
     result: /^test (\S+)(?: - should panic)?\s+\.\.\. (ok|FAILED|ignored)\b/,
@@ -242,6 +292,7 @@ export function cargoEvents(sink: Sink): { stdout: (data: string) => void; stder
       if (running) binary = present(running[1], 'running[1]'); // The group always takes part in a match.
       if (text.trim()) sink.line(text.trim());
     },
+    end: () => lines.end(),
   };
 }
 
@@ -250,13 +301,18 @@ export function cargoEvents(sink: Sink): { stdout: (data: string) => void; stder
  * `<method> (<module>.<class>.<method>) ... ` when it starts and its outcome when it ends: `ok` passes, `expected failure` is a
  * todo, `skipped '<reason>'` is skipped, and `FAIL`, `ERROR` and `unexpected success` fail. A test with a docstring prints its
  * description on a line of its own and the first docstring line before ` ... `; the test keeps the id of the description.
- * The failure reports at the end of the run are printed as they are.
+ * The failure reports at the end of the run are printed as they are, and so is a description that no test start follows (K1140).
  */
-export function pythonEvents(sink: Sink): (data: string) => void {
+export function pythonEvents(sink: Sink): Reader<string> {
   const DESCRIPTION = /^\w+ \([\w.]+\)$/;
   // The description line of a test with a docstring, which names the test whose outcome follows.
   let described: string | undefined;
-  return startResultLines(sink, {
+  // A description that no test start followed is printed as the line it is (K1140).
+  const unclaimed = () => {
+    if (described !== undefined) sink.line(`  ${described}`);
+    described = undefined;
+  };
+  const lines = startResultLines(sink, {
     // The elapsed time that runners/python.py prints after the outcome (K371) is optional: a line with or without it reads the same.
     result: /^(.+?) \.\.\. (ok|FAIL|ERROR|skipped\b.*?|expected failure|unexpected success)(?: \(\d+\.\d+s\))?$/,
     pending: /^(.+?) \.\.\. $/,
@@ -268,9 +324,15 @@ export function pythonEvents(sink: Sink): (data: string) => void {
       return { id, name: present(id.split(' ')[0], 'id.split(\' \')[0]') }; // split returns at least one part.
     },
     other: (text) => {
+      unclaimed();
       if (DESCRIPTION.test(text)) { described = text; return; }
-      described = undefined;
       if (text.trim()) sink.line(`  ${text}`);
+    },
+  });
+  return Object.assign((data: string) => lines(data), {
+    end(): void {
+      lines.end();
+      unclaimed();
     },
   });
 }
@@ -280,10 +342,13 @@ const unescapeTeamcity = (value: string): string => value.replace(/\|(['|\][nr])
 
 /**
  * Read PHPUnit TeamCity messages into the sink. Other lines, such as the summary with the warnings that fail the run
- * under failOnWarning, are printed as they are.
+ * under failOnWarning, are printed as they are, and so is the output of testStdOut and testStdErr and a message that this
+ * reader does not read (K1138). A test that failed and did not finish, as after a fatal error, fails with its failure at `end`.
  */
-export function phpunitEvents(sink: Sink): (line: string) => unknown {
+export function phpunitEvents(sink: Sink): Reader<string> {
   const failures = new Map<string | undefined, string>();
+  // The test of each failure, which `end` fails when its finish never came (K1138).
+  const failed = new Map<string | undefined, TestRef>();
   // A start names its fully qualified class and method; finish repeats only the method name within its flow.
   const ids = new Map<string | undefined, string | undefined>();
   // Suites without a location (the configuration and the test suites) are printed as groups. A class or a data provider
@@ -296,7 +361,7 @@ export function phpunitEvents(sink: Sink): (line: string) => unknown {
     // Both capture groups take part in a matching native location.
     return hint ? `${hint[1]}::${hint[2]}` : attributes.name;
   };
-  return line => {
+  const read = (line: string): unknown => {
     const message = /^##teamcity\[(\w+)((?: \w+='(?:[^'|]|\|.)*')*)\]$/.exec(line.trim());
     if (!message) return line.trim() ? sink.line(line) : undefined;
     // The groups of both patterns always take part in a match.
@@ -316,18 +381,36 @@ export function phpunitEvents(sink: Sink): (line: string) => unknown {
       case 'testSuiteFinished': return groups.delete(event) ? sink.pass(test()) : undefined;
       case 'testStarted': return sink.start(test());
       // PHPUnit reports a test that ran out of its time limit and also made no assertion twice.
-      case 'testFailed': failures.set(event, [failures.get(event), attributes.message ?? '', attributes.details ?? ''].filter(Boolean).join('\n')); return undefined;
+      case 'testFailed':
+        failures.set(event, [failures.get(event), attributes.message ?? '', attributes.details ?? ''].filter(Boolean).join('\n'));
+        failed.set(event, test());
+        return undefined;
       case 'testIgnored': ignored.add(event); return sink.skip(test());
       case 'testFinished': {
         const duration = Number(attributes.duration);
         if (ignored.delete(event)) return undefined;
         // has() above makes the failure text exist.
-        if (failures.has(event)) { const text = present(failures.get(event), 'failures.get(event)'); failures.delete(event); return sink.fail(test(), duration, text); }
+        if (failures.has(event)) { const text = present(failures.get(event), 'failures.get(event)'); failures.delete(event); failed.delete(event); return sink.fail(test(), duration, text); }
         return sink.pass(test(), duration);
       }
-      default: return undefined;
+      // The output that a test wrote, which PHPUnit reports in a message of its own.
+      case 'testStdOut':
+      case 'testStdErr':
+        for (const text of String(attributes.out ?? '').split('\n').filter(entry => entry.trim())) sink.line(`  ${text}`);
+        return undefined;
+      // The number of tests that a suite holds, which the progress counts as they run.
+      case 'testCount': return undefined;
+      default: return sink.line(line);
     }
   };
+  return Object.assign(read, {
+    // The output ended: each test that failed and did not finish, as after a PHP fatal error, fails with its failure (K1138).
+    end(): void {
+      for (const [event, text] of failures) sink.fail(present(failed.get(event), 'the test of a failure'), 0, ['the test did not finish', text].join('\n'));
+      failures.clear();
+      failed.clear();
+    },
+  });
 }
 
 /**

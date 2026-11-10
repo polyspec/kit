@@ -1,7 +1,7 @@
 // Tests of the readers of scripts/kit/test-output.mts. The export of the built package is tested in tests/source/package.test.mts.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { cargoEvents, goEvents, toProgress, type Sink, type TestRef } from '../../scripts/kit/test-output.mts';
+import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress, type Sink, type TestRef } from '../../scripts/kit/test-output.mts';
 import { createProgress } from '../../scripts/kit/test-progress.mts';
 
 /** A sink that counts the calls of each kind and keeps the lines that it receives. */
@@ -169,4 +169,92 @@ postgres: case database
 ok
 `);
   assert.deepEqual(outcomes, ['identity_load::restart_identity_takes_only_entity pass', 'identity_load::execute_load_then_restart fail', 'identity_load::execute_restart_after_delete pass']);
+});
+
+/** A progress that keeps its output, with the reader of `make` on it; `close` ends the reader and then the progress. */
+function reading<R extends { end(): void }>(make: (sink: Sink) => R): { reader: R; close: () => { ok: boolean; failed: number; text: string } } {
+  const lines: string[] = [];
+  const progress = createProgress({ write: text => lines.push(text), heartbeatMs: 10_000, resultFile: '' });
+  const reader = make(toProgress(progress, text => lines.push(text)));
+  return {
+    reader,
+    close: () => {
+      reader.end();
+      const result = progress.close('run');
+      return { ok: result.ok, failed: result.failed, text: lines.join('') };
+    },
+  };
+}
+
+test('goEvents fails a test that did not finish when its package ended, or when the output ended, with its output (K1136)', () => {
+  const ended = reading(sink => goEvents(sink));
+  for (const event of [
+    { Action: 'start', Package: 'p' },
+    { Action: 'run', Package: 'p', Test: 'TestPanics' },
+    { Action: 'output', Package: 'p', Test: 'TestPanics', Output: 'panic: boom\n' },
+    { Action: 'output', Package: 'p', Test: 'TestPanics', Output: 'goroutine 7 [running]:\n' },
+    { Action: 'fail', Package: 'p', Elapsed: 2 },
+  ]) ended.reader(JSON.stringify(event));
+  const panicked = ended.close();
+  assert.match(panicked.text, /✖ p › TestPanics[^\n]*\n(?:.*\n)*?\s+the test did not finish before its package failed\n\s+panic: boom\n\s+goroutine 7 \[running\]:/, panicked.text);
+  assert.doesNotMatch(panicked.text, /the test did not finish\n/);
+
+  const stopped = reading(sink => goEvents(sink));
+  for (const event of [
+    { Action: 'start', Package: 'p' },
+    { Action: 'run', Package: 'p', Test: 'TestHangs' },
+    { Action: 'output', Package: 'p', Test: 'TestHangs', Output: '    hang_test.go:9: PROBE\n' },
+    { Action: 'output', Package: 'p', Test: 'TestHangs', Output: 'unfinished line' },
+  ]) stopped.reader(JSON.stringify(event));
+  const timedOut = stopped.close();
+  assert.equal(timedOut.ok, false);
+  assert.match(timedOut.text, /the test did not finish before the output of go test ended\n\s+hang_test\.go:9: PROBE\n\s+unfinished line/, timedOut.text);
+});
+
+test('goEvents fails a benchmark that passed at its result line and then failed, as in its b.Cleanup (K1137)', () => {
+  const run = reading(sink => goEvents(sink));
+  for (const event of [
+    { Action: 'start', Package: 'p' },
+    { Action: 'run', Package: 'p', Test: 'BenchmarkA' },
+    { Action: 'output', Package: 'p', Test: 'BenchmarkA', Output: 'BenchmarkA   \t     100\t       5.0 ns/op\n' },
+    { Action: 'output', Package: 'p', Test: 'BenchmarkA', Output: '    a_test.go:12: cleanup failed\n' },
+    { Action: 'fail', Package: 'p', Test: 'BenchmarkA', Elapsed: 0.1 },
+    { Action: 'pass', Package: 'p', Elapsed: 0.2 },
+  ]) run.reader(JSON.stringify(event));
+  const result = run.close();
+  assert.equal(result.ok, false, result.text);
+  assert.match(result.text, /✖ p › BenchmarkA[^\n]*\n\s+the benchmark failed after its result line\n\s+a_test\.go:12: cleanup failed/, result.text);
+});
+
+test('phpunitEvents keeps the failure of a test that never finished, and prints the messages that it does not read (K1138)', () => {
+  const run = reading(sink => phpunitEvents(sink));
+  for (const line of [
+    "##teamcity[testStarted name='testFatal' locationHint='php_qn:///t/ATest.php::\\\\ATest::testFatal' flowId='1']",
+    "##teamcity[testStdOut name='testFatal' out='printed by the test|n' flowId='1']",
+    "##teamcity[testFailed name='testFatal' message='Allowed memory size exhausted' details='' flowId='1']",
+    "##teamcity[unknownMessage name='x' flowId='1']",
+  ]) run.reader(line);
+  const result = run.close();
+  assert.equal(result.ok, false);
+  assert.match(result.text, /✖ \\?ATest::testFatal[^\n]*\n\s+the test did not finish\n\s+Allowed memory size exhausted/, result.text);
+  assert.match(result.text, /printed by the test/);
+  assert.match(result.text, /##teamcity\[unknownMessage name='x' flowId='1'\]/);
+});
+
+test('startResultLines prints the rest without a line end and fails a test that did not finish with its lines (K1139)', () => {
+  const run = reading(sink => cargoEvents(sink));
+  run.reader.stderr('     Running unittests src/lib.rs (target/debug/deps/lib-1)');
+  run.reader.stdout('running 1 test\ntest a::aborts ... \nwritten by the test\nthe last line without an end');
+  const result = run.close();
+  assert.equal(result.ok, false);
+  assert.match(result.text, /✖ target\/debug\/deps\/lib-1\) › a::aborts|✖ [^\n]*a::aborts[^\n]*\n\s+the test did not finish before the output ended\n\s+written by the test\n\s+the last line without an end/, result.text);
+  assert.match(result.text, /the last line without an end/);
+});
+
+test('pythonEvents prints a description that no test start follows (K1140)', () => {
+  const run = reading(sink => pythonEvents(sink));
+  run.reader('test_a (m.C) ... ok\nlooks_like_a_description (m.D)\nTraceback (most recent call last):\ntrailing_description (m.E)\n');
+  const result = run.close();
+  assert.match(result.text, /looks_like_a_description \(m\.D\)/, result.text);
+  assert.match(result.text, /trailing_description \(m\.E\)/, result.text);
 });
