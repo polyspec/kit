@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 55cb879cc269e6cdd4cb5b298131622d108833c795e65bb4ecc992bf06713d43 -->
+<!-- source-sha256: 616924b6fcac7cb358881f61a43be467f72ad44d8a6452127783863da47d4b1e -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -298,3 +298,5 @@
 | K1168 | check-documents는 검사가 예외를 던진 문서를 그 오류와 함께 그 문서의 finding으로 보고하고 나머지 문서를 계속 검사한다. 실행은 끝에서 실패한다 | `scripts/kit/check-documents.mts`, `scripts/kit/checklist.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1168 tests/kit/documents.test.mts` | [o] |
 | K1170 | PHPUnit deadline extension은 enforceTimeLimit와 상관없이 subscriber를 등록한다. 그래서 native 시간 제한을 끈 저장소도 runner의 deadline 사건을 받고, runner가 유일한 한도가 될 수 있다 | `scripts/kit/php-library/phpunit-deadline-extension.php` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1170 tests/kit/run-tests.test.mts` | [o] |
 | K1171 | K1167, K1168, K1170 행을 담아 kit 0.0.104를 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |
+| K1172 | 0이 아닌 status로 끝난 실행은 그 원인을 적는다. PHPUnit 내부 오류의 header 뒤에 오는 Message:와 Location: 줄은 오류 줄이며, runner는 자기가 읽는 모든 도구의 standard error를 읽고, 출력에 오류 줄이 없는 실행은 오류 줄을 출력하지 않았다고 말하는 대신 그 출력의 마지막 줄들을 tail이라고 밝혀 적는다 | `scripts/kit/run-tests.mts`, `scripts/kit/test-progress.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1172 tests/kit/run-tests.test.mts` | [ ] |
+| K1173 | K1172 행을 담아 kit 0.0.105를 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [ ] |
