@@ -247,3 +247,11 @@ test('K1099: git-hooks installs the folder, merges and drivers that the caller d
   assert.equal(readFileSync(attributes, 'utf8'), 'NEWS.md merge=news\n');
   assert.equal(statSync(path.join(work, 'hooks/pre-push')).mode & 0o100, 0o100);
 });
+
+// git config exits with 1 for a key that is not set and with 3 for a configuration it cannot read, which is an error (K1158).
+test('a configuration that git cannot read is an error, not a merge driver or hooks path that is not set (K1158)', (t) => {
+  const root = tree(t, { 'a.txt': 'a\n' });
+  writeFileSync(path.join(root, '.git/config'), '[core]\n\trepositoryformatversion = 0\n[merge "x"\n');
+  assert.throws(() => mergeIssue(root, { merges: [], drivers: [{ name: 'x', command: 'y' }] }), /bad config/);
+  assert.throws(() => hooksIssue(root, declarationOf(['--hooks-path', '.githooks'])), /bad config/);
+});

@@ -6,7 +6,7 @@ import { chmodSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
-import { DIFF_RULES, fileMessage, identityFindings, indexItemFindings, messageFindings, rustTestLines } from '../../scripts/kit/check-commits.mts';
+import { commitOf, DIFF_RULES, fileMessage, identityFindings, indexItemFindings, messageFindings, rustTestLines } from '../../scripts/kit/check-commits.mts';
 import { put, tree } from './tree.mts';
 import { tool } from './kit-tools.mts';
 
@@ -251,4 +251,12 @@ test('K1087: check-commits --range applies only the diff rules that --rules name
   const unknown = run('--rules', 'commit-blue');
   assert.equal(unknown.status, 2, 'an unknown rule is a usage error');
   assert.match(unknown.stderr, /commit-blue/);
+});
+
+// A git failure other than a revision that names no commit is an error, not the empty tree of a root commit (K1157).
+test('commitOf throws when git fails, and is undefined only for a revision that names no commit (K1157)', (t) => {
+  const root = tree(t, { 'a.txt': 'a\n' });
+  assert.equal(commitOf(root, 'HEAD'), undefined, 'an unborn HEAD names no commit');
+  writeFileSync(path.join(root, '.git/config'), '[core\n');
+  assert.throws(() => commitOf(root, 'HEAD'), /bad config/);
 });

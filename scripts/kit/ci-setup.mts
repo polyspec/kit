@@ -187,6 +187,8 @@ export function runCIContext(root: string, phase: 'prepare' | 'cleanup', group: 
 function spawnMake(command: string, args: string[], cwd: string): number {
   const result = spawnSync(command, args, { cwd, stdio: 'inherit' });
   if (result.error) throw new Error(`${command} could not start: ${result.error.message}`);
+  // A signal is named, since the status that it gives is no exit status of the command (K1165).
+  if (result.signal) console.error(`${command} ${args.join(' ')} ended by signal ${result.signal}`);
   return result.status ?? 1;
 }
 

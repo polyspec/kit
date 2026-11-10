@@ -584,3 +584,11 @@ test('wrapBody keeps a Red or No-Red line as a line of its own wherever it stand
   assert.equal(wrapBody('Fixes the parser.\nRed: node --test --test-name-pattern=K1 tests/kit/a-very-long-file-name.test.mts exit 1 at 0123abcd\nMore text after it.', 40), 'Fixes the parser.\nRed: node --test --test-name-pattern=K1 tests/kit/a-very-long-file-name.test.mts exit 1 at 0123abcd\nMore text after it.');
   assert.equal(wrapBody('one two three four five', 9), 'one two\nthree\nfour five', 'prose still wraps');
 });
+
+// A main that git cannot read is an error, not a main that holds no checklist (K1159).
+test('item-new throws when git cannot read main (K1159)', (t) => {
+  const root = plans(t, 'parser');
+  newItem(root, item('parser', 'T1'));
+  writeFileSync(path.join(root, '.git/refs/heads/main'), `${'f'.repeat(40)}\n`);
+  assert.throws(() => newItem(root, item('parser', 'T2')), /git show-ref --verify --quiet refs\/heads\/main exited with 128/);
+});

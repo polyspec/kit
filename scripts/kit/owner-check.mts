@@ -147,6 +147,8 @@ export function makeDatabase(root: string): MakeDatabase {
   const result = spawnSync('make', ['-pRrq', '-f', 'Makefile', '-f', '-'], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28, env: environment, input: `\n.DEFAULT_GOAL := ${DATABASE_GOAL}\n${DATABASE_GOAL}: ;\n` });
   if (result.error) throw new Error(`make could not start: ${result.error.message}`);
   if (!result.stdout.includes('# Make data base')) throw new Error(`make printed no database of ${path.join(root, 'Makefile')}: ${result.stderr.trim()}`);
+  // A warning of the Makefile comes on standard error beside the database (K1163).
+  if (result.stderr.trim()) process.stderr.write(`${result.stderr.trimEnd()}\n`);
   const database = parseMakeDatabase(result.stdout);
   // The default goal of this read is not a target of the Makefile. A .DEFAULT_GOAL that the Makefile sets is replaced by this
   // read, and no caller reads it, so the database leaves the variable out (K945).

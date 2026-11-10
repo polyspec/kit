@@ -45,7 +45,7 @@ import { parseJson, readConfig, readConfigFindings } from './schema-validate.mts
 import { checkedFiles } from './tracked-files.mts';
 import { matchesAny } from './glob.mts';
 import { isMain, repositoryRoot } from './paths.mts';
-import { execute, run, Stop } from './process.mts';
+import { cleanupAfter, execute, run, Stop } from './process.mts';
 import { present } from './present.mts';
 import { linksOutsideCheckout } from './link.mts';
 import { toolCommand } from './mise-tools.mts';
@@ -466,7 +466,7 @@ function madeFiles(ctx: Context, commit: string, folder: string, makes: ReleaseG
       ctx.log(`[release] ${commit}: make ${target} in the checkout, for ${folder}`);
       const result = execute('make', ['-C', root, target], { cwd: root, env: ctx.env });
       if (result.error) throw new Stop(`make could not start for ${target}: ${result.error.message}`);
-      if (result.status !== 0) throw new Stop(`make ${target} failed at ${commit} with exit status ${result.status}: ${(result.stdout + result.stderr).trim()}`);
+      if (result.status !== 0) throw new Stop(`make ${target} failed at ${commit} ${result.signal ? `on signal ${result.signal}` : `with exit status ${result.status}`}: ${(result.stdout + result.stderr).trim()}`);
       // A byproduct of the target, changed or untracked and not declared, would enter the checkout unpacked; the declared outputs of
       // every make entry of the package are excluded, since each is a path the target writes by declaration.
       const declared = makes.flatMap(item => item.outputs.map(output => path.posix.join(folder, output)));
@@ -569,6 +569,12 @@ function assetsFromCommit(ctx: Context, reference: string, commit: string, versi
   const mtime = new Date(Number(run('git', ['show', '-s', '--format=%ct', commit], at(ctx)).trim()) * 1000).toISOString();
   const next = `${target}.next-${process.pid}`;
   const previous = `${target}.previous-${process.pid}`;
+  // The work folder goes and the previous assets come back when the new ones did not take their place; a failure of this after an
+  // error keeps that error (K1144).
+  const restore = () => {
+    rmSync(next, { recursive: true, force: true });
+    if (existsSync(previous) && !existsSync(target)) renameSync(previous, target);
+  };
   rmSync(next, { recursive: true, force: true });
   rmSync(previous, { recursive: true, force: true });
   mkdirSync(next, { recursive: true });
@@ -601,7 +607,7 @@ function assetsFromCommit(ctx: Context, reference: string, commit: string, versi
           const args = ['archive', '--format=zip', '-0', `--mtime=${mtime}`, `--output=${archive}`, `${commit}:${folder}`];
           const result = execute('git', args, { cwd: root, env: { ...ctx.env, TZ: 'UTC' } });
           if (result.error) throw new Stop(`git archive could not start for ${commit}:${folder}: ${result.error.message}`);
-          if (result.status !== 0) throw new Stop(`git archive of ${commit}:${folder} failed with exit status ${result.status}: ${(result.stdout + result.stderr).trim()}`);
+          if (result.status !== 0) throw new Stop(`git archive of ${commit}:${folder} failed ${result.signal ? `on signal ${result.signal}` : `with exit status ${result.status}`}: ${(result.stdout + result.stderr).trim()}`);
           if (generated) {
             const epoch = Number(run('git', ['show', '-s', '--format=%ct', commit], at(ctx)).trim());
             for (const item of generated.files) {
@@ -609,7 +615,7 @@ function assetsFromCommit(ctx: Context, reference: string, commit: string, versi
               utimesSync(item.file, epoch, epoch);
               const result = execute('zip', ['-q', '-0', '-X', archive, item.output], { cwd: generated.directory, env: { ...ctx.env, TZ: 'UTC' } });
               if (result.error) throw new Stop(`zip could not start while adding ${item.output} to ${names[index]}: ${result.error.message}`);
-              if (result.status !== 0) throw new Stop(`zip failed while adding ${item.output} to ${names[index]} with exit status ${result.status}: ${(result.stdout + result.stderr).trim()}`);
+              if (result.status !== 0) throw new Stop(`zip failed while adding ${item.output} to ${names[index]} ${result.signal ? `on signal ${result.signal}` : `with exit status ${result.status}`}: ${(result.stdout + result.stderr).trim()}`);
             }
           }
         } finally {
@@ -638,17 +644,12 @@ function assetsFromCommit(ctx: Context, reference: string, commit: string, versi
       ctx.log(`[release] ${reference}: wrote ${PACKAGES_JSON}, the Composer repository of the release`);
     }
     if (existsSync(target)) renameSync(target, previous);
-    try {
-      renameSync(next, target);
-    } catch (error) {
-      if (existsSync(previous) && !existsSync(target)) renameSync(previous, target);
-      throw error;
-    }
+    renameSync(next, target);
     rmSync(previous, { recursive: true, force: true });
-  } finally {
-    rmSync(next, { recursive: true, force: true });
-    if (existsSync(previous) && !existsSync(target)) renameSync(previous, target);
+  } catch (error) {
+    cleanupAfter(error, restore);
   }
+  restore();
   return files;
 }
 
@@ -657,7 +658,7 @@ function requireArchiveTools(ctx: Context, retry: string): void {
   if (!ctx.config.packages.some(item => item.generated?.length)) return;
   const zip = execute('zip', ['-v'], { cwd: ctx.root, env: ctx.env });
   if (zip.error) throw new Stop(`zip is required to append generated files to Composer release archives; install Info-ZIP (for example, brew install zip or sudo apt-get install zip), then run ${retry}`);
-  if (zip.status !== 0) throw new Stop(`zip -v failed with exit status ${zip.status}; install a working Info-ZIP command, then run ${retry}`);
+  if (zip.status !== 0) throw new Stop(`zip -v failed ${zip.signal ? `on signal ${zip.signal}` : `with exit status ${zip.status}`}; install a working Info-ZIP command, then run ${retry}`);
 }
 
 /** Builds release candidates from committed HEAD without resolving, creating or pretending to have a tag. */

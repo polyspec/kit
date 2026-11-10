@@ -429,3 +429,12 @@ test('makeDatabase reads the database of a Makefile whose default goal calls $(M
   assert.equal(database.targets.has('.kit-database-read'), false, 'the database leaves out the default goal of the read');
   assert.equal(database.variables.has('.DEFAULT_GOAL'), false, 'the database leaves out the default goal variable');
 });
+
+// make writes a warning of the Makefile to standard error beside the database it prints, and owner-check writes it (K1163).
+test('the make database read writes the standard error of make (K1163)', (t) => {
+  const root = tree(t, { Makefile: '$(warning a warning of the Makefile)\nall:\n\t@true\n' });
+  const script = `import { makeDatabase } from ${JSON.stringify(new URL('../../scripts/kit/owner-check.mts', import.meta.url).href)}; makeDatabase(${JSON.stringify(root)});`;
+  const child = spawnSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8' });
+  assert.equal(child.status, 0, child.stderr);
+  assert.match(child.stderr, /a warning of the Makefile/);
+});

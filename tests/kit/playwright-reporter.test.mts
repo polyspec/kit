@@ -124,3 +124,10 @@ test('native timeout', async () => {
   assert.ok(Number.isInteger(pid) && pid > 0);
   assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
 });
+
+// printsToStdio is true, so Playwright prints no output of the tests itself: the reporter forwards it (K1147).
+test('the reporter forwards the standard output and standard error of the tests and the workers (K1147)', () => {
+  const result = report("reporter.onStdOut('printed by a test\\n');\nreporter.onStdErr(Buffer.from('warned by a worker\\n'));");
+  assert.match(result.output, /printed by a test/, result.error);
+  assert.match(result.error, /warned by a worker/);
+});

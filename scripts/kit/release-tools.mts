@@ -39,7 +39,7 @@ function step(command: string, args: string[], { cwd, env, print, error }: { cwd
   if (result.error) throw new Stop(`${shown} could not start: ${result.error.message}`);
   if (result.stdout.trim()) print(result.stdout.trimEnd());
   if (result.stderr.trim()) error(result.stderr.trimEnd());
-  if (result.status !== 0) throw new Stop(`${shown} exited with ${result.status}`);
+  if (result.status !== 0) throw new Stop(`${shown} ${result.signal ? `ended by signal ${result.signal}` : `exited with ${result.status}`}`);
 }
 
 const USAGE = 'usage: node scripts/kit/release-tools.mts';

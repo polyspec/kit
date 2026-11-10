@@ -17,6 +17,7 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
 import { SHIMS, toolCommand } from './mise-tools.mts';
 import { present } from './present.mts';
+import { cleanupAfter } from './process.mts';
 
 const MAKE = (directory: string): string => `make it from the checkout Python, with make python-venv DIR=${directory} or ${SHIMS}/uv venv --python ${SHIMS}/python3 ${directory}`;
 
@@ -85,8 +86,7 @@ export function makeVenv({ root = repositoryRoot(), directory, env = process.env
     const problem = existingVenvProblem(directory, root, env);
     if (problem) throw new Error(problem);
   } catch (error) {
-    rmSync(directory, { recursive: true, force: true });
-    throw error;
+    cleanupAfter(error, () => rmSync(directory, { recursive: true, force: true }));
   }
   print(`made ${relative}`);
 }

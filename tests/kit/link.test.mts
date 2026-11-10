@@ -9,7 +9,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import nodeTest, { type TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { buildState, buildTargets } from '../../scripts/kit/link-build.mts';
+import { buildState, buildTargets, rebuild } from '../../scripts/kit/link-build.mts';
+import { refreshLinked } from '../../scripts/kit/linked-build.mts';
 import { assertIgnored, declaredCheckouts, foreignEnvironment, isIgnored, providers, trackedManifests } from '../../scripts/kit/link-providers.mts';
 import { providedFolders } from '../../scripts/kit/link-folders.mts';
 import { linkFindings } from '../../scripts/kit/link-check.mts';
@@ -1301,4 +1302,28 @@ test('K856: link cargo runs no cargo update, and link has no rebuild command', (
   const rebuild = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'rebuild', consumer], { encoding: 'utf8' });
   assert.notEqual(rebuild.status, 0);
   assert.doesNotMatch(rebuild.stderr, /rebuild <repository>/, 'the usage names no rebuild command');
+});
+
+/** A repository whose npm package has a missing built output and whose build writes its first error to stderr and 30 lines to stdout. */
+function failingBuild(t: TestContext): string {
+  const root = mkdtempSync(path.join(tmpdir(), 'kit-failing-build-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  return repository(root, 'provider', {
+    'package.json': JSON.stringify({ name: '@polyspec/built', version: '0.0.1', main: 'dist/index.js' }),
+    'src/index.ts': 'export {};\n',
+    '.gitignore': 'dist/\nvar/\n',
+    Makefile: "build:\n\t@echo 'src/index.ts:1:1: error: the first compiler error' >&2; for i in $$(seq 1 30); do echo \"line $$i\"; done; exit 3\n",
+  });
+}
+
+test('a failed provider rebuild names its exit status, its whole standard error and the end of its standard output (K1161)', (t) => {
+  const provider = failingBuild(t);
+  assert.throws(() => rebuild(provider, () => {}), (error: unknown) => error instanceof Error
+    && /exit status 2|exited with 2/.test(error.message) && error.message.includes('the first compiler error') && error.message.includes('line 30'));
+});
+
+test('refreshLinked names the failure of the build in its message, not only in its cause (K1143)', (t) => {
+  const provider = failingBuild(t);
+  assert.throws(() => refreshLinked(provider, ['src/index.ts'], () => {}), (error: unknown) => error instanceof Error
+    && error.message.startsWith('main moved, but the build of . failed') && error.message.includes('the first compiler error'));
 });

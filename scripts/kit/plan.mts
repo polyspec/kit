@@ -44,6 +44,8 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { withLandLock } from './land.mts';
 import { refreshLinked } from './linked-build.mts';
 import { present } from './present.mts';
+import { git, gitAnswer } from './git.mts';
+import { cleanupAfter } from './process.mts';
 
 
 
@@ -134,10 +136,16 @@ function inserted(text: string, id: string, row: string): string {
  * reads main as check-commits does. None in a checkout without main.
  */
 function mainHolders(root: string, config: ReturnType<typeof loadConfig>, id: string): string[] {
-  const listed = spawnSync('git', ['ls-tree', '-r', '--name-only', 'main', '--', PLANS], { cwd: root, encoding: 'utf8' });
-  if (listed.status !== 0) return [];
-  return trackersOf(config, listed.stdout.split('\n').filter(Boolean)).map(tracker => tracker.path)
-    .filter(file => rowIds(spawnSync('git', ['show', `main:${file}`], { cwd: root, encoding: 'utf8' }).stdout).some(entry => entry.id === id));
+  // A repository without main has no holder there; any failure of git to read main is an error (K1159).
+  if (gitAnswer(root, 'show-ref', '--verify', '--quiet', 'refs/heads/main') === undefined) return [];
+  return trackersOf(config, git(root, 'ls-tree', '-r', '--name-only', 'main', '--', PLANS).split('\n').filter(Boolean)).map(tracker => tracker.path)
+    .filter(file => rowIds(git(root, 'show', `main:${file}`)).some(entry => entry.id === id));
+}
+
+/** The branch of HEAD; undefined while HEAD has no commit yet, which is no main to commit on (K1159). */
+function headBranch(root: string): string | undefined {
+  if (gitAnswer(root, 'rev-parse', '--verify', '--quiet', 'HEAD') === undefined) return undefined;
+  return git(root, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
 }
 
 /** The new row of an item. */
@@ -302,8 +310,7 @@ export function splitPlan(root: string, { from, to, ids, title, titleKo }: PlanS
       for (const [name, text] of Object.entries(files)) writeFileSync(path.join(root, name), text);
     return files;
   } catch (error) {
-    if (created) rmSync(path.join(root, PLANS, to), { recursive: true, force: true });
-    throw error;
+    cleanupAfter(error, () => { if (created) rmSync(path.join(root, PLANS, to), { recursive: true, force: true }); });
   }
 }
 
@@ -436,11 +443,11 @@ export type ItemCommit = { id: string; type: string; scope: string; subject: str
  */
 export function commitItem(root: string, commit: ItemCommit, env: NodeJS.ProcessEnv = {}): string {
   // K524: a commit on main holds the lock of land, so it and a land queue instead of one finding the staged change of the other.
-  const head = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
+  const head = headBranch(root);
   if (head !== 'main') return commitStaged(root, commit, env);
   return withLandLock(root, `the commit of ${commit.id} on main`, 'nothing is committed', () => {
     // K583: the files of the commit, read before it, since every consumer links main live.
-    const files = spawnSync('git', ['diff', '--cached', '--name-only'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(Boolean);
+    const files = git(root, 'diff', '--cached', '--name-only').split('\n').filter(Boolean);
     const message = commitStaged(root, commit, env);
     refreshLinked(root, files, text => console.log(`[plan] ${text}`));
     return message;
@@ -456,7 +463,7 @@ function commitStaged(root: string, commit: ItemCommit, env: NodeJS.ProcessEnv):
   // K603, K1053: a commit runs no gate, build, type check or rule of the message.
   const result = spawnSync('git', ['commit', '--quiet', '-F', '-'], { cwd: root, input: message, encoding: 'utf8', env: { ...process.env, ...env } });
   if (result.error) throw new Error(`git commit could not start: ${result.error.message}`);
-  if (result.status !== 0) throw new Error(`git commit ended with exit status ${result.status}: ${result.stdout}${result.stderr}`);
+  if (result.status !== 0) throw new Error(`git commit ended ${result.signal ? `on signal ${result.signal}` : `with exit status ${result.status}`}: ${result.stdout}${result.stderr}`);
   return message;
 }
 
@@ -472,7 +479,7 @@ function registerOnMain(root: string, item: Parameters<typeof newItem>[1], bodyF
 
 /** The body of registerOnMain, run under the lock of land (K524). */
 function registerLocked(root: string, item: Parameters<typeof newItem>[1], bodyFile: string, env: NodeJS.ProcessEnv): void {
-  const staged = spawnSync('git', ['diff', '--cached', '--name-only'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(Boolean);
+  const staged = git(root, 'diff', '--cached', '--name-only').split('\n').filter(Boolean);
   if (staged.length > 0) throw new Error(`item-new on main commits the registration of ${item.id} alone; these files are staged, commit or unstage them first: ${staged.join(', ')}`);
   const files = Object.keys(newItem(root, item));
   const add = spawnSync('git', ['add', '--', ...files], { cwd: root, encoding: 'utf8' });
@@ -498,7 +505,7 @@ if (isMain(import.meta.url)) {
       for (const file of Object.keys(newPlan(root, { name: required(env.NAME, 'NAME'), title: env.TITLE, titleKo: env.TITLE_KO, pattern: env.NAME_PATTERN || undefined }))) console.log(`[plan] wrote ${file}`);
     } else if (command === 'item-new') {
       const item = { plan: required(env.PLAN, 'PLAN'), id: required(env.ID, 'ID'), task: env.TASK, taskKo: env.TASK_KO, deliverables: env.DELIVERABLES, verification: env.VERIFICATION };
-      const branch = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
+      const branch = headBranch(root);
       if (branch === 'main') registerOnMain(root, item, required(env.BODY_FILE, 'BODY_FILE'), env);
       else for (const file of Object.keys(newItem(root, item))) console.log(`[plan] added ${item.id} to ${file}`);
     } else if (command === 'item-edit') {

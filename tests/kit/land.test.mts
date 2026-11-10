@@ -490,3 +490,18 @@ test('land merges a branch without running its gates or judging its commits (K10
   assert.doesNotMatch(lines.join('\n'), /docs-check in /, 'no gate runs');
   assert.equal(existsSync(folder), false, 'the worktree is removed');
 });
+
+// lsof exits with 1 when it cannot read some files and still lists the others; its standard error is written (K1162).
+test('machineListing writes the standard error of an lsof that does not end with status 0 (K1162)', () => {
+  const bin = mkdtempSync(path.join(tmpdir(), 'kit-lsof-'));
+  try {
+    writeFileSync(path.join(bin, 'lsof'), "#!/bin/sh\necho 'p1'\necho 'lsof: WARNING: can not stat() a mount' >&2\nexit 1\n", { mode: 0o755 });
+    const script = `import { machineListing } from ${JSON.stringify(new URL('../../scripts/kit/land.mts', import.meta.url).href)}; console.log(machineListing().lsof.trim());`;
+    const child = spawnSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}` } });
+    assert.equal(child.status, 0, child.stderr);
+    assert.equal(child.stdout.trim(), 'p1');
+    assert.match(child.stderr, /can not stat\(\) a mount/);
+  } finally {
+    rmSync(bin, { recursive: true, force: true });
+  }
+});

@@ -252,3 +252,41 @@ test('K1106 the runner and the roots are the caller\'s, inside or outside packag
   assert.equal(empty.status, 1, empty.stderr);
   assert.match(empty.stderr, /test found nothing to run/);
 });
+
+// A command that writes its error to standard output and nothing to standard error is named by that output (K1150).
+test('a failed command of the case-sensitive directory names its standard output when its standard error is empty (K1150)', () => {
+  const parent = mkdtempSync(path.join(tmpdir(), 'kit-case-stdout-'));
+  try {
+    assert.throws(() => withCaseSensitiveDirectory('KIT_CASE_SENSITIVE_TEST_DIR', () => assert.fail('must not run'), {
+      platform: 'darwin', parent, verify: () => undefined,
+      command: () => ({ status: 1, stdout: 'hdiutil: create failed - the disk is full', stderr: '' }),
+    }), /the disk is full/);
+  } finally {
+    rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+// The failure of a detach names what hdiutil said in its message, which the caller prints, not only in its cause (K1151).
+test('a failed detach names the output of hdiutil in its message (K1151)', () => {
+  const parent = mkdtempSync(path.join(tmpdir(), 'kit-case-detach-message-'));
+  try {
+    assert.throws(() => withCaseSensitiveDirectory('KIT_CASE_SENSITIVE_TEST_DIR', () => 'ran', {
+      platform: 'darwin', parent, verify: () => undefined,
+      command: (_file, args) => (args[0] === 'detach' ? { status: 1, stderr: 'hdiutil: couldn\'t unmount: resource busy' } : { status: 0, stdout: '', stderr: '' }),
+    }), /could not confirm detachment.*resource busy/s);
+  } finally {
+    rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+// A build that fails names its command and how it ended, a signal included (K1164).
+test('a failed build of runtime-targets names its command and its exit status or signal (K1164)', (t) => {
+  const root = tree(t, { 'sub/a.txt': 'a\n' });
+  const build = (command: string) => spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/runtime-targets.mts')), 'build', '--roots', 'sub', '--', 'sh', '-c', command], { cwd: root, encoding: 'utf8' });
+  const status = build('exit 3');
+  assert.equal(status.status, 1);
+  assert.match(status.stderr, /\[runtime-targets\] sub: sh -c exit 3 exited with 3/);
+  const signal = build('kill -TERM $$');
+  assert.equal(signal.status, 1);
+  assert.match(signal.stderr, /ended by signal SIGTERM/);
+});

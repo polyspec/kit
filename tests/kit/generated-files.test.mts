@@ -7,6 +7,9 @@ import path from 'node:path';
 import test from 'node:test';
 import { checkout, commitIndex, git, prepared, run } from './gates-checkout.mts';
 import { tool } from './kit-tools.mts';
+import { spawnSync } from 'node:child_process';
+import { blobContent } from '../../scripts/kit/generated-files.mts';
+import { tree } from './tree.mts';
 
 // The generated folders and executable kinds that kit's own config/generated.json and Makefile declare (K1105).
 const SEGMENTS = ['**/node_modules/**', '**/vendor/**', '**/.venv/**', '**/venv/**', '**/__pycache__/**', '**/target/**', '**/dist/**', '**/*.egg-info/**'];
@@ -278,4 +281,12 @@ test('K1105 generated folders, headers, module files and executable kinds are on
   const refusedGoOnly = trackedRun(goOnly.work);
   assert.equal(refusedGoOnly.status, 1, refusedGoOnly.stderr);
   assert.match(refusedGoOnly.stderr, /tracked build\/mod\/\*\* is not under a directory that holds go\.mod/);
+});
+
+// A revision that git cannot read is a failure, not an entry that is no blob (K1156).
+test('blobContent throws on a revision that git cannot read and returns undefined only for a gitlink (K1156)', (t) => {
+  const root = tree(t, { 'a.txt': 'a\n' });
+  assert.throws(() => blobContent(root, 'f'.repeat(40), 'a.txt'), /git cat-file/);
+  spawnSync('git', ['update-index', '--add', '--cacheinfo', `160000,${'e'.repeat(40)},vendored`], { cwd: root });
+  assert.equal(blobContent(root, ':', 'vendored'), undefined);
 });

@@ -12,19 +12,20 @@ import type { ChangelogRule } from './changelog.mts';
 const UNRELEASED_EMPTY: ChangelogRule = 'unreleased-empty-at-release';
 
 /**
- * The changelogRules that config/documents.json of `commit` names (K1084), read tolerantly: none when the commit has no such file,
- * the file is no JSON object or it names none; check-documents judges the file itself.
+ * The changelogRules that config/documents.json of `commit` names (K1084): none when the commit has no such file, or the file is no
+ * JSON object or names none; a failure of git to read the file and a file that is no JSON stop the run (K1155).
  */
 function changelogRulesAt(ctx: Context, commit: string): string[] {
-  const shown = execute('git', ['show', `${commit}:config/documents.json`], { cwd: ctx.root, env: ctx.env });
-  if (shown.status !== 0) return [];
+  const place = { cwd: ctx.root, env: ctx.env };
+  if (run('git', ['ls-tree', '--name-only', commit, '--', 'config/documents.json'], place).trim() === '') return [];
+  const shown = run('git', ['show', `${commit}:config/documents.json`], place);
   let value: unknown;
   try {
-    value = JSON.parse(shown.stdout);
+    value = JSON.parse(shown);
   } catch (error) {
-    // JSON.parse throws only a SyntaxError; a file that is no JSON names no rule.
+    // JSON.parse throws only a SyntaxError.
     if (!(error instanceof SyntaxError)) throw error;
-    return [];
+    throw new Stop(`config/documents.json at ${commit} is no JSON: ${error.message}`);
   }
   const rules = isJsonObject(value) ? value.changelogRules : undefined;
   return Array.isArray(rules) ? rules.filter((rule): rule is string => typeof rule === 'string') : [];
@@ -157,12 +158,20 @@ function autoDecision(ctx: Context, commit: string, file: string, runId: number,
     // A second run of the version commit after its release is public has nothing to release; a re-run of a release that failed
     // after its tag, which left no public release, runs the release again.
     const draft = execute('gh', ['api', `repos/${repo}/releases/tags/v${version}`, '--jq', '.draft'], { cwd: ctx.root, env: ctx.env });
+    if (draft.error) throw new Stop(`gh api could not start: ${draft.error.message}`);
     if (draft.status === 0 && draft.stdout.trim() === 'false') return nothing(`v${version} is the tag of ${commit} and its release is public already`);
+    // gh api answers 404 for a tag without a release; any other failure is no answer, and the run stops with it (K1153).
+    if (draft.status !== 0 && !/\(HTTP 404\)/.test(draft.stderr)) throw new Stop(`gh api repos/${repo}/releases/tags/v${version} failed ${draft.signal ? `on signal ${draft.signal}` : `with exit status ${draft.status}`}: ${draft.stderr.trim()}`);
     return undefined;
   }
   if (tagged !== undefined) {
     // The tag on the line of the commit, before it or after it, released the top version.
-    const onLine = (ancestor: string, descendant: string) => execute('git', ['merge-base', '--is-ancestor', ancestor, descendant], { cwd: ctx.root, env: ctx.env }).status === 0;
+    // git merge-base --is-ancestor ends with 1 for no ancestor; any other failure stops the run (K1154).
+    const onLine = (ancestor: string, descendant: string) => {
+      const answer = execute('git', ['merge-base', '--is-ancestor', ancestor, descendant], { cwd: ctx.root, env: ctx.env });
+      if (answer.status === 0 || answer.status === 1) return answer.status === 0;
+      throw new Stop(`git merge-base --is-ancestor ${ancestor} ${descendant} ${answer.error ? `could not start: ${answer.error.message}` : answer.signal ? `ended by signal ${answer.signal}` : `exited with ${answer.status}: ${answer.stderr.trim()}`}`);
+    };
     if (onLine(tagged, commit) || onLine(commit, tagged)) return nothing(`v${version}, the top version of ${file} at ${commit}, is the tag of ${tagged}`);
     throw new Stop(`v${version}, the top version of ${file} at ${commit}, is the tag of ${tagged}, which is not on the line of ${commit}; give the release a version of its own`);
   }

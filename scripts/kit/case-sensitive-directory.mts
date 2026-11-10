@@ -10,7 +10,7 @@ type Command = (file: string, args: string[]) => { status: number | null; error?
 function run(file: string, args: string[], command: Command): void {
   const result = command(file, args);
   if (result.error || result.status !== 0) {
-    throw new Error(`${file} ${args.join(' ')} failed${result.error ? `: ${result.error.message}` : ` (${result.status}): ${(result.stderr ?? result.stdout ?? '').trim()}`}`);
+    throw new Error(`${file} ${args.join(' ')} failed${result.error ? `: ${result.error.message}` : ` (${result.status}): ${[result.stderr, result.stdout].map(text => (text ?? '').trim()).filter(Boolean).join('\n')}`}`);
   }
 }
 
@@ -77,7 +77,7 @@ export function withCaseSensitiveDirectory<T>(key: string, action: (directory: s
     } catch (error) {
       retainResources = true;
       cleanupFailure = new Error(
-        `could not confirm detachment of ${directory}; retained the mountpoint and image at ${parent}. Fix: run hdiutil detach ${JSON.stringify(directory)}, then remove ${JSON.stringify(parent)}`,
+        `could not confirm detachment of ${directory} (${error instanceof Error ? error.message : String(error)}); retained the mountpoint and image at ${parent}. Fix: run hdiutil detach ${JSON.stringify(directory)}, then remove ${JSON.stringify(parent)}`,
         { cause: error },
       );
     }

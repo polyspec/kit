@@ -67,6 +67,8 @@ export function machineListing(): MachineListing {
   const lsof = spawnSync('lsof', ['-nP', '-Fpn'], { encoding: 'utf8', maxBuffer: 1 << 28 });
   if (lsof.error && (lsof.error as NodeJS.ErrnoException).code === 'ENOENT') throw new Error('lsof is missing: make needs it to find the processes that run in a worktree (K441-1); install lsof and run again');
   if (lsof.error) throw new Error(`lsof could not run: ${lsof.error.message}`);
+  // lsof ends with 1 when it cannot read some files and lists the others; what it could not read is written (K1162).
+  if (lsof.status !== 0 && lsof.stderr.trim()) process.stderr.write(`[land] lsof ended ${lsof.signal ? `on signal ${lsof.signal}` : `with ${lsof.status}`}: ${lsof.stderr.trim()}\n`);
   return { ps: ps.stdout, lsof: lsof.stdout };
 }
 

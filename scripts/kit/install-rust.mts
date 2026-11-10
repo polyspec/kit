@@ -28,7 +28,7 @@ export function installRustToolchain({ root, flags = [], print = () => {} }: { r
   const result = spawnSync('rustup', args, { cwd: root, stdio: 'inherit' });
   const error: NodeJS.ErrnoException | undefined = result.error;
   if (error?.code === 'ENOENT') throw missing('rust-toolchain.toml declares the Rust toolchain');
-  if (result.error || result.status !== 0) throw new Error(`rustup ${args.join(' ')} failed: ${result.error?.message ?? `exit status ${result.status}`}`);
+  if (result.error || result.status !== 0) throw new Error(`rustup ${args.join(' ')} failed: ${result.error?.message ?? (result.signal ? `signal ${result.signal}` : `exit status ${result.status}`)}`);
 }
 
 /** Installs each channel of `channels` with rustup, which keeps an installed one (K861). */
@@ -39,6 +39,6 @@ export function installRustChannels({ root, channels, flags = [], print = () => 
     const result = spawnSync('rustup', args, { cwd: root, stdio: 'inherit' });
     const error: NodeJS.ErrnoException | undefined = result.error;
     if (error?.code === 'ENOENT') throw missing(`config/toolchain.json exceptions declare the Rust channel ${channel}`);
-    if (result.error || result.status !== 0) throw new Error(`rustup ${args.join(' ')} failed: ${result.error?.message ?? `exit status ${result.status}`}`);
+    if (result.error || result.status !== 0) throw new Error(`rustup ${args.join(' ')} failed: ${result.error?.message ?? (result.signal ? `signal ${result.signal}` : `exit status ${result.status}`)}`);
   }
 }

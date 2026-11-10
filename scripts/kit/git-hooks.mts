@@ -15,7 +15,7 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { isMain, repositoryRoot } from './paths.mts';
 import { writeAtomic } from './bootstrap/files.mts';
-import { gitResult } from './git.mts';
+import { git, gitAnswer, gitResult } from './git.mts';
 
 /** What the caller declares (K1099): the hooks folder and its hooks, the merge attributes and the commands of their drivers. */
 export type HookDeclaration = {
@@ -32,14 +32,12 @@ const attributeLine = ({ pattern, driver }: { pattern: string; driver: string })
 const patternOf = (line: string) => line.split(/\s+/)[0];
 
 /** The attributes file of the repository of `root`, which every worktree of it reads. */
-const attributesFile = (root: string) => path.resolve(root, gitResult(root, 'rev-parse', '--git-path', 'info/attributes').stdout.trim());
+const attributesFile = (root: string) => path.resolve(root, git(root, 'rev-parse', '--git-path', 'info/attributes').trim());
 
 /** The value of the git configuration `key` of `root`, or '' when it is not set. */
 function configValue(root: string, key: string) {
-  const run = gitResult(root, 'config', '--get', key);
-  if (run.error) throw run.error;
-  // git config exits with 1 when the key is not set.
-  return run.status === 0 ? run.stdout.trim() : '';
+  // git config exits with 1 when the key is not set, and with another status, as 3 for a file it cannot read, on an error (K1158).
+  return gitAnswer(root, 'config', '--get', key)?.trim() ?? '';
 }
 
 /** Why the declared merges or drivers are not installed in `root`, with the fix, or null. */
@@ -77,10 +75,8 @@ export function installMerges(root: string, declaration: Pick<HookDeclaration, '
 }
 
 function configuredHooksPath(root: string) {
-  const run = gitResult(root, 'config', 'core.hooksPath');
-  if (run.error) throw run.error;
-  // git config exits with 1 when the key is not set.
-  return run.status === 0 ? run.stdout.trim() : '';
+  // As configValue (K1158).
+  return gitAnswer(root, 'config', 'core.hooksPath')?.trim() ?? '';
 }
 
 /** The hooks folder of `declaration`; a hook needs one, since the tool reads it there. */

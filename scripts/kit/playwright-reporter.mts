@@ -76,6 +76,15 @@ export default class PlaywrightProgressReporter implements Reporter {
     if (!closed.ok) process.exitCode = 1;
   }
 
+  // printsToStdio is true, so Playwright prints no output of the tests: the reporter forwards it (K1147).
+  onStdOut(chunk: string | Buffer): void {
+    process.stdout.write(chunk);
+  }
+
+  onStdErr(chunk: string | Buffer): void {
+    process.stderr.write(chunk);
+  }
+
   printsToStdio(): boolean {
     return true;
   }

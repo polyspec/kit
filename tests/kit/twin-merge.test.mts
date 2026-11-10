@@ -2,7 +2,8 @@
 // side being applied adds come first, in the style of the list of main, tight or loose.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mergeChecklist, orderUnreleased } from '../../scripts/kit/twin-merge.mts';
+import { spawnSync } from 'node:child_process';
+import { mergeChecklist, orderUnreleased, textAt } from '../../scripts/kit/twin-merge.mts';
 import { tree } from './tree.mts';
 
 const changelog = (entries: string, rest = '## 0.0.1\n\n- first\n') => `# Changelog\n\n## Unreleased\n\n${entries}\n${rest}`;
@@ -64,4 +65,13 @@ test('a row that both sides changed differently is a conflict that names its ID 
   const ours = checklist(row('T1', '[o]'));
   const theirs = checklist(row('T1', '[!] cause: a; retry: b'));
   assert.throws(() => mergeChecklist(tree(t), { base, ours, theirs }, ID_PATTERN), /T1/);
+});
+
+// A revision that git cannot read is a failure, not a file that the revision does not hold (K1160).
+test('textAt throws on a revision that git cannot read and is empty for a file that the revision lacks (K1160)', (t) => {
+  const root = tree(t, { 'a.md': 'a\n' });
+  spawnSync('git', ['add', '-A'], { cwd: root });
+  spawnSync('git', ['-c', 'user.name=kit', '-c', 'user.email=kit@example.invalid', 'commit', '--quiet', '-m', 'a'], { cwd: root });
+  assert.equal(textAt(root, 'HEAD', 'missing.md'), '');
+  assert.throws(() => textAt(root, 'no-such-revision', 'a.md'), /no-such-revision/);
 });

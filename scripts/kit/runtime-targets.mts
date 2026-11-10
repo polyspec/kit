@@ -187,7 +187,11 @@ if (isMain(import.meta.url)) {
       console.log(`[runtime-targets] ${build.cwd}: ${build.command} ${build.args.join(' ')}`);
       const result = spawnSync(command, build.args, { cwd: path.join(root, build.cwd), stdio: 'inherit' });
       if (result.error) throw new Error(`${build.command} could not start: ${result.error.message}`);
-      if (result.status !== 0) process.exit(1);
+      if (result.status !== 0) {
+        // The failed build is named with how it ended, a signal included (K1164).
+        console.error(`[runtime-targets] ${build.cwd}: ${build.command} ${build.args.join(' ')} ${result.signal ? `ended by signal ${result.signal}` : `exited with ${result.status}`}`);
+        process.exit(1);
+      }
     }
     process.exit(0);
   }
@@ -233,6 +237,8 @@ if (isMain(import.meta.url)) {
         const result = spawnSync(process.execPath, [siblingTool(import.meta.url, 'run-tests'), run.tool, '--cwd', run.cwd, ...(run.options ?? []), '--results', file, '--', ...run.args], { cwd: root, stdio: 'inherit' });
         const finding = nothingRan(run.cwd, existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) as unknown : undefined);
         if (finding !== undefined) console.error(`[runtime-targets] ${finding}`);
+        if (result.error) console.error(`[runtime-targets] ${run.cwd}: run-tests ${run.tool} could not start: ${result.error.message}`);
+        else if (result.signal) console.error(`[runtime-targets] ${run.cwd}: run-tests ${run.tool} ended by signal ${result.signal}`);
         if (result.status !== 0 || finding !== undefined) failed += 1;
       } finally {
         rmSync(record, { recursive: true, force: true });

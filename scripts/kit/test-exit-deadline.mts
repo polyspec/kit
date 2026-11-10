@@ -44,7 +44,10 @@ if (file && process.env.NODE_TEST_CONTEXT) {
   // running, reparented to launchd, after the run has ended.
   const failAndExit = (message: string) => {
     writeSync(2, `${file}: ${message}\n`);
-    void stopDescendants(process.pid).finally(() => process.exit(1));
+    // A failed stop is written before the exit, so its error is not lost with the process (K1145).
+    void stopDescendants(process.pid)
+      .catch((error: unknown) => { writeSync(2, `${file}: the stop of the processes that the tests started failed: ${error instanceof Error ? error.message : String(error)}\n`); })
+      .finally(() => process.exit(1));
   };
   let watch: NodeJS.Timeout | undefined;
   let operations = 0;

@@ -28,7 +28,7 @@ function runBox(t: Parameters<typeof releaseSandbox>[0], run: (commit: string) =
   const bin = path.join(box.root, '.stubs/bin');
   // The runs of a commit (K987) answer RELEASE_RUNS_RESPONSE, the statuses that --jq selects; one run answers RELEASE_RUN_RESPONSE.
   // The release of a tag answers RELEASE_TAG_RESPONSE, its draft field, and fails as gh does for no release when it is unset.
-  writeFileSync(path.join(bin, 'gh'), '#!/usr/bin/env node\nconst tag = process.argv.some(arg => arg.includes("/releases/tags/"));\nif (tag && process.env.RELEASE_TAG_RESPONSE === undefined) process.exit(1);\nconsole.log(tag ? process.env.RELEASE_TAG_RESPONSE : process.argv.some(arg => arg.includes("/runs?")) ? (process.env.RELEASE_RUNS_RESPONSE ?? "[]") : (process.env.RELEASE_RUN_RESPONSE ?? "{}"));\n');
+  writeFileSync(path.join(bin, 'gh'), '#!/usr/bin/env node\nconst tag = process.argv.some(arg => arg.includes("/releases/tags/"));\nif (tag && process.env.RELEASE_TAG_FAILURE !== undefined) { console.error(process.env.RELEASE_TAG_FAILURE); process.exit(1); }\nif (tag && process.env.RELEASE_TAG_RESPONSE === undefined) { console.error("gh: Not Found (HTTP 404)"); process.exit(1); }\nconsole.log(tag ? process.env.RELEASE_TAG_RESPONSE : process.argv.some(arg => arg.includes("/runs?")) ? (process.env.RELEASE_RUNS_RESPONSE ?? "[]") : (process.env.RELEASE_RUN_RESPONSE ?? "{}"));\n');
   chmodSync(path.join(bin, 'gh'), 0o755);
   return { box, remote, env: { ...box.env, GITHUB_REPOSITORY: 'polyspec/kit-fixture', RELEASE_RUN_RESPONSE: JSON.stringify(run(box.commit)) } };
 }
@@ -348,4 +348,47 @@ test('release-tag --auto fails for a version commit with unreleased entries or a
   assert.equal(descendant.result, 0, descendant.errors.join('\n'));
   assert.match(descendant.lines.join('\n'), /nothing to release: v0\.0\.1, the top version of CHANGELOG\.md at [0-9a-f]{40}, is the tag of/);
   assert.match(elsewhere.errors.join('\n'), /v0\.0\.1, the top version of CHANGELOG\.md at [0-9a-f]{40}, is the tag of [0-9a-f]{40}, which is not on the line of/);
+});
+
+// gh api fails with 404 for a tag that has no release; any other failure stops the run instead of reading as no public release (K1153).
+test('release-tag --auto stops on a failure of gh api other than 404 for the release of the tag (K1153)', (t) => {
+  const { box, env } = runBox(t, commit => candidate({ head_sha: commit }));
+  const folder = mkdtempSync(path.join(tmpdir(), 'kit-release-env-'));
+  t.after(() => rmSync(folder, { recursive: true, force: true }));
+  const githubEnv = path.join(folder, 'env');
+  writeFileSync(githubEnv, '');
+  assert.equal(tagRun(box.root, { ...env, GITHUB_ENV: githubEnv }, ['tag', '91', '--auto']).result, 0);
+  const failed = tagRun(box.root, { ...env, GITHUB_ENV: githubEnv, RELEASE_TAG_FAILURE: 'gh: Bad Gateway (HTTP 502)' }, ['tag', '91', '--auto']);
+  assert.equal(failed.result, 1, failed.lines.join('\n'));
+  assert.match(failed.errors.join('\n'), /HTTP 502/);
+});
+
+// git merge-base --is-ancestor answers 1 for no ancestor; another status is a failure of git (K1154).
+test('release-tag --auto stops when git merge-base fails, instead of reading the tag as off the line (K1154)', (t) => {
+  const later = runBox(t, commit => candidate({ head_sha: commit }));
+  git(later.box.root, 'commit', '--quiet', '--allow-empty', '-m', 'later');
+  git(later.box.root, 'tag', 'v0.0.1');
+  const bin = mkdtempSync(path.join(tmpdir(), 'kit-merge-base-'));
+  t.after(() => rmSync(bin, { recursive: true, force: true }));
+  const real = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8', env: later.env }).trim();
+  // Only the call that asks whether the tag is an ancestor of the commit fails, the first call of the line check.
+  const tagged = git(later.box.root, 'rev-parse', 'HEAD');
+  writeFileSync(path.join(bin, 'git'), `#!/bin/sh\nif [ "$1 $2 $3" = "merge-base --is-ancestor ${tagged}" ]; then echo 'fatal: the object store is corrupt' >&2; exit 128; fi\nexec ${JSON.stringify(real)} "$@"\n`, { mode: 0o755 });
+  const run = tagRun(later.box.root, { ...later.env, PATH: `${bin}${path.delimiter}${later.env.PATH ?? ''}` }, ['tag', '91', '--auto']);
+  assert.equal(run.result, 1);
+  assert.match(run.errors.join('\n'), /the object store is corrupt/);
+});
+
+// A config/documents.json that is no JSON is an error, not a file that names no changelog rule (K1155).
+test('release-tag stops on a config/documents.json of the commit that is no JSON (K1155)', (t) => {
+  const changelog = '# Changelog\n\n## Unreleased\n\n- A change after the release.\n\n## 0.0.1\n\n- The first entry of 0.0.1.\n';
+  const { box, env } = runBox(t, commit => candidate({ head_sha: commit }), { changelog, documents: null });
+  writeFileSync(path.join(box.root, 'config/documents.json'), '{ not json');
+  git(box.root, 'add', '-A');
+  git(box.root, 'commit', '--quiet', '--amend', '--no-edit');
+  git(box.root, 'push', '--quiet', '--force', 'origin', 'main');
+  const head = git(box.root, 'rev-parse', 'HEAD');
+  const run = tagRun(box.root, { ...env, RELEASE_RUN_RESPONSE: JSON.stringify(candidate({ head_sha: head })) });
+  assert.equal(run.result, 1, run.lines.join('\n'));
+  assert.match(run.errors.join('\n'), /config\/documents\.json/);
 });

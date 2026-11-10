@@ -63,7 +63,7 @@ export function run(command: string, args: readonly string[], options: SpawnSync
   print(`${command} ${args.join(' ')}`);
   const result = spawnSync(command, args, { stdio: 'inherit', ...options });
   if (result.error) throw new Error(`${command} could not start: ${result.error.message}; install ${command} on the machine to bootstrap ${TOOLS}`);
-  if (result.status !== 0) throw new Error(`${command} ${args.join(' ')} ended with exit status ${result.status}`);
+  if (result.status !== 0) throw new Error(`${command} ${args.join(' ')} ended ${result.signal ? `by signal ${result.signal}` : `with exit status ${result.status}`}`);
 }
 
 /** `text` quoted for sh. */

@@ -23,7 +23,7 @@ import { sha256 } from './bootstrap/digest.mts';
 import { writeAtomic } from './bootstrap/files.mts';
 import { loadConfig, readChecklist } from './checklist.mts';
 import { stamped } from './documents-stamp.mts';
-import { gitResult } from './git.mts';
+import { fileAt, gitResult } from './git.mts';
 import { isMain } from './paths.mts';
 import { present } from './present.mts';
 
@@ -182,13 +182,8 @@ export function mergeChecklist(root: string, texts: { base: string; ours: string
   }).join('\n');
 }
 
-/** The text of `file` at the revision `rev`, empty when the revision holds no such file. */
-function textAt(root: string, rev: string, file: string): string {
-  if (gitResult(root, 'cat-file', '-e', `${rev}:${file}`).status !== 0) return '';
-  const shown = gitResult(root, 'show', `${rev}:${file}`);
-  if (shown.error || shown.status !== 0) throw new Error(`git show ${rev}:${file} failed: ${shown.error?.message ?? shown.stderr.trim()}`);
-  return shown.stdout;
-}
+/** The text of `file` at the revision `rev`, empty when the revision holds no such file; a revision that git cannot read throws (K1160). */
+export const textAt = (root: string, rev: string, file: string): string => fileAt(root, rev, file);
 
 /**
  * The base and theirs of the rebase that runs in `root`: the commit that it applies over HEAD, the last of rebase-merge/done, and its

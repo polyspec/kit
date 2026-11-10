@@ -24,13 +24,39 @@ export const execute = (command: string, args: readonly string[], { cwd, env }: 
   return spawn.sync(command, [...args], { cwd, env, encoding: 'utf8', maxBuffer: MAX_BUFFER });
 };
 
-/** The standard output of a command; Stop with the command, its exit status or the signal that ended it, and its standard error when the status is not in `statuses`. */
-export function run(command: string, args: readonly string[], { cwd, env, statuses = [0] }: RunPlace & { statuses?: readonly number[] | undefined } = {}): string {
+/** The standard output and standard error of a command; Stop with the command, its exit status or the signal that ended it, and its output when the status is not in `statuses`. */
+export function runOutput(command: string, args: readonly string[], { cwd, env, statuses = [0] }: RunPlace & { statuses?: readonly number[] | undefined } = {}): { stdout: string; stderr: string } {
   const result = execute(command, args, { cwd, env });
   if (result.error) throw new Stop(`${[command, ...args].join(' ')} could not start: ${result.error.message}`);
   // Both streams, each kept when not empty (K352): an error may come on stdout after progress on stderr.
   const output = [result.stderr, result.stdout].map(text => (text ?? '').trim()).filter(text => text !== '').join('\n');
   if (result.signal) throw new Stop(`${[command, ...args].join(' ')} ended by signal ${result.signal}: ${output}`);
   if (result.status === null || !statuses.includes(result.status)) throw new Stop(`${[command, ...args].join(' ')} exited with ${result.status}: ${output}`);
-  return result.stdout;
+  return { stdout: result.stdout, stderr: result.stderr ?? '' };
+}
+
+/**
+ * The standard output of a command, which stops as runOutput does; the standard error of a command that succeeds, such as a warning
+ * of uv or the messages of git push, is written to standard error (K1152).
+ */
+export function run(command: string, args: readonly string[], place: RunPlace & { statuses?: readonly number[] | undefined } = {}): string {
+  const { stdout, stderr } = runOutput(command, args, place);
+  if (stderr.trim()) process.stderr.write(stderr.endsWith('\n') ? stderr : `${stderr}\n`);
+  return stdout;
+}
+
+/** The message of a thrown value. */
+const messageOf = (value: unknown): string => (value instanceof Error ? value.message : String(value));
+
+/**
+ * Runs `cleanup` after `error` and throws `error`; when the cleanup fails too, throws an AggregateError of both whose message names
+ * both, so the failure of the cleanup never replaces the error that it follows (K1144).
+ */
+export function cleanupAfter(error: unknown, cleanup: () => void): never {
+  try {
+    cleanup();
+  } catch (failure) {
+    throw new AggregateError([error, failure], `${messageOf(error)}; the cleanup after it failed too: ${messageOf(failure)}`, { cause: failure });
+  }
+  throw error;
 }

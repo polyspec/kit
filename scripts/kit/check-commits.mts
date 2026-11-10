@@ -20,7 +20,7 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { isMain, repositoryRoot } from './paths.mts';
 import { loadConfig, PLANS, readChecklist, statesOf, trackersOf } from './checklist.mts';
-import { fileAt, git, gitResult } from './git.mts';
+import { fileAt, git, gitAnswer } from './git.mts';
 
 /** The rules of a commit: the types of its subject, the width of its body, and the changelog that a done item changes. */
 export type CommitRules = {
@@ -160,11 +160,11 @@ export function changesATest(file: string, after: (file: string) => string, chan
 // The empty tree of git, the parent of a root commit (K370).
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 
-/** The sha of the commit that `rev` names in `root`; undefined when it names none, as an unborn HEAD or the parent of a root commit. */
-const commitOf = (root: string, rev: string) => {
-  const run = gitResult(root, 'rev-parse', '--verify', '--quiet', `${rev}^{commit}`);
-  return run.status === 0 ? run.stdout.trim() : undefined;
-};
+/**
+ * The sha of the commit that `rev` names in `root`; undefined when it names none, as an unborn HEAD or the parent of a root commit, which
+ * git rev-parse --verify --quiet answers with status 1; any other failure of git is an error (K1157).
+ */
+export const commitOf = (root: string, rev: string) => gitAnswer(root, 'rev-parse', '--verify', '--quiet', `${rev}^{commit}`)?.trim();
 
 /**
  * The findings of the diff rules (K624, K257) of the change from the commit `base` (undefined: the empty tree of a root commit) to

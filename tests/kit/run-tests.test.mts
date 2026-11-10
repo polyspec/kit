@@ -77,6 +77,15 @@ test('a passing file prints the start and the result of each test and a summary,
   assert.match(result.stdout, /✔ node --test: 3 passed, 0 failed, 0 timed out, 0 skipped/);
 });
 
+// A diagnostic of node --test that no failure carries, as one that a test writes with t.diagnostic, is printed (K1146).
+test('the reporter prints a diagnostic of node --test other than its summary counts (K1146)', (t) => {
+  const root = checkout(t, { 'tests/a.test.mjs': `${SPEC}test('notes', (t) => { t.diagnostic('a diagnostic of ' + 'the test'); });\n` });
+  const result = runner(root, ['node', '--', 'tests/a.test.mjs']);
+  assert.equal(result.status, 0, output(result));
+  assert.match(output(result), /a diagnostic of the test/);
+  assert.doesNotMatch(output(result), /^duration_ms /m, 'the counts of the summary stay out');
+});
+
 test('a directory runs the test files below it', async (t) => {
   const root = checkout(t, { 'tests/one/a.test.mjs': `${SPEC}test('a', () => {});\n`, 'tests/one/b.test.mjs': `${SPEC}test('b', () => {});\n` });
   // The child reporter writes to the process, so the recorded results count the files that ran. The files run one at a time, as
@@ -329,6 +338,27 @@ test('the deadline prepend of a package whose vendor has no PHPUnit loads the au
   const env = { ...OUTSIDE };
   delete env.KIT_PHPUNIT_AUTOLOAD;
   assert.deepEqual(listedTests(['phpunit', '--cwd', path.join(root, 'p'), '--', 'tests/SmallTest.php'], root, env), ['Small::case']);
+});
+
+// PHPUnit writes an error of its configuration to standard output, so a failed listing names it with its stderr and signal (K1149).
+test('a failed PHPUnit listing names its standard output (K1149)', (t) => {
+  const php = '#!/bin/sh\necho \'PHPUnit 12: the XML configuration file has errors\'\necho \'see the line 3\' >&2\nexit 2\n';
+  const root = tree(t, { 'composer.json': '{"config":{"vendor-dir":"vendor"}}\n', 'p/composer.json': '{}\n', 'vendor/bin/phpunit': '', 'vendor/autoload.php': '', 'var/tools/bin/php': php });
+  chmodSync(path.join(root, 'var/tools/bin/php'), 0o755);
+  composerStub(root);
+  assert.throws(() => listedTests(['phpunit', '--cwd', path.join(root, 'p'), '--', 'tests/SmallTest.php'], root, { ...OUTSIDE }),
+    (error: unknown) => error instanceof Error && error.message.includes('the XML configuration file has errors') && error.message.includes('see the line 3'));
+});
+
+// A probe that cannot start, or whose version run fails, names why (K1148).
+test('probeExtensions names the error of the probe and the status of its version run (K1148)', (t) => {
+  const root = tree(t, { 'php': '#!/bin/sh\ncase "$*" in *extension=*) echo \'Unable to load the module\' >&2; exit 1;; esac\necho \'the version run broke\' >&2\nexit 2\n' });
+  chmodSync(path.join(root, 'php'), 0o755);
+  const problem = probeExtensions([path.join(root, 'bad.so')], path.join(root, 'php')) ?? '';
+  assert.match(problem, /Unable to load the module/);
+  assert.match(problem, /the version run broke/);
+  assert.match(problem, /exit status 2/);
+  assert.match(probeExtensions([path.join(root, 'bad.so')], path.join(root, 'missing-php')) ?? '', /ENOENT/);
 });
 
 // A PHP extension run starts the PHP of the checkout, the wrapper of var/tools/bin that install-tools writes, else the php of PATH (K393, K947).

@@ -63,7 +63,13 @@ export function rebuild(repository: string, print: (text: string) => void, env: 
   if (!targets.length) { print(`  rebuild    ${repository}: no build target; its packages ship their sources`); return; }
   print(`  rebuild    ${repository}: make ${targets.join(' ')}`);
   const outcome = execute('make', ['-C', repository, '--no-print-directory', ...targets], { env: foreignEnvironment(env) });
-  if (outcome.error || outcome.status !== 0) throw new Error(`the build of the provider ${repository} (make ${targets.join(' ')}) failed: ${outcome.error?.message ?? `${outcome.stdout}${outcome.stderr}`.trim().split('\n').slice(-20).join('\n')}`);
+  // The failure names how make ended, its whole standard error, where the first compiler error is, and the end of its standard output (K1161).
+  if (outcome.error) throw new Error(`the build of the provider ${repository} (make ${targets.join(' ')}) could not start: ${outcome.error.message}`);
+  if (outcome.status !== 0) {
+    const ended = outcome.signal ? `ended by signal ${outcome.signal}` : `exited with exit status ${outcome.status}`;
+    const parts = [outcome.stderr.trim(), outcome.stdout.trim().split('\n').slice(-20).join('\n')].filter(Boolean);
+    throw new Error(`the build of the provider ${repository} (make ${targets.join(' ')}) ${ended}:\n${parts.join('\n')}`);
+  }
   for (const file of trackedManifests(repository, [MANIFESTS.npm])) {
     if (EXCLUDED.test(file)) continue;
     const folder = path.join(repository, path.dirname(file));

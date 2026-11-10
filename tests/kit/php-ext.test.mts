@@ -427,6 +427,23 @@ test('a failed extension build keeps compiler warnings and the make cause withou
   assert.deepEqual(readdirSync(path.join(root, 'var/php-ext')).filter(name => name.startsWith('build.')), []);
 });
 
+// The compiler writes its warnings to standard error, so a build whose make succeeds with a warning there fails (K1142).
+test('a compiler warning on the standard error of make fails the build and is printed (K1142)', (t) => {
+  const root = tree(t, { ...good(), '.gitignore': 'var/\n' });
+  cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  phpWrappers(root);
+  const bin = path.join(root, 'var/warning-make-bin');
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(path.join(bin, 'make'), `#!/bin/sh\necho 'cc -c fixture.c'\necho 'fixture.c:7:5: warning: unused variable' >&2\nexit 0\n`);
+  chmodSync(path.join(bin, 'make'), 0o755);
+  mkdirSync(path.join(root, 'var/tmp'), { recursive: true });
+  const env: NodeJS.ProcessEnv = { HOME: process.env.HOME, PATH: `${bin}${path.delimiter}${path.join(root, 'var/tools/bin')}${path.delimiter}${process.env.PATH ?? ''}`, TMPDIR: path.join(root, 'var/tmp') };
+  const result = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', ...LAYOUT], { cwd: root, env, encoding: 'utf8' });
+  assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+  assert.match(result.stderr, /has compiler warnings:\n\[php-extension\] fixture\.c:7:5: warning: unused variable/);
+});
+
 test('the declarations of the extension are compared with the library that declares each name (K293)', (t) => {
   const counter = library('int').replace(/function add[\s\S]*?\n}\n\n/, '');
   const adder = (type: string) => `<?php\n\ndeclare(strict_types=1);\n\nnamespace Polyspec\\Demo;\n\nfunction add(int $a, int $b = 1): ${type}\n{\n    return $a + $b;\n}\n`;

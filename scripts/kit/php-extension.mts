@@ -26,7 +26,7 @@ import { waitForHolderLock } from './holder-lock.mts';
 import { SYMBOLS } from './install-symbols.mts';
 import { spawnSync } from 'node:child_process';
 import { isMain, repositoryRoot, siblingTool } from './paths.mts';
-import { run, Stop } from './process.mts';
+import { cleanupAfter, run, runOutput, Stop } from './process.mts';
 import { toolCommand } from './mise-tools.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { git } from './git.mts';
@@ -274,8 +274,7 @@ function generateArginfo(root: string, build: string, source: string, stub: stri
       run(php, [generator, file], { cwd: source });
     } catch (error) {
       // A failed run may leave a partial PHP-Parser behind, which every later build would trust; the next build fetches it again.
-      for (const name of readdirSync(folder)) if (!before.has(name) && name.startsWith('PHP-Parser-')) rmSync(path.join(folder, name), { recursive: true, force: true });
-      throw error;
+      cleanupAfter(error, () => { for (const name of readdirSync(folder)) if (!before.has(name) && name.startsWith('PHP-Parser-')) rmSync(path.join(folder, name), { recursive: true, force: true }); });
     }
   } finally {
     release();
@@ -341,8 +340,7 @@ function phpized(root: string, layout: Layout, label: string, stubs: readonly st
     for (const stub of stubs) generateArginfo(root, layout.build, source, stub);
     return { work, source };
   } catch (error) {
-    rmSync(work, { recursive: true, force: true });
-    throw error;
+    cleanupAfter(error, () => rmSync(work, { recursive: true, force: true }));
   }
 }
 
@@ -381,8 +379,10 @@ export function build(root: string, layout: Layout, options: BuildOptions = {}):
       throw new Stop(`${message}\nconfig.log is kept at ${kept}`);
     }
     console.log('[php-extension] make');
-    const made = run('make', [], { cwd: source, env });
-    const warnings = made.split('\n').filter(line => /\.[ch]:\d+:\d+: warning:/.test(line));
+    // The compiler writes its warnings to standard error, which is printed and read with the standard output (K1142).
+    const made = runOutput('make', [], { cwd: source, env });
+    if (made.stderr.trim()) console.error(made.stderr.trimEnd());
+    const warnings = `${made.stdout}\n${made.stderr}`.split('\n').filter(line => /\.[ch]:\d+:\d+: warning:/.test(line));
     if (warnings.length) throw new Stop(`the build of ${names.extension} has compiler warnings:\n${warnings.join('\n')}`);
     renameSync(path.join(source, 'modules', `${names.extension}.so`), temporaryLibrary);
     renameSync(temporaryLibrary, library);
@@ -513,7 +513,11 @@ if (isMain(import.meta.url)) {
       // The unit tests load the library that build published, which runtime-targets takes with --php-extension (K1103, K1106).
       const names = checked(root, layout);
       const tests = spawnSync(process.execPath, [siblingTool(import.meta.url, 'runtime-targets'), 'test', '--runner', 'php', '--php-extension', builtLibrary(root, layout, names.extension), ...selection], { cwd: root, stdio: 'inherit' });
-      if (tests.status !== 0) process.exit(1);
+      if (tests.error) throw new Stop(`runtime-targets test could not start: ${tests.error.message}`);
+      if (tests.status !== 0) {
+        console.error(`[php-extension] runtime-targets test ${tests.signal ? `ended by signal ${tests.signal}` : `exited with ${tests.status}`}`);
+        process.exit(1);
+      }
     }
   } catch (error) {
     if (!(error instanceof Stop)) throw error;

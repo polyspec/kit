@@ -86,7 +86,7 @@ export function downloadAsset(options: RunPlace, url: string, id: number, file: 
   try {
     const result = spawnSync('gh', args, { cwd: options.cwd, env: options.env, stdio: ['ignore', fd, 'pipe'], encoding: 'utf8' });
     if (result.error) throw new Stop(`gh ${args.join(' ')} could not start: ${result.error.message}`);
-    if (result.status !== 0) throw new Stop(`gh ${args.join(' ')} exited with ${result.status}: ${result.stderr.trim()}`);
+    if (result.status !== 0) throw new Stop(`gh ${args.join(' ')} ${result.signal ? `ended by signal ${result.signal}` : `exited with ${result.status}`}: ${result.stderr.trim()}`);
   } finally {
     closeSync(fd);
   }

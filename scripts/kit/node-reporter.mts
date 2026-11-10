@@ -128,6 +128,8 @@ export default class ProgressReporter extends Transform {
         } else this.push(line);
       }
     } else if (type === 'test:stderr') this.push(data.message);
+    // A diagnostic other than the counts of the summary, such as an error after a test ended, is printed (K1146).
+    else if (type === 'test:diagnostic' && !/^(?:tests|suites|pass|fail|cancelled|skipped|todo|duration_ms) [\d.]+$/.test(data.message)) this.push(`${data.message}\n`);
     callback();
   }
 

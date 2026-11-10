@@ -1,6 +1,6 @@
 // Git in a checkout: `git` returns the output and fails with a Stop when git does not end with status 0; `gitResult` returns
 // the outcome for a command whose status is an answer, such as `git rev-parse --verify --quiet`.
-import { execute, run } from './process.mts';
+import { execute, run, Stop } from './process.mts';
 import type { Outcome } from './process.mts';
 
 /** The standard output of `git <args>` in `root`; Stop with the exit status and the standard error otherwise. */
@@ -8,6 +8,18 @@ export const git = (root: string, ...args: string[]): string => run('git', args,
 
 /** The outcome `{ status, stdout, stderr, error }` of `git <args>` in `root`. */
 export const gitResult = (root: string, ...args: string[]): Outcome => execute('git', args, { cwd: root });
+
+/**
+ * The standard output of `git <args>` in `root`, or undefined when git ends with status 1, the answer "none" of such a command as
+ * git config --get or git rev-parse --verify --quiet; Stop with how git ended and its standard error otherwise (K1157, K1158).
+ */
+export function gitAnswer(root: string, ...args: string[]): string | undefined {
+  const result = gitResult(root, ...args);
+  if (result.status === 1) return undefined;
+  if (result.error) throw new Stop(`git ${args.join(' ')} could not start: ${result.error.message}`);
+  if (result.status !== 0) throw new Stop(`git ${args.join(' ')} ${result.signal ? `ended by signal ${result.signal}` : `exited with ${result.status}`}: ${result.stderr.trim()}`);
+  return result.stdout;
+}
 
 // K510: a revision named by a full commit sha, or its parent, never moves, so its files are read once in a process: the push gate reads
 // the trees of every pushed commit and of its parent, which is the commit before it. A ref name, such as HEAD or main, can move, and the

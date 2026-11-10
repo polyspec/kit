@@ -186,9 +186,13 @@ function playwrightCli(root: string, cwd: string): string | undefined {
 export function probeExtensions(extensions: string[], php: string): string | undefined {
   for (const extension of extensions) {
     const probe = spawnSync(php, ['-n', '-d', `extension=${extension}`, '-r', 'exit(0);'], { encoding: 'utf8' });
+    if (probe.error) return `the PHP extension ${extension} cannot be probed: ${php} could not start: ${probe.error.message}`;
     const reported = `${probe.stdout}${probe.stderr}`.trim();
     if (probe.status === 0 && !/Unable to load|compiled with module API|undefined symbol/.test(reported)) continue;
-    const running = spawnSync(php, ['-n', '-r', 'echo PHP_VERSION, " ", PHP_API;'], { encoding: 'utf8' }).stdout.trim();
+    // The run that names the PHP reports its own failure, so the problem never names an empty PHP (K1148).
+    const version = spawnSync(php, ['-n', '-r', 'echo PHP_VERSION, " ", PHP_API;'], { encoding: 'utf8' });
+    const running = version.error ? `(${php} could not start: ${version.error.message})`
+      : version.status === 0 ? version.stdout.trim() : `(its version run ${version.signal ? `ended by signal ${version.signal}` : `exited with exit status ${version.status}`}: ${`${version.stdout}${version.stderr}`.trim()})`;
     return `the PHP extension ${extension} does not load in the running PHP ${running}; PHP reports: ${reported}`;
   }
   return undefined;
@@ -312,7 +316,8 @@ export function listedTests(argv: string[], root = repositoryRoot(), callerEnv: 
     rmSync(scan, { recursive: true, force: true });
   }
   if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error(`phpunit --list-tests in ${path.relative(root, options.cwd) || '.'} ended with ${result.status}: ${result.stderr.trim()}`);
+  // PHPUnit writes an error of its configuration to standard output, so the failure names both streams and a signal (K1149).
+  if (result.status !== 0) throw new Error(`phpunit --list-tests in ${path.relative(root, options.cwd) || '.'} ended ${result.signal ? `on signal ${result.signal}` : `with ${result.status}`}: ${[result.stdout.trim(), result.stderr.trim()].filter(Boolean).join('\n')}`);
   return result.stdout.split('\n').flatMap(line => /^\s*-\s+(\S.*)$/.exec(line)?.[1] ?? []);
 }
 

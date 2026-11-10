@@ -5,7 +5,7 @@ import { existsSync, readdirSync, readlinkSync, symlinkSync } from 'node:fs';
 import { checkoutProviders, environmentLinks, incompleteDistributions, linkFolders, present, providedFolders, releaseEnvironmentLinks } from './link-folders.mts';
 import { declaredCheckouts, type Provider } from './link-providers.mts';
 import { isMain } from './paths.mts';
-import { run } from './process.mts';
+import { cleanupAfter, run } from './process.mts';
 
 /**
  * The PEP 751 lock of the workspace `workspace`, of a project that has no uv.lock: pylock.toml, else the first pylock.<name>.toml
@@ -74,8 +74,7 @@ function installSources({ directory, providers = [], uv = 'uv', env = process.en
         if (output.trim()) print(output.trim());
       } catch (error) {
         // K1134: a failed install puts back each link that it removed and that nothing replaced, so it leaves the environment as it found it.
-        for (const [link, target] of links) if (!present(link)) symlinkSync(target, link, 'dir');
-        throw error;
+        cleanupAfter(error, () => { for (const [link, target] of links) if (!present(link)) symlinkSync(target, link, 'dir'); });
       }
     }
     const folders = providedFolders(workspace, [...providers].filter(provider => provider.ecosystem === 'python'), { environment: venv });

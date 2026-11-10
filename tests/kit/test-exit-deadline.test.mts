@@ -82,3 +82,12 @@ test('a process that outlives its last test is ended after the deadline with its
   assert.equal(result.status, 1, output);
   assert.match(output, /did not exit 2000 ms after its last test/);
 });
+
+// The exit at the deadline stops the processes that the tests started; a failure of that stop is written before the exit (K1145).
+test('a failed stop of the children at the deadline is written to standard error (K1145)', { timeout: 30_000 }, (t) => {
+  const source = "import test from 'node:test';\ntest('leaks a timer and hides ps', () => { process.env.PATH = '/nonexistent'; setInterval(() => {}, 1000); });\n";
+  const root = tree(t, { 'tests/leak.test.mjs': source });
+  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '1', '--', 'tests/leak.test.mjs'], { cwd: root, encoding: 'utf8', env: OUTSIDE });
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout + result.stderr, /ps could not list the processes/);
+});

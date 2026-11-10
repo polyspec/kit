@@ -20,7 +20,7 @@ function fixture(t: { after: (fn: () => void) => void }) {
   const uv = path.join(root, 'uv');
   writeFileSync(path.join(root, 'pyproject.toml'), '[project]\nname = "consumer"\nversion = "0.0.0"\ndependencies = ["polyspec-new-unreleased"]\n');
   // The fixture sync writes the release files into the package folder, as uv does, through a link that is still there.
-  writeFileSync(uv, `#!/bin/sh\nprintf '%s\\n' "$*" >> '${log}'\nif [ "$1 $2" = "workspace dir" ]; then if [ "$3" = --project ]; then (cd "$4" && pwd -P); else pwd -P; fi; fi\nif [ "$1" = sync ] && [ "$UV_FIXTURE_SYNC" = fail ]; then echo 'The lockfile needs to be updated' >&2; exit 1; fi\nif [ "$1" = sync ] && [ -z "$UV_FIXTURE_KEEP" ]; then mkdir -p '${site}/polyspec_new_unreleased' && echo release > '${site}/polyspec_new_unreleased/RELEASE'; fi\nif [ "$1 $2" = "pip check" ] && [ "$UV_FIXTURE_CONFLICT" = yes ]; then echo 'incompatible native dependency requirement' >&2; exit 1; fi\n`);
+  writeFileSync(uv, `#!/bin/sh\nprintf '%s\\n' "$*" >> '${log}'\nif [ "$1 $2" = "workspace dir" ]; then if [ "$3" = --project ]; then (cd "$4" && pwd -P); else pwd -P; fi; fi\nif [ "$1" = sync ] && [ "$UV_FIXTURE_SYNC" = fail ]; then echo 'The lockfile needs to be updated' >&2; exit 1; fi\nif [ "$1" = sync ] && [ "$UV_FIXTURE_SYNC" = fail-removing ]; then rm -rf '${site}'; echo 'uv removed the environment' >&2; exit 1; fi\nif [ "$1" = sync ] && [ -z "$UV_FIXTURE_KEEP" ]; then mkdir -p '${site}/polyspec_new_unreleased' && echo release > '${site}/polyspec_new_unreleased/RELEASE'; fi\nif [ "$1 $2" = "pip check" ] && [ "$UV_FIXTURE_CONFLICT" = yes ]; then echo 'incompatible native dependency requirement' >&2; exit 1; fi\n`);
   chmodSync(uv, 0o755);
   const provider = { ecosystem: 'python' as const, name: 'polyspec-new-unreleased', folder: checkout, repository: checkout, checkout };
   return { root, log, uv, site, checkout, provider, env: { ...process.env, UV: uv, UV_PROJECT_ENVIRONMENT: '.venv' } };
@@ -122,6 +122,17 @@ test('K856: the installer reinstalls a distribution whose package folder a remov
   rmSync(log);
   assert.equal(uvInstallCommand([root], { ...env, UV_FIXTURE_KEEP: 'yes' }, line => lines.push(line)), 0, lines.join(''));
   assert.match(readFileSync(log, 'utf8'), /^sync$/m, 'a complete distribution is not reinstalled');
+});
+
+// K1144: a put-back that fails after the failed sync keeps the error of uv beside its own.
+test('a failed put-back of a provider link keeps the error of the failed uv sync (K1144)', { timeout: 30_000 }, (t) => {
+  const { root, uv, provider, env } = fixture(t);
+  uvLink({ directory: root, uv, env, providers: [provider] });
+  writeFileSync(path.join(root, '.links'), 'provider\n');
+  const lines: string[] = [];
+  assert.notEqual(uvInstallCommand([root], { ...env, UV_FIXTURE_SYNC: 'fail-removing' }, line => lines.push(line)), 0, lines.join(''));
+  assert.match(lines.join(''), /uv removed the environment/);
+  assert.match(lines.join(''), /ENOENT/);
 });
 
 // K1134: the installer removes the links before uv syncs (K539), so a sync that fails links them again before it reports the failure.

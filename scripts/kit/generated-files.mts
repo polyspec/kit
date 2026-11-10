@@ -74,7 +74,11 @@ export function executableFormat(bytes: Buffer): string | undefined {
 export function blobContent(root: string, rev: string, file: string): Buffer | undefined {
   const run = spawnSync('git', ['cat-file', 'blob', `${rev === ':' ? '' : rev}:${file}`], { cwd: root, maxBuffer: MAX_BLOB });
   if (run.error) throw run.error;
-  return run.status === 0 ? run.stdout : undefined;
+  if (run.status === 0) return run.stdout;
+  // A gitlink, as a submodule, is the one entry that is no blob; any other failure of git is an error (K1156).
+  const listed = rev === ':' ? gitResult(root, 'ls-files', '--stage', '--', file) : gitResult(root, 'ls-tree', rev, '--', file);
+  if (listed.status === 0 && listed.stdout.startsWith('160000 ')) return undefined;
+  throw new Error(`git cat-file blob ${rev === ':' ? '' : rev}:${file} exited with ${run.status}: ${run.stderr.toString().trim()}`);
 }
 
 /**
