@@ -5,6 +5,70 @@
 
 ## Unreleased
 
+## 0.0.103
+
+- Release: kit 0.0.103 with the rows K1136–K1165, which give each test reader the output of a test that did not finish and stop every tool of kit from dropping the output, the errors or the failures of the commands that it runs (K1166).
+
+- K1165: A command that a signal ended names the signal, not an exit status of null or 1: release-tools, github-release, plan, release, the tool wrappers of bootstrap, install-rust and ci-setup (K1165).
+
+- K1164: runtime-targets and php-extension name the command, and its status, signal or error, of a build or a run that fails (K1164).
+
+- K1163: owner-check writes the standard error of the make database read when it is not empty (K1163).
+
+- K1162: machineListing of land writes the standard error of lsof when its status is not 0 (K1162).
+
+- K1161: A failed provider rebuild of link-build names its exit status or signal, the whole standard error and the end of the standard output (K1161).
+
+- K1160: textAt of twin-merge reads a missing file with git ls-tree, and throws on another failure (K1160).
+
+- K1159: plan checks the status of each git call whose result it reads, and throws with the standard error, keeping a missing main as a stated absence (K1159).
+
+- K1158: git-hooks reads only status 1 of git config as unset, and throws with the standard error otherwise, the attributes file included (K1158).
+
+- K1157: commitOf of check-commits reads only status 1 of git rev-parse as no commit, and throws with the standard error otherwise (K1157).
+
+- K1156: blobContent returns undefined only for an entry that is a gitlink, and throws with the standard error of git cat-file otherwise (K1156).
+
+- K1155: changelogRulesAt reads no rules only for a revision that holds no documents.json, and throws on another failure of git or on a documents.json that is no JSON (K1155).
+
+- K1154: onLine of release-run reads only status 1 of git merge-base as not on the line, and throws with the standard error otherwise (K1154).
+
+- K1153: release-run reads a release as not public only when gh api answers 404, and stops with the error otherwise (K1153).
+
+- K1152: run of process.mts writes the standard error of a command that succeeds to standard error (K1152).
+
+- K1151: A failed detach of case-sensitive-directory names the output of hdiutil in its message, not only in its cause (K1151).
+
+- K1150: The command failure of case-sensitive-directory names its standard output when its standard error is empty (K1150).
+
+- K1149: listedTests names the standard output, the standard error and the signal of a failed phpunit --list-tests (K1149).
+
+- K1148: probeExtensions names the error of the probe and the status and error of its second run (K1148).
+
+- K1147: The Playwright reporter forwards the standard output and standard error of the tests and the workers (K1147).
+
+- K1146: The node reporter prints the diagnostics of node --test other than its summary counts, such as one that a test writes with t.diagnostic (K1146).
+
+- K1145: test-exit-deadline writes the error of the stop of the descendants to standard error before it exits (K1145).
+
+- K1144: A cleanup that fails after an error keeps that error: uv-install, release, plan, python-venv and php-extension throw both errors together (K1144).
+
+- K1143: refreshLinked names the failure of the build in its message, not only in its cause, so land and plan print it (K1143).
+
+- K1142: php-extension reads the compiler warnings of make from its standard error as well as its standard output, and prints that standard error (K1142).
+
+- K1141: A test that did not finish fails with the output that its reader collected, not only with the text that the test did not finish: each reader ends the stream before the progress closes (K1141).
+
+- K1140: pythonEvents prints a line that it read as the description of a test when no test start follows it (K1140).
+
+- K1139: startResultLines prints the rest of the output that has no line end when the stream ends, and gives a test that did not finish the output that came after its start (K1139).
+
+- K1138: phpunitEvents keeps the failure message of a test that got testFailed and no testFinished, as after a PHP fatal error, and prints a TeamCity message that it does not read, testStdOut among them (K1138).
+
+- K1137: goEvents fails a benchmark that passed at its result line when a later fail event of it arrives, such as a failed b.Cleanup (K1137).
+
+- K1136: goEvents gives each test that did not finish when its package or the stream ended its output and its unfinished line as its failure, and a runner timeout of go sends SIGQUIT to the group before SIGTERM, so that Go writes the stack of every goroutine into the output of the running test (K1136).
+
 ## 0.0.102
 
 - Release: kit 0.0.102 with the row K1134, which puts back the provider links that uv-install removed before a uv sync or pip install that fails (K1135).

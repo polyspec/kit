@@ -1,10 +1,74 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d9233d9d1617adb28b9e915efad78ccea7ce5d48da25c156fb0a0d8dba3a26cb -->
+<!-- source-sha256: f856fc79cc1fc22f7a8b52fc21d2017aadfe99f8eb042bebdbe23a09949b05fc -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.103
+
+- 릴리즈: K1136–K1165 행을 담아 kit 0.0.103을 낸다. 이 행들은 각 test reader가 끝나지 않은 test에 그 출력을 주게 하고, kit의 모든 도구가 실행한 command의 출력, 오류, 실패를 버리지 않게 한다(K1166).
+
+- K1165: signal로 끝난 command는 null이나 1이라는 exit status가 아니라 그 signal을 밝힌다: release-tools, github-release, plan, release, bootstrap의 tool wrapper, install-rust, ci-setup(K1165).
+
+- K1164: runtime-targets와 php-extension은 실패한 build나 run의 command와 그 status, signal 또는 오류를 밝힌다(K1164).
+
+- K1163: owner-check는 make database 읽기의 standard error가 비어 있지 않으면 그것을 쓴다(K1163).
+
+- K1162: land의 machineListing은 lsof의 status가 0이 아니면 그 standard error를 쓴다(K1162).
+
+- K1161: link-build의 provider rebuild가 실패하면 그 exit status나 signal, standard error 전체, standard output의 끝을 밝힌다(K1161).
+
+- K1160: twin-merge의 textAt은 없는 파일을 git ls-tree로 읽고, 다른 실패에는 throw한다(K1160).
+
+- K1159: plan은 결과를 읽는 각 git 호출의 status를 확인하고 standard error와 함께 throw한다. 없는 main은 명시된 부재로 남긴다(K1159).
+
+- K1158: git-hooks는 git config의 status 1만 설정되지 않음으로 읽고, 그 밖에는 standard error와 함께 throw한다. attributes 파일도 그렇다(K1158).
+
+- K1157: check-commits의 commitOf는 git rev-parse의 status 1만 commit 없음으로 읽고, 그 밖에는 standard error와 함께 throw한다(K1157).
+
+- K1156: blobContent는 gitlink인 entry에만 undefined를 돌려주고, 그 밖에는 git cat-file의 standard error와 함께 throw한다(K1156).
+
+- K1155: changelogRulesAt은 documents.json이 없는 revision에만 규칙 없음으로 읽고, git의 다른 실패나 JSON이 아닌 documents.json에는 throw한다(K1155).
+
+- K1154: release-run의 onLine은 git merge-base의 status 1만 line 위에 없음으로 읽고, 그 밖에는 standard error와 함께 throw한다(K1154).
+
+- K1153: release-run은 gh api가 404로 답할 때만 release를 공개되지 않음으로 읽고, 그 밖에는 오류와 함께 멈춘다(K1153).
+
+- K1152: process.mts의 run은 성공한 command의 standard error를 standard error에 쓴다(K1152).
+
+- K1151: case-sensitive-directory의 detach가 실패하면 hdiutil의 출력을 cause만이 아니라 message에 밝힌다(K1151).
+
+- K1150: case-sensitive-directory의 command 실패는 standard error가 비어 있으면 standard output을 밝힌다(K1150).
+
+- K1149: listedTests는 실패한 phpunit --list-tests의 standard output, standard error, signal을 밝힌다(K1149).
+
+- K1148: probeExtensions는 probe의 오류와 두 번째 실행의 status와 오류를 밝힌다(K1148).
+
+- K1147: Playwright reporter는 test와 worker의 standard output과 standard error를 전달한다(K1147).
+
+- K1146: node reporter는 요약 숫자가 아닌 node --test의 diagnostic을 출력한다. 예를 들어 test가 t.diagnostic으로 쓴 것이다(K1146).
+
+- K1145: test-exit-deadline은 끝내기 전에 자손 process 정지의 오류를 standard error에 쓴다(K1145).
+
+- K1144: 오류 뒤에 실패한 정리는 그 오류를 지킨다: uv-install, release, plan, python-venv, php-extension은 두 오류를 함께 throw한다(K1144).
+
+- K1143: refreshLinked는 build의 실패를 cause만이 아니라 message에 밝힌다. 그래서 land와 plan이 그것을 출력한다(K1143).
+
+- K1142: php-extension은 make의 compiler warning을 standard output만이 아니라 standard error에서도 읽고, 그 standard error를 출력한다(K1142).
+
+- K1141: 끝나지 않은 test는 끝나지 않았다는 문장만이 아니라 reader가 모은 출력과 함께 실패한다: progress가 닫히기 전에 각 reader가 stream을 끝낸다(K1141).
+
+- K1140: pythonEvents는 test의 설명으로 읽은 줄 뒤에 test 시작이 오지 않으면 그 줄을 출력한다(K1140).
+
+- K1139: startResultLines는 stream이 끝날 때 줄 끝이 없는 나머지 출력을 출력하고, 끝나지 않은 test에 그 시작 뒤의 출력을 준다(K1139).
+
+- K1138: phpunitEvents는 PHP fatal error 뒤처럼 testFailed를 받고 testFinished를 받지 않은 test의 실패 message를 지키고, 읽지 않는 TeamCity message를 출력한다. testStdOut도 그렇다(K1138).
+
+- K1137: goEvents는 result line에서 통과한 benchmark에 b.Cleanup 실패처럼 뒤늦은 fail event가 오면 그 benchmark를 실패시킨다(K1137).
+
+- K1136: goEvents는 package나 stream이 끝날 때 끝나지 않은 각 test에 그 출력과 끝나지 않았다는 줄을 실패로 주고, go의 runner timeout은 SIGTERM 전에 group에 SIGQUIT를 보낸다. 그래서 Go가 모든 goroutine의 stack을 실행 중인 test의 출력에 쓴다(K1136).
 
 ## 0.0.102
 

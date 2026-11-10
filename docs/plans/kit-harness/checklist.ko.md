@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: e2f089bd45544a1561351c24205c2db0c82ba2fe4eb0348f79ef30017f8c02a5 -->
+<!-- source-sha256: 4354e27d0371a2ad53cd4327044afe6125c3564e47d9f3fa5211cf033d88978b -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -293,3 +293,4 @@
 | K1163 | owner-check는 make database 읽기의 표준 오류가 비어 있지 않으면 그것을 쓴다 | `scripts/kit/owner-check.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1163 tests/kit/owner-check.test.mts` | [o] |
 | K1164 | runtime-targets와 php-extension은 실패한 build나 실행의 command와 그 status, signal 또는 오류를 적는다 | `scripts/kit/runtime-targets.mts`, `scripts/kit/php-extension.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1164 tests/kit/runtime-targets.test.mts` | [o] |
 | K1165 | signal로 끝난 command는 null이나 1의 exit status가 아니라 그 signal을 적는다. release-tools, github-release, plan, release, bootstrap의 tool wrapper, install-rust, ci-setup | `scripts/kit/release-tools.mts`, `scripts/kit/github-release.mts`, `scripts/kit/plan.mts`, `scripts/kit/release.mts`, `scripts/kit/bootstrap/tool-wrappers.mts`, `scripts/kit/install-rust.mts`, `scripts/kit/ci-setup.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1165 tests/kit/process.test.mts` | [o] |
+| K1166 | K1136–K1165 행을 담아 kit 0.0.103을 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |
