@@ -146,13 +146,14 @@ jobs:
       # The npm of mise.toml installs TypeScript and the Node types from package-lock.json.
       - name: install packages
         run: make install-packages
-      # These shards exercise Composer-backed fixtures or require their selected runtimes; shard 5 also runs PHP extension tests.
+      # These shards exercise Composer-backed fixtures or require their selected runtimes; shard 3 runs the PHPUnit of the deadline
+      # extension test (K1174), and shard 5 also runs PHP extension tests.
       - name: install shard 1 tools
         if: ${{ matrix.shard == 1 && !cancelled() }}
         run: make install-tools TOOLS="php composer"
       - name: install shard 3 tools
         if: ${{ matrix.shard == 3 && !cancelled() }}
-        run: make install-tools TOOLS="php composer"
+        run: make install-tools TOOLS="php composer phpunit"
       - name: install shard 4 tools
         if: ${{ matrix.shard == 4 && !cancelled() }}
         run: make install-tools TOOLS="php composer python go"

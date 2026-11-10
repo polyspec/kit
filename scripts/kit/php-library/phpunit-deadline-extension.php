@@ -11,8 +11,8 @@ use PHPUnit\TextUI\Configuration\Configuration;
 
 final class DeadlineExtension implements Extension
 {
-    // The subscriber sends the deadline of each case to the runner whatever enforceTimeLimit says, so a repository that turns
-    // the native time limit off keeps the runner's deadline as the only bound (K1170).
+    // The subscriber sends the deadline of each case to the runner whatever enforceTimeLimit says, so a repository
+    // that turns the native time limit off keeps the runner's deadline as the only bound (K1170).
     public function bootstrap(Configuration $configuration, Facade $facade, ParameterCollection $parameters): void
     {
         $facade->registerSubscriber(new DeadlineSubscriber($configuration));
