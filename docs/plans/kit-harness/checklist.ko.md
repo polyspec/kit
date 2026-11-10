@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: b9a75189685bf7f584c8e8089b8bbc1380d88cdcc5c0180bc95d0b4bb01ad0ef -->
+<!-- source-sha256: 422b1370adb3c928b7b54041f8cb09edf480cd5d61ab04e0a75e9db5a0c6180f -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -297,7 +297,6 @@
 | K1167 | GFM autolink-literal 변환이 위치 없는 link node로 바꾸는 bare URL이 Markdown 읽기를 멈추지 않는다. bare URL은 link가 아니므로 parse가 그 변환을 빼며, 모든 node는 parser의 위치를 그대로 가진다 | `scripts/kit/markdown.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1167 tests/kit/markdown.test.mts` | [o] |
 | K1168 | check-documents는 검사가 예외를 던진 문서를 그 오류와 함께 그 문서의 finding으로 보고하고 나머지 문서를 계속 검사한다. 실행은 끝에서 실패한다 | `scripts/kit/check-documents.mts`, `scripts/kit/checklist.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1168 tests/kit/documents.test.mts` | [o] |
 | K1170 | PHPUnit deadline extension은 enforceTimeLimit와 상관없이 subscriber를 등록한다. 그래서 native 시간 제한을 끈 저장소도 runner의 deadline 사건을 받고, runner가 유일한 한도가 될 수 있다 | `scripts/kit/php-library/phpunit-deadline-extension.php` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1170 tests/kit/run-tests.test.mts` | [o] |
-| K1171 | K1167, K1168, K1170 행을 담아 kit 0.0.104를 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |
+| K1171 | K1167, K1168, K1170, K1172, K1174 행을 담아 kit 0.0.104를 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |
 | K1172 | 도구의 오류 줄 추측을 지운다. run-tests는 ERROR_LINE으로 줄을 고르지 않고, 0이 아닌 status로 끝난 실행의 요약은 개수와 exit status만 적으며 도구가 오류 줄을 출력하지 않았다고 말하지 않는다. 도구의 모든 줄은 그 위에 출력되고, test2json이 build-output 사건으로 보고하는 Go package의 build error는 그대로 둔다 | `scripts/kit/run-tests.mts`, `scripts/kit/test-progress.mts`, `docs/operations/tool-inventory.md(.ko)` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1172 tests/kit/run-tests.test.mts` | [o] |
-| K1173 | K1172 행을 담아 kit 0.0.105를 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [ ] |
 | K1174 | tests/kit/run-tests.test.mts를 실행하는 kit tests shard는 K1170 test가 실행하는 PHPUnit을 설치하고, PHPUnit deadline extension의 주석은 phpcs의 줄 길이를 지킨다 | `.github/workflows/ci.yml`, `scripts/kit/php-library/phpunit-deadline-extension.php` | `make lint-php` | [o] |

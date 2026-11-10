@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 97b128001a17373ce887413e25ed7d6e5c4fa6296691aa7b3a3721708470bcee -->
+<!-- source-sha256: d08dc661624ae808a943b88bf3511da723a87e1a2dc6c2f405ddf469b3a35e5c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -8,7 +8,11 @@
 
 ## 0.0.104
 
-- 릴리즈: K1167, K1168, K1170 행을 담아 kit 0.0.104를 낸다. bare URL이 Markdown 읽기를 멈추지 않고, check-documents는 검사가 예외를 던진 문서를 그 문서의 finding으로 보고하며, 각 PHPUnit case의 deadline은 enforceTimeLimit와 상관없이 runner에 닿는다(K1171).
+- 릴리즈: K1167, K1168, K1170, K1172, K1174 행을 담아 kit 0.0.104를 낸다. bare URL이 Markdown 읽기를 멈추지 않고, check-documents는 검사가 예외를 던진 문서를 그 문서의 finding으로 보고하며, 각 PHPUnit case의 deadline은 enforceTimeLimit와 상관없이 runner에 닿고, 0이 아닌 status로 끝난 실행의 요약은 도구의 줄을 추측하지 않고 exit status를 적는다(K1171).
+
+- K1174: tests/kit/run-tests.test.mts를 실행하는 kit tests shard는 K1170 test가 실행하는 PHPUnit을 설치하고, PHPUnit deadline extension의 주석은 phpcs의 줄 길이를 지킨다(K1174).
+
+- K1172: run-tests는 더 이상 pattern으로 도구의 오류 줄을 고르지 않는다. 0이 아닌 status로 끝난 실행의 요약은 개수와 "the tool exited with N"을 적고, 도구가 오류 줄을 출력하지 않았다고 말하지 않으며, 도구의 모든 줄은 그 위에 출력된다. test2json이 build-output 사건으로 보고하는 Go package의 build error는 남는다(K1172).
 
 - K1170: PHPUnit deadline extension은 enforceTimeLimit와 상관없이 subscriber를 등록한다. 그래서 native 시간 제한을 끈 저장소도 runner의 deadline 사건을 받고, runner가 유일한 한도가 될 수 있다(K1170).
 

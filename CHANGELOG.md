@@ -7,7 +7,11 @@
 
 ## 0.0.104
 
-- Release: kit 0.0.104 with the rows K1167, K1168 and K1170, so that a bare URL no longer stops the Markdown reads, check-documents reports a document whose check throws as a finding of that document, and the PHPUnit deadline of each case reaches the runner whatever enforceTimeLimit says (K1171).
+- Release: kit 0.0.104 with the rows K1167, K1168, K1170, K1172 and K1174, so that a bare URL no longer stops the Markdown reads, check-documents reports a document whose check throws as a finding of that document, the PHPUnit deadline of each case reaches the runner whatever enforceTimeLimit says, and the summary of a run that exits non-zero states the exit status with no guess at the lines of the tool (K1171).
+
+- K1174: The kit tests shard that runs tests/kit/run-tests.test.mts installs PHPUnit, which the K1170 test runs, and the comment of the PHPUnit deadline extension keeps to the line length of phpcs (K1174).
+
+- K1172: run-tests no longer picks out error lines of a tool with a pattern: the summary of a run that exits non-zero states the counts and "the tool exited with N", never that the tool printed no error line, and every line of the tool is printed above it; the build errors of a Go package, which test2json reports as build-output events, stay (K1172).
 
 - K1170: The PHPUnit deadline extension registers its subscriber whatever enforceTimeLimit says, so a repository that turns off the native time limit keeps the deadline events of the runner, which can then be the only bound (K1170).
 
