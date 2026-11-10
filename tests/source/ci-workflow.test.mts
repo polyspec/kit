@@ -51,7 +51,7 @@ test('kit-test shards install only their declared PHP, Composer and runtime prer
   assert.ok(phpTools >= 0 && phpTools < kitTest, 'the PHP fixture shard installs PHP, Composer and PHPUnit');
   for (const [shard, tools] of [
     [1, 'make install-tools TOOLS="php composer"'],
-    [3, 'make install-tools TOOLS="php composer"'],
+    [3, 'make install-tools TOOLS="php composer phpunit"'],
     [4, 'make install-tools TOOLS="php composer python go"'],
     [7, 'make install-tools TOOLS="php composer"'],
   ] as const) {
