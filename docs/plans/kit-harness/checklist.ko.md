@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 616924b6fcac7cb358881f61a43be467f72ad44d8a6452127783863da47d4b1e -->
+<!-- source-sha256: b57b89008b90225d3e58e199d6e35348b67e8940f972277cafa0a58bdf4b2b2e -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -300,3 +300,4 @@
 | K1171 | K1167, K1168, K1170 행을 담아 kit 0.0.104를 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |
 | K1172 | 0이 아닌 status로 끝난 실행은 그 원인을 적는다. PHPUnit 내부 오류의 header 뒤에 오는 Message:와 Location: 줄은 오류 줄이며, runner는 자기가 읽는 모든 도구의 standard error를 읽고, 출력에 오류 줄이 없는 실행은 오류 줄을 출력하지 않았다고 말하는 대신 그 출력의 마지막 줄들을 tail이라고 밝혀 적는다 | `scripts/kit/run-tests.mts`, `scripts/kit/test-progress.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1172 tests/kit/run-tests.test.mts` | [ ] |
 | K1173 | K1172 행을 담아 kit 0.0.105를 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [ ] |
+| K1174 | tests/kit/run-tests.test.mts를 실행하는 kit tests shard는 K1170 test가 실행하는 PHPUnit을 설치하고, PHPUnit deadline extension의 주석은 phpcs의 줄 길이를 지킨다 | `.github/workflows/ci.yml`, `scripts/kit/php-library/phpunit-deadline-extension.php` | `make lint-php` | [ ] |
