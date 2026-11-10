@@ -1308,3 +1308,39 @@ process.stderr.write('test_a (t.T.test_a) ... ok\\n\\n' + '-'.repeat(70) + '\\nR
   assert.equal(result.status, 0, output(result));
   assert.deepEqual(JSON.parse(readFileSync(seen, 'utf8')), { PYTHONUNBUFFERED: null, NO_COLOR: null, PYTHON_COLORS: null, NODE_TEST_CONTEXT: 'child-v8' });
 });
+
+// K1170: the PHPUnit of this checkout (var/tools/phpunit, install-tools) runs a case of a configuration that turns the native time
+// limit off. The deadline of its size group still reaches the runner, and an event that the case writes later replaces it.
+test('K1170: with enforceTimeLimit off the deadline of a case reaches the runner, and a later event of the case replaces it', { skip: process.platform === 'win32' ? 'the deadline events of PHPUnit use a file descriptor pipe of POSIX' : false, timeout: 60_000 }, (t) => {
+  const vendor = path.resolve(KIT, '../../var/tools/phpunit/vendor');
+  assert.ok(existsSync(path.join(vendor, 'bin/phpunit')), `${vendor}/bin/phpunit is missing; make install-tools installs PHPUnit`);
+  const root = checkout(t, {
+    'composer.json': '{"name": "fixture/deadline"}\n',
+    'phpunit.xml': '<phpunit enforceTimeLimit="false" timeoutForSmallTests="3"><testsuites><testsuite name="t"><directory>tests</directory></testsuite></testsuites></phpunit>\n',
+    'tests/ATest.php': [
+      '<?php',
+      'use PHPUnit\\Framework\\Attributes\\Small;',
+      'use PHPUnit\\Framework\\TestCase;',
+      '#[Small]',
+      'final class ATest extends TestCase {',
+      '    public function testRaises(): void {',
+      '        usleep(300000);',
+      "        $pipe = fopen('php://fd/' . getenv('KIT_TEST_EVENTS'), 'wb');",
+      "        fwrite($pipe, json_encode(['kind' => 'timeout', 'id' => static::class . '::' . $this->name(), 'timeoutMs' => 7000]) . \"\\n\");",
+      '        fflush($pipe);',
+      '        usleep(500000);',
+      '        $this->assertTrue(true);',
+      '    }',
+      '}',
+      '',
+    ].join('\n'),
+  });
+  symlinkSync(vendor, path.join(root, 'vendor'));
+  const result = runner(root, ['phpunit', '--cwd', root]);
+  assert.equal(result.status, 0, output(result));
+  // The deadline of the size group arrives before or after the start of the case; the event that the case writes 0.3 s into its run
+  // replaces the running deadline.
+  const deadline = (seconds: string) => new RegExp(`ATest::testRaises(?: \\(timeout ${seconds}s\\)| uses PHPUnit's configured ${seconds}s timeout)`);
+  assert.match(result.stdout, deadline('3\\.0'), output(result));
+  assert.match(result.stdout, /ATest::testRaises uses PHPUnit's configured 7\.0s timeout/, output(result));
+});
