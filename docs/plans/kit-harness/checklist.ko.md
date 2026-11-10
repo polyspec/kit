@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 4354e27d0371a2ad53cd4327044afe6125c3564e47d9f3fa5211cf033d88978b -->
+<!-- source-sha256: 5a64102e52330ebf11a268e4a8bab82885bc3d5f40b4fc305e977c8c7695c61a -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -294,3 +294,6 @@
 | K1164 | runtime-targets와 php-extension은 실패한 build나 실행의 command와 그 status, signal 또는 오류를 적는다 | `scripts/kit/runtime-targets.mts`, `scripts/kit/php-extension.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1164 tests/kit/runtime-targets.test.mts` | [o] |
 | K1165 | signal로 끝난 command는 null이나 1의 exit status가 아니라 그 signal을 적는다. release-tools, github-release, plan, release, bootstrap의 tool wrapper, install-rust, ci-setup | `scripts/kit/release-tools.mts`, `scripts/kit/github-release.mts`, `scripts/kit/plan.mts`, `scripts/kit/release.mts`, `scripts/kit/bootstrap/tool-wrappers.mts`, `scripts/kit/install-rust.mts`, `scripts/kit/ci-setup.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1165 tests/kit/process.test.mts` | [o] |
 | K1166 | K1136–K1165 행을 담아 kit 0.0.103을 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |
+| K1167 | GFM autolink-literal 변환이 위치 없는 link node로 바꾸는 bare URL이 Markdown 읽기를 멈추지 않는다. bare URL은 link가 아니므로 parse가 그 변환을 빼며, 모든 node는 parser의 위치를 그대로 가진다 | `scripts/kit/markdown.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1167 tests/kit/markdown.test.mts` | [ ] |
+| K1168 | check-documents는 검사가 예외를 던진 문서를 그 오류와 함께 그 문서의 finding으로 보고하고 나머지 문서를 계속 검사한다. 실행은 끝에서 실패한다 | `scripts/kit/check-documents.mts`, `scripts/kit/checklist.mts` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1168 tests/kit/documents.test.mts` | [ ] |
+| K1169 | K1167, K1168 행을 담아 kit 0.0.104를 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [ ] |
