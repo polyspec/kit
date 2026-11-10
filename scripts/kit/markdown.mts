@@ -22,8 +22,12 @@ export type LinkTarget = { target: string; line: number; column: number };
 /** A link that is not well formed or has no definition. */
 export type LinkProblem = { line: number; column: number; message: string };
 
-/** The syntax tree of `text`, parsed: CommonMark with GFM and YAML front matter. */
-const parseTree = (text: string) => fromMarkdown(text, { extensions: [gfm(), frontmatter()], mdastExtensions: [gfmFromMarkdown(), frontmatterFromMarkdown()] });
+// The GFM extensions of the tree without their transforms (K1167). The only one is the autolink-literal transform, which links a
+// bare URL that the syntax did not, such as `"www.example.com`, with nodes that carry no position; a bare URL is no link here.
+const GFM_FROM_MARKDOWN = gfmFromMarkdown().map(({ transforms: _transforms, ...extension }) => extension);
+
+/** The syntax tree of `text`, parsed: CommonMark with GFM and YAML front matter; every node has its position (K1167). */
+const parseTree = (text: string) => fromMarkdown(text, { extensions: [gfm(), frontmatter()], mdastExtensions: [...GFM_FROM_MARKDOWN, frontmatterFromMarkdown()] });
 
 /**
  * K510: the result of `compute` for a text, kept for the `size` texts read last, so a text is computed once: the push gate reads the
@@ -48,12 +52,12 @@ function byText<T>(size: number, compute: (text: string) => T): (text: string) =
 const parse = byText(16, parseTree);
 
 /** A node as the parser writes it: every node of a parsed text has its position. */
-type Placed = { position?: { start: { line: number; column: number; offset?: number | undefined }; end: { line: number; column: number; offset?: number | undefined } } | undefined };
+type Placed = { type?: string; position?: { start: { line: number; column: number; offset?: number | undefined }; end: { line: number; column: number; offset?: number | undefined } } | undefined };
 
 /** The start and end offsets and the lines of `node`. */
 function placeOf(node: Placed): { start: number; end: number; startLine: number; endLine: number; column: number } {
   // fromMarkdown writes the position, with its offsets, on every node of the tree it returns.
-  const { start, end } = present(node.position, 'node.position');
+  const { start, end } = present(node.position, `the position of the ${node.type ?? 'unknown'} node`);
   return { start: present(start.offset, 'start.offset'), end: present(end.offset, 'end.offset'), startLine: start.line, endLine: end.line, column: start.column };
 }
 

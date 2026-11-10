@@ -73,3 +73,11 @@ test('the blocks of a text are read once and a second read of the same text retu
   assert.equal(lineBlocks(text), first, 'the same text returns the same blocks');
   assert.notEqual(lineBlocks(`${text}| T2 | Add the reader | [ ] |\n`), first, 'another text is read on its own');
 });
+
+test('K1167: a bare URL that only the autolink-literal transform links leaves every node placed, and is no link', () => {
+  // The transform links `"www.example.com` with nodes that carry no position; a read of the text never stops on them.
+  const text = 'Quote "www.example.com and !https://example.com/a then [x](y.md).\n\nSee [r][missing].\n';
+  assert.deepEqual(links(text).links, [{ target: 'y.md', line: 1, column: 56 }]);
+  assert.deepEqual(links(text).problems.map(problem => problem.line), [3]);
+  assert.deepEqual(proseLines(text).map(line => line.line), [1, 2, 3, 4]);
+});

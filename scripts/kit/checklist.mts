@@ -277,9 +277,17 @@ export function checklistsFindings(trackers: readonly Tracker[], read: (file: st
   const found: FileFinding[] = [];
   const checklists: { tracker: Tracker; items: ChecklistItem[] }[] = [];
   const strictItems = (file: string) => {
-    const text = read(file);
-    if (text === undefined) return undefined;
-    const result = readChecklist(text, tracker(file), { strict: true });
+    // A checklist whose reading throws is a finding of that checklist, and the others are still read (K1168).
+    let result: ReturnType<typeof readChecklist>;
+    try {
+      const text = read(file);
+      if (text === undefined) return undefined;
+      result = readChecklist(text, tracker(file), { strict: true });
+    } catch (error) {
+      if (!(error instanceof Error)) throw error;
+      found.push({ file, finding: { rule: 'error', message: `the check of the checklist failed: ${error.message}` } });
+      return undefined;
+    }
     for (const finding of result.findings) found.push({ file, finding });
     return result.items;
   };

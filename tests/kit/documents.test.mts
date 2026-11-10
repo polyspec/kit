@@ -2,7 +2,7 @@
 // line and the rule.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { chmodSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
@@ -381,4 +381,13 @@ test('checklist-place is a rule the caller declares: with no --checklist-place, 
   put(root, { 'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], idPattern: ID_PATTERN }), ...pair('docs/notes.md', 'notes', '| T9 | x | [ ] |\n') });
   assert.deepEqual(check(root, CONFIG).findings.filter(line => line.includes('checklist-place')), []);
   hasPart(check(root, CONFIG, undefined, { checklistPlace: true }).findings, 'docs/notes.md: checklist-place');
+});
+
+test('K1168: a document whose check throws is a finding of that document, and the other documents are still checked', (t) => {
+  const root = tree(t, { ...pair('a.md', 'alpha', 'See [x](missing.md).\n'), ...pair('b.md', 'bee') });
+  spawnSync('git', ['add', '-A'], { cwd: root });
+  chmodSync(path.join(root, 'b.md'), 0o000);
+  const found = run(root);
+  hasPart(found, 'a.md:', 'link: the link missing.md');
+  hasPart(found, 'b.md: error: the check of the document failed:', 'EACCES');
 });

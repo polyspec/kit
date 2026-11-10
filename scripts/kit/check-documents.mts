@@ -125,6 +125,19 @@ function linkFindings(root: string, config: DocumentsConfig, file: string, link:
   return [at(`the link ${target} names the anchor #${fragment}, which ${path.relative(root, resolved)} does not define`)];
 }
 
+/**
+ * The findings of `check` for `file`. A check that throws is a finding of `file` with the error, so the other documents are still
+ * checked and the run fails at the end (K1168).
+ */
+function guarded(file: string, check: () => [string, DocumentFinding][]): [string, DocumentFinding][] {
+  try {
+    return check();
+  } catch (error) {
+    if (!(error instanceof Error)) throw error;
+    return [[file, { rule: 'error', message: `the check of the document failed: ${error.message}` }]];
+  }
+}
+
 /** The findings of the document `file` as `[file, finding]` entries; `english` is the English document whose pattern selected it. */
 function documentFindings(root: string, config: DocumentsConfig, file: string, english: string, read: Read, rules: DocumentRules) {
   const found: [string, DocumentFinding][] = [];
@@ -219,9 +232,10 @@ function kitRowFindings(checklists: readonly Tracker[], available: (file: string
   for (const tracker of checklists) {
     const task = columnOf(tracker, 'Task');
     const verification = columnOf(tracker, 'Verification');
-    for (const file of [tracker.path, tracker.translation]) {
+    for (const file of [tracker.path, tracker.translation]) found.push(...guarded(file, () => {
+      const rows: [string, DocumentFinding][] = [];
       const text = available(file);
-      if (text === undefined) continue;
+      if (text === undefined) return rows;
       const blocks = lineBlocks(text);
       const external = linkSpans(text).filter(link => {
         if (!URL.canParse(link.target)) return false;
@@ -245,11 +259,12 @@ function kitRowFindings(checklists: readonly Tracker[], available: (file: string
             if (before !== undefined && before !== 'kit' && reader.siblings.has(before)) continue;
             if (reader.ownKitIds && before !== 'kit') continue;
             if (ids.has(match[0])) continue;
-            found.push([file, { line: item.line, column: cell.start + match.index + 1, rule: 'checklist-kit', message: `the row of ${item.id} names the kit item ${match[0]} in its ${label}, which no checklist of kit holds; a row waits only on a kit item that a kit checklist holds` }]);
+            rows.push([file, { line: item.line, column: cell.start + match.index + 1, rule: 'checklist-kit', message: `the row of ${item.id} names the kit item ${match[0]} in its ${label}, which no checklist of kit holds; a row waits only on a kit item that a kit checklist holds` }]);
           }
         }
       }
-    }
+      return rows;
+    }));
   }
   return found;
 }
@@ -268,14 +283,14 @@ export function check(root: string, config: DocumentsConfig, progress?: (line: s
   progress?.('step document pairs: started');
   const documents = documentsOf(root, config);
   for (const english of documents) {
-    for (const file of [english, koreanOf(english)]) if (existsSync(path.join(root, file))) found.push(...documentFindings(root, config, file, english, read, rules));
+    for (const file of [english, koreanOf(english)]) if (existsSync(path.join(root, file))) found.push(...guarded(file, () => documentFindings(root, config, file, english, read, rules)));
   }
   progress?.(`step document pairs: ${found.length ? `${found.length} findings` : 'passed'} (${compactSeconds(performance.now() - documentsStarted)})`);
 
   const both = (files: string[], source: string, run: (name: string, text: string) => void) => {
     for (const name of files) {
       if (!existsSync(path.join(root, name))) add(name, { rule: 'missing', message: `the file named in ${source} does not exist` });
-      else run(name, read(name));
+      else found.push(...guarded(name, () => { run(name, read(name)); return []; }));
     }
   };
   const checklistStarted = performance.now(), beforeChecklists = found.length;
