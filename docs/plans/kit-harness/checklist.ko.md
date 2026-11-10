@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: fd803fad64d4dd1676c82e24fdb81961ecf192920309ced7fdf768d1ccd825e4 -->
+<!-- source-sha256: 6c2b3b197fcd68f4cccb5db36cc2497f776c9f1b291184cd1a761b7e26aee6fd -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -300,3 +300,5 @@
 | K1171 | K1167, K1168, K1170, K1172, K1174 행을 담아 kit 0.0.104를 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |
 | K1172 | 도구의 오류 줄 추측을 지운다. run-tests는 ERROR_LINE으로 줄을 고르지 않고, 0이 아닌 status로 끝난 실행의 요약은 개수와 exit status만 적으며 도구가 오류 줄을 출력하지 않았다고 말하지 않는다. 도구의 모든 줄은 그 위에 출력되고, test2json이 build-output 사건으로 보고하는 Go package의 build error는 그대로 둔다 | `scripts/kit/run-tests.mts`, `scripts/kit/test-progress.mts`, `docs/operations/tool-inventory.md(.ko)` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1172 tests/kit/run-tests.test.mts` | [o] |
 | K1174 | tests/kit/run-tests.test.mts를 실행하는 kit tests shard는 K1170 test가 실행하는 PHPUnit을 설치하고, PHPUnit deadline extension의 주석은 phpcs의 줄 길이를 지킨다 | `.github/workflows/ci.yml`, `tests/source/ci-workflow.test.mts`, `scripts/kit/php-library/phpunit-deadline-extension.php` | `make lint-php` | [o] |
+| K1175 | kit은 test 실행에 시간 제한을 두지 않는다. run-tests는 --timeout 옵션, test-gap의 gap watch, test-progress의 test별 watchdog과 timeout status, timeout 때의 정지(SIGQUIT, SIGTERM, SIGKILL), test-exit-deadline preload, PHPUnit deadline extension과 그 사건 pipe, runners/python.py의 timeout, 도구에 넘기던 모든 timeout flag를 지운다. 각 도구는 자기 제한을 그대로 두고, 실행은 도구가 끝날 때 끝나며 그 결과는 도구의 exit status다. 실행을 interrupt하면 여전히 도구의 group을 멈춘다 | `scripts/kit/run-tests.mts`, `scripts/kit/test-gap.mts`, `scripts/kit/test-progress.mts`, `scripts/kit/test-hooks.mts`, `scripts/kit/test-exit-deadline.mts`, `scripts/kit/php-library/phpunit-deadline-*.php`, `scripts/kit/runners/python.py` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1175 tests/kit/run-tests.test.mts` | [ ] |
+| K1176 | K1175 행을 담아 kit 0.0.105를 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [ ] |
