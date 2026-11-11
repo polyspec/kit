@@ -303,3 +303,4 @@
 | K1176 | Release kit 0.0.105 with the row K1175 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |
 | K1177 | Update PHPUnit of config/phpunit past the advisory CVE-2026-119193 (phpunit >=13.4.0,<13.4.4), with composer update of phpunit/phpunit and its dependencies, so that composer audit there reports no advisory | `config/phpunit/composer.json(.lock)`, `config/toolchain.json`, `CHANGELOG.md(.ko)` | `composer audit --working-dir=config/phpunit` | [o] |
 | K1178 | Release kit 0.0.106 with the row K1177 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |
+| K1179 | The Korean twins of AGENTS.md and docs/operations/tool-inventory.md say what their English sources say after K1175 (no time limit of kit on a test run), and their revision markers name the current sources | `AGENTS.ko.md`, `docs/operations/tool-inventory.ko.md` | `make docs-check` | [ ] |
