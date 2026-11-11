@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1177: the PHPUnit that kit runs for its own PHP tests (config/phpunit) is 13.4.6, past the advisory CVE-2026-119193 of phpunit >=13.4.0,<13.4.4; composer require wrote the lock, which also updates php-code-coverage 14.5.2, sebastian/git-state 1.1.0 and sebastian/version 7.1.0 and drops theseer/tokenizer (K1177).
+
 ## 0.0.105
 
 - Release: kit 0.0.105 with the row K1175, so that kit sets no time limit on a test run: each tool keeps its own limits, and the exit status of the tool decides the run (K1176).

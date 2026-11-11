@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 1b6d235c9bc0fb193af901ee3eae33ae498e27539c55b0ec4ef775aa63cba211 -->
+<!-- source-sha256: 3a9a7ec7727d72214a9870d986aa7046dfd91a90ea993657513a98a99759db9c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1177: kit이 자기 PHP test에 쓰는 PHPUnit(config/phpunit)은 13.4.6이며, phpunit >=13.4.0,<13.4.4의 advisory CVE-2026-119193 밖이다. lock은 composer require가 썼고, php-code-coverage 14.5.2, sebastian/git-state 1.1.0, sebastian/version 7.1.0으로 함께 올리며 theseer/tokenizer를 뺀다(K1177).
 
 ## 0.0.105
 

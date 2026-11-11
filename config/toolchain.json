@@ -2,7 +2,7 @@
   "schema": 1,
   "comment": "The toolchains of the kit itself that mise does not install. The bootstrap installs mise (its archive of each platform by sha256) first, then with it the node and npm of mise.toml; mise installs the tools of mise.toml at the digests of mise.lock. install-tools then installs the Composer project of config/phpunit (phpunit), and make kit-install-symbols the PHP programs of kit that PHP lint reads.",
   "phpunit": {
-    "version": "13.4.2"
+    "version": "13.4.6"
   },
   "symbolExtractors": [
     "php"
