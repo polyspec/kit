@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 07481b93fb454f76747e9ace7a889abe330becd684548947e3fde6251a5ca4f8 -->
+<!-- source-sha256: a6b62879501559671b992200e24522860304a06e81aafe819a4d696320e1cc57 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -303,4 +303,4 @@
 | K1175 | kit은 test 실행에 시간 제한을 두지 않는다. run-tests는 --timeout 옵션, test-gap의 gap watch, test-progress의 test별 watchdog과 timeout status, timeout 때의 정지(SIGQUIT, SIGTERM, SIGKILL), test-exit-deadline preload, PHPUnit deadline extension과 그 사건 pipe, runners/python.py의 timeout, 도구에 넘기던 모든 timeout flag를 지운다. 각 도구는 자기 제한을 그대로 두고, 실행은 도구가 끝날 때 끝나며 그 결과는 도구의 exit status다. 실행을 interrupt하면 여전히 도구의 group을 멈춘다 | `scripts/kit/run-tests.mts`, `scripts/kit/test-gap.mts`, `scripts/kit/test-progress.mts`, `scripts/kit/test-hooks.mts`, `scripts/kit/test-exit-deadline.mts`, `scripts/kit/php-library/phpunit-deadline-*.php`, `scripts/kit/runners/python.py` | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1175 tests/kit/run-tests.test.mts` | [o] |
 | K1176 | K1175 행을 담아 kit 0.0.105를 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |
 | K1177 | config/phpunit의 PHPUnit을 advisory CVE-2026-119193(phpunit >=13.4.0,<13.4.4) 밖으로 올린다. phpunit/phpunit과 그 의존성을 composer update로 올려, 그곳의 composer audit이 advisory를 보고하지 않게 한다 | `config/phpunit/composer.json(.lock)`, `config/toolchain.json`, `CHANGELOG.md(.ko)` | `composer audit --working-dir=config/phpunit` | [o] |
-| K1178 | K1177 행을 담아 kit 0.0.106을 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [ ] |
+| K1178 | K1177 행을 담아 kit 0.0.106을 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |
