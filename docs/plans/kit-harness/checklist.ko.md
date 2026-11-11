@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 5b67b118211bfb7d4193d4f352b903248ed763706a0f04e6f42690988d019553 -->
+<!-- source-sha256: ff51aad6c00c5c449d836bb60134512adadd901e483d59b6d2c09018c2fa6dce -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -305,3 +305,4 @@
 | K1177 | config/phpunit의 PHPUnit을 advisory CVE-2026-119193(phpunit >=13.4.0,<13.4.4) 밖으로 올린다. phpunit/phpunit과 그 의존성을 composer update로 올려, 그곳의 composer audit이 advisory를 보고하지 않게 한다 | `config/phpunit/composer.json(.lock)`, `config/toolchain.json`, `CHANGELOG.md(.ko)` | `composer audit --working-dir=config/phpunit` | [o] |
 | K1178 | K1177 행을 담아 kit 0.0.106을 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |
 | K1179 | AGENTS.md와 docs/operations/tool-inventory.md의 한국어 쌍둥이가 K1175(kit은 test 실행에 시간 제한을 두지 않는다) 뒤의 영어 원문과 같은 것을 말하고, 그 revision marker가 지금의 원문을 가리킨다 | `AGENTS.ko.md`, `docs/operations/tool-inventory.ko.md` | `make docs-check` | [o] |
+| K1180 | main이 움직인 뒤 kit이 링크된 provider 출력물을 다시 빌드하는 장치를 대체 없이 지운다. 지울 대상은 scripts/kit/linked-build.mts(land.mts와 plan.mts가 부르는 refreshLinked), scripts/kit/link-build.mts(release-assets와 build를 찾는 make -pq 해석, var/link/built의 sha256 기록, STALE 빌드 상태), tests/kit/link.test.mts의 해당 테스트, docs/operations/local-links.md(.ko)의 해당 설명이다. 지우는 이유는 kit이 provider의 빌드 상태를 판정하고 provider 대신 빌드하기 때문이다. 게다가 make -pq는 $(MAKE)가 든 레시피를 실제로 실행해서, 11-11 fsm에서 make commit이 커밋을 만든 뒤 exit 1로 끝났다. 지운 뒤에는 provider checkout이 자기 빌드를 돌리기 전까지 링크된 소비자가 옛 dist를 읽고, link-check는 이를 알리지 않는다. 해당하는 것은 빌드 출력물이 있는 npm 패키지 18개다(template 5, hyper 2, crudui 7, orm 4). 릴리즈는 CI가 빌드하므로 영향이 없다. land 전에 provider와 소비자 세션 모두에 알려 각 저장소 레시피가 빌드를 맡게 한다. 사용자가 11-11 보류했다: 지금 깨지는 것이 없다 | `scripts/kit/linked-build.mts`, `scripts/kit/link-build.mts` (deleted), `scripts/kit/land.mts`, `scripts/kit/plan.mts`, `tests/kit/link.test.mts`, `docs/operations/local-links.md(.ko)`, `CHANGELOG.md(.ko)` | `grep -rn "refreshLinked\|link-build" scripts tests` finds nothing; `make docs-check` | [ ] |
