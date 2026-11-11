@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 63cdd0b5242c3a75e429c102f241a11be7da92936f9b1c892227fad24587ab98 -->
+<!-- source-sha256: 5b67b118211bfb7d4193d4f352b903248ed763706a0f04e6f42690988d019553 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -304,4 +304,4 @@
 | K1176 | K1175 행을 담아 kit 0.0.105를 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |
 | K1177 | config/phpunit의 PHPUnit을 advisory CVE-2026-119193(phpunit >=13.4.0,<13.4.4) 밖으로 올린다. phpunit/phpunit과 그 의존성을 composer update로 올려, 그곳의 composer audit이 advisory를 보고하지 않게 한다 | `config/phpunit/composer.json(.lock)`, `config/toolchain.json`, `CHANGELOG.md(.ko)` | `composer audit --working-dir=config/phpunit` | [o] |
 | K1178 | K1177 행을 담아 kit 0.0.106을 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |
-| K1179 | AGENTS.md와 docs/operations/tool-inventory.md의 한국어 쌍둥이가 K1175(kit은 test 실행에 시간 제한을 두지 않는다) 뒤의 영어 원문과 같은 것을 말하고, 그 revision marker가 지금의 원문을 가리킨다 | `AGENTS.ko.md`, `docs/operations/tool-inventory.ko.md` | `make docs-check` | [ ] |
+| K1179 | AGENTS.md와 docs/operations/tool-inventory.md의 한국어 쌍둥이가 K1175(kit은 test 실행에 시간 제한을 두지 않는다) 뒤의 영어 원문과 같은 것을 말하고, 그 revision marker가 지금의 원문을 가리킨다 | `AGENTS.ko.md`, `docs/operations/tool-inventory.ko.md` | `make docs-check` | [o] |

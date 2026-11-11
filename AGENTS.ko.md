@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 4d711d3e68af35125579a84d3e64c4b986b55c9cc5421c99320fb5d5c96c0b98 -->
+<!-- source-sha256: ed664933f7a6251770df27135d883b5ff5406feb1c02223ab2ce0fa63b6bb571 -->
 # 개발
 
 [English](AGENTS.md)
