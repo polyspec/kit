@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: c3120bbfb42f803eb34649b5d9463b4c5fc04083436b4cfcc30d83b4e879fe33 -->
+<!-- source-sha256: ab9662237e364acaa5b96163aaf2d2fd21a5a36b1fa57b4853a8802ba099023b -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -307,4 +307,4 @@
 | K1179 | AGENTS.md와 docs/operations/tool-inventory.md의 한국어 쌍둥이가 K1175(kit은 test 실행에 시간 제한을 두지 않는다) 뒤의 영어 원문과 같은 것을 말하고, 그 revision marker가 지금의 원문을 가리킨다 | `AGENTS.ko.md`, `docs/operations/tool-inventory.ko.md` | `make docs-check` | [o] |
 | K1180 | main이 움직인 뒤 kit이 링크된 provider 출력물을 다시 빌드하는 장치를 대체 없이 지운다. 지울 대상은 scripts/kit/linked-build.mts(land.mts와 plan.mts가 부르는 refreshLinked), scripts/kit/link-build.mts(release-assets와 build를 찾는 make -pq 해석, var/link/built의 sha256 기록, STALE 빌드 상태), tests/kit/link.test.mts의 해당 테스트, docs/operations/local-links.md(.ko)의 해당 설명이다. 지우는 이유는 kit이 provider의 빌드 상태를 판정하고 provider 대신 빌드하기 때문이다. 게다가 make -pq는 $(MAKE)가 든 레시피를 실제로 실행해서, 11-11 fsm에서 make commit이 커밋을 만든 뒤 exit 1로 끝났다. 지운 뒤에는 provider checkout이 자기 빌드를 돌리기 전까지 링크된 소비자가 옛 dist를 읽고, link-check는 이를 알리지 않는다. 해당하는 것은 빌드 출력물이 있는 npm 패키지 18개다(template 5, hyper 2, crudui 7, orm 4). 릴리즈는 CI가 빌드하므로 영향이 없다. land 전에 provider와 소비자 세션 모두에 알려 각 저장소 레시피가 빌드를 맡게 한다. 사용자가 11-11 보류했다: 지금 깨지는 것이 없다 | `scripts/kit/linked-build.mts`, `scripts/kit/link-build.mts` (deleted), `scripts/kit/land.mts`, `scripts/kit/plan.mts`, `tests/kit/link.test.mts`, `docs/operations/local-links.md(.ko)`, `CHANGELOG.md(.ko)` | `grep -rn "refreshLinked\|link-build" scripts tests` finds nothing; `make docs-check` | [ ] |
 | K1181 | provider의 패키지 메타데이터(Composer autoload)는 link가 아니라 릴리즈로 consumer에 전달된다. link는 source를 바로 전달하고, autoload 규칙은 Composer가 설치할 때 vendor/composer/installed.json에 기록하는 릴리즈 메타데이터다. link-check는 기록된 autoload가 provider composer.json과 다른 링크된 Composer 패키지를 패키지 이름과 두 값으로 보고하고, 해결은 그 autoload를 담은 provider 릴리즈를 설치한 뒤 make link를 하는 것이다 | `scripts/kit/link.mts`, `tests/kit/link.test.mts`, `docs/operations/local-links.md(.ko)`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1181 tests/kit/link.test.mts` | [o] |
-| K1182 | K1181 행을 담아 kit 0.0.107을 낸다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [ ] |
+| K1182 | K1181 행을 담아 kit 0.0.107을 낸다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |

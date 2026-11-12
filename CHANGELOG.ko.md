@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0b03824a3806c07b4145dea021c52ef6652ba4a65c222e253ced49906438cc26 -->
+<!-- source-sha256: f93cb2f5305b16af8924fd034e0c64166a47e18645970f2cbc8720a2f67fc560 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.107
+
+- 릴리즈: K1181 행을 담아 kit 0.0.107을 낸다. link-check는 기록된 autoload가 provider와 다른 링크된 Composer 패키지를 보고한다(K1182).
 
 - K1181: link-check는 vendor/composer/installed.json의 autoload가 provider composer.json과 다른 링크된 Composer 패키지를 두 값과 함께 보고한다. link는 source를 전달하고, autoload 규칙은 릴리즈 메타데이터라서 consumer가 그 규칙을 담은 provider 릴리즈를 설치하고 다시 link할 때 전달된다. composer dump-autoload는 설치 기록을 읽으므로 local-links에서 그것으로 가져온다는 문장을 고친다(K1181).
 
