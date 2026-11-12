@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- K1185: link-check는 링크된 provider 안의 패키지 링크가 아무것도 가리키지 않을 때(이름이 바뀐 checkout을 .links에 적은 provider가 남긴 링크 등) 그 링크와 해결(그 provider의 .links를 고치고 거기서 make link)을 적은 발견으로 보고하고 exit 1로 끝난다. 전에는 잡히지 않은 ENOENT로 멈췄다.
+
 ## 0.0.108
 
 - 릴리즈: K1183 행을 담아 kit 0.0.108을 낸다. link-check의 마지막 줄은 make link가 고치는 발견에만 make link를 말한다(K1184).

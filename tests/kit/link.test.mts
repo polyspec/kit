@@ -614,6 +614,26 @@ test('K761: a polyspec package that a linked provider loads is a link in the pro
   assert.equal(loaded(consumer), loaded(path.join(provider, 'packages/ts')), 'consumer and provider resolve one real path');
 });
 
+// K1185: a provider whose own .links names a checkout that no longer exists (a renamed repository) leaves a dangling package link in
+// its install; link-check of a consumer that links that provider reports it with its fix and exits 1, and never crashes.
+test('K1185: link-check reports a dangling package link inside a linked provider as a finding, and does not crash', (t) => {
+  const { provider, consumer, env } = declared(t, ['../prov', '../kit']);
+  put(provider, {
+    'packages/ts/package.json': JSON.stringify({ name: '@polyspec/x', exports: { '.': './dist/index.js' }, dependencies: { '@polyspec/kit': '0.0.53' } }),
+    '.gitignore': 'dist/\nvar/\nnode_modules/\n',
+  });
+  git(provider, 'add', '-A');
+  git(provider, 'commit', '--quiet', '-m', 'kit dependency');
+  const linked = command(consumer, env, LINK, 'link');
+  assert.equal(linked.status, 0, linked.text);
+  mkdirSync(path.join(provider, 'packages/ts/node_modules/@polyspec'), { recursive: true });
+  symlinkSync('../../../../../renamed-away', path.join(provider, 'packages/ts/node_modules/@polyspec/kit'));
+  const checked = command(consumer, env, LINK_CHECK);
+  assert.equal(checked.status, 1, checked.text);
+  assert.doesNotMatch(checked.text, /ENOENT|\n\s+at /, checked.text);
+  assert.match(checked.text, /packages\/ts\/node_modules\/@polyspec\/kit.*dangling.*\.links.*make link/, checked.text);
+});
+
 test('two package folders that provide one name fail with both; a repository root next to a package folder does not', (t) => {
   const { root, provider } = workspace(t);
   put(provider, { 'other/package.json': JSON.stringify({ name: '@polyspec/x' }), 'package.json': JSON.stringify({ name: '@polyspec/x' }) });

@@ -411,6 +411,10 @@ export function providerDependencyFindings(root: string, folders: readonly Provi
       const resolved = createRequire(path.join(realpathSync(item.target), 'package.json')).resolve.paths(name)?.map(folder => path.join(folder, name)).find(present);
       const target = byName.get(name) ?? '';
       if (resolved === undefined || linksTo(resolved, target)) return [];
+      // A link that resolves to nothing (K1185): the provider's own .links names a checkout that is gone, such as a renamed repository.
+      if (lstatSync(resolved).isSymbolicLink() && !existsSync(resolved)) {
+        return [`npm ${name}: ${path.relative(root, resolved)}, which the linked ${item.name} loads, is a dangling link to ${readlinkSync(resolved)}; fix: correct the .links of the checkout of ${item.name} and run make link there`];
+      }
       return [`npm ${name}: ${path.relative(root, resolved)}, which the linked ${item.name} loads, is ${lstatSync(resolved).isSymbolicLink() ? `a link to ${realpathSync(resolved)}` : 'a copy'}, not a link to ${target}; fix: make link in the checkout of ${item.name}`];
     });
   });
