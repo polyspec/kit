@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: bc794f401d451d09334e70fd08b3750bf3cfd535e6ec66eee231e8e2a799b0e5 -->
+<!-- source-sha256: a5cf658d111f780bc2ea10d5b8f2a6f9f2c3dc732cc3b549473584685eebf159 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -309,4 +309,4 @@
 | K1181 | provider의 패키지 메타데이터(Composer autoload)는 link가 아니라 릴리즈로 consumer에 전달된다. link는 source를 바로 전달하고, autoload 규칙은 Composer가 설치할 때 vendor/composer/installed.json에 기록하는 릴리즈 메타데이터다. link-check는 기록된 autoload가 provider composer.json과 다른 링크된 Composer 패키지를 패키지 이름과 두 값으로 보고하고, 해결은 그 autoload를 담은 provider 릴리즈를 설치한 뒤 make link를 하는 것이다 | `scripts/kit/link.mts`, `tests/kit/link.test.mts`, `docs/operations/local-links.md(.ko)`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1181 tests/kit/link.test.mts` | [o] |
 | K1182 | K1181 행을 담아 kit 0.0.107을 낸다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |
 | K1183 | link-check의 마지막 줄은 make link가 고치는 발견(선언과 다른 link)이 있을 때만 make link를 말한다. 자기 해결이 따로 있는 발견(provider와 다른 autoload 기록, K1181, 그리고 설치 폴더가 없는 선언된 패키지)은 link 검사 옆에 해결과 함께 보고하고, 마지막 줄은 그 줄마다의 해결을 가리킨다 | `scripts/kit/link-check.mts`, `scripts/kit/link.mts`, `tests/kit/link.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1183 tests/kit/link.test.mts` | [o] |
-| K1184 | K1183 행을 담아 kit 0.0.108을 낸다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [ ] |
+| K1184 | K1183 행을 담아 kit 0.0.108을 낸다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |

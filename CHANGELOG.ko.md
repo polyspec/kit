@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: db44722dc0613a6e85bc8b91e54acd655e345c4b1daa2e88f27007a43d3fd2ae -->
+<!-- source-sha256: a34875758ee2234167303590c67f5fb1d4115cabedb1d2595d0a8ab28d915415 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.108
+
+- 릴리즈: K1183 행을 담아 kit 0.0.108을 낸다. link-check의 마지막 줄은 make link가 고치는 발견에만 make link를 말한다(K1184).
 
 - K1183: link-check의 마지막 줄은 make link가 고치는 link 검사의 발견이 있을 때만 "Fix: make link"라고 말한다. 릴리즈의 autoload 기록(K1181)과 설치 폴더가 없는 선언된 패키지는 자기 해결이 있는 발견으로 검사 옆에 보고되고, 마지막 줄은 그 줄마다의 해결을 가리킨다(K1183).
 

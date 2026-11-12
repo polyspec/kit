@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+## 0.0.108
+
+- Release: kit 0.0.108 with the row K1183, so that the closing line of link-check names make link only for a finding that make link fixes (K1184).
+
 - K1183: the closing line of link-check says "Fix: make link" only when a finding of link's check is there, which make link fixes; an autoload record of a release (K1181) and a declared package with no installed folder are findings beside the check with their own fix, and the closing line then points to the fix of each such line (K1183).
 
 ## 0.0.107
