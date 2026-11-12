@@ -122,7 +122,8 @@ function workspace(t: TestContext) {
     'node_modules/@polyspec/kit/package.json': '{"name":"@polyspec/kit","version":"0.0.53"}',
     'composer-vendor-dir': 'var/contracts/vendor',
     'var/contracts/vendor/autoload.php': '',
-    'var/contracts/vendor/composer/installed.json': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1', 'install-path': '../polyspec/y' }] }),
+    // Composer's record of the release, whose autoload is the provider's (K1181).
+    'var/contracts/vendor/composer/installed.json': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1', 'install-path': '../polyspec/y', autoload: { 'psr-4': { 'Y\\': 'src/' } } }] }),
     'var/contracts/vendor/polyspec/y/composer.json': '{"name":"polyspec/y"}',
     'python/.venv/pyvenv.cfg': 'home = /usr\n',
     // The venv's python (K230): for each distribution named after -c SCRIPT it prints the path of the wheel that freeze.txt installs
@@ -547,6 +548,26 @@ test('K761: link writes each installed npm and Composer package as one plain dir
   assert.equal(readlinkSync(npmFolder), path.relative(path.dirname(npmFolder), path.join(provider, 'packages/ts')));
   assert.equal(readlinkSync(composerFolder), path.relative(path.dirname(composerFolder), path.join(provider, 'packages/php')));
   assert.doesNotMatch(readFileSync(log, 'utf8'), /^npm link|^composer update/m, 'no package manager re-resolves the consumer');
+});
+
+// K1181: the autoload rules of a provider are release metadata that Composer records in vendor/composer/installed.json at install
+// and builds its class map from; the link delivers the sources only, so link-check reports a record that the provider has moved past.
+test('K1181: link-check reports a linked Composer package whose recorded autoload differs from its provider, with both values; link rewrites no record', (t) => {
+  const { provider, consumer, env, log } = workspace(t);
+  put(provider, { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/y', autoload: { 'psr-4': { 'Y\\': ['src/App/', 'src/Session/'] } } }) });
+  put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', require: { 'polyspec/y': '0.0.1' }, config: { 'vendor-dir': 'var/contracts/vendor' } }) });
+  const record = path.join(consumer, 'var/contracts/vendor/composer/installed.json');
+  const before = readFileSync(record, 'utf8');
+  const linked = linkLines([consumer], env);
+  assert.equal(linked.ok, true, linked.text);
+  assert.equal(readFileSync(record, 'utf8'), before, 'link leaves Composer\'s record as the install wrote it');
+  assert.doesNotMatch(log(), /^composer (dump-autoload|update|install)/m, 'link runs no Composer');
+  const checked = linkLines([consumer], env, true);
+  assert.equal(checked.ok, false, checked.text);
+  assert.ok(checked.text.includes('polyspec/y: var/contracts/vendor/composer/installed.json records the autoload {"psr-4":{"Y\\\\":"src/"}}, the provider declares {"psr-4":{"Y\\\\":["src/App/","src/Session/"]}}; install the provider release that carries this autoload, then make link'), checked.text);
+  // The other format of installed.json, a plain list (Composer 1), reads the same.
+  writeFileSync(record, JSON.stringify(readJsonObject(record).packages));
+  assert.match(linkLines([consumer], env, true).text, /polyspec\/y: .*records the autoload \{"psr-4":\{"Y\\\\":"src\/"\}\}/);
 });
 
 test('K761: a polyspec package that a linked provider loads is a link in the provider too, so consumer and provider load one instance', (t) => {

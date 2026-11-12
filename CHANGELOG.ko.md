@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 184d4d5c5609dd1e6d7cfa24c8f8431b3651487815f5fd87d14f30e714a2f36a -->
+<!-- source-sha256: 0b03824a3806c07b4145dea021c52ef6652ba4a65c222e253ced49906438cc26 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1181: link-check는 vendor/composer/installed.json의 autoload가 provider composer.json과 다른 링크된 Composer 패키지를 두 값과 함께 보고한다. link는 source를 전달하고, autoload 규칙은 릴리즈 메타데이터라서 consumer가 그 규칙을 담은 provider 릴리즈를 설치하고 다시 link할 때 전달된다. composer dump-autoload는 설치 기록을 읽으므로 local-links에서 그것으로 가져온다는 문장을 고친다(K1181).
 
 ## 0.0.106
 

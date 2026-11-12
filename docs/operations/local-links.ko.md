@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: cf321910edff97eb31baca65430e2a6ece4015956ae52c0d74ecd758a81e1ba8 -->
+<!-- source-sha256: 9eacfefb49865cf1240db5ddb6332852ffb09cf6ed9a7a1431f55fca6bb09cf2 -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -37,7 +37,7 @@ Provider는 변경된 dependency와 build 입력을 자신의 package manager로
 
 link 도구는 provider가 제공하는 polyspec 패키지의 설치된 npm·Composer 폴더를 각각 provider 패키지 폴더로 가는 상대 디렉터리 심링크 하나로 바꿉니다(K591, K761). 이를 위해 package manager를 실행하지 않습니다. `npm link`, `var/link/npm` 아래 npm prefix와 cache, Composer path repository, `composer update`가 없습니다. 그래서 consumer manifest의 override나 release URL을 다시 해석하지 않습니다. 이미 provider를 가리키는 link는 그대로 두고, 복사본이나 다른 곳을 가리키는 link는 바꿉니다. 선언됐지만 설치 폴더가 없는 polyspec 패키지는 install이 실행되지 않았거나 실패했다는 뜻이므로 link가 보고하고(K529) 아무것도 만들지 않습니다. `var/platforms/*`처럼 consumer 자신의 폴더를 가리키는 `file:` 의존성은 polyspec provider가 아니므로 그대로 둡니다.
 
-Composer가 생성한 autoload는 `vendor/<vendor>/<package>/src`를 가리키며 link를 거쳐 checkout을 읽습니다. source 수정은 바로 보입니다. provider가 autoload 규칙을 바꾸면 새 class map 항목은 소유자의 `composer dump-autoload`가 필요합니다.
+Composer가 생성한 autoload는 `vendor/<vendor>/<package>/src`를 가리키며 link를 거쳐 checkout을 읽습니다. source 수정은 바로 보입니다. provider의 autoload 규칙은 릴리즈 메타데이터입니다. Composer는 설치할 때 이를 `vendor/composer/installed.json`에 기록하고 그 기록에서 class map을 만듭니다. Python에서 릴리즈의 dist-info가 설치 기록인 것과 같습니다. `composer dump-autoload`는 그 기록을 읽으므로 link에서 autoload 규칙의 변경을 가져올 수 없습니다. autoload 규칙의 변경은 consumer가 그 변경을 담은 provider 릴리즈를 자기 lock으로 설치하고 다시 link할 때 전달됩니다. `make link-check`는 기록된 autoload가 provider composer.json과 다른 링크된 패키지를 두 값과 함께 보고합니다(K1181).
 
 | 생태계 | Native source 연결 |
 |---|---|

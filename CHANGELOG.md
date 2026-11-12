@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1181: link-check reports a linked Composer package whose autoload in vendor/composer/installed.json differs from the provider's composer.json, with both values. The link delivers sources; autoload rules are release metadata that reach a consumer when it installs the provider release that carries them, then links again. local-links no longer says that composer dump-autoload takes them, since it reads the installed record (K1181).
+
 ## 0.0.106
 
 - Release: kit 0.0.106 with the row K1177, so that the PHPUnit of kit is past the advisory CVE-2026-119193 (K1178).

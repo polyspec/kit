@@ -364,6 +364,36 @@ export function folderFindings(root: string, folders: readonly ProvidedFolder[])
   });
 }
 
+/** `value` as JSON with the keys of every object sorted, so that two autoload values compare by content, not by key order. */
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  if (isJsonObject(value)) return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`;
+  return JSON.stringify(value ?? null);
+}
+
+/**
+ * K1181: the findings of the linked Composer packages of `folders` whose autoload in Composer's record differs from the provider's
+ * composer.json. The link delivers sources only; autoload rules are release metadata that Composer records in
+ * vendor/composer/installed.json at install (either of its formats) and builds the class map from, so a provider that moved them
+ * reaches the consumer by its release. Reported only; nothing rewrites the record.
+ */
+export function composerRecordFindings(root: string, folders: readonly ProvidedFolder[]): string[] {
+  return folders.filter(item => item.ecosystem === 'composer' && present(item.folder) && linksTo(item.folder, item.target)).flatMap((item) => {
+    const record = path.join(path.dirname(path.dirname(item.folder)), 'composer/installed.json');
+    if (!existsSync(record)) return [];
+    const parsed: unknown = JSON.parse(readFileSync(record, 'utf8'));
+    const list: unknown = isJsonObject(parsed) ? parsed.packages : parsed;
+    const entries: unknown[] = Array.isArray(list) ? list : [];
+    const entry = entries.find(candidate => isJsonObject(candidate) && candidate.name === item.name);
+    if (!isJsonObject(entry)) return [];
+    const recorded = entry.autoload;
+    const declared = readJsonObject(item.target, MANIFEST.composer).autoload;
+    if (canonical(recorded) === canonical(declared)) return [];
+    const show = (value: unknown) => (value === undefined ? 'none' : JSON.stringify(value));
+    return [`composer ${item.name}: ${path.relative(root, record)} records the autoload ${show(recorded)}, the provider declares ${show(declared)}; install the provider release that carries this autoload, then make link`];
+  });
+}
+
 /**
  * The findings of the polyspec packages that the linked npm providers of `folders` load (K761). Node resolves a dependency of a linked
  * package from the real path of its checkout, so each polyspec package that the provider's manifest needs at run time must resolve there
