@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 3c839d0b64f61ef60b0d1d8a69dc2bee580bfcfe9026f1519906d3c86bc8e81e -->
+<!-- source-sha256: a57c11c26bf285af5aa8c6b41564f7f797262143202449b061f601da436caf25 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -311,3 +311,4 @@
 | K1183 | link-check의 마지막 줄은 make link가 고치는 발견(선언과 다른 link)이 있을 때만 make link를 말한다. 자기 해결이 따로 있는 발견(provider와 다른 autoload 기록, K1181, 그리고 설치 폴더가 없는 선언된 패키지)은 link 검사 옆에 해결과 함께 보고하고, 마지막 줄은 그 줄마다의 해결을 가리킨다 | `scripts/kit/link-check.mts`, `scripts/kit/link.mts`, `tests/kit/link.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1183 tests/kit/link.test.mts` | [o] |
 | K1184 | K1183 행을 담아 kit 0.0.108을 낸다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |
 | K1185 | link-check는 링크된 provider 안의 패키지 링크가 아무것도 가리키지 않을 때(이름이 바뀐 checkout을 .links에 적은 provider처럼 끊어진 링크) 그 링크와 고칠 방법(그 provider의 .links를 고치고 거기서 make link)을 적은 finding으로 보고하고, 다른 finding처럼 exit 1로 끝난다. 잡히지 않은 오류로 멈추지 않는다 | `scripts/kit/link-folders.mts`, `tests/kit/link.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1185 tests/kit/link.test.mts` | [o] |
+| K1186 | K1185 행을 담아 kit 0.0.109를 낸다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [ ] |
