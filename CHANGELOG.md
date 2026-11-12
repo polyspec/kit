@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+## 0.0.109
+
+- Release: kit 0.0.109 with the row K1185, so that link-check reports a dangling package link inside a linked provider instead of crashing (K1186).
+
 - K1185: link-check reports a package link inside a linked provider that resolves to nothing, such as one left by a provider whose .links names a renamed checkout, as a finding that names the link and its fix (correct that provider's .links and run make link there), and exits 1; before, it crashed with an uncaught ENOENT.
 
 ## 0.0.108

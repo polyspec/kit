@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a34875758ee2234167303590c67f5fb1d4115cabedb1d2595d0a8ab28d915415 -->
+<!-- source-sha256: c8f0ad35c36ad810a99afcf5ee3e43d49c66edc9cf557dfe7fdd9c832c645aa4 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.109
+
+- 릴리즈: K1185 행을 담아 kit 0.0.109를 낸다. link-check는 링크된 provider 안의 끊어진 패키지 링크를 멈추지 않고 보고한다(K1186).
 
 - K1185: link-check는 링크된 provider 안의 패키지 링크가 아무것도 가리키지 않을 때(이름이 바뀐 checkout을 .links에 적은 provider가 남긴 링크 등) 그 링크와 해결(그 provider의 .links를 고치고 거기서 make link)을 적은 발견으로 보고하고 exit 1로 끝난다. 전에는 잡히지 않은 ENOENT로 멈췄다.
 
