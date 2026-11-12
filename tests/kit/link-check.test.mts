@@ -258,11 +258,11 @@ test('with no link declaration, an own Python package installed editable is no f
   chmodSync(path.join(own, 'uv'), 0o755);
   const env = { ...process.env, UV: path.join(own, 'uv') };
   const lines: string[] = [];
-  assert.equal(linkCheck(own, false, text => lines.push(text), env), true, lines.join('\n'));
+  assert.equal(linkCheck(own, false, text => lines.push(text), env).ok, true, lines.join('\n'));
   assert.deepEqual(lines.filter(line => line.includes('polyspec-own')), [], 'the own package is not demanded as a link');
   // With a declaration, link links the own package into the environment, and link-check demands that link.
   put(own, { '.links': '' });
   const declared: string[] = [];
-  assert.equal(linkCheck(own, false, text => declared.push(text), env), false, declared.join('\n'));
+  assert.equal(linkCheck(own, false, text => declared.push(text), env).ok, false, declared.join('\n'));
   assert.ok(declared.some(line => line.includes('polyspec-own') && line.includes('is missing; fix: make link')), declared.join('\n'));
 });

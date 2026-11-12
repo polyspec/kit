@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f93cb2f5305b16af8924fd034e0c64166a47e18645970f2cbc8720a2f67fc560 -->
+<!-- source-sha256: db44722dc0613a6e85bc8b91e54acd655e345c4b1daa2e88f27007a43d3fd2ae -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1183: link-check의 마지막 줄은 make link가 고치는 link 검사의 발견이 있을 때만 "Fix: make link"라고 말한다. 릴리즈의 autoload 기록(K1181)과 설치 폴더가 없는 선언된 패키지는 자기 해결이 있는 발견으로 검사 옆에 보고되고, 마지막 줄은 그 줄마다의 해결을 가리킨다(K1183).
 
 ## 0.0.107
 

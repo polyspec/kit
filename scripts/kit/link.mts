@@ -390,6 +390,18 @@ export function declaredUnlinked(directory: string, found: Map<string, Provider>
   });
 }
 
+/**
+ * K1181, K1183: the linked Composer packages of the tracked projects of `directory` whose autoload in Composer's record differs from
+ * their provider, each as a finding of link-check with its own fix: make link does not change a record that the install wrote. With
+ * `project`, only that project is judged (K975).
+ */
+export function autoloadRecordFindings(directory: string, found: Map<string, Provider>, env: NodeJS.ProcessEnv, project = false): string[] {
+  const consumer = consumerOf(directory, project);
+  const work: Run = { found, check: true, print: () => {}, failed: false, env, declared: new Set() };
+  const ecosystems: FolderEcosystem[] = ['composer'];
+  return [...new Set(linkedProjects(consumer, ecosystems).flatMap(item => composerRecordFindings(consumer.top, [...projectFolders(work, consumer, item, ecosystems), ...ownerFolders(work, consumer, item, ecosystems)])))];
+}
+
 /** The vendor folder that the composer.json of `project` names in config.vendor-dir, read from the file, else vendor. */
 
 /**
@@ -418,7 +430,7 @@ function linkPackageFolders(work: Run, consumer: Consumer, ecosystems: readonly 
     for (const name of missing) line(work, 'NOT linked', name.ecosystem, `${name.name}: no installed folder in ${path.relative(consumer.top, project) || '.'}; install the project first`);
     if (missing.length > 0) work.failed = true;
     if (work.check) {
-      const findings = [...folderFindings(consumer.top, folders), ...providerDependencyFindings(consumer.top, folders, work.found.values()), ...composerRecordFindings(consumer.top, folders)];
+      const findings = [...folderFindings(consumer.top, folders), ...providerDependencyFindings(consumer.top, folders, work.found.values())];
       for (const finding of findings) line(work, 'NOT linked', finding.split(' ')[0] ?? '', finding.slice(finding.indexOf(' ') + 1));
       if (findings.length > 0) work.failed = true;
       continue;

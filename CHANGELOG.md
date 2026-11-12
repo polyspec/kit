@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1183: the closing line of link-check says "Fix: make link" only when a finding of link's check is there, which make link fixes; an autoload record of a release (K1181) and a declared package with no installed folder are findings beside the check with their own fix, and the closing line then points to the fix of each such line (K1183).
+
 ## 0.0.107
 
 - Release: kit 0.0.107 with the row K1181, so that link-check reports a linked Composer package whose recorded autoload differs from its provider (K1182).

@@ -16,7 +16,7 @@ import { providedFolders } from '../../scripts/kit/link-folders.mts';
 import { linkFindings } from '../../scripts/kit/link-check.mts';
 import { acquireHolderLock } from '../../scripts/kit/holder-lock.mts';
 import { cargoMetadataArguments } from '../../scripts/kit/cargo-source.mts';
-import { cargo, link, unlink } from '../../scripts/kit/link.mts';
+import { autoloadRecordFindings, cargo, link, unlink } from '../../scripts/kit/link.mts';
 import { shippedAssets } from '../../scripts/kit/kit-assets.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
@@ -354,6 +354,25 @@ function declared(t: TestContext, lines: string[] | null) {
 }
 const linkState = (file: string) => ({ link: readlinkSync(file), inode: lstatSync(file).ino });
 
+// K1183: make link fixes a link that differs from the declaration and nothing else, so the closing line of link-check names it only for
+// such a finding; an autoload record of a release (K1181) has its own fix on its line.
+test('K1183: link-check names make link in its closing line only for a finding that make link fixes', (t) => {
+  const { provider, consumer, env } = declared(t, ['../prov']);
+  put(provider, { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/y', autoload: { 'psr-4': { 'Y\\': ['src/App/', 'src/Session/'] } } }) });
+  const linked = command(consumer, env, LINK, 'link');
+  assert.equal(linked.status, 0, linked.text);
+  const recordOnly = command(consumer, env, LINK_CHECK);
+  assert.equal(recordOnly.status, 1, recordOnly.text);
+  assert.match(recordOnly.text, /composer polyspec\/y: .*records the autoload .*; install the provider release that carries this autoload, then make link/);
+  assert.doesNotMatch(recordOnly.text, /^\[link-check\] the links differ .*Fix: make link$/m, recordOnly.text);
+  assert.match(recordOnly.text, /^\[link-check\] .*Fix: the fix that each \[link-check\] line above names$/m, recordOnly.text);
+  // A copy where a link belongs is what make link fixes, so the closing line names it.
+  const folder = path.join(consumer, 'node_modules/@polyspec/x');
+  rmSync(folder);
+  put(consumer, { 'node_modules/@polyspec/x/package.json': '{"name":"@polyspec/x","version":"0.0.1"}' });
+  assert.match(command(consumer, env, LINK_CHECK).text, /^\[link-check\] .*Fix: make link/m);
+});
+
 test('K869: make link creates exactly the declared links, and a second run changes nothing', (t) => {
   const { provider, consumer, env } = declared(t, ['../prov']);
   const first = command(consumer, env, LINK, 'link');
@@ -562,12 +581,14 @@ test('K1181: link-check reports a linked Composer package whose recorded autoloa
   assert.equal(linked.ok, true, linked.text);
   assert.equal(readFileSync(record, 'utf8'), before, 'link leaves Composer\'s record as the install wrote it');
   assert.doesNotMatch(log(), /^composer (dump-autoload|update|install)/m, 'link runs no Composer');
-  const checked = linkLines([consumer], env, true);
-  assert.equal(checked.ok, false, checked.text);
+  // K1183: the finding stands beside link's check, with its own fix.
+  const records = () => autoloadRecordFindings(consumer, providers(current, undefined, consumer, consumer), env).join('\n');
+  assert.equal(linkLines([consumer], env, true).ok, true);
+  const checked = { text: records() };
   assert.ok(checked.text.includes('polyspec/y: var/contracts/vendor/composer/installed.json records the autoload {"psr-4":{"Y\\\\":"src/"}}, the provider declares {"psr-4":{"Y\\\\":["src/App/","src/Session/"]}}; install the provider release that carries this autoload, then make link'), checked.text);
   // The other format of installed.json, a plain list (Composer 1), reads the same.
   writeFileSync(record, JSON.stringify(readJsonObject(record).packages));
-  assert.match(linkLines([consumer], env, true).text, /polyspec\/y: .*records the autoload \{"psr-4":\{"Y\\\\":"src\/"\}\}/);
+  assert.match(records(), /polyspec\/y: .*records the autoload \{"psr-4":\{"Y\\\\":"src\/"\}\}/);
 });
 
 test('K761: a polyspec package that a linked provider loads is a link in the provider too, so consumer and provider load one instance', (t) => {
