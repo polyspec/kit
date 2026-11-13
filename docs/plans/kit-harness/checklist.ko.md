@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 12d2b438e5b147916337d1069f2992b7525fe566b7b09a051bb52449a4a64953 -->
+<!-- source-sha256: 8ea679647eacd2602eff3781f7a92c5461e23ba37cbe17ae510047ebec0ce142 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -312,3 +312,4 @@
 | K1184 | K1183 행을 담아 kit 0.0.108을 낸다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |
 | K1185 | link-check는 링크된 provider 안의 패키지 링크가 아무것도 가리키지 않을 때(이름이 바뀐 checkout을 .links에 적은 provider처럼 끊어진 링크) 그 링크와 고칠 방법(그 provider의 .links를 고치고 거기서 make link)을 적은 finding으로 보고하고, 다른 finding처럼 exit 1로 끝난다. 잡히지 않은 오류로 멈추지 않는다 | `scripts/kit/link-folders.mts`, `tests/kit/link.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1185 tests/kit/link.test.mts` | [o] |
 | K1186 | K1185 행을 담아 kit 0.0.109를 낸다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |
+| K1187 | 소비자 자신의 manifest가 로컬 경로로 선언해 패키지 매니저가 링크로 만든 설치 폴더는 link가 그대로 둔다. 대상은 package-lock 항목에 "link": true가 있는 npm file: 의존성과, path repository에서 설치된 Composer 패키지(installed.json의 dist type이 "path")다. link는 이 폴더를 .links checkout으로 가는 링크로 바꾸지 않고, 선언되지 않은 링크로 보고 지우지도 않는다(K869). link-check는 이 폴더가 그 패키지 이름을 manifest에 적은 디렉토리로 풀리면 받아들이고, 아니면 보고한다 | `scripts/kit/link.mts`, `scripts/kit/link-folders.mts`, `tests/kit/link.test.mts`, `docs/operations/local-links.md(.ko)`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1187 tests/kit/link.test.mts` | [ ] |
