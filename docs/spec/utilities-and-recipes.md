@@ -82,76 +82,38 @@ kit forces nothing. In particular:
 ## Work that is not kit's (K1219)
 
 kit starts the rules that a repository made: the targets, the checks and the release steps that the Makefile and the configuration
-of the repository declare. Two kinds of work are not kit's, and a utility that does either is removed.
-
-1. **The work of a package manager.** Installing, downloading, resolving a version, linking a package and building or packing a
-   package are the work of npm, Composer, cargo, go, uv, mise, rustup and the container engine. A utility does this work when it
-   writes a manifest, a lock, a `go.work`, a Composer repository entry, a Cargo patch or a link of an install folder, when it
-   chooses a version or a dependency order, when it downloads an archive, or when it packs a package with a step of its own. A
-   utility that starts the manager with the arguments of the recipe does not.
-2. **The work of a repository.** What a repository builds, packs, tags and publishes, in which order and with which values, is
-   stated by its own Makefile and configuration. A utility does this work when its code, not a file of the repository, decides
-   those steps, when it writes a file of the repository, or when it holds the layout of one kind of package.
-
-What stays is the harness: running the targets and the commands that a repository declares to their end and reporting them, the
-checks of documents, checklists and commits, the checks whose rules a file of the repository states, and the test runner that
-starts the standard runner of an ecosystem.
-
-A utility that no recipe calls is deleted in the change that states it here. A utility that a recipe calls is marked as leaving:
-it keeps working until each recipe that calls it holds the native commands below, and it is then deleted. kit adds no utility, no
-option and no gate that replaces one of them.
+of the repository declare. kit does not do the work of a repository in its place: what a repository builds, packs, tags, proves
+and publishes, in which order and with which values, is stated by the files of the repository, so a utility whose code decides
+those steps, or that holds the layout of one kind of package, is no part of kit. kit is no package manager: installing,
+downloading, resolving a version and building or packing a package are the work of npm, Composer, cargo, go, uv, mise and rustup,
+and a utility starts them with the arguments of the recipe. The local links are part of kit as a development tool: they join the
+checkouts of a developer to each other, and no release reads a link (K591, K869).
 
 ### Removed
 
 - `link.mts packages <dir> python|npm` (K1217). It printed the polyspec packages that the manifests of a folder declare, as the
-  arguments of `uv sync --no-install-package`. Choosing the packages that a manager installs is the work of the recipe that
-  starts the manager. No recipe called it.
+  arguments of `uv sync --no-install-package`. It was a surface of the link that nothing used: no recipe called it.
 - The export `./link-folders` of the package (K1218). It gave a test of a repository the functions that replace an install folder
-  by a link. The link of an install folder is the work of the package manager. No file of a repository imported it.
+  by a link. It was a surface of the link that nothing used: no file of a repository imported it.
 - `release.mts go-modules` with `release-go-module.mts` and the target `release-go-modules` (K1220). They made, from the commit of a
   tag, a commit that adds the generated files and the static library of each platform of a Go module, tagged it
   `<directory>/vX.Y.Z` and ran `go test` of a consumer at that tag. Which files the tag of a Go module carries, and what proves
-  it, is the release of the repository. Its recipe holds `git commit-tree`, `git tag -a <directory>/vX.Y.Z <commit>` and
-  `git push <remote> <tag>`, with the checks that it wants before them. No recipe called the mode.
-- `release.mts sets` with the target `release-sets` (K1221). It printed the asset sets of `config/release.json` as the include list
-  of a GitHub matrix, with the runner of each platform. The jobs of a workflow and their runners are stated by the workflow of
-  the repository: the example workflows hold the include list themselves. No recipe called the mode.
-
-### Leaving
-
-| Utility | The work that it does | Kind | The recipe of the repository holds instead |
-|---|---|---|---|
-| `link-build.mts`, `linked-build.mts` | builds the npm packages of a checkout after a land and a commit, with the targets that kit reads from the Makefile | 2 | the build target of the repository, which the recipe runs after `land` |
-| `python-venv.mts` | makes and judges a virtual environment | 1 | `uv venv --python python3 <dir>` |
-| `bootstrap/` (`install-mise`, `installNode`) | downloads the archive of mise, compares its digest, unpacks it, and writes the wrappers of `var/tools/bin` | 1 | the installer of mise with `MISE_VERSION` and `MISE_INSTALL_PATH`, or the mise action of the CI, then `mise install --locked node npm:npm` |
-| `install-tools.mts`, `install-rust.mts`, `install-php.mts`, `toolchain-*.mts` | maps tool names to the keys of `mise.toml`, orders their prerequisites, starts mise and rustup, and writes the wrappers of PHP | 1 | `mise install --locked [<tool>...]` and `rustup toolchain install`, which reads `rust-toolchain.toml` |
-| `install-composer-project.mts`, `install-phpunit.mts`, `install-php-lint.mts`, `config/php-lint`, `install-symbols.mts`, `symbols/php` | installs Composer projects that kit holds into `var/tools` | 1, 2 | phpunit, phpcs and PHPStan in `require-dev` of the repository's own `composer.json`, installed by `composer install` |
-| `install-vscode.mts` | chooses a release of VS Code and downloads it | 1 | `downloadAndUnzipVSCode` of `@vscode/test-electron` in the integration run of the repository, with the version that it names |
-| `release-tools.mts` | derives the tools of a release from `config/release.json` and installs them | 1, 2 | `mise install --locked <tool>...` and `rustup toolchain install` in the release recipe |
-| `release.mts assets`, `candidate-assets`, `release-native.mts`, `release-wheel.mts` | decides which archives a tag has and their names, packs the Composer zip itself, writes `packages.json`, and runs the builds of the native kinds in an order of its own | 1, 2 | one line per package in the release recipe: `npm pack --pack-destination <assets>`, `composer archive --format=zip --dir=<assets>`, `uv build --wheel --out-dir <assets>`, `cargo build --release --locked -p <package>`, `napi build --platform --release` with `napi artifacts`, `llvm-strip --strip-debug`, `zip` |
-| `release.mts publish`, `undraft`, `github-release.mts` | creates the draft of a release with notes that it writes, and makes it public | 2 | `gh release create <tag> --draft --notes-file <file> <assets>/*` and `gh release edit <tag> --draft=false` |
-| `release-run.mts tag`, `prepare` | reads the CI run and the change log, and creates and pushes the tags | 2 | `gh run view <run> --json conclusion,headSha,headBranch,event`, `git tag -a <tag> <commit>`, `git push origin <tag>` |
-| `php-extension.mts build`, `test` | runs phpize, the arginfo generator, configure and make, or cargo, in an order of its own | 1, 2 | `phpize`, `./configure --with-php-config=<file>`, `make`, or `cargo build --release --locked -p <package>`; `php -d extension=<file> vendor/bin/phpunit` |
-
-### Not decided
-
-Each of these has a ground on both sides, so none is deleted or marked.
-
-- The local links as a whole: `link.mts` (`link`, `unlink`, `providers`, `cargo`), `link-check.mts`, `link-providers.mts`,
-  `link-folders.mts`, `cargo-source.mts` and the links of `uv-install.mts`. Kind 1: they replace an install folder by a link,
-  write `go.work` with its `use` and `replace` lines (K1212), compute the patch arguments of cargo and decide between two folders
-  of one package name (K1213). Against it stands the rule that development links the install folder of a stated version to its
-  development folder (K591, the goal of `docs/plans/kit-harness/plan.md`), which the repositories apply with `.links` and
-  `make link`.
-- `lint-go.mts`, `lint-php.mts`, `lint-python.mts`, `lint-rust.mts`, `lint-ts.mts`. The repository decides the rules of each
-  linter, in the configuration that the linter reads by its own discovery (K1050), and the arguments that its recipe passes
-  (K1097). The code of kit decides which linters run, in which folders, and their fixed arguments, such as `./...`,
-  `--workspace --all-targets` and one run for each build tag.
-- `workflows/`, `actions/kit-bootstrap`, `docs/examples/bootstrap.mk` and the lint configurations that the package exports. The
-  repository decides whether it copies a file and what its copy holds (K1052). kit decides the content of the file that it
-  ships, which holds shared pieces of the workflow and the Makefile of a repository.
-- The default of `ci-setup.mts`. The repository decides the setup targets that `config/ci.json` names. Where it names none, the
-  code of kit chooses `deps-<runtime>` (K859).
+  it, is the release of the repository. Its recipe holds `git read-tree`, `git update-index --add --cacheinfo`, `git write-tree`
+  and `git commit-tree` on an index of its own, `git tag -a <directory>/vX.Y.Z <commit>` and `git push <remote> <tag>`, with the
+  checks that it wants before them.
+- The per-platform package kinds `wheel-abi3`, `php-ext`, `npm-native` and `go-static` of config/release.json with
+  `release-native.mts`, the asset sets (`RELEASE_PLATFORM`, `RELEASE_PHP`, `release.mts sets`, the target `release-sets`), the
+  matrix of the example release workflow and the example `workflows/release-candidate.yml` (K1221). The code of kit decided how a
+  Rust core and its bindings are built and packed for each platform (cargo, maturin through uv build, the napi CLI, the PIE
+  archive, llvm-strip), the names of those assets, the jobs of the workflow and the runner of each platform. That is the build
+  and the release of the repository. Its recipe runs those tools itself and writes the archives into the asset folder, and its
+  workflow states its own matrix; `release.mts assets` builds the `npm`, `composer` and `wheel` packages, as before.
+- `contracts` of config/release.json (K1222). Before an archive was built, the release ran the contract tool of the repository as
+  `<check> <file> --release` for each declared file. The argument `--release` and the place of the check in the release are
+  knowledge of one contract tool. The recipe of the repository runs its contract check before it starts `release-assets`.
+- The cargo build of `php-extension.mts` (K1223). For an extension folder with a Cargo.toml and no `src/config.m4`, `build` read
+  the extension name from `php-ext.extension-name` of composer.json and ran `cargo build --release --locked -p <package>` with the
+  php and php-config of the checkout. How an extension that cargo builds is built is stated by the recipe of its repository.
 
 ## Reasoning
 
