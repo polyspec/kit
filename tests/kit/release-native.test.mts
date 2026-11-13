@@ -263,6 +263,18 @@ test('K1189: the set of the platform of this machine builds the abi3 wheel, the 
   stop(() => release.assets(context(box, { platform }, { env: { STUB_WHEEL_TAGS: WHEEL_TAGS[platform], STUB_NAPI_VERSION: '0.0.0' } }), tag), /its version is 0\.0\.0, the tag is 0\.0\.1/);
 });
 
+// K1198: the napi CLI refuses an npm folder outside the package of its package.json, so the platform folders lie in the package of
+// the copy of the tagged tree.
+test('K1198: a platform set writes the folders of the npm platform packages into the package of the copy of the tagged tree', (t) => {
+  const platform = host();
+  const box = nativeSandbox(t);
+  release.assets(context(box, { platform }, { env: { STUB_WHEEL_TAGS: WHEEL_TAGS[platform] } }), box.tag(`v${VERSION}`));
+  for (const call of box.calls().filter(item => item.tool === 'napi' && item.args[0] !== 'build')) {
+    const option = (name: string) => call.args[call.args.indexOf(name) + 1] ?? '';
+    assert.equal(path.relative(path.dirname(option('--package-json-path')), option('--npm-dir')), path.join('.kit-napi', 'npm'), call.args.join(' '));
+  }
+});
+
 test('K1189: the set of a PHP minor builds the PIE binary of the php-ext package for the PHP of the checkout, which loads it, and refuses another minor', (t) => {
   const platform = host();
   const box = nativeSandbox(t);

@@ -3,7 +3,8 @@
 // STUB_NATIVE_LOG. cargo build -p NAME finds the Cargo.toml of NAME below packages/ of its directory, writes a file for each crate
 // type of its [lib] into CARGO_TARGET_DIR/release and prints the compiler-artifact message of cargo for it. php prints the build
 // that STUB_PHP_MINOR names and loads an extension file that exists. The napi CLI writes the addon of its package.json, the
-// folder of each platform package with the package.json that napi create-npm-dirs writes, and copies the addon into its folder.
+// folder of each platform package with the package.json that napi create-npm-dirs writes, and copies the addon into its folder;
+// like the napi CLI, it refuses an npm folder outside the package of its package.json (K1198).
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -59,6 +60,16 @@ const option = name => args[args.indexOf(name) + 1];
 const manifest = JSON.parse(fs.readFileSync(option('--package-json-path'), 'utf8'));
 const platforms = { 'x86_64-unknown-linux-gnu': ['linux-x64-gnu', 'linux', 'x64'], 'aarch64-unknown-linux-gnu': ['linux-arm64-gnu', 'linux', 'arm64'], 'aarch64-apple-darwin': ['darwin-arm64', 'darwin', 'arm64'] };
 const addon = platform => manifest.napi.binaryName + '.' + platform + '.node';
+// The napi CLI refuses an npm folder outside the package of its package.json, the project that it discovers there (K1198).
+if (args[0] !== 'build') {
+  const root = fs.realpathSync(path.dirname(option('--package-json-path')));
+  const npmDir = path.resolve(option('--npm-dir'));
+  // The real path of the nearest folder that exists, followed by the segments that do not exist yet, as napi canonicalizes it.
+  let existing = npmDir;
+  while (!fs.existsSync(existing)) existing = path.dirname(existing);
+  const inside = path.relative(root, path.join(fs.realpathSync(existing), path.relative(existing, npmDir)));
+  if (inside.startsWith('..') || path.isAbsolute(inside)) { console.error('Internal Error: Managed package paths must stay within the project or workspace boundary discovered from ' + process.cwd() + ': ' + root + ', ' + npmDir); process.exit(1); }
+}
 if (args[0] === 'build') {
   fs.mkdirSync(option('--output-dir'), { recursive: true });
   fs.writeFileSync(path.join(option('--output-dir'), addon(platforms[option('--target')][0])), 'stub addon\\n');

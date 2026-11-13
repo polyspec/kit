@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: c4e80dc9e7a67264a57c912b88900eecd3d155ebd9236e6a896a893414c4d015 -->
+<!-- source-sha256: dc1dd9822eac5a7b5eff1c788b9cc0d925ba5a855e02b4d9e4b17754541b1234 -->
 # 릴리스
 
 [English](release.md)
@@ -73,6 +73,10 @@ Rust triple(`x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `aarch64-ap
 플랫폼마다 `<name>-<platform>`을 release의 version으로 적으며 다른 플랫폼 package는 적지 않는다. root package는 실행할 때 자기
 플랫폼 package를 고른다. root package는 make entry의 출력을 넣은 tag된 tree의 사본에서 `--ignore-scripts`로 pack한다. 그 entry가
 root package가 담는 것을 빌드하기 때문이다. root package는 자기 package.json을 byte 그대로 담는다.
+
+napi CLI는 package.json에서 찾은 project 밖의 폴더를 거부하므로, 플랫폼 package의 폴더를 그 package.json의 package 안에 둔다.
+그래서 `napi create-npm-dirs`와 `napi artifacts`는 tag된 tree 사본의 package 안 `.kit-napi/npm/<platform>`에 그 폴더를 쓰고, npm은
+각각을 거기서 pack한다. 그 폴더는 kit의 것이며 어느 저장소도 추적하지 않는다(K1198).
 
 모든 set은 무엇이든 빌드하기 전에 config/release.json의 모든 native package의 manifest를, 그 package를 어느 set이 빌드하든
 검사한다. 각 manifest의 이름, `npm-native` package의 `napi.binaryName`, `napi.targets`, `optionalDependencies`, `php-ext`

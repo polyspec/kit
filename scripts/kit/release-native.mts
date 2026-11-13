@@ -319,7 +319,9 @@ function npmPlatform(build: NativeBuild, item: NativePackage, platform: Platform
   const packageJson = path.join(build.source, item.directory, 'package.json');
   const manifest = path.join(build.source, item.directory, 'Cargo.toml');
   const addons = path.join(build.work, 'napi', item.directory, 'addons');
-  const npm = path.join(build.work, 'napi', item.directory, 'npm');
+  // The napi CLI refuses an npm folder outside the package of its package.json, so the folders of the platform packages lie in the
+  // package of the copy, in a folder of kit that no repository tracks (K1198).
+  const npm = path.join(build.source, item.directory, '.kit-napi', 'npm');
   mkdirSync(addons, { recursive: true });
   const place = { cwd: build.source, env: { ...build.env, CARGO_TARGET_DIR: build.target } };
   build.log(`[release] napi build --platform --release ${item.directory} for ${PLATFORMS[platform].triple}`);

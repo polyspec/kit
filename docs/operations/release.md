@@ -87,6 +87,10 @@ package. The root package selects its platform package at run time; it is packed
 outputs of its make entries and `--ignore-scripts`, since those entries build what it carries, and it carries its package.json
 byte for byte.
 
+The napi CLI keeps the folders of the platform packages inside the package of its package.json, since it refuses a folder
+outside the project that it discovers from there. So `napi create-npm-dirs` and `napi artifacts` write them into `.kit-napi/npm/<platform>`
+of the package in the copy of the tagged tree, a folder of kit that no repository tracks, and npm packs each from there (K1198).
+
 Before it builds anything, every set checks the manifest of every native package of config/release.json, whichever set builds
 that package: the name of each manifest, `napi.binaryName`, `napi.targets` and the `optionalDependencies` of an `npm-native`
 package, and `php-ext.extension-name` and `pre-packaged-binary` in `php-ext.download-url-method` of a `php-ext` package. One

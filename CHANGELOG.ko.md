@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 693921c3611bb7adedc7fa43dc1d916bba6278e689a82ec972f9e7cfbbecd576 -->
+<!-- source-sha256: c8a53b1e2c66e36e89ad1ae34e861d7f1fcb08ef4a7c59ee12c54f3570f0f679 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1198: platform set이 npm 플랫폼 package의 폴더를 tag된 tree 사본의 package 안 `.kit-napi/npm`에 쓴다. 전에는 사본 밖 작업 폴더의 폴더를 넘겼고, napi CLI 3.10.12는 그것을 거부했다(`Managed package paths must stay within the project or workspace boundary`). 그래서 실제 CLI로는 npm-native 플랫폼 package를 하나도 빌드하지 못했고, 시험의 stub은 그것을 거부하지 않았다. 이제 napi CLI의 stub은 CLI처럼 package.json의 package 밖 npm 폴더를 거부한다. Red: `tests/kit/release-native.test.mts`의 K1198 경우와 platform set 경우가 CLI의 메시지로 실패했다. Green: `tests/kit/release-native.test.mts`와 `tests/kit/release-run.test.mts`, 38 passed.
 - K1197: 짝 문서의 merge driver가 `git merge`에서 merge한다(polyspec/kit#37). driver는 merge의 영어 쪽을 git이 `GITHEAD_<commit>`으로 알려 주는 commit과, HEAD와 그 commit의 merge base에서 읽고, `make land`가 실행하는 rebase의 영어 쪽은 `rebase-merge/done`에서 읽는다. 작업이 어느 쪽도 알려 주지 않거나 checklist row를 양쪽이 서로 다르게 바꿔 파일을 merge할 수 없는 driver는 양쪽의 충돌을 그 파일에 쓰고 1로 끝난다. 전에는 `sides()`가 `rebase-merge/done`만 읽어, 두 branch가 모두 한국어 짝을 바꾼 merge는 모두 "rebase the branch onto main instead of merging it"로 실패했고, 작업 파일에는 충돌 표시 없이 ours만 남아 commit이 다른 branch의 항목을 흔적 없이 버렸다. Red: `tests/kit/git-hooks.test.mts`의 K1197 두 경우가 실패했다. Green: `tests/kit/git-hooks.test.mts`와 `tests/kit/twin-merge.test.mts`, 19 passed.
 - K1196: 모든 asset set이 어떤 도구도 빌드하기 전에 config/release.json의 모든 native package의 manifest를, 그 package를 어느 set이 빌드하든 검사한다. 각 manifest의 이름과 함께, npm-native package의 napi 설정과 optionalDependencies, php-ext package의 확장 이름과 `pre-packaged-binary`를 본다. 실패 하나가 모든 문제를 이름으로 댄다. 전에는 set이 php-ext manifest를 빌드 전에 검사했지만 첫 문제에서 멈췄고, platform 없는 set은 npm-native manifest를 다른 asset을 빌드한 뒤에야 검사했으며, platform set은 그것을 검사하지 않아 napi CLI가 set 중간에 자기 메시지로 실패했다. Red: `tests/kit/release-native.test.mts`의 K1196 두 경우가 실패했다. Green: `tests/kit/release-native.test.mts`와 `tests/kit/release-run.test.mts`, 37 passed.
 - K1195: lint-rust가 `--workspace-args <folder>` 뒤부터 다음 `--workspace-args`까지의 인자를 그 저장소 상대 폴더(root는 `.`)에 있는 Cargo workspace의 clippy step에만, 첫 `--workspace-args`보다 앞의 인자(모든 step이 받는다) 뒤에 준다. 전에는 모든 step이 모든 인자를 받아, `lint-rust --locked --exclude x`가 package `x`가 없는 workspace에도 `--exclude x`를 넘겼고 cargo는 제외한 package를 찾지 못했다고 경고했다. checkout의 workspace가 없는 폴더와 폴더 없는 `--workspace-args`는 어느 step도 실행하기 전에 lint를 실패시키고 workspace를 나열한다. `tests/kit/lint-rust.test.mts`(6 passed)로 확인했다.
