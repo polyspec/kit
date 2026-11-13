@@ -50,9 +50,8 @@ import { present } from './present.mts';
 import { linksOutsideCheckout } from './link.mts';
 import { toolCommand } from './mise-tools.mts';
 import { packedPackageManifest } from './pack-manifest.mts';
-import { PLATFORM_NAMES, RUNNERS, SOURCE_RUNNER, isPlatform, llvmTool, assetSets, buildPlatformAsset, extensionOf, inSet, isNative, namedSet, nativeProblems, npmNativeProblems, npmNativeRoot, npmPackName, packedNativeManifest, phpExtProblems, platformAssets, requireHost, setName, zipEntries, type AssetSet, type ExpectedAsset, type ExtensionNames, type NativeBuild } from './release-native.mts';
+import { RUNNERS, SOURCE_RUNNER, assetSets, buildPlatformAsset, extensionOf, inSet, isNative, namedSet, nativeProblems, npmNativeProblems, npmNativeRoot, npmPackName, packedNativeManifest, phpExtProblems, platformAssets, requireHost, setName, zipEntries, type AssetSet, type ExpectedAsset, type ExtensionNames, type NativeBuild } from './release-native.mts';
 import { readToml, isTable } from './toml.mts';
-import { GO_PLATFORMS, libraryIn, releaseGoModules, type GoModule, type GoPlatform } from './release-go-module.mts';
 
 export const CONFIG = 'config/release.json';
 /** The Composer repository of the Composer packages of a release, beside its archives (K871). */
@@ -82,8 +81,6 @@ export interface ReleasePackage {
   platforms?: string[];
   /** The PHP minors of a php-ext package (K1189). */
   php?: string[];
-  /** The Go module that links the library of a go-static package, which the release carries in a commit of its own tag (K1205). */
-  goModule?: GoModule;
 }
 
 /**
@@ -200,14 +197,6 @@ export function loadConfig(root: string): ReleaseConfig {
     const shape = { npm: npmShape, composer: composerShape, wheel: /^[a-z0-9._-]+$/, 'wheel-abi3': /^[a-z0-9._-]+$/, 'php-ext': composerShape, 'npm-native': npmShape, 'go-static': /^[a-z0-9_-]+$/ }[kind];
     const form = { npm: '`name` or `@scope/name`', composer: '`vendor/name`', wheel: 'project name of PyPI', 'wheel-abi3': 'project name of PyPI', 'php-ext': '`vendor/name`', 'npm-native': '`name` or `@scope/name`', 'go-static': 'Cargo package name' }[kind];
     problems.push(...nativeProblems(item, CONFIG));
-    if (item.goModule !== undefined) {
-      const module = item.goModule.directory;
-      if (kind !== 'go-static') problems.push(`${CONFIG}: the ${kind} package ${name} declares a goModule; only a go-static package builds the library of a Go module`);
-      if (module in config.goModules) problems.push(`${CONFIG}: ${module} is the goModule of ${name} and a key of goModules; release-tag would tag it at the commit of vX.Y.Z, which carries no library`);
-      if (directory !== module && !directory.startsWith(`${module}/`)) problems.push(`${CONFIG}: the goModule ${module} of ${name} does not hold ${directory}, the crate of its library`);
-      const missing = PLATFORM_NAMES.filter(platform => !(item.platforms ?? []).includes(platform));
-      if (missing.length) problems.push(`${CONFIG}: the goModule ${module} of ${name} carries the library of every platform, and platforms lacks ${missing.join(', ')}`);
-    }
     if (!shape.test(name)) problems.push(`${CONFIG}: the ${kind} package ${name} is not a ${form}`);
     if (names.has(`${kind}:${name}`)) problems.push(`${CONFIG}: the ${kind} package ${name} is listed twice`);
     if (directories.has(directory)) problems.push(`${CONFIG}: the directory ${directory} holds two packages`);
@@ -890,61 +879,13 @@ export function undraft(ctx: Context, tag: string): boolean {
  * that a glob of `writtenFiles` matches, which a tool writes and no tag releases (K167, K1114); a listed file exists; no file is
  * in two lists. A config that names no package file has nothing to classify, which is a problem itself.
  */
-/** The go-static packages of the configuration that declare a Go module, with their index in `packages`. */
-const goModulePackages = (config: Pick<ReleaseConfig, 'packages'>) => config.packages.flatMap((item, index) => (item.goModule === undefined ? [] : [{ item, index, module: item.goModule }]));
-
-/**
- * Releases the Go modules of the tag (K1205): runs the make targets of each go-static package that declares a goModule in the
- * checkout of the tag, which write the generated files, takes the library of each platform from the go-static asset of its set in
- * the asset folder, and makes the commit and the tags of release-go-module.mts. Returns the tags, none when no package declares a
- * Go module.
- */
-export function goModules(ctx: Context, tag: string): string[] {
-  const version = parseTag(tag);
-  const declared = goModulePackages(ctx.config);
-  if (declared.length === 0) return [];
-  const commit = run('git', ['rev-parse', '--verify', `refs/tags/${tag}^{commit}`], at(ctx)).trim();
-  requireCheckout(ctx, tag, commit, `make release-go-modules TAG=${tag}`);
-  const folder = path.resolve(ctx.root, assetFolder(ctx));
-  const remote = ctx.main?.split('/')[0];
-  if (!remote) throw new Stop('go-modules needs the remote that receives the tags; name the main ref <remote>/<branch> in RELEASE_MAIN');
-  const llvmNm = llvmTool(ctx.root, ctx.env, 'llvm-nm');
-  const llvmSize = llvmTool(ctx.root, ctx.env, 'llvm-size');
-  for (const target of new Set(declared.flatMap(({ item }) => (item.generated ?? []).map(entry => entry.target)))) {
-    ctx.log(`[release] ${tag}: make ${target} in the checkout, for the generated files of the Go module`);
-    const result = execute('make', ['-C', ctx.root, target], at(ctx));
-    if (result.error || result.status !== 0) throw new Stop(`make ${target} failed for the Go module of ${tag}: ${(result.error?.message ?? `${result.stdout}${result.stderr}`).trim()}`);
-  }
-  const work = mkdtempSync(path.join(tmpdir(), 'kit-go-libraries-'));
-  try {
-    const modules = declared.map(({ index, module }) => {
-      const libraries: Partial<Record<GoPlatform, string>> = {};
-      for (const platform of PLATFORM_NAMES.filter(isPlatform)) {
-        const asset = platformAssets(ctx.config.packages, ctx.config.repositoryUrl, version, { platform }, {}).find(expected => expected.index === index)?.name;
-        const zip = asset === undefined ? undefined : path.join(folder, asset);
-        if (zip === undefined || !existsSync(zip)) continue;
-        const into = path.join(work, String(index), platform);
-        mkdirSync(into, { recursive: true });
-        run('unzip', ['-q', '-o', zip, '-d', into], at(ctx));
-        const library = libraryIn(into);
-        if (library !== undefined) libraries[GO_PLATFORMS[platform]] = library;
-      }
-      return { module, libraries };
-    });
-    return releaseGoModules({ root: ctx.root, env: ctx.env, log: ctx.log, tag, remote, modules, llvmNm, llvmSize, go: toolCommand(ctx.root, 'go') }).tags;
-  } finally {
-    rmSync(work, { recursive: true, force: true });
-  }
-}
-
 export function coverage(ctx: Context): string[] {
   const { root, config } = ctx;
   const packageFiles = config.packageFiles ?? [];
   if (packageFiles.length === 0) return [`${CONFIG} names no packageFiles, so coverage classifies nothing; declare the names of the package files of the repository, such as package.json`];
   const written = config.writtenFiles ?? [];
   const files = checkedFiles(root).filter(file => packageFiles.includes(path.posix.basename(file)));
-  // The go.mod of a Go module that a go-static package declares is released with it (K1205).
-  const goFiles = [...Object.keys(config.goModules), ...config.packages.flatMap(item => (item.goModule === undefined ? [] : [item.goModule.directory]))].map(module => `${module === '.' ? '' : `${module}/`}go.mod`);
+  const goFiles = Object.keys(config.goModules).map(module => `${module === '.' ? '' : `${module}/`}go.mod`);
   const lists = { manifests: Object.keys(config.manifests), notReleased: Object.keys(config.notReleased), goModules: goFiles };
   const problems: string[] = [];
   const where = new Map<string, string>();
@@ -961,13 +902,13 @@ export function coverage(ctx: Context): string[] {
   return problems;
 }
 
-const USAGE = 'usage: node scripts/kit/release.mts assets|go-modules|publish|undraft TAG | candidate-assets VERSION | coverage | sets';
+const USAGE = 'usage: node scripts/kit/release.mts assets|publish|undraft TAG | candidate-assets VERSION | coverage | sets';
 
 /** Runs a step of the command line; the exit status. */
 export function main(argv: string[], { root = repositoryRoot(), env = process.env, print = console.log, error = console.error }: CommandOptions = {}): number {
   const [mode, latest, ...rest] = argv;
   let tag = latest;
-  const tagged = mode !== undefined && ['assets', 'go-modules', 'publish', 'undraft'].includes(mode);
+  const tagged = mode !== undefined && ['assets', 'publish', 'undraft'].includes(mode);
   const candidate = mode === 'candidate-assets' && latest !== undefined && rest.length === 0;
   if (!(tagged && tag && rest.length === 0) && !candidate && !((mode === 'coverage' || mode === 'sets') && tag === undefined)) {
     error(USAGE);
@@ -976,7 +917,7 @@ export function main(argv: string[], { root = repositoryRoot(), env = process.en
   // The steps that build or publish the assets need the asset folder that the caller names; without it, or with the checkout or a
   // folder that holds it, nothing runs (K1102).
   const named = env.RELEASE_ASSETS || undefined;
-  if (mode !== undefined && ['assets', 'candidate-assets', 'go-modules', 'publish'].includes(mode)) {
+  if (mode !== undefined && ['assets', 'candidate-assets', 'publish'].includes(mode)) {
     const unusable = named === undefined ? `${mode} needs the asset folder; name it in RELEASE_ASSETS` : assetsFolderProblem(root, named);
     if (unusable !== undefined) {
       error(`[release] ${mode} failed: ${unusable}`);
@@ -994,9 +935,8 @@ export function main(argv: string[], { root = repositoryRoot(), env = process.en
       // The sets of the release, which the release workflow builds in a matrix: printed, and written to GITHUB_OUTPUT as sets (K1189).
       const sets = JSON.stringify(matrix(ctx.config));
       print(sets);
-      // go-modules tells the workflow whether the release carries a Go module, whose step needs the tools of the repository (K1205),
-      // and version is the newest version of the change log, the version of a candidate of HEAD, empty when it has none (K1211).
-      if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `sets=${sets}\ngo-modules=${goModulePackages(ctx.config).length > 0}\nversion=${topVersion(readFileSync(path.join(root, ctx.config.changelog), 'utf8')) ?? ''}\n`);
+      // version is the newest version of the change log, the version of a candidate of HEAD, empty when it has none (K1211).
+      if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `sets=${sets}\nversion=${topVersion(readFileSync(path.join(root, ctx.config.changelog), 'utf8')) ?? ''}\n`);
       return 0;
     }
     if (candidate) {
@@ -1020,9 +960,6 @@ export function main(argv: string[], { root = repositoryRoot(), env = process.en
     } else if (mode === 'assets') {
       const names = assets(ctx, tag);
       print(`[release] ${tag}: built ${ctx.set.platform === undefined ? '' : `${setName(ctx.set)}: `}${names.join(', ')} in ${assetFolder(ctx)}`);
-    } else if (mode === 'go-modules') {
-      const tags = goModules(ctx, tag);
-      print(tags.length ? `[release] ${tag}: tagged the Go modules ${tags.join(', ')}` : `[release] ${tag}: no go-static package of ${CONFIG} declares a goModule, so the release carries no Go module`);
     } else if (mode === 'undraft') {
       const made = undraft(ctx, tag);
       print(`[release] ${tag}: ${made ? 'made the GitHub Release public' : 'the GitHub Release is already public'}`);

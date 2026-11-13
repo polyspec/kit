@@ -25,7 +25,6 @@
     { "paths": ["scripts/kit/pack-manifest.mts"], "tests": ["tests/kit/pack-manifest.test.mts"] },
     { "paths": ["scripts/kit/test-hooks.mts"], "tests": ["tests/source/package.test.mts"] },
     { "paths": ["scripts/kit/release.mts", "scripts/kit/pack-manifest.mts"], "tests": ["tests/source/package.test.mts"] },
-    { "paths": ["scripts/kit/release-go-module.mts"], "tests": ["tests/kit/release-go-module.test.mts", "tests/source/release-go-module-real.test.mts"] },
     { "paths": ["Makefile"], "targets": ["owner-validate"], "tests": ["tests/kit/kit-mk.test.mts", "tests/kit/kit-assets.test.mts", "tests/source/package.test.mts"] },
     { "paths": ["package.json"], "targets": ["typecheck", "lint-ts"], "tests": ["tests/kit/kit-sync.test.mts", "tests/source/package.test.mts"] },
     { "paths": ["package-lock.json"], "targets": ["typecheck", "lint-ts"] },

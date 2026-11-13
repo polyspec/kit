@@ -867,7 +867,7 @@ test('the command line refuses a missing mode, missing arguments and extra argum
   for (const args of [[], ['verify', 'v0.0.1'], ['tag', 'v0.0.1'], ['go-tags', 'v0.0.1'], ['candidate-assets'], ['bogus', 'v0.0.1'], ['assets', 'v0.0.1', 'extra'], ['candidate-assets', '0.0.1', 'extra'], ['coverage', 'v0.0.1']]) {
     const result = cli(box, args);
     assert.equal(result.status, 2, args.join(' '));
-    assert.match(result.stderr, /usage: node scripts\/kit\/release\.mts assets\|go-modules\|publish\|undraft TAG \| candidate-assets VERSION \| coverage/);
+    assert.match(result.stderr, /usage: node scripts\/kit\/release\.mts assets\|publish\|undraft TAG \| candidate-assets VERSION \| coverage/);
   }
 });
 

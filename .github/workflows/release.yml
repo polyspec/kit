@@ -31,8 +31,6 @@
 #   release-assets   builds the assets of its set, RELEASE_PLATFORM and RELEASE_PHP, into the folder of RELEASE_ASSETS, which the
 #                    recipe names (kit.mk names var/release/assets; none exits 2, K1102); the job uploads them as an artifact
 #   the job publish, with the artifacts of every set downloaded into that folder:
-#   release-go-modules tags the Go module of each go-static package that declares one, at a commit of no branch that carries its
-#                    generated files and the library of every platform (K1205); it runs only when one is declared
 #   release-publish  creates the GitHub Release of the tag as a draft, with its notes and the assets of every set, each with its label
 #   release-undraft  makes the release public
 # A platform set builds on its own platform, since no tool cross-compiles (K1189). A failed job leaves the release a draft, or
@@ -70,7 +68,6 @@ jobs:
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
       sets: ${{ steps.sets.outputs.sets }}
-      go-modules: ${{ steps.sets.outputs.go-modules }}
     steps:
       # actions/checkout v7.0.1: with the whole history and every branch, so origin/main is there for the ancestry check; a
       # workflow_run checks out the head_sha of its CI run, never a later main (K987), and a dispatch checks out main, whose kit
@@ -165,21 +162,6 @@ jobs:
           pattern: release-assets-*
           path: var/release/assets
           merge-multiple: true
-      # The Go modules of the release (K1205): the generated files of each and the library of every platform, which the sets
-      # built, in a commit of no branch that the tag <directory>/vX.Y.Z names. The step needs the tools of the repository, so they
-      # are installed only when config/release.json declares a Go module; a failure makes no commit, no tag and no release.
-      - name: prepare the release of the repository
-        if: ${{ needs.tag.outputs.go-modules == 'true' }}
-        run: make release-prepare
-      - name: make release-tools
-        if: ${{ needs.tag.outputs.go-modules == 'true' }}
-        run: make release-tools
-      - name: put the installed tools on PATH
-        if: ${{ needs.tag.outputs.go-modules == 'true' }}
-        run: make release-tools-path
-      - name: tag the Go modules
-        if: ${{ needs.tag.outputs.go-modules == 'true' }}
-        run: make release-go-modules
       - name: create the draft release
         run: make release-publish
       - name: make the release public

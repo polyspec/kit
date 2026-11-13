@@ -1,16 +1,18 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f58ac4bf0fd062a86b67a0323391d2619aacf604a2a68a18a4347b6732805d1d -->
+<!-- source-sha256: 6a9014a0ddf352d16441b4423f9ba5c1083b6c9f1428cf30318e6a401e576ef9 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
-- K1218: package가 `./link-folders`를 export하지 않습니다. 이 export는 설치 폴더를 link로 바꾸는 함수를 저장소의 test에 주었는데, 그것은 package manager의 일이고 저장소의 어느 파일도 import하지 않았습니다. `@polyspec/kit/link-folders`의 import는 이제 `ERR_PACKAGE_PATH_NOT_EXPORTED`로 실패합니다. kit의 module은 `link-folders.mts`를 경로로 import합니다.
+- K1220: release가 static library를 가진 Go module의 commit과 tag를 만들지 않습니다. `release.mts go-modules`, `release-go-module.mts`, target `release-go-modules`, `release.schema.json`의 `goModule`, 그것을 돌리던 예시 release workflow의 단계를 제거했습니다. Go module의 commit이 어떤 파일을 담는지, tag 이름이 무엇인지, 어떤 consumer가 증명하는지를 kit의 코드가 정했는데, 그것은 저장소의 release이고 어느 recipe도 이 mode를 부르지 않았습니다. 저장소는 그 commit과 tag를 자기 recipe에서 만듭니다(`git commit-tree`, `git tag -a <directory>/vX.Y.Z <commit>`, `git push <remote> <tag>`). `release-tag`는 `goModules`의 module에 계속 tag를 달고, 플랫폼 set은 `go-static` asset을 계속 strip하고 pack합니다(K1208).
+
+- K1218: package가 `./link-folders`를 export하지 않습니다. 이 export는 설치 폴더를 link로 바꾸는 함수를 저장소의 test에 주었는데, 저장소의 어느 파일도 import하지 않았습니다. link 자체는 개발 도구로 kit에 남습니다. `@polyspec/kit/link-folders`의 import는 이제 `ERR_PACKAGE_PATH_NOT_EXPORTED`로 실패합니다. kit의 module은 `link-folders.mts`를 경로로 import합니다.
 
 - K1217: `link.mts`에 `packages` 명령이 없습니다. 이 명령은 폴더의 manifest가 선언한 polyspec package를 `uv sync --no-install-package`의 인자로 출력했습니다. package manager가 설치할 package를 고르는 일은 그 manager를 시작하는 recipe의 일이고, 어느 recipe도 이 명령을 부르지 않았습니다. `link.mts packages`는 이제 usage와 exit 1로 끝납니다.
 
-- K1219: 명세가 kit의 일이 아닌 것을 적습니다(`docs/spec/utilities-and-recipes.md`). package manager의 일과 저장소의 일, 그래서 제거한 유틸리티, 그리고 떠나는 유틸리티와 저장소의 recipe가 대신 가질 native 명령입니다. 떠나는 것은 link-build, python-venv, bootstrap, install-tools와 그 installer, install-vscode, release-tools, release의 assets, publish, undraft, tag, php-extension입니다. 떠나는 유틸리티는 호출자가 그 명령을 가질 때까지 동작합니다. local link, lint 유틸리티, 싣는 workflow, ci-setup의 기본값은 결정하지 않은 것으로 적었습니다.
+- K1219: 명세가 kit의 일이 아닌 것을 적습니다(`docs/spec/utilities-and-recipes.md`). package manager의 일과 저장소의 일, 그래서 제거한 유틸리티, 그리고 떠나는 유틸리티와 저장소의 recipe가 대신 가질 native 명령입니다. 떠나는 것은 link-build, python-venv, bootstrap, install-tools와 그 installer, install-vscode, release-tools, release의 assets, publish, undraft, tag, php-extension입니다. 떠나는 유틸리티는 호출자가 그 명령을 가질 때까지 동작합니다. local link는 개발 도구로 kit에 남습니다. lint 유틸리티, 싣는 workflow, ci-setup의 기본값은 결정하지 않은 것으로 적었습니다.
 
 ## 0.0.111
 

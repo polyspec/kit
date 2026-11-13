@@ -63,7 +63,7 @@ KIT_TEST_FILES_6 := \
 	tests/kit/release-tools-path.test.mts tests/kit/run-command.test.mts \
 	tests/kit/tracked-files.test.mts tests/kit/verification.test.mts \
 	tests/kit/worktree-setup.test.mts
-KIT_TEST_FILES_7 := tests/kit/install-composer-project.test.mts tests/kit/release-native.test.mts tests/kit/native-settings.test.mts tests/kit/runtime-targets.test.mts tests/kit/install-rust.test.mts tests/kit/provider-tests.test.mts tests/kit/release-run.test.mts tests/kit/playwright-reporter.test.mts tests/kit/release-go-module.test.mts tests/kit/commit-names-check.test.mts
+KIT_TEST_FILES_7 := tests/kit/install-composer-project.test.mts tests/kit/release-native.test.mts tests/kit/native-settings.test.mts tests/kit/runtime-targets.test.mts tests/kit/install-rust.test.mts tests/kit/provider-tests.test.mts tests/kit/release-run.test.mts tests/kit/playwright-reporter.test.mts tests/kit/commit-names-check.test.mts
 
 SOURCE_TEST_GROUPS := ts php rust go python common-1 common-2 common-3
 SOURCE_TEST_FILES_ts := tests/source/lint-ts-real.test.mts tests/source/node-real.test.mts
@@ -72,7 +72,7 @@ SOURCE_TEST_FILES_rust := tests/source/link-cargo-real.test.mts tests/source/lin
 SOURCE_TEST_FILES_go := tests/source/go-bench-output-real.test.mts tests/source/lint-go-real.test.mts tests/source/link-go-real.test.mts
 SOURCE_TEST_FILES_python := tests/source/lint-python-real.test.mts tests/source/python-real.test.mts tests/source/python-venv-real.test.mts tests/source/uv-link-real.test.mts tests/source/wheel-metadata-real.test.mts
 SOURCE_TEST_FILES_common-1 := tests/source/package.test.mts tests/source/npm-audit-online-real.test.mts tests/source/tool-records-real.test.mts tests/source/ci-workflow.test.mts
-SOURCE_TEST_FILES_common-2 := tests/source/consumer-layout.test.mts tests/source/release-go-module-real.test.mts
+SOURCE_TEST_FILES_common-2 := tests/source/consumer-layout.test.mts
 SOURCE_TEST_FILES_common-3 := tests/source/process-group-posix.test.mts tests/source/install-vscode-posix.test.mts tests/source/checklist-real.test.mts tests/source/checkout.test.mts tests/source/fresh-checkout.test.mts tests/source/layout-real.test.mts tests/source/mise-env-real.test.mts tests/source/mise-trust-real.test.mts tests/source/npm-locked-link-real.test.mts tests/source/npm-source-link-real.test.mts tests/source/release-workflow.test.mts tests/source/tracked-var.test.mts
 
 # The packages of package-lock.json with the npm of var/tools, the step after make install-tools TOOLS=npm; the release
