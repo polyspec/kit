@@ -7,7 +7,8 @@
 //   Composer  <vendor-dir>/<vendor>/<package> of each tracked project, the vendor-dir of its composer.json, one directory symlink;
 //   Python    each package of the site-packages of a project's .venv, one link per package of a namespace;
 //   Go        each go.mod of the consumer gets a git-ignored go.work that uses its module and the provider modules, which
-//             go reads by itself, whatever version the module requires (K856); unlink removes it;
+//             go reads by itself, whatever version the module requires (K856), and that replaces each required version of a
+//             provider module with its folder, so go fetches no version that has no tag yet (K1212); unlink removes it;
 //   Rust      `cargo <dir> <args>` runs one cargo command with --config patches and a lock copy under var/link/cargo.
 // No environment variable declares anything: without checkouts nothing is linked, and the installs stay the locked releases.
 // A consumer is a directory: the top of a work tree stands for every tracked manifest of it, another directory for those
@@ -19,14 +20,17 @@
 //                 providers [--ecosystem npm|composer|python|go] [<checkout>...] | cargo <dir> <args>...
 // The providers are the checkouts that the link declaration names (K869): LINKS_FILE at the root of the checkout itself (K1118), one path per
 // line; with no file nothing is linked. make link-check (link-check.mts) compares the declaration with the state.
+// A package name that two folders of a provider give (K1213) is judged only for the ecosystems of the runtime and in a project that
+// holds the package installed: the project decides the folder (decideProviders of link-folders.mts), or link fails with the package and
+// the folders.
 // --project limits link, check and unlink to the manifests directly in <dir>, never a nested project (S-426), and fails when
 // <dir> holds none (K212); without it the whole tree of the working directory is the consumer.
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { projectEnvironment, uvLink } from './uv-install.mts';
-import { composerRecordFindings, composerVendorDir, environmentLinks, folderFindings, hasPythonPackages, linkFolders, managerLink, managerLinkFindings, type ProvidedFolder, providedFolders, providerDependencyFindings } from './link-folders.mts';
-import { assertIgnored, declaredCheckouts, type Ecosystem, EXCLUDED, goModule, LINKS_FILE, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, type Tool, trackedManifests, workTreeOf } from './link-providers.mts';
+import { composerRecordFindings, composerVendorDir, decideProviders, environmentLinks, folderFindings, hasPythonPackages, linkFolders, managerLink, managerLinkFindings, type ProvidedFolder, providedFolders, providerDependencyFindings } from './link-folders.mts';
+import { assertIgnored, declaredCheckouts, type Ecosystem, EXCLUDED, goModule, type GoRequirement, LINKS_FILE, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, soleProvider, type Tool, trackedManifests, workTreeOf } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
 import { toolCommand } from './mise-tools.mts';
 import { isMain } from './paths.mts';
@@ -111,11 +115,14 @@ type Run = { found: Map<string, Provider>; check: boolean; print: Print; failed:
 /** Prints a state line: `state` (linked, NOT linked, STALE, own) of `ecosystem` and the text. */
 const line = (work: Run, state: string, ecosystem: string, text: string) => work.print(`  ${state.padEnd(10)} ${ecosystem.padEnd(8)} ${text}`);
 
-/** The provider of `name`, or why there is none to link: own repository or no provider. */
+/**
+ * The provider of `name`, or why there is none to link: own repository or no provider. A name that two folders give fails with both
+ * (K1213): a Go module is named by its module path alone, so nothing decides between two folders of one path.
+ */
 function providerFor(work: Run, consumer: Consumer, ecosystem: Ecosystem, name: string): Provider | 'own' | 'no provider' {
   const found = work.found.get(providerKey(ecosystem, name));
   if (!found) return 'no provider';
-  return found.repository === consumer.repository ? 'own' : found;
+  return soleProvider(found).repository === consumer.repository ? 'own' : found;
 }
 
 
@@ -219,34 +226,78 @@ export function trackedWorkspaceFolders(go: Tool, top: string, directory: string
   return [];
 }
 
+/** A replace directive of a go.work: the module and the version that it replaces, and the folder that replaces them. */
+type GoReplace = { module: string; version: string; folder: string };
+
+/** The name of the replaced module version `item` as go work edit takes it: <module>@<version>, or the module alone for all versions. */
+const replaced = (item: { module: string; version: string }): string => (item.version === '' ? item.module : `${item.module}@${item.version}`);
+
+/**
+ * The use and replace directives of the go.work `file`, as go work edit -json reads them: each used folder as the file writes it and
+ * resolved against the folder of the go.work, and each replaced module version with the folder that replaces it, undefined when
+ * another module version replaces it, which link never writes.
+ */
+function readGoWorkspace(go: Tool, file: string, env: NodeJS.ProcessEnv = go.env): { uses: { written: string; folder: string }[]; replaces: { module: string; version: string; folder: string | undefined }[] } {
+  const directory = path.dirname(file);
+  const parsed: unknown = JSON.parse(run(go.command, ['work', 'edit', '-json', file], { cwd: directory, env }));
+  if (!isJsonObject(parsed)) throw new Error(`${file}: go work edit -json printed no object`);
+  const uses = (Array.isArray(parsed.Use) ? parsed.Use : []).flatMap(item => (isJsonObject(item) && typeof item.DiskPath === 'string' ? [{ written: item.DiskPath, folder: path.resolve(directory, item.DiskPath) }] : []));
+  const replaces = (Array.isArray(parsed.Replace) ? parsed.Replace : []).flatMap((item) => {
+    if (!isJsonObject(item) || !isJsonObject(item.Old) || !isJsonObject(item.New) || typeof item.Old.Path !== 'string' || typeof item.New.Path !== 'string') return [];
+    const folder = typeof item.New.Version === 'string' && item.New.Version !== '' ? undefined : path.resolve(directory, item.New.Path);
+    return [{ module: item.Old.Path, version: typeof item.Old.Version === 'string' ? item.Old.Version : '', folder }];
+  });
+  return { uses, replaces };
+}
+
 /**
  * The module folders that the go.work `file` uses, as go work edit -json reads them: each DiskPath resolved against the folder of
  * the go.work. The check reads them from the go.work itself, not from go list -m of each module.
  */
 export function usedFolders(go: Tool, file: string): string[] {
-  const folder = path.dirname(file);
-  const parsed = JSON.parse(run(go.command, ['work', 'edit', '-json', file], { cwd: folder, env: go.env })) as unknown;
-  if (!isJsonObject(parsed)) throw new Error(`${file}: go work edit -json printed no object`);
-  const uses = Array.isArray(parsed.Use) ? parsed.Use : [];
-  return uses.flatMap(item => (isJsonObject(item) && typeof item.DiskPath === 'string' ? [path.resolve(folder, item.DiskPath)] : []));
+  return readGoWorkspace(go, file).uses.map(item => item.folder);
 }
 
-/** Reconciles native workspace use directives without discarding Go's checksum or other workspace state. */
-export function writeGoWorkspace(go: Tool, file: string, folders: readonly string[]): void {
+/**
+ * K1212: the replace directives of a go.work that uses the module folders `folders`: each version at which the go.mod of one of them,
+ * read by `read`, requires a module of `linked`, replaced by the folder of its provider. Go reads the go.mod of every version that a
+ * module of a workspace requires, a module that the workspace uses included, so a required version that no tag names yet fails each
+ * command that loads the module graph (go list -m all, and a build of a package that imports a module outside the workspace). Go
+ * refuses a replace of all versions of a module that the workspace uses, so each required version is named.
+ */
+function goReplaces(folders: readonly string[], linked: ReadonlyMap<string, Provider>, read: (file: string) => { requires: GoRequirement[] }): GoReplace[] {
+  const found = new Map<string, GoReplace>();
+  for (const folder of folders) {
+    for (const requirement of read(path.join(folder, MANIFESTS.go)).requires) {
+      const provider = linked.get(requirement.path);
+      if (provider !== undefined) found.set(`${requirement.path}@${requirement.version}`, { module: requirement.path, version: requirement.version, folder: provider.folder });
+    }
+  }
+  return [...found.values()];
+}
+
+/**
+ * Reconciles the native use and replace directives of the workspace `file` with `folders` and `replaces` (K1212), without discarding
+ * Go's checksum or other workspace state: go work init writes a new go.work, and go work edit changes only what differs.
+ */
+export function writeGoWorkspace(go: Tool, file: string, folders: readonly string[], replaces: readonly GoReplace[] = []): void {
   const directory = path.dirname(file);
   const place = { cwd: directory, env: { ...go.env, GOWORK: file } };
   const desired = new Set(folders.map(folder => path.resolve(folder)));
-  if (!existsSync(file)) {
-    run(go.command, ['work', 'init', ...[...desired].map(folder => path.relative(directory, folder) || '.')], place);
-    return;
-  }
-  const parsed: unknown = JSON.parse(run(go.command, ['work', 'edit', '-json', file], place));
-  if (!isJsonObject(parsed)) throw new Error(`${file}: go work edit -json printed no object`);
-  const uses = (Array.isArray(parsed.Use) ? parsed.Use : []).flatMap(item => isJsonObject(item) && typeof item.DiskPath === 'string' ? [item.DiskPath] : []);
-  const existing = new Set(uses.map(folder => path.resolve(directory, folder)));
+  const shown = (folder: string) => path.relative(directory, folder) || '.';
+  // go work init writes the use directives that it is given, and no replace.
+  const fresh = !existsSync(file);
+  if (fresh) run(go.command, ['work', 'init', ...[...desired].map(shown)], place);
+  const written = fresh ? { uses: [...desired].map(folder => ({ written: shown(folder), folder })), replaces: [] } : readGoWorkspace(go, file, place.env);
+  const wanted = new Map(replaces.map(item => [replaced(item), path.resolve(item.folder)]));
+  const kept = new Set(written.replaces.filter(item => item.folder !== undefined && wanted.get(replaced(item)) === item.folder).map(replaced));
+  // go takes a replacing folder only as a directory path, which starts with ./ or ../ when it is relative.
+  const directoryPath = (folder: string) => (shown(folder).startsWith('.') ? shown(folder) : `./${shown(folder)}`);
   const edits = [
-    ...uses.filter(folder => !desired.has(path.resolve(directory, folder))).map(folder => `-dropuse=${folder}`),
-    ...[...desired].filter(folder => !existing.has(folder)).map(folder => `-use=${path.relative(directory, folder) || '.'}`),
+    ...written.uses.filter(item => !desired.has(item.folder)).map(item => `-dropuse=${item.written}`),
+    ...[...desired].filter(folder => !written.uses.some(item => item.folder === folder)).map(folder => `-use=${shown(folder)}`),
+    ...written.replaces.filter(item => !wanted.has(replaced(item))).map(item => `-dropreplace=${replaced(item)}`),
+    ...replaces.filter(item => !kept.has(replaced(item))).map(item => `-replace=${replaced(item)}=${directoryPath(item.folder)}`),
   ];
   if (edits.length) run(go.command, ['work', 'edit', ...edits, file], place);
 }
@@ -256,11 +307,18 @@ function linkGo(work: Run, consumer: Consumer) {
   if (!modules.length) return;
   const go = consumerTool(consumer.top, 'go', work.env);
   const tracked = new Set(trackedManifests(consumer.top, ['go.work']).map(file => path.join(consumer.top, file)));
+  // Each go.mod is read once for the run: the go.work of a module reads the go.mod of every module that it uses (K1212).
+  const read = new Map<string, ReturnType<typeof goModule>>();
+  const moduleOf = (file: string) => {
+    const found = read.get(file) ?? goModule(go, file, consumer.top);
+    read.set(file, found);
+    return found;
+  };
   for (const module of modules) {
     const directory = path.dirname(module);
     const file = goWorkOf(directory);
     const requires = new Map<string, Provider>();
-    for (const requirement of goModule(go, module, consumer.top).requires.filter(item => item.path.startsWith('github.com/polyspec/'))) {
+    for (const requirement of moduleOf(module).requires.filter(item => item.path.startsWith('github.com/polyspec/'))) {
       const provider = providerFor(work, consumer, 'go', requirement.path);
       // K869: a module that no declared checkout provides is the release, as a package of the other ecosystems is.
       if (provider === 'own') unlinkable(work, 'go', requirement.path, provider);
@@ -268,22 +326,36 @@ function linkGo(work: Run, consumer: Consumer) {
     }
     // The modules of the tracked workspace that the go.work of this module uses besides its own module.
     const workspace = requires.size ? trackedWorkspaceFolders(go, consumer.top, directory, tracked).filter(folder => folder !== directory) : [];
+    const folders = [...new Set([directory, ...workspace, ...[...requires.values()].map(provider => provider.folder)])];
+    // K1212: each version at which a module that the go.work uses requires a provider module that it uses is replaced by the provider.
+    const replaces = requires.size ? goReplaces(folders, requires, moduleOf) : [];
     if (work.check) {
       // K869: the go.work that link writes is the link of Go, so its use list is the state that the declaration is compared with:
       // the module, the modules of the tracked workspace and each declared provider that the module requires, no more and no fewer;
       // with none required, link writes no go.work.
-      const used = existsSync(file) && !tracked.has(file) ? new Set(usedFolders(go, file).map(folder => real(folder) ?? folder)) : undefined;
+      const written = existsSync(file) && !tracked.has(file) ? readGoWorkspace(go, file) : undefined;
+      const used = written === undefined ? undefined : new Set(written.uses.map(item => real(item.folder) ?? item.folder));
       if (!requires.size) {
         if (used !== undefined) unlinkable(work, 'go', path.relative(consumer.top, file), 'a go.work that link wrote, though the link declaration names no provider that the module requires; Fix: make link');
         continue;
       }
-      const named = [...[directory, ...workspace].map(folder => ({ name: goModule(go, path.join(folder, 'go.mod'), consumer.top).module, folder })), ...[...requires].map(([name, provider]) => ({ name, folder: provider.folder }))];
+      const named = [...[directory, ...workspace].map(folder => ({ name: moduleOf(path.join(folder, 'go.mod')).module, folder })), ...[...requires].map(([name, provider]) => ({ name, folder: provider.folder }))];
       const expected = new Map(named.map(item => [real(item.folder) ?? item.folder, item]));
       for (const [key, { name, folder }] of expected) {
         if (used?.has(key) === true) line(work, 'linked', 'go', `${name} -> ${folder} (${file})`);
         else unlinkable(work, 'go', name, `go.work of ${directory} does not use ${folder}; Fix: make link`);
       }
       for (const folder of used ?? []) if (!expected.has(folder)) unlinkable(work, 'go', folder, `go.work of ${directory} uses it, though the link declaration does not name it; Fix: make link`);
+      // K1212: the replace list of a go.work that link wrote is compared in the same way, each required version with its provider.
+      for (const item of written === undefined ? [] : replaces) {
+        const actual = written?.replaces.find(candidate => replaced(candidate) === replaced(item));
+        if (actual?.folder !== undefined && (real(actual.folder) ?? actual.folder) === (real(item.folder) ?? item.folder)) continue;
+        const state = actual === undefined ? 'does not replace it with' : `replaces it with ${actual.folder ?? 'a module version'}, not with`;
+        unlinkable(work, 'go', `${item.module} ${item.version}`, `go.work of ${directory} ${state} ${item.folder}; Fix: make link`);
+      }
+      for (const item of written?.replaces ?? []) {
+        if (!replaces.some(wanted => replaced(wanted) === replaced(item))) unlinkable(work, 'go', `${item.module} ${item.version}`.trim(), `go.work of ${directory} replaces it, though no module that it uses requires that version of a linked module; Fix: make link`);
+      }
       continue;
     }
     assertIgnored(file);
@@ -293,8 +365,7 @@ function linkGo(work: Run, consumer: Consumer) {
       rmSync(`${file}.sum`, { force: true });
       continue;
     }
-    const folders = [...new Set([directory, ...workspace, ...[...requires.values()].map(provider => provider.folder)])];
-    writeGoWorkspace(go, file, folders);
+    writeGoWorkspace(go, file, folders, replaces);
     for (const [name, provider] of requires) line(work, 'linked', 'go', `${name} -> ${provider.folder} (${file})`);
   }
 }
@@ -367,11 +438,21 @@ function pythonVenv(work: Run, consumer: Consumer, project: string, ecosystems: 
   return ecosystems.includes('python') ? pythonEnvironmentOf(consumer.top, project, work.found, work.env) : undefined;
 }
 
+/**
+ * K1213: the providers of the run as `project` takes them (decideProviders): a name that two folders give is decided by the project, or
+ * fails with both when the project holds the package installed and nothing decides. A Composer path member holds no vendor of its own,
+ * so its Composer packages are those of its owner (K590, ownerFolders).
+ */
+function projectProviders(work: Run, consumer: Consumer, project: string, ecosystems: readonly FolderEcosystem[]): Provider[] {
+  const owned = ecosystems.includes('composer') && owners(consumer, project, 'composer').length > 0;
+  const taken = [...work.found.values()].filter(provider => provider.ecosystem !== 'composer' || !owned);
+  return decideProviders(project, taken, { vendorDir: owned ? undefined : composerVendorDir(project, work.env), environment: pythonVenv(work, consumer, project, ecosystems) });
+}
+
 /** The installed folders of `project` that a provider of the run provides; a path member uses its parent installer's vendor (K590). */
 function projectFolders(work: Run, consumer: Consumer, project: string, ecosystems: readonly FolderEcosystem[]): ProvidedFolder[] {
-  const composerOwners = ecosystems.includes('composer') ? owners(consumer, project, 'composer') : [];
-  const localProviders = [...work.found.values()].filter(provider => provider.ecosystem !== 'composer' || composerOwners.length === 0);
-  return providedFolders(project, localProviders, { vendorDir: composerOwners.length === 0 ? composerVendorDir(project, work.env) : undefined, environment: pythonVenv(work, consumer, project, ecosystems) });
+  const owned = ecosystems.includes('composer') && owners(consumer, project, 'composer').length > 0;
+  return providedFolders(project, projectProviders(work, consumer, project, ecosystems), { vendorDir: owned ? undefined : composerVendorDir(project, work.env), environment: pythonVenv(work, consumer, project, ecosystems) });
 }
 
 /**
@@ -417,7 +498,7 @@ function linkPackageFolders(work: Run, consumer: Consumer, ecosystems: readonly 
     const pythonManifest = path.join(project, 'pyproject.toml');
     if (folderEcosystems.includes('python') && !work.check && existsSync(pythonManifest) && declaredPython(pythonManifest).length > 0) {
       const uv = consumerTool(consumer.top, 'uv', work.env);
-      uvLink({ directory: project, providers: work.found.values(), uv: uv.command, env: uv.env, print: work.print });
+      uvLink({ directory: project, providers: projectProviders(work, consumer, project, folderEcosystems), uv: uv.command, env: uv.env, print: work.print });
     }
     const folders = projectFolders(work, consumer, project, folderEcosystems);
     for (const item of folders) work.declared.add(item.folder);
@@ -430,7 +511,7 @@ function linkPackageFolders(work: Run, consumer: Consumer, ecosystems: readonly 
     for (const name of missing) line(work, 'NOT linked', name.ecosystem, `${name.name}: no installed folder in ${path.relative(consumer.top, project) || '.'}; install the project first`);
     if (missing.length > 0) work.failed = true;
     if (work.check) {
-      const findings = [...folderFindings(consumer.top, folders), ...providerDependencyFindings(consumer.top, folders, work.found.values())];
+      const findings = [...folderFindings(consumer.top, folders), ...providerDependencyFindings(consumer.top, folders, projectProviders(work, consumer, project, folderEcosystems))];
       for (const finding of findings) line(work, 'NOT linked', finding.split(' ')[0] ?? '', finding.slice(finding.indexOf(' ') + 1));
       if (findings.length > 0) work.failed = true;
       continue;
@@ -500,8 +581,12 @@ function installed(work: Run, consumer: Consumer, project: string, ecosystem: Ec
 
 /** The installed folders of `ecosystem` that the owners of the workspace member `project` hold for it (K590). */
 function ownerFolders(work: Run, consumer: Consumer, project: string, ecosystems: readonly FolderEcosystem[]): ProvidedFolder[] {
-  return (['npm', 'composer'] as const).filter(ecosystem => ecosystems.includes(ecosystem)).flatMap(ecosystem => owners(consumer, project, ecosystem).flatMap(owner =>
-    providedFolders(owner, work.found.values(), { vendorDir: composerVendorDir(owner, work.env) }).filter(folder => folder.ecosystem === ecosystem)));
+  return (['npm', 'composer'] as const).filter(ecosystem => ecosystems.includes(ecosystem)).flatMap(ecosystem => owners(consumer, project, ecosystem).flatMap((owner) => {
+    // K1213: the owner holds the installed folder, so the owner decides a name that two folders give.
+    const vendorDir = composerVendorDir(owner, work.env);
+    const taken = decideProviders(owner, [...work.found.values()].filter(provider => provider.ecosystem === ecosystem), { vendorDir });
+    return providedFolders(owner, taken, { vendorDir });
+  }));
 }
 
 /**
@@ -522,7 +607,7 @@ function declaredWithoutFolder(work: Run, consumer: Consumer, project: string, f
     // A package of the consumer's own repository is never installed from a folder of another checkout, and a python provider with
     // no package path installs no folder (K529).
     if (provider === undefined || provider.repository === repositoryOf(consumer.top)) return false;
-    if (ecosystem === 'python' && !hasPythonPackages(provider)) return false;
+    if (ecosystem === 'python' && ![provider, ...(provider.rivals ?? [])].some(hasPythonPackages)) return false;
     // K888: a project whose installer has not run yet has no folder to link; link-check reports it once make install has run.
     if (!uninstalled && !installed(work, consumer, project, ecosystem)) return false;
     return !folders.some(folder => folder.ecosystem === ecosystem && (folder.name === name || folder.name.startsWith(`${name} `)));
@@ -739,7 +824,8 @@ if (isMain(import.meta.url)) {
         const named = flag < 0 ? rest : rest.filter((_, index) => index !== flag && index !== flag + 1);
         const checkouts = named.length ? named : declaredCheckouts(process.cwd()) ?? [];
         const go = ecosystem === 'go' ? consumerTool(process.cwd(), 'go', process.env) : undefined;
-        const found = [...providers(checkouts, go, process.cwd()).values()].filter(provider => provider.ecosystem === ecosystem);
+        // K1213: a name of this ecosystem that two folders give fails with both; a name of another ecosystem is not judged.
+        const found = [...providers(checkouts, go, process.cwd()).values()].filter(provider => provider.ecosystem === ecosystem).map(soleProvider);
         for (const provider of found.sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0))) print(`${provider.name}\t${provider.folder}`);
         break;
       }

@@ -126,8 +126,24 @@ function pyprojectName(file: string): string | undefined {
   return isTable(project) && typeof project.name === 'string' ? normalizeName(project.name) : undefined;
 }
 
-/** A provider: the package folder of a main checkout under the root that provides `name` of `ecosystem`. */
-export type Provider = { ecosystem: Ecosystem; name: string; folder: string; repository: string; checkout: string };
+/**
+ * A provider: the package folder of a main checkout under the root that provides `name` of `ecosystem`. `rivals` (K1213) are the other
+ * folders of the same kind that give the same name: the project that holds the package installed decides between them
+ * (decideProviders of link-folders.mts), and soleProvider fails with all of them where nothing can decide.
+ */
+export type Provider = { ecosystem: Ecosystem; name: string; folder: string; repository: string; checkout: string; rivals?: Provider[] };
+
+/** K1213: the text that names the package of `provider` and each folder that gives it, the provider and its rivals. */
+export function rivalFolders(provider: Provider): string {
+  const folders = [provider, ...(provider.rivals ?? [])].map(item => item.folder);
+  return `${provider.ecosystem === 'go' ? 'go module' : `${provider.ecosystem} package`} ${provider.name} has ${folders.length === 2 ? 'two' : folders.length} providers: ${folders.join(' and ')}`;
+}
+
+/** K1213: `provider` when no other folder gives its name; else an error that names the package and the folders. */
+export function soleProvider(provider: Provider): Provider {
+  if (provider.rivals?.length) throw new Error(rivalFolders(provider));
+  return provider;
+}
 
 /** The key of a package name of an ecosystem. */
 export const providerKey = (ecosystem: Ecosystem, name: string): string => `${ecosystem}:${name}`;
@@ -163,7 +179,9 @@ export const mainCheckouts = (directories: readonly string[]): string[] => direc
 /**
  * Every provider of the main checkouts `checkouts`: each tracked manifest of a package there. A name that a package folder
  * and the repository root both provide is provided by the package folder, since the root is the development project; two
- * package folders that provide one name fail with both. `go` reads go.mod in `cwd`; without it the Go modules provide nothing.
+ * package folders that provide one name are one provider with its rivals (K1213), in the order of their paths, which are judged
+ * where the package is linked, so a name of an ecosystem or of a package that the consumer does not link fails nothing.
+ * `go` reads go.mod in `cwd`; without it the Go modules provide nothing.
  * `own`, the work tree of the consumer (a main checkout or a worktree), provides the packages of its own repository, and a
  * checkout of that repository among `checkouts` provides nothing, so a worktree never takes the sources of its main checkout
  * (K385).
@@ -180,7 +198,7 @@ export function providers(checkouts: readonly string[], go: Tool | undefined, cw
       const provided = providedName(absolute, go, cwd);
       if (!provided) continue;
       const key = providerKey(provided.ecosystem, provided.name);
-      const provider = { ...provided, folder: path.dirname(absolute), repository, checkout };
+      const provider: Provider = { ...provided, folder: path.dirname(absolute), repository, checkout };
       const earlier = found.get(key);
       const atRoot = (item: Provider) => item.folder === item.checkout;
       if (!earlier) { found.set(key, provider); continue; }
@@ -190,9 +208,9 @@ export function providers(checkouts: readonly string[], go: Tool | undefined, cw
         if (providerIsOwn) found.set(key, provider);
         continue;
       }
-      // A root yields to a package folder; two of one kind (both roots, or both package folders) are a conflict.
-      if (atRoot(earlier) === atRoot(provider)) throw new Error(`${provided.ecosystem} package ${provided.name} has two providers: ${earlier.folder} and ${provider.folder}`);
-      if (!atRoot(provider)) found.set(key, provider);
+      // A root yields to a package folder; two of one kind (both roots, or both package folders) give one name, as rivals (K1213).
+      if (atRoot(earlier) === atRoot(provider)) earlier.rivals = [...(earlier.rivals ?? []), provider];
+      else if (!atRoot(provider)) found.set(key, provider);
     }
   }
   return found;

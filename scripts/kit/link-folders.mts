@@ -16,7 +16,8 @@ import path from 'node:path';
 import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { readToml } from './toml.mts';
 import { errorCode } from './process.mts';
-import type { Provider } from './link-providers.mts';
+import { type Provider, rivalFolders } from './link-providers.mts';
+import { normalizeName } from './pyproject-dependencies.mts';
 
 /** One installed folder that a provider provides, and the folder it must link to. */
 export interface ProvidedFolder {
@@ -305,6 +306,76 @@ export function hasPythonPackages(provider: Provider): boolean {
   if (hatchSources(provider.folder).length > 0) return true;
   const source = existsSync(path.join(provider.folder, 'src')) ? path.join(provider.folder, 'src') : provider.folder;
   return pythonPackages(source).length > 0;
+}
+
+/** Whether the paths `left` and `right` name one existing folder. */
+const sameFolder = (left: string, right: string): boolean => existsSync(left) && existsSync(right) && realpathSync(left) === realpathSync(right);
+
+/** The table `key` of the table `value`, or an empty one. */
+const tableOf = (value: unknown, key: string): Record<string, unknown> => {
+  const found = isJsonObject(value) ? value[key] : undefined;
+  return isJsonObject(found) ? found : {};
+};
+
+/**
+ * K1213: the local paths by which the manifest of `project` names the package `provider`, resolved against the project: the url of each
+ * Composer path repository, an npm dependency `file:<path>` of that name, and the path of the uv source of that name.
+ */
+function manifestPaths(project: string, provider: Provider): string[] {
+  if (provider.ecosystem === 'go') return [];
+  const file = path.join(project, MANIFEST[provider.ecosystem]);
+  if (!existsSync(file)) return [];
+  if (provider.ecosystem === 'python') {
+    const sources = tableOf(tableOf(tableOf(readToml(readFileSync(file, 'utf8'), file), 'tool'), 'uv'), 'sources');
+    return Object.entries(sources).flatMap(([name, source]) => (normalizeName(name) === provider.name && isJsonObject(source) && typeof source.path === 'string' ? [path.resolve(project, source.path)] : []));
+  }
+  const manifest = readJsonObject(file);
+  if (provider.ecosystem === 'composer') {
+    // Composer takes its repositories as a list or as an object by name.
+    const repositories = Array.isArray(manifest.repositories) ? manifest.repositories : Object.values(tableOf(manifest, 'repositories'));
+    return repositories.flatMap((repository: unknown) => (isJsonObject(repository) && repository.type === 'path' && typeof repository.url === 'string' ? [path.resolve(project, repository.url)] : []));
+  }
+  return ['dependencies', 'devDependencies', 'optionalDependencies'].flatMap((section) => {
+    const spec = tableOf(manifest, section)[provider.name];
+    return typeof spec === 'string' && spec.startsWith('file:') ? [path.resolve(project, spec.slice('file:'.length))] : [];
+  });
+}
+
+/** The `type` of the Composer package that the manifest or the record `value` describes, `library` when it names none, as Composer reads it. */
+const composerType = (value: Record<string, unknown>): string => (typeof value.type === 'string' ? value.type : 'library');
+
+/**
+ * K1213: the providers of `provided` as the project `project` takes them. A name that one folder gives is its provider. A name that two
+ * folders give is decided by the project, by the first of these that selects one folder:
+ *   - a local path by which the project's own manifest names the package (manifestPaths);
+ *   - the installed folder when the package manager itself linked it from such a path (managerLink): link leaves that folder as it is;
+ *   - for Composer, the `type` that Composer recorded for the installed package in installed.json: the folder whose composer.json
+ *     declares that type provides it, as the library beside the extension package (`php-ext`) of one name.
+ * When none selects one folder, a package that the project holds installed, which link would link, fails with the package and the
+ * folders; a package that it does not hold is left out, since nothing of it is linked there, so it fails nothing.
+ */
+export function decideProviders(project: string, provided: Iterable<Provider>, { vendorDir, environment = process.env.UV_PROJECT_ENVIRONMENT }: { vendorDir?: string | undefined; environment?: string | undefined } = {}): Provider[] {
+  return [...provided].flatMap((provider) => {
+    if (!provider.rivals?.length) return [provider];
+    const { rivals, ...first } = provider;
+    const candidates: Provider[] = [first, ...rivals];
+    const one = (found: Provider[]) => (found.length === 1 ? found : undefined);
+    const paths = manifestPaths(project, provider);
+    const named = one(candidates.filter(candidate => paths.some(local => sameFolder(local, candidate.folder))));
+    if (named) return named;
+    const installed = provider.ecosystem === 'npm' ? path.join(project, 'node_modules', provider.name) : provider.ecosystem === 'composer' ? path.join(vendorDirectory(project, vendorDir), provider.name) : undefined;
+    if (installed !== undefined && present(installed)) {
+      if (managerLink(installed) !== undefined) return [candidates.find(candidate => sameFolder(installed, candidate.folder)) ?? first];
+      const record = path.join(path.dirname(path.dirname(installed)), 'composer/installed.json');
+      const entry = provider.ecosystem === 'composer' && existsSync(record) ? installedEntries(record).find(candidate => candidate.name === provider.name) : undefined;
+      const typed = entry === undefined ? undefined : one(candidates.filter(candidate => composerType(readJsonObject(candidate.folder, MANIFEST.composer)) === composerType(entry)));
+      if (typed) return typed;
+    }
+    // The project holds the package when link would link a folder of one of the candidates there (providedFolders).
+    if (!candidates.some(candidate => providedFolders(project, [candidate], { vendorDir, environment }).length > 0)) return [];
+    const ways = provider.ecosystem === 'composer' ? 'a path repository of its composer.json names neither folder, and the type that Composer recorded for the installed package is the type of both or of neither' : `${provider.ecosystem === 'npm' ? 'a file: dependency of its package.json' : 'a uv source path of its pyproject.toml'} names neither folder`;
+    throw new Error(`${rivalFolders(provider)}; the project ${project} holds the package installed, and nothing decides between the folders: ${ways}`);
+  });
 }
 
 /** Whether `folder` is a symbolic link that resolves to `target`. */

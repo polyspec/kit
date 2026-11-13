@@ -5,7 +5,8 @@
 //     a copy (link's check, folderFindings), and a polyspec package that a linked npm provider loads is a link in it too (K761);
 //   - no install folder holds a link out of the checkout that the declaration does not name; with no file, none holds one;
 //   - the go.work that link writes at each Go module uses exactly the module, its tracked workspace and the declared providers that it
-//     requires; with none, link wrote no go.work;
+//     requires, and replaces exactly the versions at which those modules require such a provider, each with its folder (K1212); with
+//     none, link wrote no go.work;
 //   - a polyspec package that a tracked project declares and a declared checkout provides has an installed folder (K888);
 //   - the autoload that Composer records for a linked package is its provider's (K1181), which its release, not make link, changes.
 // make link fixes the findings of link's check; each finding beside it names its own fix, and the closing line says which (K1183).

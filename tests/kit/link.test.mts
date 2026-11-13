@@ -20,6 +20,7 @@ import { autoloadRecordFindings, cargo, link, unlink } from '../../scripts/kit/l
 import { shippedAssets } from '../../scripts/kit/kit-assets.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
+import { known } from './known.mts';
 import { readJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { repositoryRoot } from '../../scripts/kit/paths.mts';
 
@@ -233,9 +234,26 @@ writeFileSync(listFile, JSON.stringify(installed));
 export) cat ${JSON.stringify(path.join(consumer, 'export.txt'))} 2>/dev/null;;
 esac
 case "$1 $2" in "workspace dir") d=$PWD; while [ "$d" != / ]; do grep -q tool.uv.workspace "$d/pyproject.toml" 2>/dev/null && { echo "$d"; exit 0; }; d=$(dirname "$d"); done; pwd;; "pip list") cat ${JSON.stringify(path.join(consumer, 'pip-list.json'))};; "pip check") cat ${JSON.stringify(path.join(consumer, 'pip-check.txt'))} 2>/dev/null || true;; "pip freeze") cat ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null || true;; "pip install") rm -f ${JSON.stringify(path.join(consumer, 'pip-check.txt'))}; shift 2; nodeps=""; while [ $# -gt 0 ]; do case "$1" in --constraints) cp "$2" ${JSON.stringify(path.join(consumer, 'constraints.logged'))}; shift 2;; --overrides) cp "$2" ${JSON.stringify(path.join(consumer, 'overrides.logged'))}; shift 2;; --python|--reinstall-package) shift 2;; --no-deps) nodeps=1; shift;; -e) dir=$2; n=$(sed -n 's/^name = "\\(.*\\)"/\\1/p' "$dir/pyproject.toml" | head -n 1 | tr _ -); grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))} 2>/dev/null; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; echo "$n @ file://$dir" >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; if [ -z "$nodeps" ]; then for dep in $(sed -n 's/^dependencies = \\[\\(.*\\)\\]/\\1/p' "$dir/pyproject.toml" | tr -d "\\"' " | tr ',' '\\n' | sed 's/[=<>@].*//'); do grep -q "^$dep[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null || echo "$dep==1.0" >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; done; fi; shift 2;; *.whl) n=$(basename "$1" | cut -d- -f1 | tr _ -); grep -v "^$n[=@ ]" ${freezeFile} > ${freezeFile}.next 2>/dev/null; mv ${freezeFile}.next ${freezeFile}; echo "$n @ file://$1" >> ${freezeFile}; if [ -z "$nodeps" ]; then for dep in $(unzip -p "$1" '*.dist-info/METADATA' | sed -n 's/^Requires-Dist: \\([A-Za-z0-9._-]*\\).*/\\1/p'); do grep -q "^$dep[=@ ]" ${freezeFile} 2>/dev/null || echo "$dep==1.0" >> ${freezeFile}; done; fi; shift;; *) shift;; esac; done;; esac`);
-  // The work init writes the Use of the go.work that it writes, as a go.work.json beside it, which work edit -json reads.
+  // The work init writes the Use of the go.work that it writes, as a go.work.json beside it, which work edit -json reads and
+  // work edit with other flags changes (K1212): -use, -dropuse, -replace and -dropreplace, as go work edit takes them.
   // The list -m of a module that the module of the folder a does not require fails as real go does.
-  stub(bin, log, 'go', `case "$1 $2" in "mod edit") cat "$4.json";; "work edit") cat "$4.json";; "work init") : > "$GOWORK"; shift 2; { printf '{"Use":['; s=""; for d in "$@"; do printf '%s{"DiskPath":"%s"}' "$s" "$d"; s=","; done; printf ']}'; } > "$GOWORK.json";; "list -m") if [ "$5" = b ] && [ "$(basename "$PWD")" = a ]; then echo "go: module $5: not a known dependency" >&2; exit 1; fi; echo ${JSON.stringify(path.join(provider, 'go'))};; esac`);
+  put(bin, { 'go-work-edit.mjs': `import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+const flags = process.argv.slice(4);
+const record = flags.pop() + '.json';
+const state = existsSync(record) ? JSON.parse(readFileSync(record, 'utf8')) : {};
+const old = text => (text.includes('@') ? { Path: text.slice(0, text.indexOf('@')), Version: text.slice(text.indexOf('@') + 1) } : { Path: text });
+const other = item => replace => replace.Old.Path !== item.Path || replace.Old.Version !== item.Version;
+for (const flag of flags) {
+  const [name, value] = [flag.slice(0, flag.indexOf('=')), flag.slice(flag.indexOf('=') + 1)];
+  if (name === '-use') state.Use = [...(state.Use ?? []), { DiskPath: value }];
+  else if (name === '-dropuse') state.Use = (state.Use ?? []).filter(item => item.DiskPath !== value);
+  else if (name === '-replace') state.Replace = [...(state.Replace ?? []).filter(other(old(value.slice(0, value.indexOf('='))))), { Old: old(value.slice(0, value.indexOf('='))), New: { Path: value.slice(value.indexOf('=') + 1) } }];
+  else if (name === '-dropreplace') state.Replace = (state.Replace ?? []).filter(other(old(value)));
+  else { console.error('go stub: unsupported work edit ' + flag); process.exit(2); }
+}
+writeFileSync(record, JSON.stringify(state));
+` });
+  stub(bin, log, 'go', `case "$1 $2" in "mod edit") cat "$4.json";; "work edit") if [ "$3" = -json ]; then cat "$4.json"; else exec ${JSON.stringify(process.execPath)} ${JSON.stringify(path.join(bin, 'go-work-edit.mjs'))} "$@"; fi;; "work init") : > "$GOWORK"; shift 2; { printf '{"Use":['; s=""; for d in "$@"; do printf '%s{"DiskPath":"%s"}' "$s" "$d"; s=","; done; printf ']}'; } > "$GOWORK.json";; "list -m") if [ "$5" = b ] && [ "$(basename "$PWD")" = a ]; then echo "go: module $5: not a known dependency" >&2; exit 1; fi; echo ${JSON.stringify(path.join(provider, 'go'))};; esac`);
   const cargoGraph = JSON.stringify({ packages: [{ id: 'provider', name: 'polyspec-prov', manifest_path: path.join(provider, 'rust/Cargo.toml') }], resolve: { nodes: [{ id: 'provider' }] } });
   stub(bin, log, 'cargo', `for arg in "$@"; do if [ "$arg" = locate-project ]; then echo "$PWD/Cargo.toml"; exit 0; fi; if [ "$arg" = metadata ]; then printf '%s' '${cargoGraph}'; exit 0; fi; done`);
   const pythonProject = path.join(consumer, 'python/pyproject.toml');
@@ -678,25 +696,157 @@ test('K1185: link-check reports a dangling package link inside a linked provider
   assert.match(checked.text, /packages\/ts\/node_modules\/@polyspec\/kit.*dangling.*\.links.*make link/, checked.text);
 });
 
+// K1213: the two folders are read as one provider with its rival, and the link of a consumer that takes the package fails with both.
 test('two package folders that provide one name fail with both; a repository root next to a package folder does not', (t) => {
-  const { root, provider } = workspace(t);
+  const { root, provider, consumer, env } = workspace(t);
   put(provider, { 'other/package.json': JSON.stringify({ name: '@polyspec/x' }), 'package.json': JSON.stringify({ name: '@polyspec/x' }) });
   git(provider, 'add', '-A');
   git(provider, 'commit', '--quiet', '-m', 'twice');
-  assert.throws(() => providers(current, undefined, root), /npm package @polyspec\/x has two providers: .*other and .*packages\/ts|npm package @polyspec\/x has two providers: .*packages\/ts and .*other/);
+  const found = providers(current, undefined, root).get('npm:@polyspec/x');
+  assert.deepEqual([found?.folder, ...(found?.rivals ?? []).map(rival => rival.folder)], [path.join(provider, 'other'), path.join(provider, 'packages/ts')], 'the root is no rival of a package folder');
+  assert.throws(() => runtimeLink(consumer, env, 'ts'), /npm package @polyspec\/x has two providers: .*other and .*packages\/ts; /);
 });
 
 test('two root-level providers of one name from different checkouts throw with both', (t) => {
-  const { root } = workspace(t);
-  const first = repository(root, 'other', { 'package.json': JSON.stringify({ name: '@polyspec/r' }) });
-  const second = repository(root, 'third', { 'package.json': JSON.stringify({ name: '@polyspec/r' }) });
-  assert.throws(() => providers([...current, first, second], undefined, root), (error: unknown) => error instanceof Error && error.message.includes(first) && error.message.includes(second));
+  const { root, consumer, env } = workspace(t);
+  const first = repository(root, 'other', { 'package.json': JSON.stringify({ name: '@polyspec/x' }) });
+  const second = repository(root, 'third', { 'package.json': JSON.stringify({ name: '@polyspec/x' }) });
+  // The package folder of the provider is left out, so the two roots alone give the name that the consumer takes.
+  current = [first, second];
+  assert.throws(() => runtimeLink(consumer, env, 'ts'), (error: unknown) => error instanceof Error && error.message.includes(`npm package @polyspec/x has two providers: ${first} and ${second}; `));
 });
 
 test('a root-level provider of another checkout yields to a package folder of one name', (t) => {
   const { root, provider } = workspace(t);
   const other = repository(root, 'other', { 'package.json': JSON.stringify({ name: '@polyspec/x' }) });
   assert.equal(providers([...current, other], undefined, root).get('npm:@polyspec/x')?.folder, path.join(provider, 'packages/ts'));
+});
+
+// K1213: a provider checkout may hold one package name in two package folders, as a library and the extension package of one name, or a
+// package and the binding that replaces it. link judges such a name only for the ecosystems of its runtime and only in a project that
+// holds the package installed, and the project decides the folder; when it cannot, link fails with the package and the folders, as before.
+/** Runs link over the consumer with the runtime `runtime` (every ecosystem when undefined) and returns its result and lines. */
+function runtimeLink(consumer: string, env: NodeJS.ProcessEnv, runtime?: 'go' | 'php' | 'python' | 'ts', check = false) {
+  const lines: string[] = [];
+  const ok = link({ checkouts: current, directories: [consumer], check, print: text => lines.push(text), env, ...(runtime === undefined ? {} : { runtime }) });
+  return { ok, text: lines.join('\n') };
+}
+
+/** Writes the composer.json of the consumer of the workspace with `repositories` (none when undefined) and its other fields as they are. */
+function consumerRepositories(consumer: string, repositories?: { type: string; url: string }[]) {
+  const { repositories: _earlier, ...manifest } = readJsonObject(consumer, 'composer.json');
+  put(consumer, { 'composer.json': JSON.stringify(repositories === undefined ? manifest : { ...manifest, repositories }) });
+}
+
+test('K1213: a name that two folders of a provider give is judged only for the ecosystems of the runtime and only in a project that holds the package installed', (t) => {
+  const { root, provider, consumer, env } = workspace(t);
+  // One Composer name and one npm name, each in a second folder of the same kind, which nothing tells apart.
+  put(provider, { 'legacy/php/composer.json': JSON.stringify({ name: 'polyspec/y' }), 'legacy/ts/package.json': JSON.stringify({ name: '@polyspec/x' }) });
+  git(provider, 'add', '-A');
+  git(provider, 'commit', '--quiet', '-m', 'twice');
+  consumerRepositories(consumer);
+  for (const runtime of ['go', 'python'] as const) {
+    const { ok, text } = runtimeLink(consumer, env, runtime);
+    assert.equal(ok, true, `${runtime}: ${text}`);
+  }
+  assert.throws(() => runtimeLink(consumer, env, 'ts'), new RegExp(`^Error: npm package @polyspec/x has two providers: ${path.join(provider, 'legacy/ts')} and ${path.join(provider, 'packages/ts')}; `));
+  assert.throws(() => runtimeLink(consumer, env, 'php'), new RegExp(`^Error: composer package polyspec/y has two providers: ${path.join(provider, 'legacy/php')} and ${path.join(provider, 'packages/php')}; `));
+  assert.throws(() => runtimeLink(consumer, env), /has two providers/, 'a link of every runtime judges the packages that the consumer holds installed');
+  // The command that prints the providers of one ecosystem judges that ecosystem alone.
+  const providersOf = (ecosystem: string) => spawnSync(process.execPath, [LINK, 'providers', '--ecosystem', ecosystem, provider], { cwd: consumer, env: { ...process.env, ...env }, encoding: 'utf8' });
+  const go = providersOf('go');
+  assert.equal(go.status, 0, go.stderr);
+  assert.equal(go.stdout, `github.com/polyspec/prov/go\t${path.join(provider, 'go')}\n`);
+  const composer = providersOf('composer');
+  assert.equal(composer.status, 1, composer.stdout);
+  assert.match(composer.stderr, /^composer package polyspec\/y has two providers: \S+legacy\/php and \S+packages\/php\n$/);
+  // A consumer that holds neither package installed links in every runtime: nothing of them is linked there, so neither name is
+  // judged, and its link check names the declared package that is not installed.
+  const app = repository(root, 'app', { 'go.mod': 'module app\n', 'package.json': JSON.stringify({ name: 'app', private: true }), 'composer.json': JSON.stringify({ name: 'app/app', require: { 'polyspec/y': '0.0.1' } }), '.gitignore': 'go.work\ngo.work.sum\nvar/\n.links\n' });
+  put(app, { '.links': '../prov\n', 'go.mod.json': JSON.stringify({ Module: { Path: 'app' }, Require: [{ Path: 'github.com/polyspec/prov/go', Version: 'v0.0.3' }] }) });
+  const lines: string[] = [];
+  assert.equal(link({ checkouts: [provider], directories: [app], check: false, print: text => lines.push(text), env }), true, lines.join('\n'));
+  assert.match(lines.join('\n'), /linked +go +github\.com\/polyspec\/prov\/go -> /);
+  assert.deepEqual(linkFindings(app, env), ['composer polyspec/y: no installed folder of . links it; Fix: make install']);
+});
+
+test('K1213: the project decides between two folders of one Composer name: a path repository of its manifest, else the type that Composer recorded for the installed package', (t) => {
+  const { provider, consumer, env } = workspace(t);
+  // The library and the extension package of one name, which their type tells apart.
+  put(provider, { 'packages/php-ext/composer.json': JSON.stringify({ name: 'polyspec/y', type: 'php-ext' }) });
+  git(provider, 'add', '-A');
+  git(provider, 'commit', '--quiet', '-m', 'extension');
+  const installed = path.join(consumer, 'var/contracts/vendor/polyspec/y');
+  const record = path.join(consumer, 'var/contracts/vendor/composer/installed.json');
+  const recordType = (type?: string) => put(consumer, { [path.relative(consumer, record)]: JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1', 'install-path': '../polyspec/y', ...(type === undefined ? {} : { type }) }] }) });
+  const linkedTo = (folder: string, why: string) => {
+    const { ok, text } = runtimeLink(consumer, env, 'php');
+    assert.equal(ok, true, `${why}: ${text}`);
+    assert.equal(realpathSync(installed), path.join(provider, folder), why);
+    assert.doesNotMatch(runtimeLink(consumer, env, 'php', true).text, /NOT linked/, why);
+  };
+  linkedTo('packages/php', 'the path repository of the tracked composer.json names the library');
+  consumerRepositories(consumer, [{ type: 'path', url: '../prov/packages/php-ext' }]);
+  linkedTo('packages/php-ext', 'a path repository that names the extension package');
+  consumerRepositories(consumer);
+  linkedTo('packages/php', 'a record without a type is a library, as Composer reads it');
+  recordType('php-ext');
+  linkedTo('packages/php-ext', 'Composer recorded the extension package');
+  recordType('library');
+  linkedTo('packages/php', 'Composer recorded the library');
+  // A type that neither folder declares, and two folders of one type, decide nothing.
+  recordType('metapackage');
+  assert.throws(() => runtimeLink(consumer, env, 'php'), /composer package polyspec\/y has two providers: \S+packages\/php-ext and \S+packages\/php; /);
+});
+
+test('K1213: an npm file: dependency and a uv source path of the project decide between two folders of one name, and a path that names neither decides nothing', (t) => {
+  const { provider, consumer, env } = workspace(t);
+  put(provider, { 'legacy/ts/package.json': JSON.stringify({ name: '@polyspec/x' }), 'legacy/python/pyproject.toml': '[project]\nname = "polyspec_z"\nversion = "0.0.1"\n' });
+  git(provider, 'add', '-A');
+  git(provider, 'commit', '--quiet', '-m', 'twice');
+  const manifest = readJsonObject(consumer, 'package.json');
+  put(consumer, { 'package.json': JSON.stringify({ ...manifest, dependencies: { '@polyspec/x': 'file:../prov/legacy/ts', '@polyspec/own': '0.0.1' } }) });
+  const npm = runtimeLink(consumer, env, 'ts');
+  assert.equal(npm.ok, true, npm.text);
+  assert.equal(npmTarget(path.join(consumer, 'node_modules/@polyspec/x')), path.join(provider, 'legacy/ts'));
+  // A folder that npm itself linked from a local path, as its lock records, is left as it is and decides too.
+  put(consumer, { 'package.json': JSON.stringify(manifest), 'package-lock.json': JSON.stringify({ lockfileVersion: 3, packages: { '': { name: 'cons' }, 'node_modules/@polyspec/x': { resolved: '../prov/legacy/ts', link: true } } }) });
+  const before = linkState(path.join(consumer, 'node_modules/@polyspec/x'));
+  const locked = runtimeLink(consumer, env, 'ts');
+  assert.equal(locked.ok, true, locked.text);
+  assert.deepEqual(linkState(path.join(consumer, 'node_modules/@polyspec/x')), before, 'link leaves the link of npm');
+  assert.doesNotMatch(runtimeLink(consumer, env, 'ts', true).text, /NOT linked +npm +@polyspec\/x/);
+  // The environment holds the distribution, and each folder has the package in its source root. The uv source of the fixture names
+  // packages/python by its path; then it names legacy/python, and then a folder that gives another package.
+  const site = path.join(consumer, 'python/.venv/lib/python3.14/site-packages');
+  put(provider, { 'packages/python/src/polyspec_z/__init__.py': 'VALUE = 1\n', 'legacy/python/src/polyspec_z/__init__.py': 'VALUE = 2\n' });
+  put(site, { 'polyspec_z/__init__.py': 'VALUE = 0\n', 'polyspec_z-0.0.1.dist-info/METADATA': 'Name: polyspec-z\nVersion: 0.0.1\n' });
+  const pythonProject = path.join(consumer, 'python/pyproject.toml');
+  const sourcePath = (from: string, to: string) => writeFileSync(pythonProject, readFileSync(pythonProject, 'utf8').replace(`../../prov/${from}`, `../../prov/${to}`));
+  for (const [from, to] of [['packages/python', 'packages/python'], ['packages/python', 'legacy/python']] as const) {
+    sourcePath(from, to);
+    const python = runtimeLink(consumer, env, 'python');
+    assert.equal(python.ok, true, python.text);
+    assert.equal(realpathSync(path.join(site, 'polyspec_z')), path.join(provider, to, 'src/polyspec_z'));
+  }
+  sourcePath('legacy/python', 'packages/w');
+  assert.throws(() => runtimeLink(consumer, env, 'python'), new RegExp(`python package polyspec-z has two providers: ${path.join(provider, 'legacy/python')} and ${path.join(provider, 'packages/python')}; `));
+});
+
+test('K1213: two Go modules of one provider with different module paths are two providers, and one module path in two folders fails with both for the Go runtime alone', (t) => {
+  const { provider, consumer, env } = workspace(t);
+  put(provider, { 'legacy/go/go.mod': 'module github.com/polyspec/prov/legacy/go\n', 'legacy/go/go.mod.json': JSON.stringify({ Module: { Path: 'github.com/polyspec/prov/legacy/go' } }) });
+  git(provider, 'add', '-A');
+  git(provider, 'commit', '--quiet', '-m', 'second module');
+  const found = providers(current, { command: known(env.GO, 'the go stub'), env }, consumer, consumer);
+  assert.equal(found.get('go:github.com/polyspec/prov/go')?.folder, path.join(provider, 'go'));
+  assert.equal(found.get('go:github.com/polyspec/prov/legacy/go')?.folder, path.join(provider, 'legacy/go'));
+  const { ok, text } = runtimeLink(consumer, env, 'go');
+  assert.equal(ok, true, text);
+  assert.deepEqual(readJsonObject(consumer, 'go.work.json').Use, [{ DiskPath: '.' }, { DiskPath: '../prov/go' }], 'the go.work uses the module that the consumer requires');
+  put(provider, { 'legacy/go/go.mod.json': JSON.stringify({ Module: { Path: 'github.com/polyspec/prov/go' } }) });
+  assert.throws(() => runtimeLink(consumer, env, 'go'), new RegExp(`^Error: go module github.com/polyspec/prov/go has two providers: ${path.join(provider, 'go')} and ${path.join(provider, 'legacy/go')}$`));
+  assert.equal(runtimeLink(consumer, env, 'ts').ok, true, 'a link of another runtime does not judge the Go modules');
 });
 
 // K462: `link.mjs providers <checkout>...` prints each npm provider with its folder, by the rule that link reads the providers with: the
@@ -1395,6 +1545,79 @@ test('K856: link links a polyspec Go module whatever version the module requires
   assert.equal(link({ checkouts: current, directories: [consumer], check: false, print: text => lines.push(text), env }), true, lines.join('\n'));
   assert.doesNotMatch(lines.join('\n'), /not 0\.0\.x/);
   assert.ok(existsSync(path.join(consumer, 'go.work')), 'the go.work of the module uses the provider');
+});
+
+// K1212: go reads the go.mod of each version that a module of a workspace requires, a module that the workspace uses included, so a
+// required version that no tag names fails a build. The go.work that link writes therefore replaces each required version of a
+// linked module with its checkout; tests/source/link-go-real.test.mts shows the text and the real go.
+const GO_PROVIDED = 'github.com/polyspec/prov/go';
+
+/** The replace directives that the go stub recorded for the go.work `work`, each as `<module>@<version>=<path>`, sorted. */
+function recordedReplaces(work: string): string[] {
+  const replaces = readJsonObject(`${work}.json`).Replace;
+  return (Array.isArray(replaces) ? replaces : []).map((item: { Old: { Path: string; Version?: string }; New: { Path: string } }) => `${item.Old.Path}@${item.Old.Version ?? ''}=${item.New.Path}`).sort();
+}
+
+test('K1212: link replaces the required version of a linked Go module in the go.work that it writes, and a second run edits nothing', (t) => {
+  const { consumer, env, log } = workspace(t);
+  const work = path.join(consumer, 'go.work');
+  const edit = `go work edit -replace=${GO_PROVIDED}@v0.0.3=../prov/go ${work}\n`;
+  for (const run of ['first', 'second']) {
+    const { ok, text } = linkLines([consumer], env);
+    assert.equal(ok, true, text);
+    assert.equal(log().split(edit).length - 1, 1, `the ${run} link: ${log()}`);
+    assert.deepEqual(recordedReplaces(work), [`${GO_PROVIDED}@v0.0.3=../prov/go`]);
+  }
+  assert.doesNotMatch(log(), /go work edit -(drop)?use|-dropreplace/, 'the second run finds the go.work as link wrote it');
+  assert.doesNotMatch(linkLines([consumer], env, true).text, /NOT linked +go/);
+});
+
+test('K1212: link-check names a required version that the go.work does not replace and a replace that no used module requires, and link writes both right', (t) => {
+  const { consumer, provider, kit, env, log } = workspace(t);
+  const work = path.join(consumer, 'go.work');
+  assert.equal(linkLines([consumer], env).ok, true);
+  const left = { Old: { Path: GO_PROVIDED, Version: 'v0.0.9' }, New: { Path: '../prov/go' } };
+  for (const [state, missing] of [[[left], 'does not replace it with'], [[left, { Old: { Path: GO_PROVIDED, Version: 'v0.0.3' }, New: { Path: '../kit' } }], `replaces it with ${kit}, not with`]] as const) {
+    writeFileSync(`${work}.json`, JSON.stringify({ ...readJsonObject(`${work}.json`), Replace: state }));
+    const checked = linkLines([consumer], env, true);
+    assert.equal(checked.ok, false, checked.text);
+    assert.ok(checked.text.includes(`${GO_PROVIDED} v0.0.3 (go.work of ${consumer} ${missing} ${path.join(provider, 'go')}; Fix: make link)`), checked.text);
+    assert.match(checked.text, /NOT linked +go +github\.com\/polyspec\/prov\/go v0\.0\.9 \(go\.work of \S+ replaces it, though no module that it uses requires that version of a linked module; Fix: make link\)/, checked.text);
+    const linked = linkLines([consumer], env);
+    assert.equal(linked.ok, true, linked.text);
+    assert.deepEqual(recordedReplaces(work), [`${GO_PROVIDED}@v0.0.3=../prov/go`]);
+    assert.doesNotMatch(linkLines([consumer], env, true).text, /NOT linked +go/);
+  }
+  assert.match(log(), new RegExp(`go work edit -dropreplace=${GO_PROVIDED}@v0\\.0\\.9 -replace=${GO_PROVIDED}@v0\\.0\\.3=\\.\\./prov/go `));
+});
+
+test('K1212: the go.work of a module replaces each version at which a module that it uses requires a linked module: the module, its tracked workspace and the providers', (t) => {
+  const { consumer, provider, env } = workspace(t);
+  const second = 'github.com/polyspec/prov/second';
+  // The provider module requires the second provider module at a version of its own, which no tag names either.
+  put(provider, {
+    'go/go.mod.json': JSON.stringify({ Module: { Path: GO_PROVIDED }, Require: [{ Path: second, Version: 'v0.0.7' }] }),
+    'second/go.mod': `module ${second}\n`, 'second/go.mod.json': JSON.stringify({ Module: { Path: second } }),
+  });
+  git(provider, 'add', '-A');
+  git(provider, 'commit', '--quiet', '-m', 'second');
+  put(consumer, {
+    'ws/go.work': 'go 1.22\n\nuse (\n\t./a\n\t./b\n)\n',
+    'ws/go.work.json': JSON.stringify({ Use: [{ DiskPath: './a' }, { DiskPath: './b' }] }),
+    'ws/a/go.mod': 'module a\n', 'ws/a/go.mod.json': JSON.stringify({ Module: { Path: 'a' }, Require: [{ Path: GO_PROVIDED, Version: 'v0.0.3' }, { Path: second, Version: 'v0.0.6' }] }),
+    // The module b requires the provider at another version and does not require the second module, so its go.work does not use it.
+    'ws/b/go.mod': 'module b\n', 'ws/b/go.mod.json': JSON.stringify({ Module: { Path: 'b' }, Require: [{ Path: GO_PROVIDED, Version: 'v0.0.4' }] }),
+  });
+  git(consumer, 'add', '-A');
+  git(consumer, 'add', '-f', 'ws/go.work');
+  git(consumer, 'commit', '--quiet', '-m', 'workspace');
+  const { ok, text } = linkLines([consumer], env);
+  assert.equal(ok, true, text);
+  const folder = '../../../prov';
+  assert.deepEqual(recordedReplaces(path.join(consumer, 'ws/a/go.work')), [`${GO_PROVIDED}@v0.0.3=${folder}/go`, `${GO_PROVIDED}@v0.0.4=${folder}/go`, `${second}@v0.0.6=${folder}/second`, `${second}@v0.0.7=${folder}/second`]);
+  assert.deepEqual(recordedReplaces(path.join(consumer, 'ws/b/go.work')), [`${GO_PROVIDED}@v0.0.3=${folder}/go`, `${GO_PROVIDED}@v0.0.4=${folder}/go`]);
+  assert.equal(readFileSync(path.join(consumer, 'ws/go.work'), 'utf8'), 'go 1.22\n\nuse (\n\t./a\n\t./b\n)\n', 'the tracked go.work is unchanged');
+  assert.doesNotMatch(linkLines([consumer], env, true).text, /NOT linked +go/);
 });
 
 test('K856: link cargo runs no cargo update, and link has no rebuild command', (t) => {

@@ -97,3 +97,55 @@ test('linked exact requirements pass strict validation while stale and published
   assert.match(`${staleLink.stdout}${staleLink.stderr}`, /lock file is not up to date/);
   assert.equal(run(consumer, 'git', 'status', '--porcelain'), '', 'the link files are ignored by Git');
 });
+
+// K1213: a provider checkout that holds one Composer name in two folders, a library and the extension package of that name. The
+// project decides the folder by the type that the real Composer recorded for the package that it installed.
+test('K1213: link links the folder of one Composer name whose type Composer installed, and Composer loads the classes of that folder', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-link-composer-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const composer = toolCommand(KIT, 'composer');
+  const library = { name: 'polyspec/y', type: 'library', version: '0.0.1', require: { php: '>=8.4' }, autoload: { 'psr-4': { 'Y\\': 'lib/' } } };
+  const provider = repository(root, 'prov', {
+    'packages/php/composer.json': JSON.stringify(library),
+    // A class that the release does not hold, so loading it shows that Composer reads the folder of the checkout.
+    'packages/php/lib/Fresh.php': '<?php\n\nnamespace Y;\n\nfinal class Fresh\n{\n}\n',
+    'packages/php-ext/composer.json': JSON.stringify({ name: 'polyspec/y', type: 'php-ext', require: { php: '>=8.4' }, 'php-ext': { 'extension-name': 'y' } }),
+  });
+  const archives = path.join(root, 'archives');
+  mkdirSync(archives, { recursive: true });
+  put(root, { 'archive/composer.json': JSON.stringify(library), 'archive/lib/Hello.php': '<?php\n\nnamespace Y;\n\nfinal class Hello\n{\n}\n' });
+  run(path.join(root, 'archive'), 'zip', '-q', '-r', path.join(archives, 'polyspec-y-0.0.1.zip'), 'composer.json', 'lib');
+  const consumer = repository(root, 'cons', {
+    'composer.json': JSON.stringify({ name: 'cons/app', license: 'MIT', require: { 'polyspec/y': '0.0.1' }, repositories: [{ type: 'artifact', url: '../archives' }, { packagist: false }] }),
+    '.gitignore': 'vendor/\nvar/\n',
+  });
+  run(consumer, composer, 'update', '--no-interaction', '--no-scripts');
+  run(consumer, 'git', 'add', 'composer.lock');
+  run(consumer, 'git', '-c', 'user.name=kit', '-c', 'user.email=kit@example.invalid', 'commit', '--quiet', '-m', 'lock');
+  const installed = path.join(consumer, 'vendor/polyspec/y');
+  assert.equal(lstatSync(installed).isSymbolicLink(), false, 'Composer installed the release as a copy');
+  const record = readJsonFile<{ packages: { name: string; type?: string }[] }>(path.join(consumer, 'vendor/composer/installed.json'), 'composer-lock.schema.json');
+  assert.equal(record.packages.find(item => item.name === 'polyspec/y')?.type, 'library', 'Composer recorded the type of the package that it installed');
+  const env = { ...environment(consumer), COMPOSER_BIN: composer };
+  const linked = (check: boolean) => {
+    const lines: string[] = [];
+    return { ok: link({ checkouts: [provider], directories: [consumer], check, print: text => lines.push(text), env }), text: lines.join('\n') };
+  };
+  const first = linked(false);
+  assert.equal(first.ok, true, first.text);
+  assert.equal(lstatSync(installed).isSymbolicLink(), true, 'the installed folder is a link');
+  assert.equal(realpathSync(installed), path.join(provider, 'packages/php'), 'the link is the folder of the library, the type that Composer installed');
+  const checked = linked(true);
+  assert.equal(checked.ok, true, checked.text);
+  // The real Composer resolves the package through the link: its autoload loads a class of the checkout, and it names the folder.
+  run(consumer, composer, 'dump-autoload', '--no-interaction');
+  const autoload = spawnSync(toolCommand(KIT, 'php'), ['-r', "require 'vendor/autoload.php'; echo class_exists('Y\\\\Fresh') ? 'loaded' : 'missing';"], { cwd: consumer, encoding: 'utf8', env: environment(consumer) });
+  assert.equal(autoload.status, 0, autoload.stderr + autoload.stdout);
+  assert.equal(autoload.stdout, 'loaded');
+  assert.equal(realpathSync(run(consumer, composer, 'show', '--no-interaction', '--path', 'polyspec/y').trim().split(' ').pop() ?? ''), path.join(provider, 'packages/php'));
+  assert.equal(run(consumer, 'git', 'status', '--porcelain'), '', 'the link changes no tracked file of the consumer');
+  assert.equal(run(provider, 'git', 'status', '--porcelain'), '', 'the link writes nothing into the provider checkout');
+  // Two folders of one type decide nothing: link fails with the package and both folders.
+  put(provider, { 'packages/php-ext/composer.json': JSON.stringify({ name: 'polyspec/y', require: { php: '>=8.4' } }) });
+  assert.throws(() => linked(false), new RegExp(`composer package polyspec/y has two providers: ${path.join(provider, 'packages/php-ext')} and ${path.join(provider, 'packages/php')}; `));
+});
