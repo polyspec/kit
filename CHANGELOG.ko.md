@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6d895dbc558fbbb49117ca5ba699dae607b5e109c0c8150c46249c4b431e470d -->
+<!-- source-sha256: ebe46851520bc90c9553de470a31ed6033aff668b52059f7e7d0948a70b311e1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.112
 
 - K1221: release가 플랫폼별 asset을 빌드하지 않고, asset set의 matrix를 출력하지 않으며, tag 전에 set을 증명하지 않습니다. config/release.json의 package 종류 `wheel-abi3`, `php-ext`, `npm-native`, `go-static`, `release-native.mts`, asset set(`RELEASE_PLATFORM`, `RELEASE_PHP`), `release.mts sets`와 target `release-sets`, 그 종류를 위한 release-tools의 단계, release-tag가 `GITHUB_OUTPUT`에 쓰던 `tag`와 `version`, 예시 release workflow의 matrix, 예시 `workflows/release-candidate.yml`, 그 asset에 관한 PRINCIPLES.md와 AGENTS.md의 문단을 제거했습니다(K1189, K1190, K1196, K1198, K1199, K1200, K1203, K1208, K1211). Rust core와 그 binding을 플랫폼마다 어떻게 build하고 pack하는지, 그 asset의 이름, workflow의 job과 플랫폼별 runner를 kit의 코드가 정했는데, 그것은 저장소의 build와 release입니다. release 도구와 그 schema, recipe, 문서는 K1189 이전의 형태입니다. 저장소는 그런 asset을 자기 recipe에서 빌드하고 matrix를 자기 workflow에 적습니다. kit의 `rust-toolchain.toml`은 component `llvm-tools`를 더 적지 않습니다.
 
