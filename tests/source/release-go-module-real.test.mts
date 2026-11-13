@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { initRepository } from '../kit/sandbox-repository.mts';
 import { toolCommand } from '../../scripts/kit/mise-tools.mts';
 import { Stop } from '../../scripts/kit/process.mts';
 import { GO_PLATFORM_NAMES, releaseGoModules, type GoPlatform } from '../../scripts/kit/release-go-module.mts';
@@ -67,8 +68,8 @@ function sandbox(t: TestContext) {
   write('packages/go/internal/binding/binding.go', 'package binding\n\n// #cgo LDFLAGS: -lkit_fixture_go\n// int kit_fixture_add(int left, int right);\nimport "C"\n\n// Add adds two numbers in the static library.\nfunc Add(left, right int) int { return int(C.kit_fixture_add(C.int(left), C.int(right))) }\n');
   write('packages/go/sum/sum.go', `package sum\n\nimport "${MODULE}/internal/binding"\n\n// Add adds two numbers.\nfunc Add(left, right int) int { return binding.Add(left, right) }\n`);
   write('packages/go/sum/sum_test.go', 'package sum\n\nimport "testing"\n\nfunc TestAdd(t *testing.T) {\n\tif Add(2, 3) != 5 {\n\t\tt.Fatal("2 + 3")\n\t}\n}\n');
-  command('git', ['init', '--quiet', '--bare', remote], base);
-  command('git', ['init', '--quiet']);
+  initRepository(remote, '--bare');
+  initRepository(root);
   command('cargo', ['generate-lockfile', '--offline']);
   command('git', ['add', '-A']);
   command('git', ['commit', '--quiet', '-m', 'fixture']);

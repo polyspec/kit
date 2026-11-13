@@ -226,6 +226,8 @@ export function releaseGoModules(run_: GoModuleRun): { commit: string; tags: str
     // A repository of the run stands for the remote: it holds the commit under the tags, which the checkout does not hold yet.
     const remote = path.join(work, 'remote.git');
     run('git', ['init', '--quiet', '--bare', remote], { cwd: work, env: run_.env });
+    // No maintenance of git outlives a command in it, so the removal of the work folder meets no file that one writes.
+    for (const [name, value] of [['maintenance.auto', 'false'], ['gc.auto', '0'], ['receive.autogc', 'false']] as const) run('git', ['--git-dir', remote, 'config', name, value], { cwd: work, env: run_.env });
     git(run_, ['push', '--quiet', remote, ...tags.map(name => `${commit}:refs/tags/${name}`)]);
     consumerCheck(run_, remote, required, goVersion, work);
     for (const name of tags) git(run_, [...identity, 'tag', '-a', name, '-m', name, commit], { GIT_COMMITTER_DATE: date });

@@ -8,6 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { Stop } from '../../scripts/kit/process.mts';
+import { initRepository } from './sandbox-repository.mts';
 import { archiveObjects, GO_PLATFORM_NAMES, goModProblems, releaseGoModules, type GoModule, type GoPlatform } from '../../scripts/kit/release-go-module.mts';
 
 const TAG = 'v0.0.1';
@@ -67,8 +68,8 @@ function sandbox(t: TestContext, directories: string[] = ['packages/go']) {
     writeFileSync(path.join(root, file), text);
   };
   mkdirSync(root, { recursive: true });
-  spawnSync('git', ['init', '--quiet', '--bare', remote], { env });
-  git('init', '--quiet');
+  initRepository(remote, '--bare');
+  initRepository(root);
   write('.gitignore', 'zz_generated_*.go\n/packages/*/internal/ffi/generated/\n/packages/*/internal/ffi/lib/*/*.a\n');
   write('README.md', 'fixture\n');
   for (const directory of directories) {
