@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: fcb5c9218ad0c4ab941e7b58a1cde22475cbd72e2ba608901ec5bb5d7cad0eb7 -->
+<!-- source-sha256: e7cb59442ec8a23d23273a9619b0c540fe8af6536b7f39df8d55db86abe5125d -->
 # 릴리스
 
 [English](release.md)
@@ -69,10 +69,11 @@ binary를 찾는다. PIE는 package의 version으로 그 release를 찾고(`rele
 그래서 packages.json은 `php-ext` package를 version `vX.Y.Z`, 곧 tag 아래에 두고, dist는 tag의 source archive
 (`https://api.github.com/repos/<owner>/<repository>/zipball/vX.Y.Z`)다.
 `npm-native` package는 napi CLI가 읽는 설정인 `napi.binaryName`과 `napi.targets`를 package.json에 적는다. targets는 그 플랫폼들의
-Rust triple(`x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `aarch64-apple-darwin`)이고, `optionalDependencies`는
-플랫폼마다 `<name>-<platform>`을 release의 version으로 적으며 다른 플랫폼 package는 적지 않는다. root package는 실행할 때 자기
-플랫폼 package를 고른다. root package는 make entry의 출력을 넣은 tag된 tree의 사본에서 `--ignore-scripts`로 pack한다. 그 entry가
-root package가 담는 것을 빌드하기 때문이다. root package는 자기 package.json을 byte 그대로 담는다.
+Rust triple(`x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `aarch64-apple-darwin`)이다. 소스의 package.json은 플랫폼
+package를 적지 않는다. `npm ci`는 workspace의 lock에 없는 의존을 거부하기 때문이다. root package는 실행할 때 자기 플랫폼 package를
+고른다. root package는 make entry의 출력을 넣은 tag된 tree의 사본에서 `--ignore-scripts`로 pack한다. 그 entry가 root package가
+담는 것을 빌드하기 때문이다. root package가 담는 package.json은 `optionalDependencies`에 플랫폼마다 `<name>-<platform>`을
+release의 version으로 더한 것이며, release가 pack하기 전에 그것을 사본에 쓴다(K1200).
 
 napi CLI는 package.json에서 찾은 project 밖의 폴더를 거부하므로, 플랫폼 package의 폴더를 그 package.json의 package 안에 둔다.
 그래서 `napi create-npm-dirs`와 `napi artifacts`는 tag된 tree 사본의 package 안 `.kit-napi/npm/<platform>`에 그 폴더를 쓰고, npm은
@@ -81,7 +82,7 @@ addon만 빌드한다. 그래서 `napi create-npm-dirs`와 `napi artifacts`는 �
 덮어쓰는 실행의 설정 파일(`--config-path`)을 읽는다(K1199).
 
 모든 set은 무엇이든 빌드하기 전에 config/release.json의 모든 native package의 manifest를, 그 package를 어느 set이 빌드하든
-검사한다. 각 manifest의 이름, `npm-native` package의 `napi.binaryName`, `napi.targets`, `optionalDependencies`, `php-ext`
+검사한다. 각 manifest의 이름, `npm-native` package의 `napi.binaryName`, `napi.targets`, `php-ext`
 package의 `php-ext.extension-name`과 `php-ext.download-url-method`의 `pre-packaged-binary`이다. 실패 하나가 찾은 문제를
 모두 이름으로 댄다. 그래서 matrix의 각 runner는 cargo, maturin, napi CLI가 돌기 전에 같은 메시지로 실패하고, 도구가 거부할
 manifest를 set의 다른 asset을 빌드한 뒤에야 찾는 일이 없다(K1196).

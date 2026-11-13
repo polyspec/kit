@@ -50,7 +50,7 @@ import { present } from './present.mts';
 import { linksOutsideCheckout } from './link.mts';
 import { toolCommand } from './mise-tools.mts';
 import { packedPackageManifest } from './pack-manifest.mts';
-import { assetSets, buildPlatformAsset, extensionOf, inSet, isNative, namedSet, nativeProblems, npmNativeProblems, npmNativeRoot, npmPackName, phpExtProblems, platformAssets, requireHost, setName, zipEntries, type AssetSet, type ExpectedAsset, type ExtensionNames, type NativeBuild } from './release-native.mts';
+import { assetSets, buildPlatformAsset, extensionOf, inSet, isNative, namedSet, nativeProblems, npmNativeProblems, npmNativeRoot, npmPackName, packedNativeManifest, phpExtProblems, platformAssets, requireHost, setName, zipEntries, type AssetSet, type ExpectedAsset, type ExtensionNames, type NativeBuild } from './release-native.mts';
 import { readToml, isTable } from './toml.mts';
 
 export const CONFIG = 'config/release.json';
@@ -605,9 +605,9 @@ function withNativeSource<T>(ctx: Context, commit: string, epoch: number, output
 
 /**
  * The problems of the manifest `text` of the package `item` at the commit: it names the package that config/release.json declares, and
- * the manifest of an npm-native or php-ext package holds what its tools read for the release `version` (K1196).
+ * the manifest of an npm-native or php-ext package holds what its tools read (K1196).
  */
-function manifestProblems(item: ReleasePackage, text: string, version: string): string[] {
+function manifestProblems(item: ReleasePackage, text: string): string[] {
   const file = path.posix.join(item.directory, MANIFEST_OF[item.kind]);
   if (item.kind === 'wheel' || item.kind === 'wheel-abi3') return [];
   if (item.kind === 'go-static') {
@@ -617,7 +617,7 @@ function manifestProblems(item: ReleasePackage, text: string, version: string): 
   }
   const manifest = parseManifest(item.kind === 'npm' || item.kind === 'npm-native' ? 'npm' : 'composer', text, file);
   const named = manifest.name === item.name ? [] : [`${file}: name ${manifest.name ?? 'none'}, ${CONFIG} declares ${item.name}`];
-  if (item.kind === 'npm-native') return [...named, ...npmNativeProblems(parseJson<NpmManifest>(text, 'npm-manifest.schema.json', file), item, version, file)];
+  if (item.kind === 'npm-native') return [...named, ...npmNativeProblems(parseJson<NpmManifest>(text, 'npm-manifest.schema.json', file), item, file)];
   if (item.kind === 'php-ext') return [...named, ...phpExtProblems(parseJson<ComposerManifest>(text, 'composer-manifest.schema.json', file), file)];
   return named;
 }
@@ -653,7 +653,7 @@ function assetsFromCommit(ctx: Context, reference: string, commit: string, versi
   const sources = config.packages.map(({ kind, directory: folder }) => run('git', ['show', `${commit}:${path.posix.join(folder, MANIFEST_OF[kind])}`], at(ctx)));
   // sources holds the manifest of each package at its index.
   // Every set checks the manifest of every package, also of one that another set builds, before any tool runs (K1196).
-  const problems = config.packages.flatMap((item, index) => manifestProblems(item, present(sources[index], 'sources[index]'), version));
+  const problems = config.packages.flatMap((item, index) => manifestProblems(item, present(sources[index], 'sources[index]')));
   if (problems.length) throw new Stop(`${reference}: the manifests of the commit ${commit} do not release their packages: ${problems.join('; ')}`);
   const extensions: ExtensionNames = Object.fromEntries(config.packages.flatMap((item, index) => (item.kind === 'php-ext' ? [[index, extensionOf(parseManifest('composer', present(sources[index], 'sources[index]'), item.directory), path.posix.join(item.directory, 'composer.json'))]] : [])));
   const expected = set.platform === undefined ? sourceAssets(config, version) : platformAssets(config.packages, config.repositoryUrl, version, set, extensions);
@@ -728,7 +728,9 @@ function assetsFromCommit(ctx: Context, reference: string, commit: string, versi
       const manifest = MANIFEST_OF[kind];
       const packed = packedManifest(ctx, path.join(next, file));
       const source = present(sources[asset.index], 'sources[asset.index]');
-      const expectedManifest = kind === 'npm' && name === PACKAGE ? packedPackageManifest(source) : source;
+      // The root package of an npm-native package carries the platform packages that the release writes into its manifest (K1200).
+      const item = present(config.packages[asset.index], 'config.packages[asset.index]');
+      const expectedManifest = kind === 'npm' && name === PACKAGE ? packedPackageManifest(source) : kind === 'npm-native' ? packedNativeManifest(source, item, version, path.posix.join(folder, manifest)) : source;
       return packed === expectedManifest ? [] : [`${file}: the packed ${manifest} differs from ${path.posix.join(folder, manifest)} of the commit ${commit}`];
     });
     if (failures.length) throw new Stop(`${reference}: the release assets do not install outside the repository: ${failures.join('; ')}`);

@@ -53,6 +53,14 @@ const JOB: JSONSchemaType<Job> = {
 };
 const WORKFLOW: JSONSchemaType<{ jobs: Record<string, Job> }> = { type: 'object', required: ['jobs'], properties: { jobs: { type: 'object', required: [], additionalProperties: JOB } } };
 const NAMED: JSONSchemaType<{ name: string }> = { type: 'object', required: ['name'], properties: { name: STRING } };
+/** A package.json of the root package of an npm-native package, in the fields that the case of K1200 compares. */
+type Packed = { name: string; version: string; main: string; napi: { binaryName: string; targets: string[] }; optionalDependencies: Record<string, string> };
+const PACKED: JSONSchemaType<Packed> = {
+  type: 'object',
+  required: ['name', 'version', 'main', 'napi', 'optionalDependencies'],
+  additionalProperties: false,
+  properties: { name: STRING, version: STRING, main: STRING, napi: { type: 'object', required: ['binaryName', 'targets'], additionalProperties: false, properties: { binaryName: STRING, targets: TEXTS } }, optionalDependencies: { type: 'object', required: [], additionalProperties: STRING } },
+};
 const VERSION = '0.0.1';
 // The platforms of the release, typed.
 const ALL: Platform[] = PLATFORM_NAMES.filter(isPlatform);
@@ -69,12 +77,14 @@ const NATIVE_PACKAGES: release.ReleasePackage[] = [
 ];
 
 const cargo = (name: string, type: string) => `[package]\nname = "${name}"\nversion = "${VERSION}"\nedition = "2024"\npublish = false\n\n[lib]\ncrate-type = ["${type}"]\n`;
-const nativeManifest = (optional: Record<string, string> = Object.fromEntries(PLATFORM_NAMES.map(platform => [`@polyspec/kit-fixture-native-${platform}`, VERSION]))) => ({
+// The source manifest names no platform package: the release writes them into the manifest that it packs (K1200), since npm ci
+// refuses a dependency that the lock of the workspace lacks.
+const nativeManifest = () => ({
   name: '@polyspec/kit-fixture-native',
   version: VERSION,
   main: 'index.js',
   napi: { binaryName: 'kit-fixture-native', targets: ALL.map(platform => TRIPLES[platform]) },
-  optionalDependencies: optional,
+  optionalDependencies: { 'kit-fixture-optional': '1.0.0' },
 });
 
 /** The fixture with the native packages, their manifests and the native stubs; `change` edits the files before the commit. */
@@ -201,9 +211,7 @@ test('K1189: the set without a platform packs the root package of an npm-native 
   assert.equal(repository.packages['polyspec/kit-fixture-ext']?.['v0.0.1']?.version, 'v0.0.1');
 });
 
-test('K1189: the root package of an npm-native package names each platform package at the tag in optionalDependencies and the triples of its platforms in napi.targets', (t) => {
-  const wrong = nativeSandbox(t, root => writeJson(root, 'packages/fixture-native-js/package.json', nativeManifest({ '@polyspec/kit-fixture-native-darwin-arm64': '0.0.0' })));
-  stop(() => release.assets(context(wrong, {}), wrong.tag(`v${VERSION}`)), /the optionalDependencies of the platform packages are \{"@polyspec\/kit-fixture-native-darwin-arm64":"0\.0\.0"\}, expected \{.*"@polyspec\/kit-fixture-native-linux-x64-gnu":"0\.0\.1".*\}/);
+test('K1189: the root package of an npm-native package names the triples of its platforms in napi.targets', (t) => {
   const targets = nativeSandbox(t, root => writeJson(root, 'packages/fixture-native-js/package.json', { ...nativeManifest(), napi: { binaryName: 'kit-fixture-native', targets: ['aarch64-apple-darwin'] } }));
   stop(() => release.assets(context(targets, {}), targets.tag(`v${VERSION}`)), /napi\.targets \[aarch64-apple-darwin\] are not the triples of its platforms \[x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, aarch64-apple-darwin\]/);
 });
@@ -229,6 +237,19 @@ test('K1196: a set names the problems of a php-ext and of an npm-native manifest
     stop(() => release.assets(context(box, set, { env: { STUB_WHEEL_TAGS: WHEEL_TAGS[host()] } }), tag), /(?=[\s\S]*packages\/fixture-native-php\/composer\.json lists no pre-packaged-binary in php-ext\.download-url-method)(?=[\s\S]*packages\/fixture-native-js\/package\.json names no napi\.binaryName)/);
   }
   assert.deepEqual(box.calls(), [], 'no tool built');
+});
+
+// K1200: the source manifest of an npm-native package names no platform package, and the packed root package names each one at the
+// version of the release beside the optional dependencies of the source.
+test('K1200: the set without a platform writes the platform packages into the optionalDependencies of the packed root package alone', (t) => {
+  const box = nativeSandbox(t);
+  const tag = box.tag(`v${VERSION}`);
+  release.assets(context(box, {}), tag);
+  const read = (text: string) => parseStub(text, PACKED, 'a package.json of the root package');
+  const packed = read(spawnSync('tar', ['-xzOf', path.join(box.root, 'var/release/assets/polyspec-kit-fixture-native-0.0.1.tgz'), 'package/package.json'], { encoding: 'utf8' }).stdout);
+  assert.deepEqual(packed.optionalDependencies, { 'kit-fixture-optional': '1.0.0', ...Object.fromEntries(PLATFORM_NAMES.map(platform => [`@polyspec/kit-fixture-native-${platform}`, VERSION])) });
+  const source = read(readFileSync(path.join(box.root, 'packages/fixture-native-js/package.json'), 'utf8'));
+  assert.deepEqual({ ...packed, optionalDependencies: source.optionalDependencies }, source, 'the other fields are those of the source');
 });
 
 test('K1189: the set of the platform of this machine builds the abi3 wheel, the npm platform package and the Go static library with cargo in a copy of the tagged tree', (t) => {
@@ -313,7 +334,7 @@ test('K1189: a platform set builds on its own platform alone, and a set that no 
     const config = readJson<release.ReleaseConfig>(root, 'config/release.json');
     writeJson(root, 'config/release.json', { ...config, packages: config.packages.map(item => (item.kind === 'php-ext' ? item : item.platforms ? { ...item, platforms: [other] } : item)) });
     // The npm-native manifest names the one platform of its package, as every set checks it (K1196).
-    writeJson(root, 'packages/fixture-native-js/package.json', { ...nativeManifest({ [`@polyspec/kit-fixture-native-${other}`]: VERSION }), napi: { binaryName: 'kit-fixture-native', targets: [TRIPLES[other]] } });
+    writeJson(root, 'packages/fixture-native-js/package.json', { ...nativeManifest(), napi: { binaryName: 'kit-fixture-native', targets: [TRIPLES[other]] } });
   });
   stop(() => release.assets(context(lone, { platform }), lone.tag(`v${VERSION}`)), new RegExp(`no package of config/release\\.json builds the set of ${platform}; the sets are`));
 });

@@ -82,10 +82,11 @@ so that PIE looks for the binary among the assets of the release. PIE finds that
 version `vX.Y.Z`, the tag, with the dist of the source archive of the tag (`https://api.github.com/repos/<owner>/<repository>/zipball/vX.Y.Z`).
 An `npm-native` package names `napi.binaryName` and `napi.targets` in its package.json, the configuration that the napi CLI reads;
 the targets are the Rust triples of its platforms (`x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `aarch64-apple-darwin`),
-and its `optionalDependencies` name `<name>-<platform>` at the version of the release for each platform and no other platform
-package. The root package selects its platform package at run time; it is packed from the copy of the tagged tree with the
+and the package.json of the source names no platform package, since `npm ci` refuses a dependency that the lock of the workspace
+lacks. The root package selects its platform package at run time; it is packed from the copy of the tagged tree with the
 outputs of its make entries and `--ignore-scripts`, since those entries build what it carries, and it carries its package.json
-byte for byte.
+with `<name>-<platform>` at the version of the release for each platform added to its `optionalDependencies`, which the release
+writes into the copy before it packs (K1200).
 
 The napi CLI keeps the folders of the platform packages inside the package of its package.json, since it refuses a folder
 outside the project that it discovers from there. So `napi create-npm-dirs` and `napi artifacts` write them into `.kit-napi/npm/<platform>`
@@ -94,7 +95,7 @@ and a platform set builds the addon of its own platform alone, so `napi create-n
 file of the run (`--config-path`) that names the target of the set alone and overrides `napi.targets` of package.json (K1199).
 
 Before it builds anything, every set checks the manifest of every native package of config/release.json, whichever set builds
-that package: the name of each manifest, `napi.binaryName`, `napi.targets` and the `optionalDependencies` of an `npm-native`
+that package: the name of each manifest, `napi.binaryName` and `napi.targets` of an `npm-native`
 package, and `php-ext.extension-name` and `pre-packaged-binary` in `php-ext.download-url-method` of a `php-ext` package. One
 failure names every problem it finds, so each runner of the matrix fails with the same message before cargo, maturin or the
 napi CLI runs, and a manifest that a tool would reject is not found only after another asset of the set was built (K1196).

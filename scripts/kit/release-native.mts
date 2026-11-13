@@ -294,22 +294,29 @@ function abi3Wheel(build: NativeBuild, item: NativePackage, expected: ExpectedAs
 export const napiCommand = (root: string): string => path.join(root, 'node_modules', '.bin', process.platform === 'win32' ? 'napi.cmd' : 'napi');
 
 /**
- * The problems of the package.json of an npm-native package for its platforms: the napi configuration that the napi CLI reads, and
- * the optionalDependencies that name each platform package at the version of the release and no other.
+ * The problems of the package.json of an npm-native package for its platforms: the napi configuration that the napi CLI reads. The
+ * source names no platform package; the release writes them into the manifest that it packs (K1200).
  */
-export function npmNativeProblems(manifest: NpmManifest, item: NativePackage, version: string, file: string): string[] {
+export function npmNativeProblems(manifest: NpmManifest, item: NativePackage, file: string): string[] {
   const problems: string[] = [];
   const platforms = (item.platforms ?? []).filter(isPlatform);
   if (!manifest.napi?.binaryName) problems.push(`${file} names no napi.binaryName, the name of the addon that the napi CLI writes`);
   const triples = platforms.map(platform => PLATFORMS[platform].triple);
   const targets = manifest.napi?.targets ?? [];
   if (targets.length !== triples.length || !triples.every(triple => targets.includes(triple))) problems.push(`${file}: napi.targets [${(manifest.napi?.targets ?? []).join(', ')}] are not the triples of its platforms [${triples.join(', ')}]`);
-  const optional = manifest.optionalDependencies ?? {};
-  const expected = Object.fromEntries(platforms.map(platform => [`${item.name}-${platform}`, version]));
-  const named = Object.fromEntries(Object.entries(optional).filter(([name]) => name.startsWith(`${item.name}-`)));
-  const sameEntries = Object.keys(named).length === Object.keys(expected).length && Object.entries(expected).every(([name, value]) => named[name] === value);
-  if (!sameEntries) problems.push(`${file}: the optionalDependencies of the platform packages are ${JSON.stringify(named)}, expected ${JSON.stringify(expected)}`);
   return problems;
+}
+
+/**
+ * The package.json that the root package of the npm-native package `item` carries, from the text of its source manifest `file`: the
+ * source with each platform package at the version of the release in its optionalDependencies, beside the optional dependencies of
+ * the source (K1200). The source names none, since npm ci refuses a dependency that the lock of the workspace lacks.
+ */
+export function packedNativeManifest(text: string, item: NativePackage, version: string, file: string): string {
+  const manifest = parseJson<NpmManifest>(text, 'npm-manifest.schema.json', file);
+  const platforms = (item.platforms ?? []).filter(isPlatform);
+  const optionalDependencies = { ...manifest.optionalDependencies, ...Object.fromEntries(platforms.map(platform => [`${item.name}-${platform}`, version])) };
+  return `${JSON.stringify({ ...manifest, optionalDependencies }, null, 2)}\n`;
 }
 
 /** Builds the platform package of an npm-native package with the napi CLI and packs it with npm; returns its name. */
@@ -358,9 +365,12 @@ function npmPack(build: NativeBuild, folder: string, name: string, what: string)
 /** Builds the root package of an npm-native package from the copy of the tagged tree and packs it with npm; returns its name. */
 export function npmNativeRoot(build: NativeBuild, item: NativePackage, version: string): string {
   const folder = path.join(build.source, item.directory);
-  const manifest = parseJson<NpmManifest>(readFileSync(path.join(folder, 'package.json'), 'utf8'), 'npm-manifest.schema.json', `${item.directory}/package.json`);
-  const problems = npmNativeProblems(manifest, item, version, `${item.directory}/package.json`);
+  const file = `${item.directory}/package.json`;
+  const text = readFileSync(path.join(folder, 'package.json'), 'utf8');
+  const problems = npmNativeProblems(parseJson<NpmManifest>(text, 'npm-manifest.schema.json', file), item, file);
   if (problems.length) throw new Stop(problems.join('; '));
+  // The copy is the staged manifest of the release: it names the platform packages at the version of the release (K1200).
+  writeFileSync(path.join(folder, 'package.json'), packedNativeManifest(text, item, version, file));
   // The make entries built what the package carries, so no script of the package runs in the copy, which holds no node_modules.
   return npmPack(build, folder, npmPackName(item.name, version), item.directory);
 }
