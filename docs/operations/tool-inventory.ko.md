@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 5ee0028a23a9698c4bdcfbdd4e2f721e13207b9231430752e884b29b7ba97cc0 -->
+<!-- source-sha256: 6e5c6ee54f5cf08528da872b1223635d9c439b8f29b09851769e122ddd14fd26 -->
 
 # 도구 목록
 
@@ -848,7 +848,7 @@ fixture이며, 각 fixture는 자기 위반에서 실패합니다. 모든 도구
 |---|---|---|---|
 | Python | ruff 0.17.0, vulture 2.16 (`mise.toml`) | `ruff.toml` | `lint-python.mts`: 루트에서 ruff, 각 package의 Python 파일에 그 폴더에서 vulture, 각각 저장소의 설정으로(K1050) |
 | PHP | phpcs 4.0.4, PHPStan 2.3.1, phpstan/extension-installer 1.4.3, spaze/phpstan-disallowed-calls 4.15.0, shipmonk/phpstan-rules 4.4.1 (Composer project `config/php-lint`) | `phpcs.xml.dist`, `phpstan.dist.neon` (ShipMonk의 caught-exception cause rule만 활성화); `lint-composer-policy` (`config/composer.schema.json`) | `lint-php.mts`: checkout의 PHP 파일에 phpcs; 각 Composer package에 그 package 또는 그 위의 가장 가까운 Composer project(Composer monorepo의 root development project 등)의 `vendor/autoload.php`로 PHPStan(`composer-vendor.mts`, run-tests와 공유; `COMPOSER_VENDOR_DIR`는 다른 vendor directory를 지정) |
-| Rust | `rust-toolchain.toml`의 cargo clippy | `clippy.toml` (P8: `Result::ok`, `unwrap_or`, `unwrap_or_default`, `unwrap_or_else`에 대한 `disallowed-methods`) | `lint-rust.mts`: 각 workspace에서 그 `Cargo.toml`의 `[lints]`로 `cargo clippy --workspace --all-targets --locked`(K1050); `kit-gates`의 member |
+| Rust | `rust-toolchain.toml`의 cargo clippy | `clippy.toml` (P8: `Result::ok`, `unwrap_or`, `unwrap_or_default`, `unwrap_or_else`에 대한 `disallowed-methods`) | `lint-rust.mts`: 각 workspace에서 그 `Cargo.toml`의 `[lints]`로 `cargo clippy --workspace --all-targets --locked`(K1050)와 `--workspace-args <folder>`가 그 workspace에만 주는 인자(K1195); `kit-gates`의 member |
 | Go | golangci-lint 2.14.0, golang.org/x/tools 0.52.0의 deadcode (`mise.toml`) | `.golangci.yml`: error string은 spec의 대소문자를 유지하는 cross-port message이므로 ST1005 없는 staticcheck, 모든 finding 보고(`max-same-issues`와 `max-issues-per-linter` 0; K164) | `lint-go.mts`: 각 module에서 golangci-lint와 `deadcode -test ./...` |
 | TypeScript | oxlint 1.90.0과 oxlint-tsgolint 7.0.2004, knip 6.41.0, API Extractor 7.59.4 (kit의 dependencies, kit과 함께 설치) | `.oxlintrc.json`, `knip.json`, `config/api-extractor.kit.json` | `lint-ts.mts`: oxlint(`.oxlintrc.json`의 `options.typeAware`로 type-aware), knip, `api-extractor.json`이 있는 각 package에서 API Extractor |
 | 전체 | — | `.editorconfig` | 없음: 각 언어의 formatter가 같은 규칙을 강제합니다 |

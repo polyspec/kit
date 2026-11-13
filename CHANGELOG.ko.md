@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6ff8bdd0da70b6d1f5de3147732ae4fae4a531796134ce7a99fa7a0888d48814 -->
+<!-- source-sha256: 994364d93e784b474641ae02d280ae1dc92e57f0c6b9fca3c1d2eeacf04c339c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1195: lint-rust가 `--workspace-args <folder>` 뒤부터 다음 `--workspace-args`까지의 인자를 그 저장소 상대 폴더(root는 `.`)에 있는 Cargo workspace의 clippy step에만, 첫 `--workspace-args`보다 앞의 인자(모든 step이 받는다) 뒤에 준다. 전에는 모든 step이 모든 인자를 받아, `lint-rust --locked --exclude x`가 package `x`가 없는 workspace에도 `--exclude x`를 넘겼고 cargo는 제외한 package를 찾지 못했다고 경고했다. checkout의 workspace가 없는 폴더와 폴더 없는 `--workspace-args`는 어느 step도 실행하기 전에 lint를 실패시키고 workspace를 나열한다. `tests/kit/lint-rust.test.mts`(6 passed)로 확인했다.
 - K1193: config/layout.kit.yml이 생성 출력과 host 코드의 자리를 정한다: PHP 확장의 stub은 `packages/php-ext/generated/`와 `packages/<component>/php/native/generated/`에도 둘 수 있고, `zz_generated_*.go` 파일은 `packages/go/host/`나 `packages/go/tests/` package에 두지 않으며(`go-generated-place`), `src/` 아래에는 `generated/` 폴더를 두지 않고(`generated-outside-src`), `generated/` 아래에는 `host/` 폴더를 두지 않는다(`host-outside-generated`). 전에는 cargo 확장의 stub이 `php-ext-stub-place`에 걸렸고, 사람이 쓰는 코드의 폴더에 놓인 생성 파일은 통과했다.
 - K1192: php-extension이 cargo가 ext-php-rs로 빌드하는 확장을 빌드한다. Cargo.toml이 있고 src/config.m4가 없는 확장 폴더는 composer.json의 `php-ext.extension-name`으로 이름을 얻고, stub은 `generated/<extension>.stub.php`이며, check는 그 이름과 cdylib crate를 요구하고, build는 checkout의 php와 php-config를 `PHP`와 `PHP_CONFIG`에 두고 target 폴더 `<build-dir>/target`으로 Cargo workspace에서 `cargo build --release --locked -p <package>`를 돌린 뒤 `<build-dir>/<extension>.so`를 게시한다. 전에는 그런 폴더에 대해 check가 src/config.m4의 PHP_NEW_EXTENSION이 없다고 보고하고 build가 phpize를 돌렸다.
 - K1191: kit의 clippy.toml, 곧 docs/examples/native-settings의 예시가 `Result::map_or`, `Result::map_or_else`와 `Option`의 method `unwrap_or`, `unwrap_or_default`, `unwrap_or_else`, `map_or`, `map_or_else`도 금지하고, `[workspace.lints]` 예시가 `unwrap_used`, `expect_used`, `cast_possible_truncation`, `cast_possible_wrap`, `cast_sign_loss`도 거부한다. 전에는 예시를 복사한 crate가 `None`을 그럴듯한 값으로 바꾸거나, 오류 대신 `unwrap`으로 panic하거나, `as` cast로 값을 잘라도 clippy가 통과시켰다.

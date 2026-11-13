@@ -1,5 +1,5 @@
 <!-- doc-id: spec-utilities-and-recipes -->
-<!-- source-sha256: b194275cba43d83e41a359c30c17022b184e369f94247f88e68fe346ad873332 -->
+<!-- source-sha256: 97cd63ec0ecadf917a82dddd0d09f817b75eddcb6f8b625f3590aabf5b5057dc -->
 # 유틸리티와 예제
 
 [English](utilities-and-recipes.md)
@@ -41,6 +41,7 @@ kit은 어떤 것도 강제하지 않는다. 특히 다음과 같다.
 
 - kit은 저장소에 레시피를 include시키지 않는다.
 - kit은 다른 도구의 설정을 정하지 않는다. 명령줄에서도, 환경변수에서도, 유틸리티가 실행하는 도구의 환경에서도 그렇다. 도구 설치기는 자기가 설치하는 것을 어디에 두는지 정하며, 그것은 설치기 자신의 일이다. mise 설치기는 호출자가 다른 환경을 넘기지 않으면 자기가 설치하는 mise의 디렉터리와 그 shim이 읽는 checkout의 설정 파일을 정한다(`MISE_DATA_DIR`, `MISE_CACHE_DIR`, `MISE_STATE_DIR`, `MISE_CONFIG_DIR`, `MISE_GLOBAL_CONFIG_FILE`, `MISE_GLOBAL_CONFIG_ROOT`). Go에는 환경을 주지 않고, `var/tools`에 다른 파일을 쓰지 않으며, mise가 기록한 trust를 지우지 않는다(K1092). 이 중 어느 것도 저장소의 도구가 어떻게 동작할지를 정하지 않는다. PHP의 lint는 PHPStan에 패키지의 Composer가 쓴 autoloader를 준다(`--autoload-file`). 그것이 없으면 PHPStan은 패키지의 호출을 해석하지 못한다. `--locked`, `--profile minimal`, `--memory-limit=-1` 같은 flag는 호출자의 것이다. 유틸리티는 호출자가 준 인자를 넘기고 자기 것은 넘기지 않는다(K1097).
+- Rust의 lint는 checkout의 각 Cargo workspace 폴더에서 clippy step을 하나씩 실행하고, 첫 `--workspace-args`보다 앞의 인자를 모든 step에 준다. `--workspace-args <folder>`는 그 뒤부터 다음 `--workspace-args`까지의 인자를 `<folder>`에 있는 workspace의 step에만, 모든 step의 인자 뒤에 준다. `<folder>`는 그 Cargo.toml이 있는 폴더의 저장소 상대 경로이다(root는 `.`). checkout의 Cargo workspace가 없는 폴더와 폴더 없는 `--workspace-args`는 어느 step도 실행하기 전에 lint를 실패시키고 checkout의 workspace를 나열한다. 그래서 package의 `--exclude`는 그 package를 가진 workspace에만 가고, cargo는 다른 workspace에서 뜻이 없는 제외를 경고하지 않는다(K1195).
 - kit은 저장소의 CI, hook, gate에 어떤 결과도 필수로 요구하지 않는다.
 - kit은 저장소의 레시피나 예제를 검사하는 기능을 제공하지 않는다.
 

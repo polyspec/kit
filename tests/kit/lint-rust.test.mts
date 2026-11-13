@@ -66,3 +66,20 @@ test('clippy takes the arguments of the caller, such as --locked, after its own 
 test('clippy runs with no lint level and no configuration of kit (K1050)', (t) => {
   for (const step of lintSteps(checkout(t))) assert.equal(step.env, undefined);
 });
+
+// K1195: an argument after --workspace-args <folder> reaches only the step of the workspace in that folder, after the
+// arguments of every step, so an --exclude of a package of one workspace never reaches another.
+test('K1195: --workspace-args gives the arguments that follow it only to the step of the workspace in its folder', (t) => {
+  const steps = lintSteps(checkout(t), ['--locked', '--workspace-args', '.', '--exclude', 'demo', '--workspace-args', 'benchmarks/rust', '--features', 'x']);
+  assert.deepEqual(steps.map(step => [step.label, step.args.slice(LINKED.length)]), [
+    ['cargo clippy .', ['--locked', '--exclude', 'demo']],
+    ['cargo clippy benchmarks/rust', ['--locked', '--features', 'x']],
+  ]);
+});
+
+test('K1195: --workspace-args of a folder without a workspace, or without a folder, is refused with the workspaces of the checkout', (t) => {
+  const root = checkout(t);
+  for (const args of [['--workspace-args', 'packages/rust', '--exclude', 'demo'], ['--locked', '--workspace-args']]) {
+    assert.throws(() => lintSteps(root, args), (error: unknown) => error instanceof Error && error.message.includes('--workspace-args') && error.message.includes('., benchmarks/rust'), JSON.stringify(args));
+  }
+});
