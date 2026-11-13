@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1187: link leaves an installed folder that the package manager made as a link from a local path of the consumer's own manifest (an npm `file:` dependency with `"link": true` in package-lock, a Composer package from a path repository): it no longer replaces it with a link to a .links checkout or removes it as an undeclared link, and link-check accepts it when it resolves to a directory whose manifest names that package and reports it otherwise.
+
 ## 0.0.109
 
 - Release: kit 0.0.109 with the row K1185, so that link-check reports a dangling package link inside a linked provider instead of crashing (K1186).

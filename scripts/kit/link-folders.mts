@@ -24,6 +24,8 @@ export interface ProvidedFolder {
   name: string;
   folder: string;
   target: string;
+  /** K1187: the package manager made this folder as a link from a local path of the consumer's own manifest; link leaves it. */
+  manager?: true;
 }
 
 /** The manifest of each ecosystem that names the package of a folder. */
@@ -260,10 +262,10 @@ export function providedFolders(project: string, provided: Iterable<Provider>, {
   for (const provider of provided) {
     if (provider.ecosystem === 'npm') {
       const folder = path.join(project, 'node_modules', provider.name);
-      if (present(folder)) found.push({ ecosystem: 'npm', name: provider.name, folder, target: provider.folder });
+      if (present(folder)) found.push({ ecosystem: 'npm', name: provider.name, folder, target: provider.folder, ...(managerLink(folder) ? { manager: true as const } : {}) });
     } else if (provider.ecosystem === 'composer') {
       const folder = path.join(vendorDirectory(project, vendorDir), provider.name);
-      if (present(folder)) found.push({ ecosystem: 'composer', name: provider.name, folder, target: provider.folder });
+      if (present(folder)) found.push({ ecosystem: 'composer', name: provider.name, folder, target: provider.folder, ...(managerLink(folder) ? { manager: true as const } : {}) });
     } else if (provider.ecosystem === 'python' && hatchSources(provider.folder).length > 0) {
       for (const site of sites) {
         for (const { from, to } of hatchSources(provider.folder)) {
@@ -334,12 +336,62 @@ function linkBins(item: ProvidedFolder): string[] {
 }
 
 /**
+ * K1187: the package at `folder` when the package manager itself installed it as a link from a local path that the consumer's own
+ * manifest declares, else undefined: an npm `file:` dependency, whose entry in the nearest package-lock.json above its node_modules
+ * has `"link": true`, or a Composer package that a path repository installed, whose entry in the vendor folder's
+ * composer/installed.json has the dist type `path`. Such a folder is the package manager's result, so link neither replaces nor
+ * removes it.
+ */
+export function managerLink(folder: string): { ecosystem: 'npm' | 'composer'; name: string } | undefined {
+  const parts = folder.split(path.sep);
+  const at = parts.lastIndexOf('node_modules');
+  if (at >= 0) {
+    const name = parts.slice(at + 1).join('/');
+    for (let directory = parts.slice(0, at).join(path.sep) || path.sep; ; directory = path.dirname(directory)) {
+      const lock = path.join(directory, 'package-lock.json');
+      if (existsSync(lock)) {
+        const packages = readJsonObject(directory, 'package-lock.json').packages;
+        const entry = isJsonObject(packages) ? packages[path.relative(directory, folder).split(path.sep).join('/')] : undefined;
+        return isJsonObject(entry) && entry.link === true ? { ecosystem: 'npm', name } : undefined;
+      }
+      if (path.dirname(directory) === directory) return undefined;
+    }
+  }
+  const record = path.join(path.dirname(path.dirname(folder)), 'composer/installed.json');
+  if (!existsSync(record)) return undefined;
+  const name = `${path.basename(path.dirname(folder))}/${path.basename(folder)}`;
+  const entry = installedEntries(record).find(candidate => candidate.name === name);
+  const dist = entry?.dist;
+  return isJsonObject(dist) && dist.type === 'path' ? { ecosystem: 'composer', name } : undefined;
+}
+
+/** The package entries of a Composer installed.json, in either of its formats. */
+function installedEntries(record: string): Record<string, unknown>[] {
+  const parsed: unknown = JSON.parse(readFileSync(record, 'utf8'));
+  const list: unknown = isJsonObject(parsed) ? parsed.packages : parsed;
+  return (Array.isArray(list) ? list : []).filter(isJsonObject);
+}
+
+/**
+ * K1187: the finding of a package manager's link at `folder` (managerLink): none when it resolves to a directory whose manifest names
+ * its package, else one line with the fix in the consumer's own manifest.
+ */
+export function managerLinkFindings(root: string, folder: string): string[] {
+  const found = managerLink(folder);
+  if (found === undefined) return [];
+  const real = existsSync(folder) && statSync(folder).isDirectory() ? realpathSync(folder) : undefined;
+  if (real !== undefined && declaredName(real, found.ecosystem) === found.name) return [];
+  const where = real === undefined ? 'resolves to no directory' : `resolves to ${real}, whose ${MANIFEST[found.ecosystem]} does not name ${found.name}`;
+  return [`${found.ecosystem} ${found.name}: ${path.relative(root, folder)} is the package manager's link from a local path of the manifest, but it ${where}; fix: correct that local path and install again`];
+}
+
+/**
  * Replaces each provided folder that is not a link to its target with that one directory link (K591, K761); returns a line for each
  * folder it changed. A folder that does not exist yet, as a package that ADD names (K485), gets its parent and the link.
  */
 export function linkFolders(folders: readonly ProvidedFolder[]): string[] {
   const lines: string[] = [];
-  for (const item of folders) {
+  for (const item of folders.filter(folder => folder.manager === undefined)) {
     if (item.ecosystem === 'npm') lines.push(...linkBins(item));
     // A link to the right folder stays, unless it is absolute, which is made relative (K326-3).
     if (present(item.folder) && linksTo(item.folder, item.target) && !path.isAbsolute(readlinkSync(item.folder))) continue;
@@ -357,6 +409,7 @@ export function linkFolders(folders: readonly ProvidedFolder[]): string[] {
 export function folderFindings(root: string, folders: readonly ProvidedFolder[]): string[] {
   return folders.flatMap((item) => {
     const shown = path.relative(root, item.folder);
+    if (item.manager !== undefined) return managerLinkFindings(root, item.folder);
     if (!present(item.folder)) return [`${item.ecosystem} ${item.name}: ${shown} is missing; fix: make link`];
     if (!lstatSync(item.folder).isSymbolicLink()) return [`${item.ecosystem} ${item.name}: ${shown} is a copy, not a link to ${item.target}; fix: make link`];
     if (!linksTo(item.folder, item.target)) return [`${item.ecosystem} ${item.name}: ${shown} links to ${existsSync(item.folder) ? realpathSync(item.folder) : 'nothing'}, not to ${item.target}; fix: make link`];
@@ -378,14 +431,11 @@ function canonical(value: unknown): string {
  * reaches the consumer by its release. Reported only; nothing rewrites the record.
  */
 export function composerRecordFindings(root: string, folders: readonly ProvidedFolder[]): string[] {
-  return folders.filter(item => item.ecosystem === 'composer' && present(item.folder) && linksTo(item.folder, item.target)).flatMap((item) => {
+  return folders.filter(item => item.ecosystem === 'composer' && item.manager === undefined && present(item.folder) && linksTo(item.folder, item.target)).flatMap((item) => {
     const record = path.join(path.dirname(path.dirname(item.folder)), 'composer/installed.json');
     if (!existsSync(record)) return [];
-    const parsed: unknown = JSON.parse(readFileSync(record, 'utf8'));
-    const list: unknown = isJsonObject(parsed) ? parsed.packages : parsed;
-    const entries: unknown[] = Array.isArray(list) ? list : [];
-    const entry = entries.find(candidate => isJsonObject(candidate) && candidate.name === item.name);
-    if (!isJsonObject(entry)) return [];
+    const entry = installedEntries(record).find(candidate => candidate.name === item.name);
+    if (entry === undefined) return [];
     const recorded = entry.autoload;
     const declared = readJsonObject(item.target, MANIFEST.composer).autoload;
     if (canonical(recorded) === canonical(declared)) return [];
@@ -401,7 +451,7 @@ export function composerRecordFindings(root: string, folders: readonly ProvidedF
  */
 export function providerDependencyFindings(root: string, folders: readonly ProvidedFolder[], provided: Iterable<Provider>): string[] {
   const byName = new Map([...provided].filter(provider => provider.ecosystem === 'npm').map(provider => [provider.name, provider.folder]));
-  return folders.filter(item => item.ecosystem === 'npm' && present(item.folder) && linksTo(item.folder, item.target)).flatMap((item) => {
+  return folders.filter(item => item.ecosystem === 'npm' && item.manager === undefined && present(item.folder) && linksTo(item.folder, item.target)).flatMap((item) => {
     const manifest = readJsonObject(item.target, 'package.json');
     const names = ['dependencies', 'peerDependencies', 'optionalDependencies'].flatMap(section => {
       const value = manifest[section];

@@ -373,6 +373,50 @@ test('K1183: link-check names make link in its closing line only for a finding t
   assert.match(command(consumer, env, LINK_CHECK).text, /^\[link-check\] .*Fix: make link/m);
 });
 
+// K1187: an installed folder that the package manager made as a link from a local path of the consumer's own manifest (an npm file:
+// dependency, lock entry link: true; a Composer path install, dist type path) is the package manager's result: link neither replaces
+// nor removes it, and link-check accepts it while it resolves to a directory whose manifest names that package.
+/** The consumer's @polyspec/x and polyspec/y installed as the package manager's links from local paths to folders outside the checkout. */
+function managerLinks(root: string, consumer: string) {
+  put(root, {
+    'local/x/package.json': JSON.stringify({ name: '@polyspec/x', version: '0.0.1' }),
+    'local/y/composer.json': JSON.stringify({ name: 'polyspec/y', autoload: { 'psr-4': { 'Y\\': 'src/' } } }),
+  });
+  const npm = path.join(consumer, 'node_modules/@polyspec/x');
+  const composer = path.join(consumer, 'var/contracts/vendor/polyspec/y');
+  for (const [folder, target] of [[npm, path.join(root, 'local/x')], [composer, path.join(root, 'local/y')]] as const) {
+    rmSync(folder, { recursive: true, force: true });
+    symlinkSync(path.relative(path.dirname(folder), target), folder);
+  }
+  writeFileSync(path.join(consumer, 'package-lock.json'), JSON.stringify({ lockfileVersion: 3, packages: { '': { name: 'cons' }, 'node_modules/@polyspec/x': { resolved: '../local/x', link: true } } }));
+  writeFileSync(path.join(consumer, 'var/contracts/vendor/composer/installed.json'), JSON.stringify({ packages: [{ name: 'polyspec/y', version: 'dev-main', 'install-path': '../polyspec/y', dist: { type: 'path', url: '../local/y' }, autoload: { 'psr-4': { 'Y\\': 'src/' } } }] }));
+  return { npm, composer, targets: [path.join(root, 'local/x'), path.join(root, 'local/y')] };
+}
+
+test('K1187: link leaves the package manager\'s local-path links that a .links provider also provides, and link-check accepts them', (t) => {
+  const { root, consumer, env } = declared(t, ['../prov']);
+  const { npm, composer, targets } = managerLinks(root, consumer);
+  const linked = command(consumer, env, LINK, 'link');
+  assert.equal(linked.status, 0, linked.text);
+  assert.deepEqual([realpathSync(npm), realpathSync(composer)], targets, linked.text);
+  const checked = command(consumer, env, LINK_CHECK);
+  assert.doesNotMatch(checked.text, /NOT linked +(npm +@polyspec\/x|composer +polyspec\/y)/, checked.text);
+});
+
+test('K1187: link keeps the package manager\'s local-path links that no .links provider gives, and link-check reports a wrong target', (t) => {
+  const { root, consumer, env } = declared(t, ['../kit']);
+  const { npm, composer, targets } = managerLinks(root, consumer);
+  const linked = command(consumer, env, LINK, 'link');
+  assert.equal(linked.status, 0, linked.text);
+  assert.deepEqual([existsSync(npm) && realpathSync(npm), existsSync(composer) && realpathSync(composer)], targets, linked.text);
+  assert.doesNotMatch(command(consumer, env, LINK_CHECK).text, /polyspec\/x|polyspec\/y/);
+  // A local path whose folder names another package is reported, with its fix in the manifest.
+  put(root, { 'local/x/package.json': JSON.stringify({ name: '@polyspec/other' }) });
+  const wrong = command(consumer, env, LINK_CHECK);
+  assert.equal(wrong.status, 1, wrong.text);
+  assert.match(wrong.text, /npm +@polyspec\/x: .*package manager's link from a local path .*does not name @polyspec\/x; fix: correct that local path and install again/);
+});
+
 test('K869: make link creates exactly the declared links, and a second run changes nothing', (t) => {
   const { provider, consumer, env } = declared(t, ['../prov']);
   const first = command(consumer, env, LINK, 'link');

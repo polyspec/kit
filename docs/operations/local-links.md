@@ -16,6 +16,7 @@ The user's rule (2026-10-29): during development the official install folder of 
 - `.links` names any local checkout of a package that a lock installs: a polyspec provider, or a third-party package such as a maintained fork, whose release the root requires in its own manifest and lock and whose own FORK.md states how it is kept. make link links the installed folder of each to its checkout, and link-check names a declared package of either that no installed folder links (K999).
 - During development each polyspec package's install folder (node_modules, vendor, site-packages) is one plain directory symlink to its checkout. No package-manager link step (npm link, Composer path repository, pip/uv editable) (PRINCIPLES S11).
 - kit reports missing installs and copies. It does not bypass constraints, invent versions or reconcile installed metadata by hand.
+- An installed folder that the package manager itself made as a link from a local path that the consumer's own manifest declares (an npm `file:` dependency, whose package-lock entry has `"link": true`, or a Composer package installed from a path repository) is the package manager's result: link neither replaces nor removes it, and link-check accepts it when it resolves to a directory whose manifest names that package (K1187).
 
 ## Installation and validation boundaries
 

@@ -25,7 +25,7 @@ import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSy
 import path from 'node:path';
 import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { projectEnvironment, uvLink } from './uv-install.mts';
-import { composerRecordFindings, composerVendorDir, environmentLinks, folderFindings, hasPythonPackages, linkFolders, type ProvidedFolder, providedFolders, providerDependencyFindings } from './link-folders.mts';
+import { composerRecordFindings, composerVendorDir, environmentLinks, folderFindings, hasPythonPackages, linkFolders, managerLink, managerLinkFindings, type ProvidedFolder, providedFolders, providerDependencyFindings } from './link-folders.mts';
 import { assertIgnored, declaredCheckouts, type Ecosystem, EXCLUDED, goModule, LINKS_FILE, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, type Tool, trackedManifests, workTreeOf } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
 import { toolCommand } from './mise-tools.mts';
@@ -445,6 +445,14 @@ function linkPackageFolders(work: Run, consumer: Consumer, ecosystems: readonly 
  */
 function undeclaredLinks(work: Run, consumer: Consumer, ecosystems: readonly Ecosystem[]) {
   for (const entry of outsideLinks(consumer, work.env, ecosystems).filter(item => !work.declared.has(item))) {
+    // K1187: a link that the package manager made from a local path of the consumer's manifest is its result, never kit's.
+    if (managerLink(entry) !== undefined) {
+      for (const finding of work.check ? managerLinkFindings(consumer.top, entry) : []) {
+        line(work, 'NOT linked', finding.split(' ')[0] ?? '', finding.slice(finding.indexOf(' ') + 1));
+        work.failed = true;
+      }
+      continue;
+    }
     if (work.check) {
       line(work, 'NOT linked', 'link', `${entry}: a link that the link declaration (${LINKS_FILE}) does not name; Fix: make link`);
       work.failed = true;
@@ -540,7 +548,7 @@ export function unlink({ directories, print, env = process.env, project = false,
   const ecosystems = runtime === undefined ? ALL_ECOSYSTEMS : RUNTIME_ECOSYSTEMS[runtime];
   for (const consumer of directories.map(directory => consumerOf(directory, project))) {
     print(`== ${consumer.scope}`);
-    for (const entry of outsideLinks(consumer, env, ecosystems)) {
+    for (const entry of outsideLinks(consumer, env, ecosystems).filter(item => managerLink(item) === undefined)) {
       rmSync(entry);
       print(`  unlinked   ${entry}`);
     }
