@@ -3,11 +3,11 @@
 // package layout, test folder or build command (K244, K1106).
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { buildRuns, caseSensitiveSmokeRuns, infrastructureRuns, nothingRan, selectionOf, testRuns, type Run } from '../../scripts/kit/runtime-targets.mts';
+import { buildRuns, caseSensitiveSmokeRuns, infrastructureRuns, nothingRan, rootModules, selectionOf, testRuns, type Run } from '../../scripts/kit/runtime-targets.mts';
 import { withCaseSensitiveDirectory } from '../../scripts/kit/case-sensitive-directory.mts';
 import { tool } from './kit-tools.mts';
 import { tree } from './tree.mts';
@@ -289,4 +289,57 @@ test('a failed build of runtime-targets names its command and its exit status or
   const signal = build('kill -TERM $$');
   assert.equal(signal.status, 1);
   assert.match(signal.stderr, /ended by signal SIGTERM/);
+});
+
+// K1215: a root of python names the harness module of its tests with --module <root>=<package.module>. The run of that root is
+// run-tests python --module <package.module> from the repository root, where the package path of the module starts, with the root
+// as the name of the run; a root without a module runs the discovery of unittest in its folder.
+test('K1215: the python run of a root with a module carries --module from the repository root, and a root without one runs discovery', () => {
+  assert.deepEqual(selectionOf(['--runner', 'python', '--roots', 'lib/a', 'lib/b', '--module', 'lib/a=lib.a.tests.harness', '--module', 'lib/b=lib.b.tests']),
+    { runner: 'python', roots: ['lib/a', 'lib/b'], modules: ['lib/a=lib.a.tests.harness', 'lib/b=lib.b.tests'], command: [] });
+  const modules = rootModules('python', ['lib/a/', 'lib/b'], ['./lib/a=lib.a.tests.harness']);
+  assert.deepEqual(modules, { 'lib/a': 'lib.a.tests.harness' });
+  assert.deepEqual(testRuns([], 'python', ['lib/a', 'lib/b'], 'x', undefined, '.venv', undefined, [], ['-f'], modules), [
+    { cwd: '.', root: 'lib/a', tool: 'python', options: ['--venv', 'lib/a/.venv', '--module', 'lib.a.tests.harness'], args: ['-k', 'x', '-f'] },
+    { cwd: 'lib/b', tool: 'python', options: ['--venv', 'lib/b/.venv'], args: ['-k', 'x', '-f'] },
+  ]);
+  assert.deepEqual(testRuns([], 'python', ['lib/a'], undefined, undefined, undefined, undefined, [], [], modules), [{ cwd: '.', root: 'lib/a', tool: 'python', options: ['--module', 'lib.a.tests.harness'], args: [] }]);
+  assert.deepEqual(rootModules('python', ['lib/a'], undefined), {});
+});
+
+test('K1215: a module of an unknown root, of another runner, of a root that has one, or in another form than <root>=<package.module> is refused, naming the problem', () => {
+  assert.throws(() => rootModules('python', ['lib/a'], ['lib/c=lib.c.tests']), /--module lib\/c=lib\.c\.tests names the root lib\/c, which is none of --roots: lib\/a/);
+  assert.throws(() => rootModules('php', ['lib/a'], ['lib/a=lib.a.tests']), /--module is an option of the runner python, and the runner is php/);
+  assert.throws(() => rootModules(undefined, ['lib/a'], ['lib/a=lib.a.tests']), /--module is an option of the runner python, and the call names no runner/);
+  assert.throws(() => rootModules('python', ['lib/a'], ['lib/a=lib.a.tests', 'lib/a/=lib.a.other']), /--module lib\/a\/=lib\.a\.other names the root lib\/a a second time/);
+  for (const value of ['lib.a.tests', '=lib.a.tests', 'lib/a=', 'lib/a=lib/a/tests.py', 'lib/a=lib..tests', 'lib/a=.tests', 'lib/a=lib.a=tests']) {
+    assert.throws(() => rootModules('python', ['lib/a'], [value]), /is not <root>=<package\.module>/, value);
+  }
+});
+
+test('K1215: runtime-targets passes the module of each root to the python runner, and a refused module ends with the usage and exit 2', (t) => {
+  const events = (id: string) => [{ event: 'start', id }, { event: 'pass', id }].map(event => JSON.stringify(event)).join('\n');
+  // The python3 of the checkout: a stub that records its folder and its arguments after the runner of kit, and reports one passed test.
+  const stub = `#!/bin/sh\nshift 3\nprintf '%s|%s\\n' "$PWD" "$*" >> "$KIT_TEST_CALLS"\nprintf '%s\\n' '${events('test_a (t.T.test_a)')}' >&3\n`;
+  const root = realpathSync(tree(t, { 'lib/a/tests/harness.py': '', 'lib/b/tests/test_b.py': '', 'var/tools/mise/shims/python3': stub }));
+  chmodSync(path.join(root, 'var/tools/mise/shims/python3'), 0o755);
+  const calls = path.join(root, 'var/calls');
+  const cli = tool(import.meta.resolve('../../scripts/kit/runtime-targets.mts'));
+  const { NODE_TEST_CONTEXT: _joined, CASES: _cases, ...outside } = process.env;
+  const run = (...args: string[]) => spawnSync(process.execPath, [cli, ...args], { cwd: root, encoding: 'utf8', env: { ...outside, KIT_TEST_CALLS: calls } });
+  const passed = run('test', '--runner', 'python', '--roots', 'lib/a', 'lib/b', '--module', 'lib/a=lib.a.tests.harness', '--', '-f');
+  assert.equal(passed.status, 0, `${passed.stdout}\n${passed.stderr}`);
+  assert.deepEqual(readFileSync(calls, 'utf8').trim().split('\n'), [`${root}|lib.a.tests.harness -f -v`, `${path.join(root, 'lib/b')}|unittest -f -v`]);
+
+  const refused = (args: string[], problem: RegExp) => {
+    const result = run(...args);
+    assert.equal(result.status, 2, `${args.join(' ')}\n${result.stdout}\n${result.stderr}`);
+    assert.match(result.stderr, problem, args.join(' '));
+    assert.match(result.stderr, /\[runtime-targets\] usage: .*\[--module <root>=<package\.module>\]\.\.\./, args.join(' '));
+  };
+  refused(['test', '--runner', 'python', '--roots', 'lib/a', '--module', 'lib/c=lib.c.tests'], /names the root lib\/c, which is none of --roots: lib\/a/);
+  refused(['test', '--runner', 'node', '--roots', 'lib/a', '--module', 'lib/a=lib.a.tests'], /--module is an option of the runner python, and the runner is node/);
+  refused(['test', '--runner', 'python', '--roots', 'lib/a', '--module', 'lib.a.tests'], /--module lib\.a\.tests is not <root>=<package\.module>/);
+  refused(['build', '--runner', 'python', '--roots', 'lib/a', '--module', 'lib/a=lib.a.tests', '--', 'true'], /--module is an option of a test call/);
+  assert.equal(readFileSync(calls, 'utf8').trim().split('\n').length, 2, 'a refused call starts no run');
 });

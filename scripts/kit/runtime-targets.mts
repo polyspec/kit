@@ -3,12 +3,14 @@
 // folder and no build command. The caller names the runner and the roots:
 //
 //   runtime-targets test --runner <runner> --roots <folder>... [--php-extension <library>] [--venv <folder>]
-//                        [-- <runner argument>...]
+//                        [--module <root>=<package.module>]... [-- <runner argument>...]
 //                        the tests of each root with its runner through run-tests.mts, with the name filter CASES=<pattern> and the
 //                        runner arguments of the caller, such as -count=1 for go: go test ./... (one go test over the ./<root>/...
 //                        patterns of several roots), cargo test, node --test, which finds the test files of the root itself, vitest,
 //                        phpunit (with the built library of a PHP extension loaded, in each root that holds a test), python unittest
-//                        (with the interpreter of the environment <root>/<folder> that --venv names, or the python of PATH)
+//                        (with the interpreter of the environment <root>/<folder> that --venv names, or the python of PATH; a
+//                        root that a --module names runs that harness module from the repository root, as python -m runs it,
+//                        and any other root the discovery of unittest in its folder, K1215)
 //   runtime-targets build [--runner <runner>] --roots <folder>... -- <command> [<argument>...]
 //                        the build command of the caller in each root, as the caller writes it
 //   runtime-targets infrastructure <path>... [-- <runner argument>...]
@@ -30,8 +32,11 @@ import { trackedFiles } from './tracked-files.mts';
 import { listedTests } from './run-tests.mts';
 import { withCaseSensitiveDirectory } from './case-sensitive-directory.mts';
 
-/** A run of run-tests.mts: the folder, relative to the root, the tool, the options of run-tests and the arguments of the tool. */
-export type Run = { cwd: string; tool: string; options?: string[]; args: string[] };
+/**
+ * A run of run-tests.mts: the folder, relative to the root, the tool, the options of run-tests and the arguments of the tool; `root`
+ * is the root that the run tests when it runs in another folder, as the run of a python module does (K1215).
+ */
+export type Run = { cwd: string; root?: string; tool: string; options?: string[]; args: string[] };
 
 /** The runners of the test calls. */
 export const RUNNERS = ['go', 'cargo', 'node', 'vitest', 'php', 'python'] as const;
@@ -59,9 +64,11 @@ const folderSet = (places: readonly string[]): string[] => [...new Set(places.ma
  * The runs of the tests of the roots `roots` with the runner `runner` among the tracked `files` (K1106), with the name filter `cases`
  * and the runner arguments `extra` of the caller; kit adds no flag of its own. With `extension`, the built library of a PHP extension,
  * phpunit runs each root that holds a test with it loaded, in its own Composer project (K790), and a root where `cases` selects no test
- * is not run: its line goes to `notes` (K390). With `venv`, python runs with the environment at that folder of each root.
+ * is not run: its line goes to `notes` (K390). With `venv`, python runs with the environment at that folder of each root. A python
+ * root with a module in `modules` (rootModules) runs that module with --module of run-tests from the repository root, where the
+ * package path of the module starts; a root without one runs the discovery of unittest in its folder (K1215).
  */
-export function testRuns(files: readonly string[], runner: string, roots: readonly string[], cases: string | undefined, extension?: string, venv?: string, listed: Listed = unlisted, notes: string[] = [], extra: readonly string[] = []): Run[] {
+export function testRuns(files: readonly string[], runner: string, roots: readonly string[], cases: string | undefined, extension?: string, venv?: string, listed: Listed = unlisted, notes: string[] = [], extra: readonly string[] = [], modules: Readonly<Record<string, string>> = {}): Run[] {
   const filter = (flag: string) => [...(cases === undefined ? [] : [flag, cases]), ...extra];
   const folders = folderSet(roots);
   switch (runner) {
@@ -80,7 +87,11 @@ export function testRuns(files: readonly string[], runner: string, roots: readon
       return folders.map(cwd => ({ cwd, tool: 'node', args: filter('--test-name-pattern') }));
     case 'python':
       // The environment of the package is the caller's (K324): --venv names its folder in each root, or the python of PATH runs.
-      return folders.map(cwd => ({ cwd, tool: 'python', ...(venv === undefined ? {} : { options: ['--venv', path.posix.join(cwd, venv)] }), args: filter('-k') }));
+      return folders.map((folder) => {
+        const module = modules[folder];
+        const options = [...(venv === undefined ? [] : ['--venv', path.posix.join(folder, venv)]), ...(module === undefined ? [] : ['--module', module])];
+        return { ...(module === undefined ? { cwd: folder } : { cwd: '.', root: folder }), tool: 'python', ...(options.length ? { options } : {}), args: filter('-k') };
+      });
     case 'php': {
       if (extension === undefined) return folders.map(cwd => ({ cwd, tool: 'phpunit', args: filter('--filter') }));
       // CASES is one filter for every root, so a root where PHPUnit lists no test for it is not run (K390): a filter that selects
@@ -124,13 +135,41 @@ export function nothingRan(cwd: string, record: unknown): string | undefined {
   return `${cwd}: found nothing to run (${ran === undefined ? 'the run reported no test count' : '0 tests ran'})`;
 }
 
-const USAGE = 'usage: runtime-targets.mts test --runner <runner> --roots <folder>... [--php-extension <library>] [--venv <folder>] [-- <runner argument>...], build [--runner <runner>] --roots <folder>... -- <command> [<argument>...], infrastructure <path>... [-- <runner argument>...], or case-sensitive-smoke <file>...';
+const USAGE = 'usage: runtime-targets.mts test --runner <runner> --roots <folder>... [--php-extension <library>] [--venv <folder>] [--module <root>=<package.module>]... [-- <runner argument>...], build [--runner <runner>] --roots <folder>... -- <command> [<argument>...], infrastructure <path>... [-- <runner argument>...], or case-sensitive-smoke <file>...';
 
 /**
  * The selection of a test or build call (K1106): its runner, its roots, the library of an extension, the environment
- * folder of python and what follows --: the command of a build, or the runner arguments of a test.
+ * folder of python, the `<root>=<package.module>` values of --module as written, and what follows --: the command of a build, or the
+ * runner arguments of a test.
  */
-export type Selection = { runner?: string; roots?: string[]; extension?: string; venv?: string; command: string[] };
+export type Selection = { runner?: string; roots?: string[]; extension?: string; venv?: string; modules?: string[]; command: string[] };
+
+/** A --module that the call cannot take; the main prints its message before the usage and exits with 2 (K1215). */
+export class ModuleRefused extends Error {}
+
+/** A module of python as `python -m` names it: identifiers joined by dots. */
+const MODULE_NAME = /^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*$/;
+
+/**
+ * The harness module of each root from the `<root>=<package.module>` values `values` of --module (K1215), by the root as folderSet
+ * names it. A value in another form, a root that is none of `roots`, a second module of a root, and a module of a runner other than
+ * python are refused with ModuleRefused, which names the problem.
+ */
+export function rootModules(runner: string | undefined, roots: readonly string[], values: readonly string[] | undefined): Record<string, string> {
+  const modules: Record<string, string> = {};
+  if (values === undefined) return modules;
+  if (runner !== 'python') throw new ModuleRefused(`--module is an option of the runner python, and ${runner === undefined ? 'the call names no runner' : `the runner is ${runner}`}`);
+  const folders = folderSet(roots);
+  for (const value of values) {
+    const [place = '', module = '', ...rest] = value.split('=');
+    if (place === '' || rest.length > 0 || !MODULE_NAME.test(module)) throw new ModuleRefused(`--module ${value} is not <root>=<package.module>: a root of --roots, =, and the module as python -m names it`);
+    const [folder = ''] = folderSet([place]);
+    if (!folders.includes(folder)) throw new ModuleRefused(`--module ${value} names the root ${folder}, which is none of --roots: ${folders.join(', ')}`);
+    if (modules[folder] !== undefined) throw new ModuleRefused(`--module ${value} names the root ${folder} a second time; its module is ${modules[folder]}`);
+    modules[folder] = module;
+  }
+  return modules;
+}
 
 /** The selection that the arguments `args` name; undefined for a call that names no --roots, or anything else. */
 export function selectionOf(args: readonly string[]): Selection | undefined {
@@ -150,6 +189,10 @@ export function selectionOf(args: readonly string[]): Selection | undefined {
       if (selection[key] !== undefined) return undefined;
       selection[key] = value;
       index += 1;
+    } else if (option === '--module' && value !== undefined && !value.startsWith('--')) {
+      // Each root has its own module, so the option repeats (K1215).
+      selection.modules = [...(selection.modules ?? []), value];
+      index += 1;
     } else {
       return undefined;
     }
@@ -162,12 +205,14 @@ export function selectionOf(args: readonly string[]): Selection | undefined {
 if (isMain(import.meta.url)) {
   const root = repositoryRoot();
   const [mode = '', ...args] = process.argv.slice(2);
-  const usage = (): never => {
+  const usage = (problem?: string): never => {
+    if (problem !== undefined) console.error(`[runtime-targets] ${problem}`);
     console.error(`[runtime-targets] ${USAGE}`);
     process.exit(2);
   };
   if (mode === 'build') {
     const selection = selectionOf(args);
+    if (selection?.modules !== undefined) usage('--module is an option of a test call, and the call is a build');
     if (selection === undefined || selection.command.length === 0 || selection.extension !== undefined || selection.venv !== undefined) usage();
     let builds: Build[];
     try {
@@ -200,6 +245,13 @@ if (isMain(import.meta.url)) {
   const notes: string[] = [];
   const selection = mode === 'test' ? selectionOf(args) : undefined;
   if (mode === 'test' && (selection === undefined || selection.runner === undefined)) usage();
+  let modules: Record<string, string> = {};
+  try {
+    modules = rootModules(selection?.runner, selection?.roots ?? [], selection?.modules);
+  } catch (error) {
+    if (!(error instanceof ModuleRefused)) throw error;
+    usage(error.message);
+  }
   // The paths of infrastructure, and its runner arguments after --.
   const separator = args.indexOf('--');
   const paths = mode === 'infrastructure' && separator !== -1 ? args.slice(0, separator) : args;
@@ -214,7 +266,7 @@ if (isMain(import.meta.url)) {
     else if (mode === 'case-sensitive-smoke') runs = caseSensitiveSmokeRuns(args);
     else if (selection !== undefined) {
       const extension = selection.extension === undefined ? undefined : path.resolve(root, selection.extension);
-      runs = testRuns(files, selection.runner ?? '', selection.roots ?? [], process.env.CASES || undefined, extension, selection.venv, listed, notes, selection.command);
+      runs = testRuns(files, selection.runner ?? '', selection.roots ?? [], process.env.CASES || undefined, extension, selection.venv, listed, notes, selection.command, modules);
     }
   } catch (error) {
     if (!(error instanceof Error)) throw error;
@@ -230,15 +282,18 @@ if (isMain(import.meta.url)) {
   const execute = () => {
     let failed = 0;
     for (const run of runs) {
+      // The root that the run tests, which names it in a finding.
+      const name = run.root ?? run.cwd;
+      if (run.root !== undefined) console.log(`[runtime-targets] ${run.root}: its run starts in ${run.cwd}, with ${(run.options ?? []).join(' ')}`);
       // The counts of the run go to a temporary file, which is read and removed here.
       const record = mkdtempSync(path.join(tmpdir(), 'kit-runtime-targets-'));
       try {
         const file = path.join(record, 'result.json');
         const result = spawnSync(process.execPath, [siblingTool(import.meta.url, 'run-tests'), run.tool, '--cwd', run.cwd, ...(run.options ?? []), '--results', file, '--', ...run.args], { cwd: root, stdio: 'inherit' });
-        const finding = nothingRan(run.cwd, existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) as unknown : undefined);
+        const finding = nothingRan(name, existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) as unknown : undefined);
         if (finding !== undefined) console.error(`[runtime-targets] ${finding}`);
-        if (result.error) console.error(`[runtime-targets] ${run.cwd}: run-tests ${run.tool} could not start: ${result.error.message}`);
-        else if (result.signal) console.error(`[runtime-targets] ${run.cwd}: run-tests ${run.tool} ended by signal ${result.signal}`);
+        if (result.error) console.error(`[runtime-targets] ${name}: run-tests ${run.tool} could not start: ${result.error.message}`);
+        else if (result.signal) console.error(`[runtime-targets] ${name}: run-tests ${run.tool} ended by signal ${result.signal}`);
         if (result.status !== 0 || finding !== undefined) failed += 1;
       } finally {
         rmSync(record, { recursive: true, force: true });
