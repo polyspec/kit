@@ -21,7 +21,7 @@ test('K1191: clippy.toml disallows the Option and Result methods that turn a fai
   ];
   for (const name of expected) assert.ok(paths.includes(name), `clippy.toml disallows ${name}`);
   assert.equal(new Set(paths).size, paths.length, 'each method is listed once');
-  for (const entry of entries) assert.ok(typeof entry.reason === 'string' && entry.reason.startsWith('P8: '), `${String(entry.path)} names its reason`);
+  for (const entry of entries) assert.ok(typeof entry.reason === 'string' && entry.reason.startsWith('P8: '), `${JSON.stringify(entry.path)} names its reason`);
 });
 
 test('K1191: the [workspace.lints] example denies warnings, the lints that hide an error, unwrap, expect and the lossy casts', () => {
