@@ -296,24 +296,35 @@ export function cargoEvents(sink: Sink): { stdout: (data: string) => void; stder
   };
 }
 
-/** An event of runners/python.py: the start or the outcome of a test, its id as unittest prints it, and the text of a failure or a skip. */
-type PythonEvent = { event: 'start' | 'pass' | 'fail' | 'skip' | 'todo'; id: string; text?: string };
+/**
+ * An event of runners/python.py: the start or the outcome of a test, its id as unittest prints it, and the text of a failure or a
+ * skip; or the number of tests that a run of unittest ran (K1201).
+ */
+type PythonEvent = { event: 'start' | 'pass' | 'fail' | 'skip' | 'todo'; id: string; text?: string } | { event: 'run'; tests: number };
 
 /**
  * Read the events of runners/python.py into the sink, one JSON line each (K1194): the start of a test and its outcome, `pass`,
  * `fail` with the text of the failure, `skip` with its reason and `todo` for an expected failure, each with the id that unittest
  * prints for the test, `<method> (<module>.<class>.<method>)`; the name of the test is its method. The events come on a
  * descriptor of their own, so what a test writes to standard error never changes a count. A test that started and has no outcome
- * when the events end, as after a crash of the interpreter, fails (K1141).
+ * when the events end, as after a crash of the interpreter, fails (K1141). Each run of unittest ends with the number of tests that
+ * it ran, and when the events end, a number of started tests other than their sum fails, naming both (K1201).
  */
 export function pythonEvents(sink: Sink): Reader<string> {
   let current: TestRef | undefined;
+  let started = 0;
+  let ran: number | undefined;
   const test = (id: string): TestRef => ({ id, name: present(id.split(' ')[0], 'id.split(\' \')[0]') }); // split returns at least one part.
   return Object.assign((line: string) => {
     if (!line.trim()) return;
     const event = parseJson<PythonEvent>(line, 'python-test-event.schema.json', 'an event of runners/python.py');
+    if (event.event === 'run') {
+      ran = (ran ?? 0) + event.tests;
+      return;
+    }
     const ref = test(event.id);
     if (event.event === 'start') {
+      started += 1;
       current = ref;
       sink.start(ref);
       return;
@@ -329,6 +340,11 @@ export function pythonEvents(sink: Sink): Reader<string> {
     end(): void {
       if (current !== undefined) sink.fail(current, undefined, 'the test started and the run ended before its outcome');
       current = undefined;
+      if (ran !== undefined && ran !== started) {
+        const count: TestRef = { id: 'the count of unittest', name: 'the count of unittest' };
+        sink.start(count);
+        sink.fail(count, undefined, `unittest ran ${ran} tests and the record holds ${started}; a test left the record (HR-84)`);
+      }
     },
   });
 }

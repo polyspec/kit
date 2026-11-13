@@ -410,6 +410,34 @@ test('the python events pair each test with its outcome and keep the text of a f
   assert.deepEqual(progress.counts, { passed: 2, failed: 3, skipped: 1 });
 });
 
+// K1201: the record holds as many tests as unittest ran. The runner writes the testsRun of each run of unittest, and a record whose
+// started tests differ from their sum fails, naming both numbers.
+test('K1201: python events whose started tests differ from the tests that unittest ran fail the run, naming both numbers', () => {
+  const lines: string[] = [];
+  const progress = createProgress({ write: (text: string) => lines.push(text), heartbeatMs: 10_000, resultFile: '' });
+  const feed = pythonEvents(toProgress(progress));
+  feed(JSON.stringify({ event: 'start', id: 'test_a (t.T.test_a)' }));
+  feed(JSON.stringify({ event: 'pass', id: 'test_a (t.T.test_a)' }));
+  feed(JSON.stringify({ event: 'run', tests: 2 }));
+  feed.end();
+  assert.match(lines.join(''), /unittest ran 2 tests and the record holds 1/);
+  assert.equal(progress.counts.failed, 1);
+});
+
+// A guard with no red step: the events of K1194 already keep this test; the case holds it with the count of K1201.
+test('K1201: a test that writes its name, a panic and then ok is recorded, and the number of the record is that of unittest', async (t) => {
+  // The verbose line of the test is broken by the text that the test writes before its outcome, as a panic of a binding does.
+  const root = checkout(t, { 'tests/__init__.py': '', 'tests/test_panic.py': 'import sys\nimport unittest\n\n\nclass Panic(unittest.TestCase):\n    def test_panic(self):\n        sys.stderr.write("test_quiet (tests.test_panic.Panic.test_quiet) ... \\nthread panicked at src/lib.rs:1:1: boom\\nok\\n")\n\n    def test_quiet(self):\n        pass\n\n    def test_other(self):\n        pass\n' });
+  const python = execFileSync('python3', ['-c', 'import sys; print(sys.executable)'], { encoding: 'utf8' }).trim();
+  const stub = path.join(root, 'var/tools/mise/shims/python3');
+  mkdirSync(path.dirname(stub), { recursive: true });
+  writeFileSync(stub, `#!/bin/sh\nexec '${python}' "$@"\n`);
+  chmodSync(stub, 0o755);
+  const result = await inProcess(t, ['python', 'discover'], { root });
+  assert.equal(result.status, 0, result.text);
+  assert.match(result.text, /✔ python \. discover: 3 passed, 0 failed, 0 skipped/);
+});
+
 async function inProcess(t: TestContext, args: string[], { path: extraPath, root = tree(t) }: { path?: string; root?: string } = {}) {
   const lines: string[] = [];
   const previous = process.env.PATH;

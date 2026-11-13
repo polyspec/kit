@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 6e5c6ee54f5cf08528da872b1223635d9c439b8f29b09851769e122ddd14fd26 -->
+<!-- source-sha256: 1b2f46a917f6d443e7fd1b5bff41916354b9dab423ea09a8fffafd524b518a64 -->
 
 # 도구 목록
 
@@ -484,7 +484,9 @@ Export된 `runCommand`는 자신이 시작한 command만 소유한다. 긴 comma
   JSON 줄 하나로(`start`, text가 있는 `fail`, 이유가 있는 `skip`, expected failure인 `todo`, `pass`) `KIT_TEST_EVENTS_FD`가 이름
   짓는 descriptor, 곧 run-tests의 전용 pipe에 쓰고, run-tests는 이를 `python-test-event.schema.json`으로 읽습니다(HR-83). 그래서
   test가 standard error에 쓰는 것은 줄 끝이 없어도 어느 수도 바꾸지 않습니다. run의 standard output과 standard error는
-  unittest의 verbose 줄을 포함해 그대로 출력됩니다. 시작했으나 event가 끝날 때 결과가 없는 test는 실패합니다.
+  unittest의 verbose 줄을 포함해 그대로 출력됩니다. 시작했으나 event가 끝날 때 결과가 없는 test는 실패합니다. unittest의 각
+  실행이 끝나면 result class는 unittest가 돌린 test의 수(`tests`가 있는 `run`, 곧 `testsRun`)를 쓰고, 시작한 test의 수가 그 수들의
+  합과 다른 기록은 두 수를 대며 실패합니다. 그래서 어떤 test도 흔적 없이 기록에서 빠지지 않습니다(HR-84, K1201).
 - `--results <file>`(K18)은 성공 여부와 관계없이 실행 기록을 임시 파일과 rename으로 씁니다. 기록은 count, 각 test의
   `{id, status, elapsedMs}`(`pass`, `fail`, `skip`), tool, 실행 경과 시간, 그리고 `--inputs` 경로(기본은 `--cwd`
   directory)의 추적 파일과 무시되지 않은 파일에 대한 `inputsDigest`인 `inputs`입니다. test 기록은 progress module이 하므로

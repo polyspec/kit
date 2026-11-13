@@ -527,7 +527,10 @@ The exported `runCommand` owns only the commands it starts. Long commands have n
   its reason, `todo` for an expected failure) to the descriptor that `KIT_TEST_EVENTS_FD` names, a pipe of run-tests of its
   own, which run-tests reads through `python-test-event.schema.json` (HR-83): what a test writes to standard error, even
   without a line end, changes no count. The standard output and the standard error of the run, the verbose lines of
-  unittest included, are printed as they are. A test that started and has no outcome when the events end fails.
+  unittest included, are printed as they are. A test that started and has no outcome when the events end fails. At the end of
+  each run of unittest the result class writes the number of tests that unittest ran (`run` with `tests`, its `testsRun`), and a
+  record whose number of started tests differs from the sum of these numbers fails, naming both, so no test leaves the record
+  without a sign (HR-84, K1201).
 - `--results <file>` (K18) writes the record of a run, passed or not, through a temporary file and a rename: the counts, every
   test as `{id, status, elapsedMs}` (`pass`, `fail` or `skip`), the tool, the elapsed time of the run and `inputs`,
   the `inputsDigest` of the `--inputs` paths (the `--cwd` directory by default) over the tracked and non-ignored files. The

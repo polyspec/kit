@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 460068fc518d56f0cc9ec033b07bb197f0cb13a4461adac72ad0c98734bee97c -->
+<!-- source-sha256: 890477e1a4e7be6e34692daee85f73ec648872d9eafdc819c16444763ce88c1f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1201: run-tests python이 시작한 test의 수가 unittest가 돌린 test의 수와 다른 기록을 실패시킨다. `runners/python.py`는 unittest의 각 실행의 `testsRun`을 `run` event로 쓰고, reader는 그 합을 자기가 시작한 test의 수와 비교해 두 수를 댄다. 결과 전에 자기 이름, panic, `ok`를 standard error에 쓰는 test는 K1194부터 그렇듯 기록에 남는다. runner는 `make lint-python`의 `ruff format`이 요구하는 대로 정리했다. K1194의 runner는 그렇지 않았다. Red: `tests/kit/run-tests.test.mts`의 K1201 event 경우가 실패했다. event schema에 `run` event가 없었기 때문이다. panic 경우는 전에도 통과한 guard이다. Green: `tests/kit/run-tests.test.mts` 59 passed, `make lint-python`.
 - K1200: release가 npm-native package의 플랫폼 package를 pack하는 manifest의 `optionalDependencies`에, 소스의 optional 의존과 함께 release의 version으로 쓴다. 소스 package.json은 그것을 적지 않는다. `npm ci`는 workspace의 lock에 없는 의존을 거부하기 때문이다. 전에는 모든 set이 그것을 소스 manifest에 요구했고(K1189, K1196) 소스 manifest를 그대로 pack했다. `napi.binaryName`과 `napi.targets`의 검사는 그대로 둔다. Red: `tests/kit/release-native.test.mts`의 K1200 경우와 platform 없는 set 경우가 플랫폼 package가 없는 소스 manifest에서 실패했다. Green: `tests/kit/release-native.test.mts`와 `tests/kit/release-run.test.mts`, 40 passed.
 - K1199: platform set이 `napi create-npm-dirs`와 `napi artifacts`에 자기 플랫폼의 target만 적은 실행의 설정 파일(`--config-path`)을 준다. 전에는 둘이 package.json의 `napi.targets`를 읽어, `napi artifacts` 3.10.12가 다른 runner가 빌드하는 플랫폼에 대해 `Missing artifacts for configured targets`로 실패했다. 시험의 stub은 addon을 요구하지 않았다. 이제 stub은 CLI처럼 설정된 모든 target의 addon을 요구하고 `--config-path`를 읽는다. Red: `tests/kit/release-native.test.mts`의 K1199 경우와 platform set 경우가 `napi artifacts`에서 실패했다. Green: `tests/kit/release-native.test.mts`와 `tests/kit/release-run.test.mts`, 39 passed.
 - K1198: platform set이 npm 플랫폼 package의 폴더를 tag된 tree 사본의 package 안 `.kit-napi/npm`에 쓴다. 전에는 사본 밖 작업 폴더의 폴더를 넘겼고, napi CLI 3.10.12는 그것을 거부했다(`Managed package paths must stay within the project or workspace boundary`). 그래서 실제 CLI로는 npm-native 플랫폼 package를 하나도 빌드하지 못했고, 시험의 stub은 그것을 거부하지 않았다. 이제 napi CLI의 stub은 CLI처럼 package.json의 package 밖 npm 폴더를 거부한다. Red: `tests/kit/release-native.test.mts`의 K1198 경우와 platform set 경우가 CLI의 메시지로 실패했다. Green: `tests/kit/release-native.test.mts`와 `tests/kit/release-run.test.mts`, 38 passed.
