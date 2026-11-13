@@ -125,7 +125,7 @@ test('release-tag tags the successful branch CI commit after main moved on (K911
   assert.equal(git(box.root, 'rev-parse', 'refs/tags/v0.0.1^{commit}'), box.commit);
 });
 
-test('release-tag takes the version from the newest section of the change log at the commit of the run, never from an input, and hands the tag to the next steps and the next jobs (K924, K1189)', (t) => {
+test('release-tag takes the version from the newest section of the change log at the commit of the run, never from an input, and hands the tag to the next steps (K924)', (t) => {
   const { box, env } = runBox(t, commit => candidate({ head_sha: commit }));
   // A later commit of main names the next version; the release still tags the run's commit with its own section.
   writeFileSync(path.join(box.root, 'CHANGELOG.md'), readFileSync(path.join(box.root, 'CHANGELOG.md'), 'utf8').replace('## 0.0.1', '## 0.0.2\n\n- Later.\n\n## 0.0.1'));
@@ -135,15 +135,11 @@ test('release-tag takes the version from the newest section of the change log at
   t.after(() => rmSync(folder, { recursive: true, force: true }));
   const githubEnv = path.join(folder, 'env');
   writeFileSync(githubEnv, '');
-  // The outputs of the step hand the tag to the jobs that follow, the jobs of the asset sets (K1189).
-  const githubOutput = path.join(folder, 'output');
-  writeFileSync(githubOutput, '');
-  const run = tagRun(box.root, { ...env, GITHUB_ENV: githubEnv, GITHUB_OUTPUT: githubOutput });
+  const run = tagRun(box.root, { ...env, GITHUB_ENV: githubEnv });
   assert.equal(run.result, 0, run.errors.join('\n'));
   assert.equal(git(box.root, 'rev-parse', 'refs/tags/v0.0.1^{commit}'), box.commit);
   assert.equal(git(box.root, 'tag', '--list', 'v0.0.2'), '');
   assert.equal(readFileSync(githubEnv, 'utf8'), 'TAG=v0.0.1\nVERSION=0.0.1\n');
-  assert.equal(readFileSync(githubOutput, 'utf8'), 'tag=v0.0.1\nversion=0.0.1\n');
   assert.equal(tagRun(box.root, env, ['tag', '0.0.9', '91']).result, 2, 'release-tag takes no version');
 });
 

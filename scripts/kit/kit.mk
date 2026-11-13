@@ -293,7 +293,7 @@ ci-passed: ## Fail unless every job of RESULTS, the JSON of toJSON(needs), has t
 # The steps of a release (scripts/kit/release.mts, config/release.json). release-tag tags the commit of the successful CI run RUN
 # with vX.Y.Z, X.Y.Z the newest section of the change log of that commit, and the Go module tags (K911, K924); TAG is that tag
 # vX.Y.Z, which release-tag appends to GITHUB_ENV with VERSION. The release workflow runs the steps in this order.
-.PHONY: release-prepare release-tools release-tag release-sets release-assets release-candidate-assets release-publish release-undraft release-coverage
+.PHONY: release-prepare release-tools release-tag release-assets release-candidate-assets release-publish release-undraft release-coverage
 
 # kit's own release names its main ref, its asset folder and the folder of its release records, which the release tools take
 # from the caller and never fix (K1102, K1115).
@@ -326,16 +326,13 @@ release-tag: ## Create and push the annotated tag vX.Y.Z, X.Y.Z the newest secti
 	@test -n "$$RUN" || { echo "release-tag: RUN is required, for example make release-tag RUN=123"; exit 1; }
 	RELEASE_MAIN="$(RELEASE_MAIN)" $(NODE) $(KIT)/release-run.$(KIT_EXT) tag "$$RUN"$(if $(AUTO), --auto)
 
-release-sets: ## Print the asset sets of config/release.json as the include list of a GitHub matrix, and write it to GITHUB_OUTPUT as sets when that is set (K1189); offline
-	$(NODE) $(KIT)/release.$(KIT_EXT) sets
-
-release-assets: ## Build the archive of every package of TAG in the asset set of RELEASE_PLATFORM and RELEASE_PHP, none for the set without a platform (K1189), and packages.json of its Composer packages (K871), into RELEASE_ASSETS (K1102); ONLINE, since uv build installs the build-system.requires of a wheel package
+release-assets: ## Build the archive of every package of TAG, and packages.json of its Composer packages (K871), into RELEASE_ASSETS (K1102); ONLINE, since uv build installs the build-system.requires of a wheel package
 	@test -n "$$TAG" || { echo "release-assets: TAG is required, for example make release-assets TAG=v0.0.1"; exit 1; }
-	RELEASE_PLATFORM="$(RELEASE_PLATFORM)" RELEASE_PHP="$(RELEASE_PHP)" RELEASE_ASSETS="$(RELEASE_ASSETS)" $(ONLINE) $(NODE) $(KIT)/release.$(KIT_EXT) assets "$$TAG"
+	RELEASE_ASSETS="$(RELEASE_ASSETS)" $(ONLINE) $(NODE) $(KIT)/release.$(KIT_EXT) assets "$$TAG"
 
-release-candidate-assets: ## Build the archive of every package from committed HEAD for VERSION in the asset set of RELEASE_PLATFORM and RELEASE_PHP, none for the set without a platform (K1211), and packages.json of its Composer packages (K871), into RELEASE_ASSETS (K1102); ONLINE, since uv build installs the build-system.requires of a wheel package
+release-candidate-assets: ## Build the archive of every package from committed HEAD for VERSION, and packages.json of its Composer packages (K871), into RELEASE_ASSETS (K1102); ONLINE, since uv build installs the build-system.requires of a wheel package
 	@test -n "$$VERSION" || { echo "release-candidate-assets: VERSION is required, for example make release-candidate-assets VERSION=0.0.1"; exit 1; }
-	RELEASE_PLATFORM="$(RELEASE_PLATFORM)" RELEASE_PHP="$(RELEASE_PHP)" RELEASE_ASSETS="$(RELEASE_ASSETS)" $(ONLINE) $(NODE) $(KIT)/release.$(KIT_EXT) candidate-assets "$$VERSION"
+	RELEASE_ASSETS="$(RELEASE_ASSETS)" $(ONLINE) $(NODE) $(KIT)/release.$(KIT_EXT) candidate-assets "$$VERSION"
 
 release-publish: ## Create the GitHub Release of TAG as a draft with the notes and the files of release-assets, the archives and packages.json; a draft of an earlier run is replaced
 	@test -n "$$TAG" || { echo "release-publish: TAG is required, for example make release-publish TAG=v0.0.1"; exit 1; }

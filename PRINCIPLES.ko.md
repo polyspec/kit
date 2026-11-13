@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 4405d98fee1d1e13867b6c108eda1858574871e20b2bcd058fc7acacef6706d6 -->
+<!-- source-sha256: c31b4d3ed885f75c5b5783381ac2fa590e860c7bc788ecfb8df807bbb5dc5ca9 -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -146,7 +146,7 @@ repository는 자기 사본을 자기 파일로 바꿉니다(K1055).
   Enforced by: none, 안내 규칙: 저장소의 recipe와 script는 그 저장소의 것이다(K1051).
 - P33 작업에 필요한데 docs/spec에 없는 규칙은 docs/spec에 먼저 쓰고, 검사를 피하려고 이름을 바꾸지 않는다.
   Enforced by: none, 안내 규칙: kit은 구현들이 서로 어떻게 관계되는지 검사하지 않으며, 각 저장소가 자기 테스트를 실행한다(K1129)
-- P34 반복된 code는 제외가 아니라 하나의 module로 재구성해서 고친다. tool source는 분류하고, 생성물은 Git에 추적하지 않는다. 다만 consumer가 tagged tree 그 자체로 설치하는 생성 source(Go module, Rust crate)는 추적하고, 그 이유를 config/generated.json에 선언한다. 이 규칙의 범위는 모든 branch의 tree다. static library를 link하는 Go module을 위해 release workflow가 만드는 commit은 생성 파일과 각 플랫폼의 library를 tag `<directory>/vX.Y.Z` 아래에만 담고, 어느 branch에도 속하지 않으며, 사람이 만들지 않는다(K1205).
+- P34 반복된 code는 제외가 아니라 하나의 module로 재구성해서 고친다. tool source는 분류하고, 생성물은 Git에 추적하지 않는다. 다만 consumer가 tagged tree 그 자체로 설치하는 생성 source(Go module, Rust crate)는 추적하고, 그 이유를 config/generated.json에 선언한다.
   배포되는 package가 생성물을 필요로 하면 그 생성 경로마다 그것을 만드는 저장소의 make target을 config/release.json에 선언한다. release는 먼저 tagged commit과 다른 checkout, 변경되었거나 추적되지 않은 경로, 바깥에서 link된 dependency를 거부한다. 그다음 선언된 경로를 지우고 checkout에서 그 target을 실행하며, 선언된 경로가 결과에 없거나 Git에 추적되면 실패한다.
   Enforced by: `make duplication-check`, `make rebuild-check`, `make release-assets`.
 - P35 로컬 source 개발은 provider release를 기다리지 않는다. Native source 연결 누락은 파일과 행을 밝혀
@@ -167,10 +167,7 @@ repository는 자기 사본을 자기 파일로 바꿉니다(K1055).
   각 package asset은 GitHub label `<vendor>-<product>-<runtime>-<version>`을 단다. vendor는 repositoryUrl의 owner이고,
   product와 runtime은 config/release.json에 package마다 선언하며, runtime은 여섯 runtime ts, go, rust, php, php-ext, python
   중 하나다. package manager의 이름이 runtime을 대신하지 않고, product나 runtime을 package 이름에서 읽지 않는다. label은
-  플랫폼별 asset도 그 packer나 소비자가 주는 이름을 유지한다. maturin이 이름 짓는 wheel, npm pack이 이름 짓는 플랫폼 package,
-  PIE가 찾는 PIE binary `php_<extension>-v<version>_php<X.Y>-<arch>-<os>-<libc>-<ts>.zip`이다. kit이 만드는 Go 정적 라이브러리는
-  그 label에 .zip을 붙인다. 플랫폼별 asset의 label은 `-<platform>`을, PHP 확장 binary의 label은 `-php<X.Y>-<platform>`을
-  덧붙인다 (K1189). label은 package asset만 달며, release의 파일인 packages.json은 달지 않고 dist.url에 각 zip을 적는다 (K980).
+  package asset만 달며, release의 파일인 packages.json은 달지 않고 dist.url에 각 zip을 적는다 (K980).
   Enforced by: `make release-assets`, `make release-publish`
 - P40 한 개념은 규칙, 설정 필드, 파일 이름, 문서에서 이름 하나를 쓴다. ts, go, rust, php, php-ext, python은 runtime이고,
   그것을 담는 필드는 `runtime`이다. 새 이름은 같은 개념에 kit이 이미 쓰는 이름을 먼저 다시 쓴다 (K981).

@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0e2e21f5f42880742c3302c11982b0300a6f37f919d68e20a82e6d95d07518c0 -->
+<!-- source-sha256: 6d895dbc558fbbb49117ca5ba699dae607b5e109c0c8150c46249c4b431e470d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1221: release가 플랫폼별 asset을 빌드하지 않고, asset set의 matrix를 출력하지 않으며, tag 전에 set을 증명하지 않습니다. config/release.json의 package 종류 `wheel-abi3`, `php-ext`, `npm-native`, `go-static`, `release-native.mts`, asset set(`RELEASE_PLATFORM`, `RELEASE_PHP`), `release.mts sets`와 target `release-sets`, 그 종류를 위한 release-tools의 단계, release-tag가 `GITHUB_OUTPUT`에 쓰던 `tag`와 `version`, 예시 release workflow의 matrix, 예시 `workflows/release-candidate.yml`, 그 asset에 관한 PRINCIPLES.md와 AGENTS.md의 문단을 제거했습니다(K1189, K1190, K1196, K1198, K1199, K1200, K1203, K1208, K1211). Rust core와 그 binding을 플랫폼마다 어떻게 build하고 pack하는지, 그 asset의 이름, workflow의 job과 플랫폼별 runner를 kit의 코드가 정했는데, 그것은 저장소의 build와 release입니다. release 도구와 그 schema, recipe, 문서는 K1189 이전의 형태입니다. 저장소는 그런 asset을 자기 recipe에서 빌드하고 matrix를 자기 workflow에 적습니다. kit의 `rust-toolchain.toml`은 component `llvm-tools`를 더 적지 않습니다.
 
 - K1223: `php-extension.mts`가 cargo로 extension을 빌드하지 않습니다. Cargo.toml이 있고 `src/config.m4`가 없는 extension 폴더의 build(K1192)를 제거했습니다. 그 build는 이름을 composer.json의 `php-ext.extension-name`에서 읽고 checkout의 php와 php-config로 `cargo build --release --locked -p <package>`를 실행했습니다. 그런 extension을 어떻게 빌드하는지는 그 저장소의 recipe가 적습니다. `check`, `build`, `test`는 phpize extension을 전과 같이 다룹니다.
 

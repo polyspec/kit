@@ -282,10 +282,6 @@
       "kind": "ecosystem",
       "tool": "pip install --dry-run --report reads the METADATA of a wheel (K123) and smol-toml the pyproject (K73)"
     },
-    "scripts/kit/release-native.mts": {
-      "kind": "ecosystem",
-      "tool": "uv build with the maturin of build-system.requires, cargo build, the napi CLI of the repository, npm pack and zip build the per-platform assets (K1189); the tool names each asset as PIE, npm and maturin name it and checks the manifests that those tools read"
-    },
     "scripts/kit/retained-branches.mts": {
       "kind": "policy",
       "reason": "validates the pinned cancellation-backup branch and its retention lifecycle under P10; no ecosystem tool interprets this repository policy"

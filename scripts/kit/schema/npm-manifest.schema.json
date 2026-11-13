@@ -86,36 +86,6 @@
           "$ref": "#/$defs/specs"
         }
       ]
-    },
-    "napi": {
-      "description": "The configuration of the napi CLI that the release of an npm-native package reads (K1189): the name of the addon file and the Rust triples of its platforms.",
-      "type": "object",
-      "properties": {
-        "binaryName": {
-          "type": "string"
-        },
-        "targets": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    "os": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
-    "cpu": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
-    "main": {
-      "type": "string"
     }
   },
   "$defs": {

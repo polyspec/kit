@@ -42,11 +42,6 @@ export type NpmManifest = {
   engines?: Record<string, unknown>;
   // The owner rules that kit ships with its copies (K410-1), read by owner-check beside config/owner-checks.json.
   kit?: { copies?: Record<string, string> };
-  // The configuration of the napi CLI and the platform fields of a platform package that napi writes (K1189).
-  napi?: { binaryName?: string; targets?: string[] };
-  os?: string[];
-  cpu?: string[];
-  main?: string;
 };
 
 /** A Composer manifest; composer-manifest.schema.json. A platform package of config.platform is false when Composer leaves it out. */
@@ -59,8 +54,6 @@ export type ComposerManifest = {
   autoload?: { files?: string[] };
   repositories?: { type?: string; url?: string; package?: { name?: string; version?: string } }[];
   config?: { platform?: Record<string, string | boolean> };
-  // The PIE configuration of a PHP extension package (K1189).
-  'php-ext'?: { 'extension-name'?: string; 'download-url-method'?: string | string[] };
 };
 
 /** A package of a Composer lock; its require holds the requirements that the platform checks (K415). */

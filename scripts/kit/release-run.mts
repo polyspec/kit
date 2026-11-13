@@ -228,8 +228,6 @@ export function main(argv: string[], { root = repositoryRoot(), env = process.en
       // The steps after release-tag read the tag from the environment of the job (workflows/release.yml); with nothing to release
       // no TAG is written, and they are skipped.
       if (env.GITHUB_ENV && tagged.release) appendFileSync(env.GITHUB_ENV, `TAG=v${tagged.version}\nVERSION=${tagged.version}\n`);
-      // The jobs after the tag job, the asset sets of the release, read it from the outputs of the step (K1189).
-      if (env.GITHUB_OUTPUT && tagged.release) appendFileSync(env.GITHUB_OUTPUT, `tag=v${tagged.version}\nversion=${tagged.version}\n`);
       return 0;
     } catch (failure) {
       error(`[release-run] ${mode} ${value} failed: ${failure instanceof Error ? failure.message : String(failure)}`);

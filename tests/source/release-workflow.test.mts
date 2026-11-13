@@ -1,7 +1,6 @@
 // The release workflow of kit (workflows/release.yml), the example that a repository copies to its
-// .github/workflows/release.yml (K1052). The order is fixed: the job tag tags the commit and lists the asset sets, a job of the
-// job assets builds each set (K1189), and the job publish creates the release as a draft with the assets of every set and then
-// makes it public. The steps after release-tools run on the tools it installed, and on the
+// .github/workflows/release.yml (K1052). The order is fixed: the tools of the repository are installed first; the release is created
+// as a draft with its archives and then made public. The steps after release-tools run on the tools it installed, and on the
 // PHP of .php-version, which a repository that needs PHP declares (K193). The package ships no tests/source, so
 // only the kit runs this case.
 import assert from 'node:assert/strict';
@@ -33,15 +32,9 @@ test('K671-3: release consumers bootstrap the installed package with exact npm b
   assertWorkflowPackageBootstrap(lines.join('\n'), t);
 });
 
-// K1189: the assets of a platform build on a runner of that platform, so each asset set is a job of its own, and the release is
-// created once, by the job that gathers them.
-test('the release workflow has the jobs tag, assets and publish, in that order of their needs (K1189)', () => {
+test('the release workflow has one job, so every step runs in the job that creates the release', () => {
   const jobs = lines.slice(lines.findIndex(line => line.startsWith('jobs:')) + 1);
-  assert.deepEqual(jobs.filter(line => /^  [a-z-]+:$/.test(line)).map(line => line.trim()), ['tag:', 'assets:', 'publish:']);
-  const text = lines.join('\n');
-  assert.match(text, /^ {2}assets:\n {4}needs: tag\n {4}if: \$\{\{ needs\.tag\.outputs\.tag != '' \}\}\n/m, 'the sets build only for a tag');
-  assert.match(text, /^ {2}publish:\n {4}needs: \[tag, assets\]\n/m, 'publish waits for every set');
-  assert.match(text, /^ {6}matrix: \$\{\{ fromJson\(needs\.tag\.outputs\.sets\) \}\}$/m);
+  assert.equal(jobs.filter(line => /^  [a-z-]+:$/.test(line)).length, 1, 'the workflow names one job');
 });
 
 // K911, K924: the release takes the id of a successful CI run and nothing else; the kit of main tags the commit of the run with
@@ -53,10 +46,7 @@ test('K911, K924: a dispatch with a CI run alone starts the release, which tags 
   assert.doesNotMatch(text, /inputs\.version|^ {6}version:$/m, 'the version is the section of the change log, not an input');
   assert.doesNotMatch(text, /^ {2}push:|tags: \[|inputs\.tag|release-verify|release-go-tags/m);
   assert.match(text, /^permissions:\n {2}contents: write\n {2}actions: read\n/m);
-  // release-tag writes TAG and VERSION to GITHUB_ENV for the steps of its job, and tag to the outputs of its step for the jobs
-  // that follow, which take TAG from it alone (K1189).
-  assert.deepEqual([...text.matchAll(/^ {6}TAG: (.+)$/gm)].map(match => match[1]), ['${{ needs.tag.outputs.tag }}', '${{ needs.tag.outputs.tag }}']);
-  assert.doesNotMatch(text, /^ {6}VERSION:/m);
+  assert.doesNotMatch(text, /^ {6}(?:TAG|VERSION):/m, 'release-tag writes TAG and VERSION to GITHUB_ENV');
   const tag = step('make release-tag', /^make release-tag /);
   const checkout = step('git checkout of the tag', /^git checkout --quiet "\$TAG"$/);
   assert.ok(tag.line < checkout.line && checkout.line < step('make release-prepare', /^make release-prepare$/).line, 'release-tag, then the checkout of the tag, then the release of that commit');
@@ -82,14 +72,11 @@ test('the release workflow puts the installed tools on PATH right after release-
 });
 
 test('the release workflow sets up the PHP of .php-version without a coverage driver, before release-tools', () => {
-  // The step of a set without a PHP minor; a set of a PHP minor sets up that minor (K1189).
-  const uses = lines.findIndex((line, index) => /^\s+- uses: shivammathur\/setup-php@[0-9a-f]{40}$/.test(line) && /hashFiles/.test(lines[index + 1] ?? ''));
+  const uses = lines.findIndex(line => /^\s+- uses: shivammathur\/setup-php@[0-9a-f]{40}$/.test(line));
   assert.notEqual(uses, -1, 'a setup-php step pinned to a commit');
-  const minor = lines.findIndex(line => /^\s+- uses: shivammathur\/setup-php@[0-9a-f]{40}$/.test(line));
-  assert.deepEqual(lines.slice(minor + 1, minor + 5).map(line => line.trim()), ["if: ${{ matrix.php != '' }}", 'with:', 'php-version: ${{ matrix.php }}', 'coverage: none']);
   const end = lines.findIndex((line, index) => index > uses && /^\s+- /.test(line));
   const body = lines.slice(uses, end).join('\n');
-  assert.match(body, /if: \$\{\{ matrix\.php == '' && hashFiles\('\.php-version'\) != '' \}\}/);
+  assert.match(body, /if: \$\{\{ hashFiles\('\.php-version'\) != '' \}\}/);
   assert.match(body, /php-version-file: \.php-version/);
   assert.match(body, /coverage: none/);
   assert.ok(uses + 1 < step('make release-tools', /^make release-tools$/).line, 'PHP is set up before release-tools');
@@ -97,12 +84,10 @@ test('the release workflow sets up the PHP of .php-version without a coverage dr
 
 test('the release workflow bootstraps the package, checks the configuration, then prepares the release of the repository, before release-tools (K71-2, K132, K193)', () => {
   // The release runs no gate of its own: release-tag refuses a commit whose CI run did not pass (K193, K755).
-  // The job that builds the assets checks its archive tool before it installs anything (K1189).
-  const zip = step('the archive preflight', /^command -v zip /);
-  assert.equal(runs.find(run => run.line > zip.line && run.command.startsWith('make '))?.command, 'make install-tools TOOLS=npm', 'archive capability is checked before installation');
+  const install = step('make install-tools TOOLS=npm', /^make install-tools TOOLS=npm$/);
+  assert.ok(step('the Composer archive preflight', /^command -v zip /).line < install.line, 'archive capability is checked before installation');
   // The kit of main tags (K269, K911); the packages of the tagged commit are installed again before its release.
-  // The job tag lists the sets of the tagged commit with its own kit, and each job of a set bootstraps that commit again (K1189).
-  assert.deepEqual(runs.filter(run => run.command.startsWith('make ')).slice(0, 10).map(run => run.command), ['make install-tools TOOLS=npm', 'make install-packages', "make release-tag ${{ github.event_name == 'workflow_run' && 'AUTO=1' || '' }}", 'make install-tools TOOLS=npm', 'make install-packages', 'make release-sets', 'make install-tools TOOLS=npm', 'make install-packages', 'make release-prepare', 'make release-tools']);
+  assert.deepEqual(runs.filter(run => run.command.startsWith('make ')).slice(0, 7).map(run => run.command), ['make install-tools TOOLS=npm', 'make install-packages', "make release-tag ${{ github.event_name == 'workflow_run' && 'AUTO=1' || '' }}", 'make install-tools TOOLS=npm', 'make install-packages', 'make release-prepare', 'make release-tools']);
 });
 
 test('kit releases itself with the workflow it vendors: .github/workflows/release.yml is workflows/release.yml', () => {
@@ -126,11 +111,9 @@ test('K987: a green push or dispatch run of ci starts the release of its head_sh
   assert.match(text, /^ {6}RUN: \$\{\{ inputs\.run \|\| github\.event\.workflow_run\.id \}\}$/m);
   assert.match(text, /fetch-depth: 0\n {10}ref: \$\{\{ github\.event\.workflow_run\.head_sha \}\}\n/, 'the checkout is the head_sha of the run');
   const tag = step('make release-tag', /^make release-tag \$\{\{ github\.event_name == 'workflow_run' && 'AUTO=1' \|\| '' \}\}$/);
-  // The steps of the job tag after release-tag run only for the tag it hands on.
-  const end = lines.findIndex(line => line === '  assets:');
-  const after = lines.slice(tag.line, end).filter(line => /^ {6}- (?:name|uses):/.test(line));
+  const after = lines.slice(tag.line).filter(line => /^ {6}- (?:name|uses):/.test(line));
   assert.ok(after.length > 0);
-  lines.slice(tag.line, end).forEach((line, index) => {
-    if (/^ {6}- (?:name|uses):/.test(line)) assert.ok(lines.slice(tag.line + index + 1, tag.line + index + 3).includes("        if: ${{ steps.tag.outputs.tag != '' }}"), `${line.trim()} runs only for a tag`);
+  lines.slice(tag.line).forEach((line, index) => {
+    if (/^ {6}- (?:name|uses):/.test(line)) assert.equal(lines[tag.line + index + 1], "        if: ${{ env.TAG != '' }}", `${line.trim()} runs only for a TAG`);
   });
 });
