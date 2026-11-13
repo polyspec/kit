@@ -282,6 +282,10 @@
       "kind": "ecosystem",
       "tool": "pip install --dry-run --report reads the METADATA of a wheel (K123) and smol-toml the pyproject (K73)"
     },
+    "scripts/kit/release-native.mts": {
+      "kind": "ecosystem",
+      "tool": "uv build with the maturin of build-system.requires, cargo build, the napi CLI of the repository, npm pack and zip build the per-platform assets (K1189); the tool names each asset as PIE, npm and maturin name it and checks the manifests that those tools read"
+    },
     "scripts/kit/release-go-module.mts": {
       "kind": "policy",
       "reason": "Go fetches a module as the source of a tag, and no tool of Go, cargo or GitHub makes the commit that carries the generated files and the static library of every platform under the tag of a module in a subdirectory; goreleaser publishes binaries, not a module with its libraries. The commit and the tag are made with git plumbing, the symbols are read with llvm-nm and the consumer runs go mod tidy and go test (K1205)"
@@ -293,6 +297,10 @@
     "scripts/kit/release.mts": {
       "kind": "policy",
       "reason": "release-please, changesets and semantic-release version and publish from their own conventions; this repository releases a tagged main commit whose CI passed, with archives built by npm pack, git archive and uv build; the newest release tag comes from git's own version sort (git tag --sort=-v:refname, K932)"
+    },
+    "scripts/kit/runners/python.py": {
+      "kind": "ecosystem",
+      "tool": "unittest: its TestResult class writes the start and the outcome of each test and testsRun as JSON events (K1194, K1201)"
     },
     "scripts/kit/run-tests.mts": {
       "kind": "ecosystem",
