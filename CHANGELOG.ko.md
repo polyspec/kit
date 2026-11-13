@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f2a49382ea50f22bf45607941721124146a22524fd016753f4e717d65db3b1c0 -->
+<!-- source-sha256: 14a8a8a8c4dcfda43190a8b6fba2e98f38d9e9b8bc4ce1b62041c68bf8dc238b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1204: `php-build.schema.json`(K1189)과 `python-test-event.schema.json`(K1194, K1201)의 두 형태가 `additionalProperties`를 false로 두지 않는다. K1069가 kit의 모든 schema에 요구하는 것이다. run event와 시험 event는 `event`로 구별된다. 전에는 `tests/kit/schema-validate.test.mts`의 K1069 case `no schema of kit refuses a key that it does not describe`가 실패했고, 그 schema를 더한 행들은 이 case를 돌리지 않았다. Red: 그 case가 커밋된 tree에서 실패했다.
 - K1202: kit의 asset 검사(K421)가 kit-build의 tar가 적은 폴더를 모두 읽는다. 전에는 `shippedAssets`가 `-cf -` 뒤의 첫 이름만 읽어, `symbols`와 `runners`를 싣는 K1194의 recipe가 `tests/kit/kit-assets.test.mts`의 K421 case를 `scripts/kit/run-tests.mts: runners`로 실패시켰다. kit-build는 그 폴더를 싣고 있었다. Red: K1202 case와 Makefile의 K421 case가 실패했다.
 - K1201: run-tests python이 시작한 test의 수가 unittest가 돌린 test의 수와 다른 기록을 실패시킨다. `runners/python.py`는 unittest의 각 실행의 `testsRun`을 `run` event로 쓰고, reader는 그 합을 자기가 시작한 test의 수와 비교해 두 수를 댄다. 결과 전에 자기 이름, panic, `ok`를 standard error에 쓰는 test는 K1194부터 그렇듯 기록에 남는다. runner는 `make lint-python`의 `ruff format`이 요구하는 대로 정리했다. K1194의 runner는 그렇지 않았다. Red: `tests/kit/run-tests.test.mts`의 K1201 event 경우가 실패했다. event schema에 `run` event가 없었기 때문이다. panic 경우는 전에도 통과한 guard이다. Green: `tests/kit/run-tests.test.mts` 59 passed, `make lint-python`.
 - K1200: release가 npm-native package의 플랫폼 package를 pack하는 manifest의 `optionalDependencies`에, 소스의 optional 의존과 함께 release의 version으로 쓴다. 소스 package.json은 그것을 적지 않는다. `npm ci`는 workspace의 lock에 없는 의존을 거부하기 때문이다. 전에는 모든 set이 그것을 소스 manifest에 요구했고(K1189, K1196) 소스 manifest를 그대로 pack했다. `napi.binaryName`과 `napi.targets`의 검사는 그대로 둔다. Red: `tests/kit/release-native.test.mts`의 K1200 경우와 platform 없는 set 경우가 플랫폼 package가 없는 소스 manifest에서 실패했다. Green: `tests/kit/release-native.test.mts`와 `tests/kit/release-run.test.mts`, 40 passed.

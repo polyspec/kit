@@ -6,7 +6,6 @@
     {
       "type": "object",
       "required": ["event", "id"],
-      "additionalProperties": false,
       "properties": {
         "event": { "enum": ["start", "pass", "fail", "skip", "todo"] },
         "id": { "type": "string" },
@@ -16,7 +15,6 @@
     {
       "type": "object",
       "required": ["event", "tests"],
-      "additionalProperties": false,
       "properties": {
         "event": { "const": "run" },
         "tests": { "type": "integer", "minimum": 0 }
