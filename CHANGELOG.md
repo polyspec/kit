@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1223: `php-extension.mts` builds no extension with cargo. The build of an extension folder with a Cargo.toml and no `src/config.m4` (K1192), which read the name from `php-ext.extension-name` of composer.json and ran `cargo build --release --locked -p <package>` with the php and php-config of the checkout, is gone: how such an extension is built is stated by the recipe of its repository. `check`, `build` and `test` handle a phpize extension as before.
+
 - K1222: the release runs no contract check. `contracts` of config/release.json and the run of `<check> <file> --release` before an archive is built (K1209) are gone: the argument `--release` and the place of the check in the release were knowledge of one contract tool in the code of kit. A repository runs its contract check in its own recipe before it starts `release-assets`. The schema describes `contracts` no longer, and nothing reads the key.
 
 - K1220: the release makes no commit and no tag of a Go module with a static library. `release.mts go-modules`, `release-go-module.mts`, the target `release-go-modules`, `goModule` of `release.schema.json` and the steps of the example release workflow that ran them are gone: the code of kit decided which files the commit of a Go module carries, the name of its tag and the consumer that proves it, which is the release of the repository, and no recipe called the mode. A repository makes that commit and tag in its own recipe (`git commit-tree`, `git tag -a <directory>/vX.Y.Z <commit>`, `git push <remote> <tag>`). `release-tag` still tags the modules of `goModules`, and a platform set still strips and packs a `go-static` asset (K1208).

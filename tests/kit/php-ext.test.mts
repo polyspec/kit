@@ -4,7 +4,7 @@
 // Polyspec\Demo\Counter; it is built with the phpize, php-config and php on PATH.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -13,7 +13,6 @@ import * as phpExtension from '../../scripts/kit/php-extension.mts';
 import { declarationFindings, declarations, declarationsOf, extensionFiles, extensionFindings, extensionNames, layoutOptions, stubHash, type Declarations, type Layout } from '../../scripts/kit/php-extension.mts';
 import { put, tree } from './tree.mts';
 import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
-import { writeNativeStubs } from './native-stubs.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const FIXTURE = path.join(ROOT, 'tests/kit/php-ext-fixture');
@@ -578,52 +577,4 @@ test('K1103 the extension, build and library folders are the caller\'s', (t) => 
   const absent = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'check', '--extension', 'ext', '--build-dir', 'out'], { cwd: empty, encoding: 'utf8' });
   assert.equal(absent.status, 0, absent.stderr);
   assert.match(absent.stdout, /ext holds no file/);
-});
-
-// K1192 (T-1a): an extension that cargo builds with ext-php-rs holds Cargo.toml and no src/config.m4. Its name is
-// php-ext.extension-name of its composer.json, its stub is generated/<extension>.stub.php, which the bindings generate, and the
-// build publishes the cdylib that cargo builds with the PHP and php-config of the checkout. A cargo stub stands for cargo.
-const cargoExtension = (): Record<string, string> => ({
-  'packages/php/composer.json': '{"name": "polyspec/demo"}',
-  'packages/php-ext/composer.json': JSON.stringify({ name: 'polyspec/demo-php-ext', type: 'php-ext', 'php-ext': { 'extension-name': 'polyspec_demo' } }),
-  'packages/php-ext/Cargo.toml': '[package]\nname = "demo-php-ext"\nversion = "0.0.1"\nedition = "2024"\n\n[lib]\ncrate-type = ["cdylib"]\n',
-  'packages/php-ext/src/lib.rs': '// the extension\n',
-  'packages/php-ext/generated/polyspec_demo.stub.php': STUB,
-});
-const cargoFindings = (files: Record<string, string>) => extensionFindings(Object.keys(files), file => files[file], 'packages/php-ext');
-
-test('K1192: a cargo extension is named by php-ext.extension-name of its composer.json, and its stub is generated/<extension>.stub.php', () => {
-  const files = cargoExtension();
-  assert.deepEqual(extensionNames(Object.keys(files), file => files[file], 'packages/php-ext'), { extension: 'polyspec_demo', stubs: ['packages/php-ext/generated/polyspec_demo.stub.php'] });
-  assert.deepEqual(cargoFindings(files), []);
-  const { 'packages/php-ext/generated/polyspec_demo.stub.php': _stub, ...withoutStub } = files;
-  assert.deepEqual(extensionNames(Object.keys(withoutStub), file => withoutStub[file], 'packages/php-ext'), { extension: 'polyspec_demo', stubs: [] }, 'a stub is optional');
-  assert.deepEqual(cargoFindings({ ...files, 'packages/php-ext/composer.json': '{"name": "polyspec/demo-php-ext"}' }), ['packages/php-ext/composer.json names no php-ext.extension-name, which names the extension that cargo builds and PHP loads']);
-  assert.deepEqual(cargoFindings({ ...files, 'packages/php-ext/Cargo.toml': '[package]\nname = "demo-php-ext"\nversion = "0.0.1"\n' }), ['packages/php-ext/Cargo.toml declares no cdylib in crate-type of [lib], which PHP loads as the extension']);
-  // An extension folder with src/config.m4 is a phpize extension, whatever else it holds.
-  assert.deepEqual(extensionNames([...Object.keys(good()), 'packages/php-ext/Cargo.toml'], file => ({ ...good(), 'packages/php-ext/Cargo.toml': '' })[file], 'packages/php-ext'), { extension: 'polyspec_demo', stubs: ['packages/php-ext/src/polyspec_demo.stub.php'] });
-});
-
-test('K1192: the build of a cargo extension runs cargo build --release --locked -p with the PHP of the checkout and publishes <build-dir>/<extension>.so', (t) => {
-  const root = tree(t, { ...cargoExtension(), '.gitignore': 'var/\n' });
-  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
-  writeNativeStubs(root);
-  // The php-config of the checkout, which ext-php-rs reads through PHP_CONFIG.
-  writeFileSync(path.join(root, 'var/tools/bin/php-config'), '#!/bin/sh\nprintf "%s\\n" /opt/php\n', { mode: 0o755 });
-  const log = path.join(root, 'var/native.log');
-  writeFileSync(log, '');
-  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', ...LAYOUT], { cwd: root, encoding: 'utf8', env: { ...process.env, STUB_NATIVE_LOG: log } });
-  assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
-  assert.equal(readFileSync(path.join(root, 'var/php-ext/polyspec_demo.so'), 'utf8'), 'stub library of demo-php-ext\n');
-  const calls = readFileSync(log, 'utf8').split('\n').filter(Boolean);
-  assert.equal(calls.length, 1, calls.join('\n'));
-  // The tool names the paths of the checkout by its real path.
-  const real = realpathSync(root);
-  assert.match(calls[0] ?? '', /"args":\["build","--release","--locked","-p","demo-php-ext","--message-format=json-render-diagnostics"\]/);
-  assert.ok((calls[0] ?? '').includes(`"CARGO_TARGET_DIR":${JSON.stringify(path.join(real, 'var/php-ext/target'))}`), 'cargo writes into the build folder');
-  assert.ok((calls[0] ?? '').includes(`"PHP":${JSON.stringify(path.join(real, 'var/tools/bin/php'))}`) && (calls[0] ?? '').includes(`"PHP_CONFIG":${JSON.stringify(path.join(real, 'var/tools/bin/php-config'))}`), calls[0] ?? '');
-  // The options of a phpize build have no meaning for cargo, and are refused.
-  const refused = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', ...LAYOUT, '--configure-arg', '--with-x'], { cwd: root, encoding: 'utf8', env: { ...process.env, STUB_NATIVE_LOG: log } });
-  assert.equal(refused.status, 1);
-  assert.match(refused.stderr, /--source-copy and --configure-arg belong to a phpize extension; packages\/php-ext builds with cargo/);
 });

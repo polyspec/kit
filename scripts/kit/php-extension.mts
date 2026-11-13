@@ -15,10 +15,7 @@
 // the PHP libraries whose declarations the extension matches, and the folder names under the extension folder that hold no source
 // (--skip, such as vendor). A call without the extension and build folders is a usage error (exit 2). When the extension folder
 // holds no file, check, build and test say so and pass. The name of the extension is the one that PHP_NEW_EXTENSION of src/config.m4 declares, and its stubs are the
-// src/*.stub.php files, each with its <stub>_arginfo.h (K1075: kit sets no naming rule). An extension folder that holds Cargo.toml
-// and no src/config.m4 builds with cargo (K1192, ext-php-rs): its name is php-ext.extension-name of its composer.json, its stub is
-// generated/<extension>.stub.php, which its bindings generate, and build runs cargo build --release --locked -p <package> of the
-// Cargo workspace of the repository, with the php and php-config of the checkout and the target folder <build-dir>/target. phpize, php-config and php are the wrappers of var/tools/bin that install-tools wrote for
+// src/*.stub.php files, each with its <stub>_arginfo.h (K1075: kit sets no naming rule). phpize, php-config and php are the wrappers of var/tools/bin that install-tools wrote for
 // the php of PATH (K862), never whatever PATH holds later (K393-1).
 import { createHash } from 'node:crypto';
 import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync, statSync, lstatSync } from 'node:fs';
@@ -33,7 +30,6 @@ import { cleanupAfter, run, runOutput, Stop } from './process.mts';
 import { toolCommand } from './mise-tools.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { git } from './git.mts';
-import { cargoBuild, crateTypes } from './release-native.mts';
 
 /**
  * The paths that the caller names (K1103): the extension folder, the build folder, the PHP library folders and the folder names
@@ -55,31 +51,11 @@ export const arginfoOf = (stub: string): string => stub.replace(/\.stub\.php$/, 
  * of src/config.m4 names, which the build enables and loads, and the stubs of src/; or the finding that config.m4 names none.
  */
 export function extensionNames(files: readonly string[], read: (file: string) => string | undefined, folder: string): { extension: string; stubs: string[] } | { finding: string } {
-  if (isCargoExtension(files, folder)) return cargoNames(files, read, folder);
   const config = read(`${folder}/src/config.m4`);
   const extension = config === undefined ? undefined : /PHP_NEW_EXTENSION\(\s*\[?([A-Za-z0-9_]+)/.exec(config)?.[1];
   if (extension === undefined) return { finding: `${folder}/src/config.m4 declares no PHP_NEW_EXTENSION, which names the extension that the build enables` };
   const stubs = files.filter(file => path.posix.dirname(file) === `${folder}/src` && file.endsWith('.stub.php')).sort();
   return { extension, stubs };
-}
-
-/** Whether the extension of `folder` builds with cargo (K1192): it holds Cargo.toml and no src/config.m4. */
-export const isCargoExtension = (files: readonly string[], folder: string): boolean => files.includes(`${folder}/Cargo.toml`) && !files.includes(`${folder}/src/config.m4`);
-
-/**
- * The names of the cargo extension of `folder` (K1192): the extension that php-ext.extension-name of its composer.json names, and
- * its stub generated/<extension>.stub.php when it exists; or the finding that composer.json names none, or that Cargo.toml builds no
- * cdylib, the library that PHP loads.
- */
-function cargoNames(files: readonly string[], read: (file: string) => string | undefined, folder: string): { extension: string; stubs: string[] } | { finding: string } {
-  const text = read(`${folder}/composer.json`);
-  const manifest: unknown = text === undefined ? undefined : JSON.parse(text);
-  const pie = isJsonObject(manifest) ? manifest['php-ext'] : undefined;
-  const extension = isJsonObject(pie) ? pie['extension-name'] : undefined;
-  if (typeof extension !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(extension)) return { finding: `${folder}/composer.json names no php-ext.extension-name, which names the extension that cargo builds and PHP loads` };
-  if (!crateTypes(read(`${folder}/Cargo.toml`) ?? '', `${folder}/Cargo.toml`).includes('cdylib')) return { finding: `${folder}/Cargo.toml declares no cdylib in crate-type of [lib], which PHP loads as the extension` };
-  const stub = `${folder}/generated/${extension}.stub.php`;
-  return { extension, stubs: files.includes(stub) ? [stub] : [] };
 }
 
 /** The stub hash that gen_stub.php writes into the arginfo header: the sha1 of the stub with its line ends as LF. */
@@ -90,8 +66,6 @@ export function extensionFindings(files: readonly string[], read: (file: string)
   if (!files.some(file => file.startsWith(`${folder}/`))) return [];
   const names = extensionNames(files, read, folder);
   if ('finding' in names) return [names.finding];
-  // ext-php-rs registers the extension from its Rust code, so a cargo extension has no arginfo header to compare (K1192).
-  if (isCargoExtension(files, folder)) return [];
   return names.stubs.flatMap((stubFile) => {
     const stub = read(stubFile);
     const header = read(arginfoOf(stubFile));
@@ -385,7 +359,6 @@ export function build(root: string, layout: Layout, options: BuildOptions = {}):
     if (!outputStat.isFile() || outputStat.isSymbolicLink()) throw new Stop(`php-extension build output ${library} must be a regular file when it already exists`);
   }
   const temporaryLibrary = `${library}.tmp.${process.pid}`;
-  if (isCargoExtension(extensionFiles(root, layout.extension, layout.skip), layout.extension)) return cargoExtension(root, layout, options, library, temporaryLibrary);
   const sourceCopies = options.sourceCopies ?? [];
   const { work, source } = phpized(root, layout, 'build', names.stubs, sourceCopies);
   try {
@@ -420,25 +393,6 @@ export function build(root: string, layout: Layout, options: BuildOptions = {}):
   } finally {
     rmSync(temporaryLibrary, { force: true });
     rmSync(work, { recursive: true, force: true });
-  }
-}
-
-/**
- * Builds the cargo extension of `layout` (K1192): cargo build --release --locked -p <package of its Cargo.toml> in the Cargo
- * workspace of the repository, with the php and php-config of the checkout in PHP and PHP_CONFIG, which ext-php-rs reads, and the
- * target folder <build-dir>/target; the cdylib is published at `library` by a rename. Returns `library`.
- */
-function cargoExtension(root: string, layout: Layout, options: BuildOptions, library: string, temporaryLibrary: string): string {
-  if ((options.sourceCopies ?? []).length || (options.configureArgs ?? []).length) throw new Stop(`--source-copy and --configure-arg belong to a phpize extension; ${layout.extension} builds with cargo`);
-  const env = { ...process.env, PHP: toolCommand(root, 'php'), PHP_CONFIG: toolCommand(root, 'php-config') };
-  try {
-    const built = cargoBuild({ root, source: root, directory: layout.extension, kind: 'cdylib', env, target: path.join(root, layout.build, 'target'), log: text => console.log(`[php-extension] ${text}`) });
-    copyFileSync(built, temporaryLibrary);
-    renameSync(temporaryLibrary, library);
-    console.log(`[php-extension] built ${path.relative(root, library)}`);
-    return library;
-  } finally {
-    rmSync(temporaryLibrary, { force: true });
   }
 }
 

@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 669f223bd1ad562381331ea4a682e8403abbbcacc5bb111c7289a54291620e32 -->
+<!-- source-sha256: 0e2e21f5f42880742c3302c11982b0300a6f37f919d68e20a82e6d95d07518c0 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1223: `php-extension.mts`가 cargo로 extension을 빌드하지 않습니다. Cargo.toml이 있고 `src/config.m4`가 없는 extension 폴더의 build(K1192)를 제거했습니다. 그 build는 이름을 composer.json의 `php-ext.extension-name`에서 읽고 checkout의 php와 php-config로 `cargo build --release --locked -p <package>`를 실행했습니다. 그런 extension을 어떻게 빌드하는지는 그 저장소의 recipe가 적습니다. `check`, `build`, `test`는 phpize extension을 전과 같이 다룹니다.
 
 - K1222: release가 contract 검사를 실행하지 않습니다. config/release.json의 `contracts`와, archive를 빌드하기 전에 `<check> <file> --release`를 실행하던 단계(K1209)를 제거했습니다. 인자 `--release`와 release 안에서 그 검사의 자리는 한 contract 도구에 대한 지식이었고, 그것이 kit의 코드에 있었습니다. 저장소는 `release-assets`를 시작하기 전에 자기 recipe에서 contract 검사를 실행합니다. schema는 `contracts`를 더 설명하지 않고, 그 key는 아무도 읽지 않습니다.
 
