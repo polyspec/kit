@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+## 0.0.110
+
+- Release: kit 0.0.110 with the row K1187, so that link leaves the links that the package manager made from a local path of the consumer's own manifest (K1188).
+
 - K1187: link leaves an installed folder that the package manager made as a link from a local path of the consumer's own manifest (an npm `file:` dependency with `"link": true` in package-lock, a Composer package from a path repository): it no longer replaces it with a link to a .links checkout or removes it as an undeclared link, and link-check accepts it when it resolves to a directory whose manifest names that package and reports it otherwise.
 
 ## 0.0.109

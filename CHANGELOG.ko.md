@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 460a7339d5dea0ceb418e241330bde3d87e5d6feae3daf3fc4212ce1ceda6bf6 -->
+<!-- source-sha256: d3465c60caf0788cddbdcd54406c9ce6c3bfd637d3a63c31ac237ab54fe29f9e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.110
+
+- 릴리즈: K1187 행을 담아 kit 0.0.110을 낸다. link는 소비자 자신의 manifest가 로컬 경로로 선언해 package manager가 만든 링크를 그대로 둔다(K1188).
 
 - K1187: 소비자 자신의 manifest가 로컬 경로로 선언해 package manager가 링크로 만든 설치 폴더(package-lock에 `"link": true`가 있는 npm `file:` 의존성, path repository의 Composer 패키지)를 link가 그대로 둔다. .links checkout으로 가는 링크로 바꾸거나 선언되지 않은 링크로 지우지 않고, link-check는 그 패키지 이름을 manifest에 적은 디렉터리로 풀리면 받아들이고 아니면 보고한다.
 
