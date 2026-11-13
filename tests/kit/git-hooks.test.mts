@@ -264,7 +264,7 @@ test('K1197: a merge of two branches that both add changelog entries and checkli
   for (const key of ['changelog', 'checklist'] as const) {
     const en = read(english[key]);
     const ko = read(twin(english[key]));
-    // The Korean changelog entries are their own text, (항목 T<n>), so each one comes from the Korean side that wrote it.
+    // The Korean changelog entries are their own text, which names the id in the Korean form, so each one comes from the Korean side that wrote it.
     for (const id of ['T1', 'T2', 'T3']) assert.ok(en.includes(id) && ko.includes(key === 'changelog' ? `(항목 ${id})` : `| ${id} |`), `${english[key]} and its twin hold ${id}`);
     assert.equal(/<!-- source-sha256: ([0-9a-f]+) -->/.exec(ko)?.[1], createHash('sha256').update(en).digest('hex'), `the twin of ${english[key]} is current`);
   }

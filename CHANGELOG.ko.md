@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a37a66bac1a1bed4ade325e081a8bea536935b6fc730e5a755274faa47361822 -->
+<!-- source-sha256: 1216f4572fc12af2751290cf4cb8dab332fa14f8e97f056a42469e23d81b561c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -9,6 +9,7 @@
 ## 0.0.111
 
 - 릴리즈: K1189부터 K1215까지의 행을 담아 kit 0.0.111을 낸다. release는 Rust core와 그 binding의 플랫폼별 asset을 빌드하고 증명하며 static library를 가진 Go module을 담고, run-tests는 Python 시험을 event로 세고 실행되지 않은 PHPUnit 시험을 적으며, link는 require된 version에 tag가 없는 Go module을 빌드한다(K1216).
+- K1197: 쌍 merge 시험의 주석이 항목 id의 한국어 꼴을 영어 낱말로 적는다. 그래서 코드의 언어 검사가 통과한다. 주석이 한국어 글자를 그대로 담고 있었다.
 
 - K1213: link가 한 provider의 두 폴더가 주는 package 이름을 자기 runtime의 ecosystem에서만, 그리고 그 package를 설치해 가진 project에서만 판정한다. 그 project는 manifest의 로컬 경로, package manager가 직접 만든 link, 또는 Composer의 경우 설치된 package에 기록된 type으로 폴더를 정하고, 아무것도 정하지 못하면 package와 폴더들을 적고 실패한다. module 경로가 다른 Go module은 두 provider다. 전에는 선언된 checkout이 한 이름을 두 폴더에 가지면 `providers()`가 `composer package <name> has two providers`로 모든 link를 실패시켰다. `make link RUNTIME=go`도 그랬다. npm과 Python에는 manifest 경로나 package manager의 link 말고는 정하는 기준이 없다. Red: `tests/kit/link.test.mts`의 K1213 case 4개와 `tests/source/link-composer-real.test.mts`의 K1213 case가 실패했다.
 - K1212: link가 untracked go.work의 `use` 줄 옆에, go.work가 쓰는 module이 링크된 provider module을 require하는 version마다 `replace <module> <version> => <provider folder>` 줄을 쓰고, link-check가 이 줄을 비교한다. 전에는 go.work에 `use` 줄만 있어서, go가 어떤 tag도 가리키지 않는 require된 version의 go.mod를 읽으려다 `go list -m all`과 workspace 밖의 module을 import하는 package의 build를 `unknown revision <directory>/vX.Y.Z`로 실패시켰다. go 1.27.3은 version 없는 workspace module의 replace를 거부하므로 각 줄이 version을 적는다. 다른 used module만 require하는 provider module과 tracked go.work의 `replace` 줄은 다루지 않는다. Red: `tests/source/link-go-real.test.mts`의 case 2개와 `tests/kit/link.test.mts`의 K1212 case 3개가 실패했다.
