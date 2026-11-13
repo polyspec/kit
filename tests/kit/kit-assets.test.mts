@@ -19,6 +19,12 @@ test('a file that a module reads beside itself and kit-build does not ship is a 
   assert.deepEqual(unshippedAssets(new Map([['scripts/kit/run-tests.mts', runner], ['scripts/kit/schema-validate.mts', schema]]), BUILD), ['scripts/kit/run-tests.mts: runners']);
 });
 
+// K1202: a tar of kit-build that names several folders ships each of them.
+test('K1202: a tar of kit-build ships every folder that it names', () => {
+  const build = 'kit-build:\n\ttar -C scripts/kit --exclude=vendor --exclude=__pycache__ -cf - symbols runners | tar -C dist.next -xf -\n';
+  assert.deepEqual([...shippedAssets(build)].sort(), ['runners', 'symbols']);
+});
+
 test('kit-build ships every file that a module of kit reads beside itself (K421)', () => {
   assert.deepEqual(unshippedAssets(kitModules(ROOT, trackedFiles(ROOT)), readFileSync(path.join(ROOT, 'Makefile'), 'utf8')), []);
 });

@@ -29,9 +29,10 @@ export function shippedAssets(makefile: string): Set<string> {
   const shipped = new Set<string>();
   for (const line of recipe) {
     for (const match of line.matchAll(/\bcp(?:\s+-R)?\s+scripts\/kit\/([^\s/]+)/g)) if (match[1] !== undefined) shipped.add(match[1]);
-    // tar -C scripts/kit ... -cf - <folder> | tar -C dist.next -xf -
-    const tar = /\btar -C scripts\/kit\b[^|]*-cf -\s+([^\s|]+)/.exec(line);
-    if (tar?.[1] !== undefined) shipped.add(tar[1]);
+    // tar -C scripts/kit ... -cf - <folder>... | tar -C dist.next -xf -
+    // Every name between `-cf -` and the pipe is a folder that the tar ships (K1202).
+    const tar = /\btar -C scripts\/kit\b[^|]*-cf -\s+([^|]+)/.exec(line);
+    for (const name of tar?.[1]?.trim().split(/\s+/) ?? []) shipped.add(name);
   }
   return shipped;
 }
