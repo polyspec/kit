@@ -9,6 +9,7 @@
 - Each repo holds a self-complete document. That is why PRINCIPLES is copied into each repo.
 - A restriction that enforces a rule is a harness. Needless interference is a shackle, and so is doing a package manager's job.
 - Kit is not a package manager.
+- Kit does not do the work of a repository in its place. The work that is not kit's, the utilities removed for it and those that leave are in [the specification](../../spec/utilities-and-recipes.md) (K1219).
 - At release the package manager installs the stated version. Development is the same, except that the stated version is assumed installed and its install folder is symlinked to the development folder (2026-10-30).
 - A symlinked development folder is never damaged.
 

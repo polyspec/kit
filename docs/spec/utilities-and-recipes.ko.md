@@ -1,5 +1,5 @@
 <!-- doc-id: spec-utilities-and-recipes -->
-<!-- source-sha256: 84fe6b9d9953f90d5b1ea5146562ad218d09dfd3911feed6000fb7c689cad387 -->
+<!-- source-sha256: 1e2ecc1b9b00e6950bc78002a1e11600be8b65565a346d9d32dfd816c0f376b3 -->
 # 유틸리티와 예제
 
 [English](utilities-and-recipes.md)
@@ -77,6 +77,75 @@ kit은 어떤 것도 강제하지 않는다. 특히 다음과 같다.
 - Rust의 lint는 checkout의 각 Cargo workspace 폴더에서 clippy step을 하나씩 실행하고, 첫 `--workspace-args`보다 앞의 인자를 모든 step에 준다. `--workspace-args <folder>`는 그 뒤부터 다음 `--workspace-args`까지의 인자를 `<folder>`에 있는 workspace의 step에만, 모든 step의 인자 뒤에 준다. `<folder>`는 그 Cargo.toml이 있는 폴더의 저장소 상대 경로이다(root는 `.`). checkout의 Cargo workspace가 없는 폴더와 폴더 없는 `--workspace-args`는 어느 step도 실행하기 전에 lint를 실패시키고 checkout의 workspace를 나열한다. 그래서 package의 `--exclude`는 그 package를 가진 workspace에만 가고, cargo는 다른 workspace에서 뜻이 없는 제외를 경고하지 않는다(K1195).
 - kit은 저장소의 CI, hook, gate에 어떤 결과도 필수로 요구하지 않는다.
 - kit은 저장소의 레시피나 예제를 검사하는 기능을 제공하지 않는다.
+
+## kit의 일이 아닌 것 (K1219)
+
+kit은 저장소가 만든 규칙을 시작한다. 그 규칙은 저장소의 Makefile과 설정이 선언한 target, 검사, release 단계이다. 두 가지 일은
+kit의 일이 아니며, 둘 중 하나를 하는 유틸리티는 제거한다.
+
+1. **package manager의 일.** 설치, download, version 결정, package link, package의 build와 pack은 npm, Composer, cargo, go, uv,
+   mise, rustup, container engine의 일이다. 유틸리티가 manifest, lock, `go.work`, Composer repository 항목, Cargo patch, 설치
+   폴더의 link를 쓰거나, version이나 dependency 순서를 고르거나, archive를 download하거나, 자기 단계로 package를 pack하면 이
+   일을 하는 것이다. recipe가 준 인자로 manager를 시작하는 유틸리티는 그렇지 않다.
+2. **저장소의 일.** 저장소가 무엇을 build하고 pack하고 tag하고 publish하는지, 어떤 순서와 어떤 값으로 하는지는 저장소 자신의
+   Makefile과 설정이 적는다. 그 단계를 저장소의 파일이 아니라 유틸리티의 코드가 정하거나, 유틸리티가 저장소의 파일을 쓰거나,
+   한 종류의 package 구조를 유틸리티가 가지고 있으면 이 일을 하는 것이다.
+
+남는 것은 harness이다: 저장소가 선언한 target과 명령을 끝까지 실행하고 보고하는 것, 문서와 checklist와 commit의 검사, 규칙을
+저장소의 파일이 적는 검사, 생태계의 표준 runner를 시작하는 test runner.
+
+어느 recipe도 부르지 않는 유틸리티는 여기에 적는 변경에서 삭제한다. recipe가 부르는 유틸리티는 떠나는 것으로 표시한다. 그것을
+부르는 recipe가 모두 아래의 native 명령을 가질 때까지 동작하고, 그 뒤에 삭제한다. kit은 그것을 대신하는 유틸리티, 옵션, gate를
+더하지 않는다.
+
+### 제거한 것
+
+- `link.mts packages <dir> python|npm` (K1217). 폴더의 manifest가 선언한 polyspec package를 `uv sync --no-install-package`의
+  인자로 출력했다. manager가 설치할 package를 고르는 일은 그 manager를 시작하는 recipe의 일이다. 어느 recipe도 부르지 않았다.
+- package의 export `./link-folders` (K1218). 설치 폴더를 link로 바꾸는 함수를 저장소의 test에 주었다. 설치 폴더의 link는
+  package manager의 일이다. 저장소의 어느 파일도 import하지 않았다.
+- `release.mts go-modules`와 `release-go-module.mts`, target `release-go-modules` (K1220). tag의 commit에서, Go module의 생성
+  파일과 플랫폼별 정적 라이브러리를 더한 commit을 만들고, 거기에 `<directory>/vX.Y.Z` tag를 달고, 그 tag에서 consumer의
+  `go test`를 실행했다. Go module의 tag가 어떤 파일을 담고 무엇으로 증명하는지는 저장소의 release이다. 저장소의 recipe가
+  `git commit-tree`, `git tag -a <directory>/vX.Y.Z <commit>`, `git push <remote> <tag>`를 가지고, 그 앞에 원하는 검사를 둔다.
+  어느 recipe도 이 mode를 부르지 않았다.
+- `release.mts sets`와 target `release-sets` (K1221). `config/release.json`의 asset set을 플랫폼별 runner와 함께 GitHub matrix의
+  include 목록으로 출력했다. workflow의 job과 runner는 저장소의 workflow가 적는다. 예시 workflow가 include 목록을 스스로
+  가진다. 어느 recipe도 이 mode를 부르지 않았다.
+
+### 떠나는 것
+
+| 유틸리티 | 하는 일 | 종류 | 저장소의 recipe가 대신 가지는 것 |
+|---|---|---|---|
+| `link-build.mts`, `linked-build.mts` | land와 commit 뒤에, kit이 Makefile에서 읽은 target으로 checkout의 npm package를 build한다 | 2 | 저장소의 build target. recipe가 `land` 뒤에 실행한다 |
+| `python-venv.mts` | 가상 환경을 만들고 판정한다 | 1 | `uv venv --python python3 <dir>` |
+| `bootstrap/` (`install-mise`, `installNode`) | mise의 archive를 download하고, digest를 비교하고, 풀고, `var/tools/bin`의 wrapper를 쓴다 | 1 | `MISE_VERSION`과 `MISE_INSTALL_PATH`를 준 mise의 installer, 또는 CI의 mise action. 그 다음 `mise install --locked node npm:npm` |
+| `install-tools.mts`, `install-rust.mts`, `install-php.mts`, `toolchain-*.mts` | 도구 이름을 `mise.toml`의 key로 바꾸고, prerequisite 순서를 정하고, mise와 rustup을 시작하고, PHP의 wrapper를 쓴다 | 1 | `mise install --locked [<tool>...]`와, `rust-toolchain.toml`을 읽는 `rustup toolchain install` |
+| `install-composer-project.mts`, `install-phpunit.mts`, `install-php-lint.mts`, `config/php-lint`, `install-symbols.mts`, `symbols/php` | kit이 가진 Composer project를 `var/tools`에 설치한다 | 1, 2 | 저장소 자신의 `composer.json`의 `require-dev`에 둔 phpunit, phpcs, PHPStan. `composer install`이 설치한다 |
+| `install-vscode.mts` | VS Code의 release를 고르고 download한다 | 1 | 저장소의 integration run에서 `@vscode/test-electron`의 `downloadAndUnzipVSCode`. version은 그 run이 적는다 |
+| `release-tools.mts` | `config/release.json`에서 release의 도구를 추론해 설치한다 | 1, 2 | release recipe의 `mise install --locked <tool>...`와 `rustup toolchain install` |
+| `release.mts assets`, `candidate-assets`, `release-native.mts`, `release-wheel.mts` | tag가 가질 archive와 그 이름을 정하고, Composer zip을 스스로 pack하고, `packages.json`을 쓰고, native 종류의 build를 자기 순서로 실행한다 | 1, 2 | release recipe에 package마다 한 줄: `npm pack --pack-destination <assets>`, `composer archive --format=zip --dir=<assets>`, `uv build --wheel --out-dir <assets>`, `cargo build --release --locked -p <package>`, `napi build --platform --release`와 `napi artifacts`, `llvm-strip --strip-debug`, `zip` |
+| `release.mts publish`, `undraft`, `github-release.mts` | 자기가 쓴 notes로 release의 draft를 만들고 공개한다 | 2 | `gh release create <tag> --draft --notes-file <file> <assets>/*`와 `gh release edit <tag> --draft=false` |
+| `release-run.mts tag`, `prepare` | CI run과 change log를 읽고 tag를 만들어 push한다 | 2 | `gh run view <run> --json conclusion,headSha,headBranch,event`, `git tag -a <tag> <commit>`, `git push origin <tag>` |
+| `php-extension.mts build`, `test` | phpize, arginfo generator, configure, make 또는 cargo를 자기 순서로 실행한다 | 1, 2 | `phpize`, `./configure --with-php-config=<file>`, `make`, 또는 `cargo build --release --locked -p <package>`. `php -d extension=<file> vendor/bin/phpunit` |
+
+### 결정하지 않은 것
+
+아래는 양쪽에 근거가 있으므로, 삭제하지도 표시하지도 않는다.
+
+- local link 전체: `link.mts`(`link`, `unlink`, `providers`, `cargo`), `link-check.mts`, `link-providers.mts`, `link-folders.mts`,
+  `cargo-source.mts`, `uv-install.mts`의 link. 종류 1: 설치 폴더를 link로 바꾸고, `use`와 `replace` 줄을 가진 `go.work`를 쓰고
+  (K1212), cargo의 patch 인자를 계산하고, 한 package 이름의 두 폴더 중 하나를 고른다(K1213). 반대쪽에는, 개발 때 적힌 version의
+  설치 폴더를 개발 폴더로 link한다는 규칙이 있다(K591, `docs/plans/kit-harness/plan.md`의 목표). 저장소는 그 규칙을 `.links`와
+  `make link`로 적용한다.
+- `lint-go.mts`, `lint-php.mts`, `lint-python.mts`, `lint-rust.mts`, `lint-ts.mts`. 저장소가 정하는 것: 각 linter의 규칙(linter가
+  자기 discovery로 읽는 설정, K1050)과 recipe가 넘기는 인자(K1097). kit의 코드가 정하는 것: 어떤 linter를 어떤 폴더에서
+  실행하는지와 고정 인자(`./...`, `--workspace --all-targets`, build tag마다 한 번의 실행).
+- `workflows/`, `actions/kit-bootstrap`, `docs/examples/bootstrap.mk`, package가 export하는 lint 설정. 저장소가 정하는 것: 파일을
+  복사할지와 복사본의 내용(K1052). kit이 정하는 것: 자기가 싣는 파일의 내용. 그 파일은 저장소의 workflow와 Makefile의 공용
+  조각을 담는다.
+- `ci-setup.mts`의 기본값. 저장소가 정하는 것: `config/ci.json`이 적는 setup target. 적지 않으면 kit의 코드가 `deps-<runtime>`을
+  고른다(K859).
 
 ## 근거
 
