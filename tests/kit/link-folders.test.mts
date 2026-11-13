@@ -4,7 +4,6 @@
 // realpaths every module file, so link makes an npm package folder of another repository a real folder of per-file links without the
 // provider's node_modules, which a node run with --preserve-symlinks resolves from the consumer's node_modules (K558).
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -55,13 +54,6 @@ test('an npm package of the consumer\'s own repository stays the whole-folder li
   assert.deepEqual(folderFindings(root, folders), []);
   assert.deepEqual(linkFolders(folders), []);
   assert.ok(lstatSync(folder).isSymbolicLink(), 'the own package stays a directory link');
-});
-
-// K576: a consumer's test builds the per-file link tree of K558 with kit's own linkFolders, through the export of the package.
-test('the package exports ./link-folders with linkFolders, providedFolders and folderFindings (K576)', () => {
-  const run = spawnSync(process.execPath, ['--input-type=module', '-e', "const m = await import('@polyspec/kit/link-folders'); console.log([m.linkFolders, m.providedFolders, m.folderFindings].map(f => typeof f).join(' '));"], { cwd: path.resolve(import.meta.dirname, '../..'), encoding: 'utf8' });
-  assert.equal(run.stderr.trim(), '');
-  assert.equal(run.stdout.trim(), 'function function function');
 });
 
 // K591: an installed polyspec package is one symlink from its install location to the package folder of its checkout, the user's rule;

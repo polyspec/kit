@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c79b9b81a7e8a34c93782657a3ad9fba26232c00a676c666b2b36159bab67ae7 -->
+<!-- source-sha256: f58ac4bf0fd062a86b67a0323391d2619aacf604a2a68a18a4347b6732805d1d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1218: package가 `./link-folders`를 export하지 않습니다. 이 export는 설치 폴더를 link로 바꾸는 함수를 저장소의 test에 주었는데, 그것은 package manager의 일이고 저장소의 어느 파일도 import하지 않았습니다. `@polyspec/kit/link-folders`의 import는 이제 `ERR_PACKAGE_PATH_NOT_EXPORTED`로 실패합니다. kit의 module은 `link-folders.mts`를 경로로 import합니다.
 
 - K1217: `link.mts`에 `packages` 명령이 없습니다. 이 명령은 폴더의 manifest가 선언한 polyspec package를 `uv sync --no-install-package`의 인자로 출력했습니다. package manager가 설치할 package를 고르는 일은 그 manager를 시작하는 recipe의 일이고, 어느 recipe도 이 명령을 부르지 않았습니다. `link.mts packages`는 이제 usage와 exit 1로 끝납니다.
 

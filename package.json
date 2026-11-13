@@ -18,7 +18,6 @@
     "./holder-lock": "./scripts/kit/holder-lock.mts",
     "./run-command": "./scripts/kit/run-command.mts",
     "./install-vscode": "./scripts/kit/install-vscode.mts",
-    "./link-folders": "./scripts/kit/link-folders.mts",
     "./check-commits": "./scripts/kit/check-commits.mts",
     "./ci-targets": "./scripts/kit/ci-targets.mts",
     "./config/api-extractor.kit.json": "./config/api-extractor.kit.json",
