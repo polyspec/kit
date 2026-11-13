@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "the build of the PHP of a checkout",
+  "description": "What scripts/kit/release-native.mts reads from the php of the checkout to name the PIE binary of a php-ext package (K1189): its minor X.Y, whether it is thread safe and whether it is a debug build.",
+  "type": "object",
+  "required": ["minor", "zts", "debug"],
+  "additionalProperties": false,
+  "properties": {
+    "minor": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+$" },
+    "zts": { "type": "boolean" },
+    "debug": { "type": "boolean" }
+  }
+}

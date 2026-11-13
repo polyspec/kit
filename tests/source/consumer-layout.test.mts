@@ -97,11 +97,12 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   const action = readFileSync(path.join(consumer, '.github/actions/kit-bootstrap/action.yml'), 'utf8');
   const steps = workflow.split('\n').flatMap(line => BOOTSTRAP_USES.test(line) ? bootstrapActionCommands(action) : [...line.matchAll(/^\s+run: (make .+)$/g)].map(match => match[1] ?? ''));
   const bootstrap = steps.slice(0, steps.indexOf('make release-tools'));
-  assert.deepEqual(bootstrap, ['make install-tools TOOLS=npm', 'make install-packages', "make release-tag ${{ github.event_name == 'workflow_run' && 'AUTO=1' || '' }}", 'make install-tools TOOLS=npm', 'make install-packages', 'make release-prepare'], 'the release workflow bootstraps the package, tags the commit of the CI run, installs it again and prepares the release before release-tools (K755, K911)');
+  assert.deepEqual(bootstrap, ['make install-tools TOOLS=npm', 'make install-packages', "make release-tag ${{ github.event_name == 'workflow_run' && 'AUTO=1' || '' }}", 'make install-tools TOOLS=npm', 'make install-packages', 'make release-sets', 'make install-tools TOOLS=npm', 'make install-packages', 'make release-prepare'], 'the release workflow bootstraps the package, tags the commit of the CI run, installs it again, lists the asset sets, and each set installs it and prepares the release before release-tools (K755, K911, K1189)');
   // release-tag reads a CI run with gh (K911); release-tag.test.mts runs it.
   // The bootstrap action installs the locked kit with npm ci before its make commands, so the recipes find its tools.
   run(NPM, ['ci', '--ignore-scripts'], consumer, env);
-  for (const command of bootstrap.filter(command => !command.startsWith('make release-tag'))) {
+  // release-sets reads config/release.json, which this consumer, a repository that releases nothing, does not have.
+  for (const command of bootstrap.filter(command => !command.startsWith('make release-tag') && command !== 'make release-sets')) {
     const step = spawnSync('sh', ['-c', command], { cwd: consumer, env, encoding: 'utf8' });
     assert.equal(step.status, 0, `${command}: ${step.stdout}${step.stderr}`);
   }

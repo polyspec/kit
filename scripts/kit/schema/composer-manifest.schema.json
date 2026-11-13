@@ -77,6 +77,28 @@
           }
         }
       }
+    },
+    "php-ext": {
+      "description": "The PIE configuration of a PHP extension package that the release of a php-ext package reads (K1189).",
+      "type": "object",
+      "properties": {
+        "extension-name": {
+          "type": "string"
+        },
+        "download-url-method": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        }
+      }
     }
   }
 }

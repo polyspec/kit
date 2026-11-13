@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: f7fb0d2837ef7647a2370f21cabea090e18179013515fc7ce8e24471beb63fd2 -->
+<!-- source-sha256: eb548ff0ed6403fb92fa43fe1708e119dc9dd876518d9a41409ef9ad473c90cd -->
 # 릴리스
 
 [English](release.md)
@@ -48,3 +48,59 @@ consumer가 wheel을 설치할 때 uv와 pip가 이 형식을 해석합니다(do
 Python package는 git tag로 릴리스하지 않습니다.
 
 `composer` kind의 package가 있는 release는 archive 옆에 `packages.json`도 게시합니다(K871). release asset은 폴더를 담지 않으므로 하나의 평면 Composer repository입니다. config/release.json의 각 Composer package를 그 이름과 version 아래에 commit의 composer.json으로 담고, URL이 그 zip의 release asset이고 shasum이 그 zip의 sha1인 type zip의 dist를 붙입니다. 소비자는 `{ "type": "composer", "url": "<repositoryUrl>/releases/download/vX.Y.Z/packages.json" }`를 선언합니다. Composer는 경로에 `.json`이 있는 URL을 그 파일 자체로 읽고 package metadata를 그 파일에서 읽으므로 소비자는 tag만 적습니다. `release-candidate-assets VERSION`의 packages.json은 release `vVERSION`의 asset URL을 적으며, 이 URL은 그 release가 게시된 뒤에만 존재합니다. Composer 도구는 이 형태를 쓰지 않습니다: Satis는 metadata-url을 위해 `p2/<vendor>/<name>.json`을 쓰고 dist URL을 위해 package를 다시 묶으며, `composer archive`는 repository를 쓰지 않습니다.
+
+## 플랫폼별 asset (K1189)
+
+Rust core와 그 생성 binding은 플랫폼별 asset으로 release된다: abi3 wheel, PHP 확장, 플랫폼마다의 npm package, Go 정적
+라이브러리. config/release.json은 이것을 네 package kind로 선언하고, 각 kind는 빌드 대상 플랫폼의 목록 `platforms`를 둔다:
+`linux-x64-gnu`, `linux-arm64-gnu`, `darwin-arm64`, napi-rs가 이 플랫폼들에 주는 이름이다. kit은 각각을 그 생태계의 도구로
+빌드하고 어느 것도 고정하지 않는다(S4):
+
+| Kind | Manifest | 도구 | Asset |
+|---|---|---|---|
+| `wheel-abi3` | `pyproject.toml` | `[build-system].requires`의 maturin을 돌리는 `uv build --wheel`, `MATURIN_PEP517_ARGS=--locked`와 함께 | maturin이 이름 짓는 PEP 427 wheel `<distribution>-<version>-cp<NN>-abi3-<platform tag>.whl`: Linux에서는 `manylinux` tag, macOS에서는 `macosx` tag |
+| `php-ext` | `composer.json` | checkout의 `php`와 `php-config`를 `PHP`와 `PHP_CONFIG`에 두고 `cargo build --release --locked -p <Cargo.toml의 package>` | `<extension>.so`를 담은 PIE pre-packaged binary `php_<extension>-v<version>_php<X.Y>-<arch>-<os>-<libc>[-debug]-<nts\|zts>.zip` |
+| `npm-native` | `package.json` | 저장소의 napi CLI(`node_modules/.bin/napi`): `napi build --platform --release`, `napi create-npm-dirs`, `napi artifacts`, 그다음 `npm pack` | npm pack이 이름 짓는 root package `<scope>-<name>-<version>.tgz`와 플랫폼마다의 플랫폼 package `<scope>-<name>-<platform>-<version>.tgz` |
+| `go-static` | `Cargo.toml` | `cargo build --release --locked -p <package>` | cargo가 쓰는 `lib<name>.a`를 담은 `<vendor>-<product>-go-<version>-<platform>.zip` |
+
+`php-ext` package는 확장 ABI가 minor마다 다르므로 빌드 대상 PHP minor `php`(`["8.4", "8.5"]`)도 선언한다. 그 composer.json은
+`php-ext.extension-name`을 적고 `php-ext.download-url-method`에 `pre-packaged-binary`를 둔다. 그래야 PIE가 release의 asset에서
+binary를 찾는다. PIE는 package의 version으로 그 release를 찾고(`releases/tags/<version>`) 같은 version으로 asset 이름을 짓는다.
+그래서 packages.json은 `php-ext` package를 version `vX.Y.Z`, 곧 tag 아래에 두고, dist는 tag의 source archive
+(`https://api.github.com/repos/<owner>/<repository>/zipball/vX.Y.Z`)다.
+`npm-native` package는 napi CLI가 읽는 설정인 `napi.binaryName`과 `napi.targets`를 package.json에 적는다. targets는 그 플랫폼들의
+Rust triple(`x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `aarch64-apple-darwin`)이고, `optionalDependencies`는
+플랫폼마다 `<name>-<platform>`을 release의 version으로 적으며 다른 플랫폼 package는 적지 않는다. root package는 실행할 때 자기
+플랫폼 package를 고른다. root package는 make entry의 출력을 넣은 tag된 tree의 사본에서 `--ignore-scripts`로 pack한다. 그 entry가
+root package가 담는 것을 빌드하기 때문이다. root package는 자기 package.json을 byte 그대로 담는다.
+
+native package는 Composer나 wheel package처럼 make entry(`generated`)를 선언할 수 있다. native kind의 빌드는 저장소의 Cargo
+workspace를 읽으므로 tag된 tree 전체의 사본(commit의 `git archive`)에서 돌고, make entry의 출력은 그 사본의 제 경로에 복사된다.
+cargo는 checkout 밖, run의 target 폴더에 쓰고, 사본과 그 폴더는 run 뒤에 지운다.
+
+release의 asset은 set으로 빌드한다. 플랫폼마다 자기 것을 빌드하므로 `release-assets` 한 번이 set 하나다:
+
+- 플랫폼 없는 set: `npm`, `composer`, `wheel` package의 archive, 각 `npm-native` package의 root package, `packages.json`.
+  `RELEASE_PLATFORM`을 두지 않는다.
+- 플랫폼의 set: `RELEASE_PLATFORM`의 `wheel-abi3`, `go-static`, `npm-native` 플랫폼 asset.
+- 플랫폼과 PHP minor의 set: `RELEASE_PLATFORM`의 `RELEASE_PHP`용 `php-ext` asset. checkout의 PHP가 그 minor여야 한다.
+
+set은 자기 플랫폼에서만 빌드한다. 여기서는 어느 도구도 cross compile하지 않으므로 기계의 플랫폼(Node.js `process.platform`과
+`process.arch`, Linux에서는 glibc)이 `RELEASE_PLATFORM`이어야 한다. 어느 package도 선언하지 않은 플랫폼의 set과, 그 플랫폼에서
+어느 `php-ext` package도 선언하지 않은 PHP minor는 실패한다. `release.mts sets`(`make release-sets`)는 set을 GitHub matrix의
+`include` 목록 `{"platform": "<platform 또는 빈 값>", "php": "<minor 또는 빈 값>"}`으로 출력하고, `GITHUB_OUTPUT`이 있으면 그것을
+`sets`로 쓴다. `release-run tag`는 `GITHUB_ENV` 옆에 `tag=vX.Y.Z`와 `version=X.Y.Z`를 `GITHUB_OUTPUT`에 써서 workflow의 다음 job이
+tag를 읽게 한다.
+
+`publish`는 asset 폴더에 모든 set의 파일을 요구한다: kit이 이름을 예측하는 파일 각각과, wheel-abi3와 php-ext asset마다 그 이름
+pattern에 맞는 파일 하나다. maturin이 platform tag를 고르고 PHP가 thread safety를 정하기 때문이다. wheel의 pattern은 자기 플랫폼의 platform tag만
+받으므로 두 플랫폼의 wheel은 두 asset이다. 빠진 파일, 두 파일에 맞는
+pattern, 어느 asset도 이름 짓지 않는 파일은 각각 실패한다. 각 package asset은 label `<vendor>-<product>-<runtime>-<version>`을
+달고, 플랫폼 asset은 그 뒤에 `-<platform>`을, php-ext asset은 `-php<X.Y>-<platform>`을 붙인다(P39).
+
+`workflows/release.yml`은 set을 matrix로 빌드한다: job `tag`는 commit에 tag를 달고 tag를 check out한 뒤 `make release-sets`를
+돌린다. job `assets`는 set마다 그 플랫폼의 runner(linux-x64-gnu와 플랫폼 없는 set은 `ubuntu-24.04`, linux-arm64-gnu는
+`ubuntu-24.04-arm`, darwin-arm64는 `macos-15`)에서 돌며, set의 PHP minor를 설정하고 `RELEASE_PLATFORM`과 `RELEASE_PHP`로 `make
+release-assets`를 돌린 뒤 폴더를 upload한다. job `publish`는 모든 폴더를 한 asset 폴더로 download하고 `make release-publish`와
+`make release-undraft`를 돌린다.
+

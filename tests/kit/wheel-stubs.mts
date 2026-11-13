@@ -1,8 +1,9 @@
 // Stubs of the Python tools of the wheel tests. `uv build --wheel ... --out-dir DIR SRC` writes the wheel of SRC into DIR, with
 // the Requires-Dist lines that the JSON file STUB_WHEEL_REQUIRES_FILE holds (an array for every wheel, or an object from each
-// distribution name to its lines). `-m pip install --dry-run --report - WHEEL` prints the metadata of the wheel as the report of
-// pip. Each uv and pip call is appended as a JSON line to STUB_PYTHON_LOG when that variable is set, with the requirements file
-// of a `-r` argument read at call time. No test reaches an index.
+// distribution name to its lines), and the tags of STUB_WHEEL_TAGS, py3-none-any when it is unset, as an abi3 build names them.
+// `-m pip install --dry-run --report - WHEEL` prints the metadata of the wheel as the report of pip. Each uv and pip call is
+// appended as a JSON line to STUB_PYTHON_LOG when that variable is set, with the requirements file of a `-r` argument read at
+// call time. No test reaches an index.
 // The Requires-Dist lines of STUB_WHEEL_REQUIRES_FILE: an array for every wheel, or an object from each distribution name to its lines.
 export type WheelRequires = string[] | Record<string, string[]>;
 
@@ -19,7 +20,8 @@ function buildWheel(output, source) {
   const folder = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'stub-wheel-'));
   fs.mkdirSync(path.join(folder, distribution + '-' + version + '.dist-info'));
   fs.writeFileSync(path.join(folder, distribution + '-' + version + '.dist-info', 'METADATA'), ['Metadata-Version: 2.4', 'Name: ' + name, 'Version: ' + version, ...requires.map(line => 'Requires-Dist: ' + line)].join('\\n') + '\\n');
-  execFileSync('zip', ['-q', '-r', '-X', path.join(output, distribution + '-' + version + '-py3-none-any.whl'), '.'], { cwd: folder });
+  const tags = process.env.STUB_WHEEL_TAGS || 'py3-none-any';
+  execFileSync('zip', ['-q', '-r', '-X', path.join(output, distribution + '-' + version + '-' + tags + '.whl'), '.'], { cwd: folder });
   fs.rmSync(folder, { recursive: true, force: true });
   return 0;
 }

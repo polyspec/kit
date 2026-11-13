@@ -105,7 +105,7 @@ test('the schema accepts the configuration of the fixture and names each error o
   writeJson(box.root, 'config/release.json', { ...config, schema: 2, extra: 1, packages: [{ kind: 'pip', directory: '/abs', name: 'x' }] });
   const findings = releaseFindings(box.root).filter(line => line.startsWith('config/release.json'));
   assert.ok(!findings.some(line => line.includes('/schema') || line.includes('additionalProperty')), `a key that no tool reads is no finding (K1069)\n${findings.join('\n')}`);
-  assert.ok(findings.some(line => line.includes('/packages/0/kind must be equal to one of the allowed values {"allowedValues":["npm","composer","wheel"]}, value "pip"')), findings.join('\n'));
+  assert.ok(findings.some(line => line.includes('/packages/0/kind must be equal to one of the allowed values {"allowedValues":["npm","composer","wheel","wheel-abi3","php-ext","npm-native","go-static"]}, value "pip"')), findings.join('\n'));
   assert.ok(findings.some(line => line.startsWith('config/release.json: /packages/0/directory must match pattern') && line.includes('value "/abs"')), findings.join('\n'));
   const { changelog, ...without } = config;
   writeJson(box.root, 'config/release.json', without);

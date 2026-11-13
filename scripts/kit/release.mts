@@ -31,7 +31,7 @@
 // A `wheel` package builds its PEP 427 wheel `<distribution>-<version>-py3-none-any.whl` from the tagged commit with uv build,
 // which installs the build-system.requires of its pyproject.toml (release-wheel.mts).
 // Each failure names the tag, the file or the check, and the expected and the actual value, and exits with status 1.
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createDraft, deleteRelease, makePublic, releaseById, releaseOf, repositoryParts, type GitHubRelease } from './github-release.mts';
@@ -50,6 +50,8 @@ import { present } from './present.mts';
 import { linksOutsideCheckout } from './link.mts';
 import { toolCommand } from './mise-tools.mts';
 import { packedPackageManifest } from './pack-manifest.mts';
+import { assetSets, buildPlatformAsset, extensionOf, inSet, isNative, namedSet, nativeProblems, npmNativeRoot, npmPackName, platformAssets, requireHost, setName, zipEntries, type AssetSet, type ExpectedAsset, type ExtensionNames, type NativeBuild } from './release-native.mts';
+import { readToml, isTable } from './toml.mts';
 
 export const CONFIG = 'config/release.json';
 /** The Composer repository of the Composer packages of a release, beside its archives (K871). */
@@ -60,12 +62,12 @@ export const MODES: readonly string[] = ['archive', 'version', 'git-tag'];
 // The files of a checkout that carry the version or the module of a package; coverage requires each to be classified.
 const TAG = /^v(?<version>(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))$/;
 const EXACT_VERSION = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
-const MANIFEST_OF: Record<PackageKind, string> = { npm: 'package.json', composer: 'composer.json', wheel: 'pyproject.toml' };
+const MANIFEST_OF: Record<PackageKind, string> = { npm: 'package.json', composer: 'composer.json', wheel: 'pyproject.toml', 'wheel-abi3': 'pyproject.toml', 'php-ext': 'composer.json', 'npm-native': 'package.json', 'go-static': 'Cargo.toml' };
 const NPM_DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const;
 const COMPOSER_DEPENDENCY_FIELDS = ['require', 'require-dev'] as const;
 
 /** The kind of a package of config/release.json. */
-export type PackageKind = 'npm' | 'composer' | 'wheel';
+export type PackageKind = 'npm' | 'composer' | 'wheel' | 'wheel-abi3' | 'php-ext' | 'npm-native' | 'go-static';
 
 /** A package of `packages` of config/release.json. */
 export interface ReleasePackage {
@@ -75,6 +77,10 @@ export interface ReleasePackage {
   product: string;
   runtime: string;
   generated?: ReleaseGeneratedArtifact[];
+  /** The platforms of a per-platform package (K1189). */
+  platforms?: string[];
+  /** The PHP minors of a php-ext package (K1189). */
+  php?: string[];
 }
 
 /**
@@ -126,6 +132,8 @@ export interface Context {
   assets: string | undefined;
   /** The folder of the release records, relative to the checkout or absolute, as the caller names it; none when unnamed (K1115). */
   records: string | undefined;
+  /** The asset set that the caller names in RELEASE_PLATFORM and RELEASE_PHP; the set without a platform when it names none (K1189). */
+  set: AssetSet;
 }
 
 /** A parsed manifest, package.json (NpmManifest) or composer.json (ComposerManifest), in the fields that the release reads. */
@@ -180,9 +188,13 @@ export function loadConfig(root: string): ReleaseConfig {
   for (const key of Object.keys(config.manifests)) if (key in config.notReleased) problems.push(`${CONFIG}: ${key} is in both manifests and notReleased`);
   const names = new Set<string>();
   const directories = new Set<string>();
-  for (const { kind, directory, name } of config.packages) {
-    const shape = { npm: /^(@[a-z0-9._-]+\/)?[a-z0-9._-]+$/, composer: /^[a-z0-9._-]+\/[a-z0-9._-]+$/, wheel: /^[a-z0-9._-]+$/ }[kind];
-    const form = { npm: '`name` or `@scope/name`', composer: '`vendor/name`', wheel: 'project name of PyPI' }[kind];
+  for (const item of config.packages) {
+    const { kind, directory, name } = item;
+    const npmShape = /^(@[a-z0-9._-]+\/)?[a-z0-9._-]+$/;
+    const composerShape = /^[a-z0-9._-]+\/[a-z0-9._-]+$/;
+    const shape = { npm: npmShape, composer: composerShape, wheel: /^[a-z0-9._-]+$/, 'wheel-abi3': /^[a-z0-9._-]+$/, 'php-ext': composerShape, 'npm-native': npmShape, 'go-static': /^[a-z0-9_-]+$/ }[kind];
+    const form = { npm: '`name` or `@scope/name`', composer: '`vendor/name`', wheel: 'project name of PyPI', 'wheel-abi3': 'project name of PyPI', 'php-ext': '`vendor/name`', 'npm-native': '`name` or `@scope/name`', 'go-static': 'Cargo package name' }[kind];
+    problems.push(...nativeProblems(item, CONFIG));
     if (!shape.test(name)) problems.push(`${CONFIG}: the ${kind} package ${name} is not a ${form}`);
     if (names.has(`${kind}:${name}`)) problems.push(`${CONFIG}: the ${kind} package ${name} is listed twice`);
     if (directories.has(directory)) problems.push(`${CONFIG}: the directory ${directory} holds two packages`);
@@ -204,8 +216,11 @@ export function loadConfig(root: string): ReleaseConfig {
   for (const [key, value] of Object.entries(config.manifests)) {
     if (value === 'archive' && !archived.has(key)) problems.push(`${CONFIG}: manifests.${key} is "archive" but no package of packages has that manifest`);
   }
-  if (new Set(assetNames(config, '1.0.0')).size !== config.packages.length) problems.push(`${CONFIG}: two packages have the same archive name`);
-  if (new Set(assetLabels(config, '1.0.0')).size !== config.packages.length) problems.push(`${CONFIG}: two packages have the same product and runtime, so their assets would have the same label`);
+  const archiveNames = assetNames(config, '1.0.0');
+  if (new Set(archiveNames).size !== archiveNames.length) problems.push(`${CONFIG}: two packages have the same archive name`);
+  // Every asset of every set carries a label of its own: two packages with the same product and runtime would share one.
+  const labels = assetSets(config.packages).flatMap(set => (set.platform === undefined ? assetLabels(config, '1.0.0') : platformAssets(config.packages, config.repositoryUrl, '1.0.0', set, {}).map(item => item.label)));
+  if (new Set(labels).size !== labels.length) problems.push(`${CONFIG}: two packages have the same product and runtime, so their assets would have the same label`);
   if (problems.length) throw new Stop(problems.join('; '));
   return { ...config, changelogTranslations: config.changelogTranslations ?? [], manifests, notReleased, goModules };
 }
@@ -217,8 +232,8 @@ const at = (ctx: Context) => ({ cwd: ctx.root, env: ctx.env });
  * the asset folder and the folder of the release records that the caller names, in its options or in RELEASE_MAIN, RELEASE_ASSETS
  * and RELEASE_RECORDS of the environment; kit names none of them, and an empty value names none (K1102, K1115).
  */
-export function context(root: string, { config = loadConfig(root), env = process.env, log = () => {}, main = env.RELEASE_MAIN || undefined, assets = env.RELEASE_ASSETS || undefined, records = env.RELEASE_RECORDS || undefined }: { config?: ReleaseConfig; env?: NodeJS.ProcessEnv; log?: (text: string) => void; main?: string | undefined; assets?: string | undefined; records?: string | undefined } = {}): Context {
-  return { root, config, env, log, main, assets, records };
+export function context(root: string, { config = loadConfig(root), env = process.env, log = () => {}, main = env.RELEASE_MAIN || undefined, assets = env.RELEASE_ASSETS || undefined, records = env.RELEASE_RECORDS || undefined, set = namedSet(env.RELEASE_PLATFORM || undefined, env.RELEASE_PHP || undefined) }: { config?: ReleaseConfig; env?: NodeJS.ProcessEnv; log?: (text: string) => void; main?: string | undefined; assets?: string | undefined; records?: string | undefined; set?: AssetSet } = {}): Context {
+  return { root, config, env, log, main, assets, records, set };
 }
 
 /** The asset folder of `ctx`, which a step that builds or publishes the assets needs; the caller names it in RELEASE_ASSETS (K1102). */
@@ -382,46 +397,53 @@ export function releaseNotes(ctx: Context, tag: string): string {
 
 
 /**
- * The archive names of the packages at `version`, in the order of the configuration, each the name its packer gives (P39): npm
- * pack writes `@scope/x` as `scope-x-1.0.0.tgz` (K980), a wheel keeps its PEP 427 name, and the Composer zip, which kit packs
- * and which no standard names, is the label of its package with .zip, `<vendor>-<product>-<runtime>-<version>.zip` (K985).
+ * The archives of the set without a platform at `version`, in the order of the configuration (P39): each package that the set
+ * builds, by its index in the configuration, with the name its packer gives and its label. npm pack writes `@scope/x` as
+ * `scope-x-1.0.0.tgz` (K980), the root package of an npm-native package too, a wheel keeps its PEP 427 name, and the Composer zip,
+ * which kit packs and which no standard names, is the label of its package with .zip, `<vendor>-<product>-<runtime>-<version>.zip`
+ * (K985). The label is `<vendor>-<product>-<runtime>-<version>`, the vendor the owner of repositoryUrl, and the product and the
+ * runtime those the package declares, never read from its name (K980).
  */
-export function assetNames(config: Pick<ReleaseConfig, 'packages' | 'repositoryUrl'>, version: string): string[] {
-  const labels = assetLabels(config, version);
-  return config.packages.map(({ kind, name }, index) => {
-    if (kind === 'wheel') return wheelName(name, version);
-    // labels holds the label of each package at its index.
-    if (kind === 'composer') return `${present(labels[index], 'labels[index]')}.zip`;
-    return `${name.replace(/^@/, '').replace('/', '-')}-${version}.tgz`;
+export function sourceAssets(config: Pick<ReleaseConfig, 'packages' | 'repositoryUrl'>, version: string): (ExpectedAsset & { name: string })[] {
+  const vendor = repositoryParts(config.repositoryUrl).repo.split('/')[0];
+  return config.packages.flatMap(({ kind, name, product, runtime }, index) => {
+    if (!inSet({ kind, directory: '', name, product, runtime }, {})) return [];
+    const label = `${vendor}-${product}-${runtime}-${version}`;
+    const file = kind === 'wheel' ? wheelName(name, version) : kind === 'composer' ? `${label}.zip` : npmPackName(name, version);
+    return [{ index, name: file, label }];
   });
 }
 
-/**
- * The GitHub labels of the archives of the packages at `version`, in the order of the configuration (P39, K980):
- * `<vendor>-<product>-<runtime>-<version>`, the vendor the owner of repositoryUrl, and the product and the runtime those the
- * package declares, never read from its name.
- */
-export function assetLabels(config: Pick<ReleaseConfig, 'packages' | 'repositoryUrl'>, version: string): string[] {
-  const vendor = repositoryParts(config.repositoryUrl).repo.split('/')[0];
-  return config.packages.map(({ product, runtime }) => `${vendor}-${product}-${runtime}-${version}`);
-}
+/** The archive names of the set without a platform at `version`, in the order of the configuration (sourceAssets). */
+export const assetNames = (config: Pick<ReleaseConfig, 'packages' | 'repositoryUrl'>, version: string): string[] => sourceAssets(config, version).map(item => item.name);
 
-/** The files of the release at `version`: the archives, and packages.json when a package is a Composer package (K871). */
+/** The GitHub labels of the archives of the set without a platform at `version`, in the order of the configuration (sourceAssets). */
+export const assetLabels = (config: Pick<ReleaseConfig, 'packages' | 'repositoryUrl'>, version: string): string[] => sourceAssets(config, version).map(item => item.label);
+
+/** Whether the release writes packages.json: a Composer or php-ext package is in it (K871, K1189). */
+const hasComposerRepository = (config: Pick<ReleaseConfig, 'packages'>): boolean => config.packages.some(({ kind }) => kind === 'composer' || kind === 'php-ext');
+
+/** The files of the set without a platform at `version`: its archives, and packages.json when a package is a Composer package (K871). */
 function releaseFiles(config: Pick<ReleaseConfig, 'packages' | 'repositoryUrl'>, version: string): string[] {
-  return [...assetNames(config, version), ...(config.packages.some(({ kind }) => kind === 'composer') ? [PACKAGES_JSON] : [])];
+  return [...assetNames(config, version), ...(hasComposerRepository(config) ? [PACKAGES_JSON] : [])];
 }
 
 /**
  * packages.json of the release at `version` from the archives of `folder` (K871): each Composer package as its composer.json
- * `sources[index]` at the version, with the dist of its release asset and the sha1 of its zip.
+ * `sources[index]` at the version, with the dist of its release asset and the sha1 of its zip. A php-ext package is listed under
+ * the version vX.Y.Z, the tag, since PIE finds the release of its binaries by the version of the package and names them with it,
+ * and its dist is the source archive of the tag (K1189).
  */
 function composerRepository(config: Pick<ReleaseConfig, 'packages' | 'repositoryUrl'>, version: string, folder: string, sources: string[]): string {
-  const names = assetNames(config, version);
+  const archives = new Map(sourceAssets(config, version).map(item => [item.index, item.name]));
+  const { repo } = repositoryParts(config.repositoryUrl);
   const packages = Object.fromEntries(config.packages.flatMap(({ kind, name }, index) => {
-    if (kind !== 'composer') return [];
-    // names and sources hold the archive name and the manifest of each package at its index.
-    const archive = present(names[index], 'names[index]');
+    if (kind !== 'composer' && kind !== 'php-ext') return [];
+    // sources holds the manifest of each package at its index.
     const manifest = parseJson<ComposerManifest>(present(sources[index], 'sources[index]'), 'composer-manifest.schema.json', `the composer.json of ${name}`);
+    if (kind === 'php-ext') return [[name, { [`v${version}`]: { ...manifest, version: `v${version}`, dist: { type: 'zip', url: `https://api.github.com/repos/${repo}/zipball/v${version}` } } }]];
+    // archives holds the archive of each Composer package by its index.
+    const archive = present(archives.get(index), 'archives.get(index)');
     const dist = { type: 'zip', url: `${config.repositoryUrl}/releases/download/v${version}/${archive}`, shasum: fileDigest(path.join(folder, archive), 'sha1') };
     return [[name, { [version]: { ...manifest, version, dist } }]];
   }));
@@ -548,25 +570,90 @@ export function assetsFolderProblem(root: string, assets: string): string | unde
   return outside ? undefined : `the asset folder ${assets} is the checkout or a folder that holds it; name a folder of its own in RELEASE_ASSETS`;
 }
 
+/**
+ * Runs `build` with a copy of the whole tree of `commit` that holds the outputs of the make entries of `packages` at their paths,
+ * and a target folder for cargo, both in a temporary folder of the run that is removed afterwards (K1189): a native package reads
+ * the Cargo workspace of the repository, so its build needs the tree, not its directory alone.
+ */
+function withNativeSource<T>(ctx: Context, commit: string, epoch: number, output: string, packages: readonly ReleasePackage[], build: (native: NativeBuild) => T): T {
+  const work = mkdtempSync(path.join(tmpdir(), 'kit-release-native-'));
+  try {
+    const archive = path.join(work, 'source.tar');
+    run('git', ['archive', '--format=tar', `--output=${archive}`, commit], at(ctx));
+    const source = path.join(work, 'source');
+    mkdirSync(source);
+    run('tar', ['-xf', archive, '-C', source], at(ctx));
+    rmSync(archive);
+    for (const item of packages) {
+      const generated = generatedArchiveFiles(ctx, commit, item.directory, item.generated);
+      if (!generated) continue;
+      try {
+        for (const file of generated.files) {
+          const placed = path.join(source, item.directory, file.output);
+          mkdirSync(path.dirname(placed), { recursive: true });
+          copyFileSync(file.file, placed);
+        }
+      } finally {
+        rmSync(generated.directory, { recursive: true, force: true });
+      }
+    }
+    return build({ root: ctx.root, env: ctx.env, log: ctx.log, source, target: path.join(work, 'target'), output, work, epoch });
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
+}
+
+/** The problems of the manifest `text` of the package `item` at the commit: it names the package that config/release.json declares. */
+function manifestProblems(item: ReleasePackage, text: string): string[] {
+  const file = path.posix.join(item.directory, MANIFEST_OF[item.kind]);
+  if (item.kind === 'wheel' || item.kind === 'wheel-abi3') return [];
+  if (item.kind === 'go-static') {
+    const table = readToml(text, file);
+    const name = isTable(table.package) ? table.package.name : undefined;
+    return name === item.name ? [] : [`${file}: name ${typeof name === 'string' ? name : 'none'}, ${CONFIG} declares ${item.name}`];
+  }
+  const manifest = parseManifest(item.kind === 'npm' || item.kind === 'npm-native' ? 'npm' : 'composer', text, file);
+  return manifest.name === item.name ? [] : [`${file}: name ${manifest.name ?? 'none'}, ${CONFIG} declares ${item.name}`];
+}
+
+/** Whether the file name `file` is the asset `expected`: its predicted name, or a name that its pattern matches. */
+const isAsset = (expected: ExpectedAsset, file: string): boolean => (expected.name === undefined ? expected.pattern?.test(file) === true : expected.name === file);
+
+/**
+ * The files of the folder `files` for the assets `expected`, in their order: each asset matches exactly one file and every file is
+ * an asset of them; otherwise Stop with what is missing, doubled or not declared.
+ */
+export function matchAssets(expected: readonly ExpectedAsset[], files: readonly string[], where: string): string[] {
+  const problems: string[] = [];
+  const matched = expected.map((item) => {
+    const found = files.filter(file => isAsset(item, file));
+    if (found.length !== 1) problems.push(`${found.length === 0 ? 'no file is' : `${found.length} files [${found.join(', ')}] are`} the asset ${item.name ?? String(item.pattern)} (${item.label})`);
+    return found[0] ?? '';
+  });
+  const extra = files.filter(file => !expected.some(item => isAsset(item, file)));
+  if (extra.length) problems.push(`[${extra.join(', ')}] ${extra.length === 1 ? 'is' : 'are'} no asset of the release`);
+  if (problems.length) throw new Stop(`${where}: ${problems.join('; ')}`);
+  return matched;
+}
+
 /** Builds archives from one committed tree through the producer shared by tagged releases and tagless candidates. */
 function assetsFromCommit(ctx: Context, reference: string, commit: string, version: string): string[] {
-  const { root, config } = ctx;
+  const { root, config, set } = ctx;
+  requireHost(set);
   const folder = assetFolder(ctx);
   const unusable = assetsFolderProblem(root, folder);
   if (unusable !== undefined) throw new Stop(unusable);
   const target = path.resolve(root, folder);
-  const names = assetNames(config, version);
-  const files = releaseFiles(config, version);
   const sources = config.packages.map(({ kind, directory: folder }) => run('git', ['show', `${commit}:${path.posix.join(folder, MANIFEST_OF[kind])}`], at(ctx)));
-  const problems = config.packages.flatMap(({ kind, directory: folder, name }, index) => {
-    const file = path.posix.join(folder, MANIFEST_OF[kind]);
-    if (kind === 'wheel') return [];
-    // sources holds the manifest of each package at its index.
-    const manifest = parseManifest(kind, present(sources[index], 'sources[index]'), file);
-    return manifest.name === name ? [] : [`${file}: name ${manifest.name ?? 'none'}, ${CONFIG} declares ${name}`];
-  });
+  // sources holds the manifest of each package at its index.
+  const problems = config.packages.flatMap((item, index) => manifestProblems(item, present(sources[index], 'sources[index]')));
   if (problems.length) throw new Stop(`${reference}: the manifests of the commit ${commit} do not install outside the repository: ${problems.join('; ')}`);
-  const mtime = new Date(Number(run('git', ['show', '-s', '--format=%ct', commit], at(ctx)).trim()) * 1000).toISOString();
+  const extensions: ExtensionNames = Object.fromEntries(config.packages.flatMap((item, index) => (item.kind === 'php-ext' ? [[index, extensionOf(parseManifest('composer', present(sources[index], 'sources[index]'), item.directory), path.posix.join(item.directory, 'composer.json'))]] : [])));
+  const expected = set.platform === undefined ? sourceAssets(config, version) : platformAssets(config.packages, config.repositoryUrl, version, set, extensions);
+  if (expected.length === 0 && set.platform !== undefined) throw new Stop(`${reference}: no package of ${CONFIG} builds ${setName(set)}; the sets are ${assetSets(config.packages).map(setName).join(', ')}`);
+  const names = expected.map(item => item.name ?? '');
+  const epoch = Number(run('git', ['show', '-s', '--format=%ct', commit], at(ctx)).trim());
+  const mtime = new Date(epoch * 1000).toISOString();
   const next = `${target}.next-${process.pid}`;
   const previous = `${target}.previous-${process.pid}`;
   // The work folder goes and the previous assets come back when the new ones did not take their place; a failure of this after an
@@ -578,19 +665,26 @@ function assetsFromCommit(ctx: Context, reference: string, commit: string, versi
   rmSync(next, { recursive: true, force: true });
   rmSync(previous, { recursive: true, force: true });
   mkdirSync(next, { recursive: true });
+  let files: string[] = [];
   try {
-    config.packages.forEach(({ kind, directory: folder, name }, index) => {
-      ctx.log(`[release] ${reference}: packing ${name} from ${folder} into ${names[index]}`);
-      if (kind === 'npm') {
+    const native = config.packages.filter(item => isNative(item.kind) && inSet(item, set));
+    const build = (native: NativeBuild | undefined) => expected.forEach((asset) => {
+      // expected names the index of its package in the configuration.
+      const item = present(config.packages[asset.index], 'config.packages[asset.index]');
+      const { kind, directory: folder, name } = item;
+      ctx.log(`[release] ${reference}: packing ${name} from ${folder} into ${asset.name ?? String(asset.pattern)}`);
+      if (native !== undefined && set.platform !== undefined) buildPlatformAsset(native, item, asset, set, version, extensions[asset.index]);
+      else if (native !== undefined && kind === 'npm-native') npmNativeRoot(native, item, version);
+      else if (kind === 'npm') {
         const before = new Set(readdirSync(next));
         // npm is the tool of the checkout, never the one on PATH (K393-1).
         run(toolCommand(root, 'npm'), ['pack', '--pack-destination', next], { cwd: path.join(root, folder), env: ctx.env });
         // npm pack names its output itself, and that name is the archive name (K980).
-        const created = readdirSync(next).filter(item => !before.has(item));
-        if (created.length !== 1 || created[0] !== names[index]) throw new Stop(`npm pack of ${folder} wrote [${created.join(', ')}], not the one archive ${names[index]}`);
+        const created = readdirSync(next).filter(entry => !before.has(entry));
+        if (created.length !== 1 || created[0] !== asset.name) throw new Stop(`npm pack of ${folder} wrote [${created.join(', ')}], not the one archive ${asset.name ?? ''}`);
       } else if (kind === 'wheel') {
         // The generated files of the wheel are staged like those of a Composer archive and removed after its build (K929).
-        const generated = generatedArchiveFiles(ctx, commit, folder, config.packages[index]?.generated);
+        const generated = generatedArchiveFiles(ctx, commit, folder, item.generated);
         try {
           buildWheel({ root, env: ctx.env, commit, directory: folder, output: next, generated: generated?.files ?? [] });
         } finally {
@@ -600,48 +694,41 @@ function assetsFromCommit(ctx: Context, reference: string, commit: string, versi
         // Stored entries, the time of the commit and TZ=UTC give the zip of a tree the same bytes on every machine and at
         // every time. Files generated from the tagged snapshot are staged with fixed mode and mtime and appended by path;
         // their contents stay out of argv, whose per-argument limit is platform-dependent.
-        // names holds the archive name of each package at its index.
-        const generated = generatedArchiveFiles(ctx, commit, folder, config.packages[index]?.generated);
-        const archive = path.join(next, present(names[index], 'names[index]'));
+        const generated = generatedArchiveFiles(ctx, commit, folder, item.generated);
+        const archive = path.join(next, asset.name ?? '');
         try {
           const args = ['archive', '--format=zip', '-0', `--mtime=${mtime}`, `--output=${archive}`, `${commit}:${folder}`];
           const result = execute('git', args, { cwd: root, env: { ...ctx.env, TZ: 'UTC' } });
           if (result.error) throw new Stop(`git archive could not start for ${commit}:${folder}: ${result.error.message}`);
           if (result.status !== 0) throw new Stop(`git archive of ${commit}:${folder} failed ${result.signal ? `on signal ${result.signal}` : `with exit status ${result.status}`}: ${(result.stdout + result.stderr).trim()}`);
-          if (generated) {
-            const epoch = Number(run('git', ['show', '-s', '--format=%ct', commit], at(ctx)).trim());
-            for (const item of generated.files) {
-              chmodSync(item.file, 0o644);
-              utimesSync(item.file, epoch, epoch);
-              const result = execute('zip', ['-q', '-0', '-X', archive, item.output], { cwd: generated.directory, env: { ...ctx.env, TZ: 'UTC' } });
-              if (result.error) throw new Stop(`zip could not start while adding ${item.output} to ${names[index]}: ${result.error.message}`);
-              if (result.status !== 0) throw new Stop(`zip failed while adding ${item.output} to ${names[index]} ${result.signal ? `on signal ${result.signal}` : `with exit status ${result.status}`}: ${(result.stdout + result.stderr).trim()}`);
-            }
-          }
+          if (generated) zipEntries({ folder: generated.directory, entries: generated.files.map(entry => entry.output), archive, epoch, env: ctx.env });
         } finally {
           if (generated) rmSync(generated.directory, { recursive: true, force: true });
         }
       }
     });
+    if (native.length) withNativeSource(ctx, commit, epoch, next, native, build);
+    else build(undefined);
     const built = readdirSync(next).sort();
-    if (JSON.stringify(built) !== JSON.stringify([...names].sort())) throw new Stop(`${folder} holds [${built.join(', ')}], not the archives [${[...names].sort().join(', ')}]`);
-    const failures = config.packages.flatMap(({ kind, directory: folder, name }, index) => {
-      if (kind === 'wheel') {
-        // names holds the archive name of each package at its index.
-        const metadata = wheelMetadata(root, path.join(next, present(names[index], 'names[index]')), ctx.env);
-        return metadataProblems(metadata, name, version).map(problem => `${names[index]}: ${problem}`);
-      }
-      const file = MANIFEST_OF[kind];
-      // names holds the archive name of each package at its index.
-      const packed = packedManifest(ctx, path.join(next, present(names[index], 'names[index]')));
-      const source = present(sources[index], 'sources[index]');
-      const expected = kind === 'npm' && name === PACKAGE ? packedPackageManifest(source) : source;
-      return packed === expected ? [] : [`${names[index]}: the packed ${file} differs from ${path.posix.join(folder, file)} of the commit ${commit}`];
+    files = set.platform === undefined ? names : matchAssets(expected, built, `${reference}: ${folder} after ${setName(set)}`);
+    if (set.platform === undefined && JSON.stringify(built) !== JSON.stringify([...names].sort())) throw new Stop(`${folder} holds [${built.join(', ')}], not the archives [${[...names].sort().join(', ')}]`);
+    const failures = expected.flatMap((asset, position) => {
+      // expected names the index of its package in the configuration, and files the file of each asset at its position.
+      const { kind, directory: folder, name } = present(config.packages[asset.index], 'config.packages[asset.index]');
+      const file = present(files[position], 'files[position]');
+      if (kind === 'wheel' || kind === 'wheel-abi3') return metadataProblems(wheelMetadata(root, path.join(next, file), ctx.env), name, version).map(problem => `${file}: ${problem}`);
+      if (kind !== 'npm' && kind !== 'composer' && !(kind === 'npm-native' && set.platform === undefined)) return [];
+      const manifest = MANIFEST_OF[kind];
+      const packed = packedManifest(ctx, path.join(next, file));
+      const source = present(sources[asset.index], 'sources[asset.index]');
+      const expectedManifest = kind === 'npm' && name === PACKAGE ? packedPackageManifest(source) : source;
+      return packed === expectedManifest ? [] : [`${file}: the packed ${manifest} differs from ${path.posix.join(folder, manifest)} of the commit ${commit}`];
     });
     if (failures.length) throw new Stop(`${reference}: the release assets do not install outside the repository: ${failures.join('; ')}`);
-    if (files.includes(PACKAGES_JSON)) {
+    if (set.platform === undefined && hasComposerRepository(config)) {
       writeFileSync(path.join(next, PACKAGES_JSON), composerRepository(config, version, next, sources));
       ctx.log(`[release] ${reference}: wrote ${PACKAGES_JSON}, the Composer repository of the release`);
+      files = [...files, PACKAGES_JSON];
     }
     if (existsSync(target)) renameSync(target, previous);
     renameSync(next, target);
@@ -695,11 +782,20 @@ export function publish(ctx: Context, tag: string): string[] {
   const { root, config } = ctx;
   const version = parseTag(tag);
   const notes = releaseNotes(ctx, tag);
-  const names = releaseFiles(config, version);
   const assets = assetFolder(ctx);
   const target = path.resolve(root, assets);
-  const missing = names.filter(name => !existsSync(path.join(target, name)));
+  const files = releaseFiles(config, version);
+  const missing = files.filter(name => !existsSync(path.join(target, name)));
   if (missing.length) throw new Stop(`${assets} lacks [${missing.join(', ')}]; make release-assets builds them`);
+  // The assets of the platform sets, which their runs built on their own platforms and the workflow gathered here (K1189): each
+  // asset of every set is one file, and no other file is in the folder.
+  const extensions: ExtensionNames = Object.fromEntries(config.packages.flatMap((item, index) => (item.kind === 'php-ext' ? [[index, extensionOf(readComposerManifestAt(root, item.directory), path.posix.join(item.directory, 'composer.json'))]] : [])));
+  const platform = assetSets(config.packages).flatMap(set => platformAssets(config.packages, config.repositoryUrl, version, set, extensions));
+  const others = readdirSync(target).filter(name => !files.includes(name)).sort();
+  const platformFiles = matchAssets(platform, others, `${assets} for the release ${tag}`);
+  const names = [...files, ...platformFiles];
+  // Only a package archive carries a label; packages.json is a file of the release, not a package (P39).
+  const labels = [...assetLabels(config, version), ...(hasComposerRepository(config) ? [undefined] : []), ...platform.map(item => item.label)];
   const earlier = releaseOf(at(ctx), config.repositoryUrl, tag);
   if (earlier && !earlier.draft) throw new Stop(`the release ${tag} is already public; a public release is not replaced`);
   if (earlier) {
@@ -711,8 +807,6 @@ export function publish(ctx: Context, tag: string): string[] {
     const notesFile = path.join(folder, 'notes.md');
     writeFileSync(notesFile, notes);
     ctx.log(`[release] ${tag}: creating the draft GitHub Release with ${names.length} assets`);
-    // Only a package archive carries a label; packages.json is a file of the release, not a package (P39).
-    const labels = assetLabels(config, version);
     const id = createDraft(at(ctx), config.repositoryUrl, tag, notesFile, names.map((name, index) => ({ file: path.join(target, name), label: labels[index] })));
     const record = releaseRecord(ctx, tag);
     writeJson(path.resolve(root, record), { id });
@@ -721,6 +815,14 @@ export function publish(ctx: Context, tag: string): string[] {
     rmSync(folder, { recursive: true, force: true });
   }
   return names;
+}
+
+/** The composer.json of the package in `directory` of the checkout, which publish reads at the tag that it checked out. */
+const readComposerManifestAt = (root: string, directory: string): ComposerManifest => readConfig<ComposerManifest>(root, path.posix.join(directory, 'composer.json'), 'composer-manifest.schema.json');
+
+/** The asset sets of the release as the include list of a GitHub matrix: each set with its platform and PHP minor, empty when it has none (K1189). */
+export function matrix(config: Pick<ReleaseConfig, 'packages'>): { include: { platform: string; php: string }[] } {
+  return { include: assetSets(config.packages).map(set => ({ platform: set.platform ?? '', php: set.php ?? '' })) };
 }
 
 /**
@@ -766,7 +868,7 @@ export function coverage(ctx: Context): string[] {
   return problems;
 }
 
-const USAGE = 'usage: node scripts/kit/release.mts assets|publish|undraft TAG | candidate-assets VERSION | coverage';
+const USAGE = 'usage: node scripts/kit/release.mts assets|publish|undraft TAG | candidate-assets VERSION | coverage | sets';
 
 /** Runs a step of the command line; the exit status. */
 export function main(argv: string[], { root = repositoryRoot(), env = process.env, print = console.log, error = console.error }: CommandOptions = {}): number {
@@ -774,7 +876,7 @@ export function main(argv: string[], { root = repositoryRoot(), env = process.en
   let tag = latest;
   const tagged = mode !== undefined && ['assets', 'publish', 'undraft'].includes(mode);
   const candidate = mode === 'candidate-assets' && latest !== undefined && rest.length === 0;
-  if (!(tagged && tag && rest.length === 0) && !candidate && !(mode === 'coverage' && tag === undefined)) {
+  if (!(tagged && tag && rest.length === 0) && !candidate && !((mode === 'coverage' || mode === 'sets') && tag === undefined)) {
     error(USAGE);
     return 2;
   }
@@ -795,6 +897,13 @@ export function main(argv: string[], { root = repositoryRoot(), env = process.en
   }
   try {
     const ctx = context(root, { env, log: print });
+    if (mode === 'sets') {
+      // The sets of the release, which the release workflow builds in a matrix: printed, and written to GITHUB_OUTPUT as sets (K1189).
+      const sets = JSON.stringify(matrix(ctx.config));
+      print(sets);
+      if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `sets=${sets}\n`);
+      return 0;
+    }
     if (candidate) {
       const names = candidateAssets(ctx, present(latest, 'candidate version'));
       print(`[release] HEAD candidate ${latest}: built ${names.join(', ')} in ${assetFolder(ctx)}`);
@@ -815,7 +924,7 @@ export function main(argv: string[], { root = repositoryRoot(), env = process.en
       throw new Error(`[release] ${mode} has no TAG, which the usage check above requires`);
     } else if (mode === 'assets') {
       const names = assets(ctx, tag);
-      print(`[release] ${tag}: built ${names.join(', ')} in ${assetFolder(ctx)}`);
+      print(`[release] ${tag}: built ${ctx.set.platform === undefined ? '' : `${setName(ctx.set)}: `}${names.join(', ')} in ${assetFolder(ctx)}`);
     } else if (mode === 'undraft') {
       const made = undraft(ctx, tag);
       print(`[release] ${tag}: ${made ? 'made the GitHub Release public' : 'the GitHub Release is already public'}`);

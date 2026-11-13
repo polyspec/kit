@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: c31b4d3ed885f75c5b5783381ac2fa590e860c7bc788ecfb8df807bbb5dc5ca9 -->
+<!-- source-sha256: 2c8f5ee8915e40ddb6e957911a9e21b799cea5edb9f43b95fec3ae9805c07c64 -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -167,7 +167,10 @@ repository는 자기 사본을 자기 파일로 바꿉니다(K1055).
   각 package asset은 GitHub label `<vendor>-<product>-<runtime>-<version>`을 단다. vendor는 repositoryUrl의 owner이고,
   product와 runtime은 config/release.json에 package마다 선언하며, runtime은 여섯 runtime ts, go, rust, php, php-ext, python
   중 하나다. package manager의 이름이 runtime을 대신하지 않고, product나 runtime을 package 이름에서 읽지 않는다. label은
-  package asset만 달며, release의 파일인 packages.json은 달지 않고 dist.url에 각 zip을 적는다 (K980).
+  플랫폼별 asset도 그 packer나 소비자가 주는 이름을 유지한다. maturin이 이름 짓는 wheel, npm pack이 이름 짓는 플랫폼 package,
+  PIE가 찾는 PIE binary `php_<extension>-v<version>_php<X.Y>-<arch>-<os>-<libc>-<ts>.zip`이다. kit이 만드는 Go 정적 라이브러리는
+  그 label에 .zip을 붙인다. 플랫폼별 asset의 label은 `-<platform>`을, PHP 확장 binary의 label은 `-php<X.Y>-<platform>`을
+  덧붙인다 (K1189). label은 package asset만 달며, release의 파일인 packages.json은 달지 않고 dist.url에 각 zip을 적는다 (K980).
   Enforced by: `make release-assets`, `make release-publish`
 - P40 한 개념은 규칙, 설정 필드, 파일 이름, 문서에서 이름 하나를 쓴다. ts, go, rust, php, php-ext, python은 runtime이고,
   그것을 담는 필드는 `runtime`이다. 새 이름은 같은 개념에 kit이 이미 쓰는 이름을 먼저 다시 쓴다 (K981).

@@ -60,3 +60,63 @@ fragment, or a direct reference without a hash to a sibling (another wheel packa
 release. uv and pip resolve these forms when a consumer installs the wheel (docs/operations/tool-inventory.md, Sibling wheels). A Python package is not released as a git tag.
 
 A release with a package of kind `composer` also publishes `packages.json` beside the archives (K871): one flat Composer repository, since release assets hold no folder. It holds each Composer package of config/release.json under its name and version as its composer.json of the commit, with a dist of type zip whose URL is the release asset of its zip and whose shasum is the sha1 of that zip. A consumer declares `{ "type": "composer", "url": "<repositoryUrl>/releases/download/vX.Y.Z/packages.json" }`; Composer reads a URL whose path contains `.json` as the file itself, and it reads the package metadata from that file, so the consumer names only the tag. The packages.json of `release-candidate-assets VERSION` names the asset URLs of the release `vVERSION`, which exist only once that release is published. Composer tooling does not write this form: Satis writes `p2/<vendor>/<name>.json` for its metadata-url and re-archives a package for a dist URL, and `composer archive` writes no repository.
+
+## Per-platform assets (K1189)
+
+A Rust core and its generated bindings are released as per-platform assets: an abi3 wheel, a PHP extension, an npm package
+for each platform and a Go static library. config/release.json declares them with four package kinds, each with
+`platforms`, a list of the platforms it is built for: `linux-x64-gnu`, `linux-arm64-gnu` and `darwin-arm64`, the names that
+napi-rs gives these platforms. kit builds each with the tool of its ecosystem and pins none of them (S4):
+
+| Kind | Manifest | Tool | Asset |
+|---|---|---|---|
+| `wheel-abi3` | `pyproject.toml` | `uv build --wheel`, which runs the maturin of `[build-system].requires`, with `MATURIN_PEP517_ARGS=--locked` | the PEP 427 wheel that maturin names, `<distribution>-<version>-cp<NN>-abi3-<platform tag>.whl`: a `manylinux` tag on Linux, a `macosx` tag on macOS |
+| `php-ext` | `composer.json` | `cargo build --release --locked -p <package of Cargo.toml>`, with the `php` and `php-config` of the checkout in `PHP` and `PHP_CONFIG` | the PIE pre-packaged binary `php_<extension>-v<version>_php<X.Y>-<arch>-<os>-<libc>[-debug]-<nts\|zts>.zip`, which holds `<extension>.so` |
+| `npm-native` | `package.json` | the napi CLI of the repository (`node_modules/.bin/napi`): `napi build --platform --release`, `napi create-npm-dirs`, `napi artifacts`, then `npm pack` | the root package `<scope>-<name>-<version>.tgz` and one platform package `<scope>-<name>-<platform>-<version>.tgz` for each platform, as npm pack names them |
+| `go-static` | `Cargo.toml` | `cargo build --release --locked -p <package>` | `<vendor>-<product>-go-<version>-<platform>.zip`, which holds the `lib<name>.a` that cargo writes |
+
+A `php-ext` package also declares `php`, the PHP minors it is built for (`["8.4", "8.5"]`), since the extension ABI differs for
+each minor. Its composer.json names `php-ext.extension-name` and lists `pre-packaged-binary` in `php-ext.download-url-method`,
+so that PIE looks for the binary among the assets of the release. PIE finds that release by the version of the package
+(`releases/tags/<version>`) and names the asset with the same version, so packages.json lists a `php-ext` package under the
+version `vX.Y.Z`, the tag, with the dist of the source archive of the tag (`https://api.github.com/repos/<owner>/<repository>/zipball/vX.Y.Z`).
+An `npm-native` package names `napi.binaryName` and `napi.targets` in its package.json, the configuration that the napi CLI reads;
+the targets are the Rust triples of its platforms (`x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `aarch64-apple-darwin`),
+and its `optionalDependencies` name `<name>-<platform>` at the version of the release for each platform and no other platform
+package. The root package selects its platform package at run time; it is packed from the copy of the tagged tree with the
+outputs of its make entries and `--ignore-scripts`, since those entries build what it carries, and it carries its package.json
+byte for byte.
+
+A native package may declare make entries (`generated`), as a Composer or wheel package does. A build of a native kind reads
+the Cargo workspace of the repository, so it runs in a copy of the whole tagged tree (`git archive` of the commit), into which
+the outputs of the make entries are copied at their paths; cargo writes into a target folder of the run, outside the checkout,
+and the copy and the folder are removed after the run.
+
+The assets of a release are built in sets, one set per run of `release-assets`, since each platform builds its own:
+
+- The set without a platform: the archives of the `npm`, `composer` and `wheel` packages, the root package of each `npm-native`
+  package and `packages.json`. `RELEASE_PLATFORM` is not set.
+- The set of a platform: the `wheel-abi3`, `go-static` and `npm-native` platform assets of `RELEASE_PLATFORM`.
+- The set of a platform and a PHP minor: the `php-ext` asset of `RELEASE_PLATFORM` for `RELEASE_PHP`. The PHP of the checkout
+  must be that minor.
+
+A set builds only on its own platform: the platform of the machine (Node.js `process.platform` and `process.arch`, glibc on
+Linux) must be `RELEASE_PLATFORM`, since no tool cross-compiles here. A set whose platform no package declares, or a PHP minor
+that no `php-ext` package declares for that platform, fails. `release.mts sets` (`make release-sets`) prints the sets as the
+`include` list of a GitHub matrix, `{"platform": "<platform or empty>", "php": "<minor or empty>"}`, and writes it as `sets` to
+`GITHUB_OUTPUT` when that is set. `release-run tag` writes `tag=vX.Y.Z` and `version=X.Y.Z` to `GITHUB_OUTPUT` beside
+`GITHUB_ENV`, so a later job of the workflow reads the tag.
+
+`publish` requires the files of every set in the asset folder: each file whose name kit predicts, and for a wheel-abi3 and a
+php-ext asset one file that matches its name pattern, since maturin chooses the platform tag and the PHP decides the thread
+safety; the pattern of a wheel admits the platform tags of its own platform alone, so the wheels of two platforms are two
+assets. A missing file, a pattern that matches two files and a file that no asset names each fail. Each package asset carries
+the label `<vendor>-<product>-<runtime>-<version>`, followed by `-<platform>` for a platform asset and by `-php<X.Y>-<platform>`
+for a php-ext asset (P39).
+
+`workflows/release.yml` builds the sets in a matrix: the job `tag` tags the commit, checks the tag out and runs `make
+release-sets`; the job `assets` runs for each set on a runner of its platform (`ubuntu-24.04` for linux-x64-gnu and the set
+without a platform, `ubuntu-24.04-arm` for linux-arm64-gnu, `macos-15` for darwin-arm64), sets up the PHP minor of the set, runs
+`make release-assets` with `RELEASE_PLATFORM` and `RELEASE_PHP` and uploads the folder; the job `publish` downloads every folder
+into one asset folder and runs `make release-publish` and `make release-undraft`.
+

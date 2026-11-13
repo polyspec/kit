@@ -180,8 +180,11 @@ repository.
   `<vendor>-<product>-<runtime>-<version>`: the vendor is the owner of repositoryUrl, and the product and the runtime are
   declared for each package in config/release.json, the runtime one of the six runtimes ts, go, rust, php, php-ext and
   python. A package manager's name never stands in for the runtime, and the package name is never read for the product or
-  the runtime. Only package assets carry a label; packages.json, a file of the release, carries none and names each zip in
-  its dist.url (K980).
+  the runtime. A per-platform asset keeps the name its packer or its consumer gives too: the wheel that maturin names, the
+  platform package that npm pack names, and the PIE binary `php_<extension>-v<version>_php<X.Y>-<arch>-<os>-<libc>-<ts>.zip`
+  that PIE looks for; the Go static library, which kit packs, is its label with .zip. The label of a per-platform asset adds
+  `-<platform>`, and that of a PHP extension binary `-php<X.Y>-<platform>` (K1189). Only package assets carry a label;
+  packages.json, a file of the release, carries none and names each zip in its dist.url (K980).
   Enforced by: `make release-assets`, `make release-publish`
 - P40 One concept has one name across the rules, the configuration fields, the file names and the documents: ts, go,
   rust, php, php-ext and python are runtimes, and a field for them is `runtime`. A new name first reuses the one kit already

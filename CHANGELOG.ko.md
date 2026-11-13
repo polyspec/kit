@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 72456fcac7b42855c0ae7563199430b21ffe84d378a01303c3da42e3445acf94 -->
+<!-- source-sha256: b555965f95949e700843309a6ec4b4b1ec07c78e59a410babfd9cd4699f1f1b5 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1189: release가 Rust core와 그 binding의 플랫폼별 asset을 빌드한다. config/release.json은 kind `wheel-abi3`, `php-ext`, `npm-native`, `go-static`을 `platforms`(`linux-x64-gnu`, `linux-arm64-gnu`, `darwin-arm64`)와, `php-ext`라면 PHP minor `php`와 함께 선언한다. `release-assets`는 `RELEASE_PLATFORM`과 `RELEASE_PHP`가 이름 짓는 set을 그 플랫폼에서만, tag된 tree의 사본에서 빌드한다: abi3 wheel은 `uv build`로, PIE binary와 Go 정적 라이브러리는 `cargo build --release --locked`로, npm 플랫폼 package는 저장소의 napi CLI로 빌드한다. 플랫폼 없는 set은 npm-native root package를 pack하고 php-ext package를 tag의 version으로 packages.json에 적는다. `make release-sets`는 set을 GitHub matrix로 출력하고, `release-run tag`는 `tag`와 `version`을 `GITHUB_OUTPUT`에 쓰며, `publish`는 모든 set의 asset을 맞춰 보고 `<vendor>-<product>-<runtime>-<version>[-php<X.Y>]-<platform>` label을 단다(P39). `workflows/release.yml`은 job tag, assets(set마다 그 플랫폼의 runner에서 하나), publish를 돌린다. 전에는 release가 한 runner에서 package마다 archive 하나를 빌드했으므로 native 라이브러리를 여러 플랫폼용으로 release할 수 없었다.
 - K1194: run-tests python이 unittest의 시험을 verbose 줄이 아니라 event로 센다(HR-83). `scripts/kit/runners/python.py`는 unittest, 또는 `--module`의 harness module을 각 시험의 시작과 결과를 `KIT_TEST_EVENTS_FD`의 descriptor, 곧 전용 pipe에 JSON 줄로 쓰는 result class로 돌리고, run-tests는 그 줄을 `python-test-event.schema.json`으로 읽으며 standard error는 그대로 출력한다. Rust panic 메시지처럼 줄 끝 없이 standard error에 쓴 시험은 자기 줄을 결과와 이어 붙여 세어지지 않았다: unittest는 556개를 OK로 돌렸는데 run-tests는 555 passed로 셌다.
 
 ## 0.0.110
