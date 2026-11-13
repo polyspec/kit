@@ -120,3 +120,7 @@ without a platform, `ubuntu-24.04-arm` for linux-arm64-gnu, `macos-15` for darwi
 `make release-assets` with `RELEASE_PLATFORM` and `RELEASE_PHP` and uploads the folder; the job `publish` downloads every folder
 into one asset folder and runs `make release-publish` and `make release-undraft`.
 
+`make release-tools` runs install-tools for a per-platform package, which installs the toolchain of rust-toolchain.toml with
+rustup and the tools of mise.lock, such as the Python and uv that run maturin (K1190). The napi CLI of an npm-native package is a
+devDependency of the repository, which `make install-packages` installs; release-tools fails before it installs anything when
+`node_modules/.bin/napi` is missing, and names that fix. kit downloads none of these tools itself (K865).

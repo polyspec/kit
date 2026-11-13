@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: eb548ff0ed6403fb92fa43fe1708e119dc9dd876518d9a41409ef9ad473c90cd -->
+<!-- source-sha256: f7521002c35265eb25da472fda179855026b65b0ccc1cc5a19aa1416cc74abb8 -->
 # 릴리스
 
 [English](release.md)
@@ -104,3 +104,7 @@ pattern, 어느 asset도 이름 짓지 않는 파일은 각각 실패한다. 각
 release-assets`를 돌린 뒤 폴더를 upload한다. job `publish`는 모든 폴더를 한 asset 폴더로 download하고 `make release-publish`와
 `make release-undraft`를 돌린다.
 
+`make release-tools`는 플랫폼별 package가 있으면 install-tools를 돌린다. install-tools는 rust-toolchain.toml의 toolchain을 rustup으로,
+mise.lock의 도구를, 예컨대 maturin을 돌리는 Python과 uv를 설치한다(K1190). npm-native package의 napi CLI는 저장소의 devDependency이고
+`make install-packages`가 설치한다. `node_modules/.bin/napi`가 없으면 release-tools는 무엇을 설치하기 전에 실패하고 그 해결책을
+적는다. kit은 이 도구들 중 어느 것도 직접 내려받지 않는다(K865).
