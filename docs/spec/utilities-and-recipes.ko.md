@@ -1,5 +1,5 @@
 <!-- doc-id: spec-utilities-and-recipes -->
-<!-- source-sha256: f12e68c9d1f3b899d2dcd19c5b8e3c08d1e1d783fd116a22e82080cdadae8585 -->
+<!-- source-sha256: 84fe6b9d9953f90d5b1ea5146562ad218d09dfd3911feed6000fb7c689cad387 -->
 # 유틸리티와 예제
 
 [English](utilities-and-recipes.md)
@@ -46,6 +46,27 @@ commit이고 base는 그 부모이다. cherry-pick처럼 그 밖의 작업은 �
 실패한다. 세 쪽을 알 수 없거나 checklist의 task row를 양쪽이 서로 다르게 바꿔 파일을 merge할 수 없는 driver는 `git
 merge-file`의 충돌을 양쪽 표시와 함께 그 파일에 쓰고 1로 끝난다. 그래서 작업 파일은 다른 쪽의 흔적 없이 한쪽만 담는 일이
 없다.
+
+## 문서 속의 commit 이름 (K1210)
+
+`commit-names-check.mts`는 추적되는 Markdown 파일이 Git commit을 적지 않는지 보는 검사다. release와 lock이 commit을 고정하며,
+문서에 적힌 이름은 history가 바뀌면 틀린 값이 된다. 그런 이름을 금지하는 규칙을 가진 저장소는 자기 recipe에서
+`$(NODE) $(KIT)/commit-names-check.$(KIT_EXT) --except '<glob>'`로 이 검사를 돌리고, 읽지 않을 경로를 `--except <glob>`으로
+하나씩 선언한다. lock 파일과 workflow는 Markdown이 아니므로 읽지 않는다. finding마다 `<file>:<line>:<column>: names the Git
+commit <name>` 한 줄을 출력하고 exit 1로 끝난다. Markdown 파일을 하나도 읽지 않은 실행은 실패한다.
+
+- 경계: 후보는 양쪽에 ASCII 글자나 숫자가 닿지 않은 소문자 16진수 7~40자리다. 세 가지 이음은 그 자리를 더 긴 낱말의 일부로
+  만들며, 그것은 후보가 아니다: 그 자리와 글자나 숫자 사이의 `.`(파일 이름, version, 소수), 그 자리와 16진수만으로 된 이웃 자리
+  사이의 `-`나 `_`(UUID, 묶음으로 쓴 digest, 날짜). 다른 모든 문자는 이름을 끝낸다. `:`, `=`, `@`, `#`, `/`, 그리고 16진수가 아닌
+  낱말 앞의 `-`나 `_`도 그렇다.
+- 내용: 숫자와 글자를 모두 가진 후보는 commit 이름이다. 숫자만이거나 글자만인 후보는 같은 줄에서 marker가 바로 앞에 있을 때만
+  commit 이름이다. marker는 대소문자를 가리지 않는 낱말 `commit`, `commits`, `sha`, `rev`, `revision`에 선택적 공백, `:`, `=`, `/`
+  중 최대 하나, 선택적 공백, backtick 최대 하나가 따르는 것, 또는 `@`에 backtick 최대 하나가 따르는 것이다. 7자리 이상의 수는
+  대개 날짜, 크기, run id이므로 marker 없이는 이름이 아니다.
+- 받아들이는 미탐: marker가 없는 숫자만의 이름이나 글자만의 이름(낱말 `at` 뒤도 포함한다. `at`은 크기와 날짜 앞에도 온다),
+  대문자 16진수로 쓴 이름, `-`나 `_`가 16진수만으로 된 낱말에 이은 이름.
+- 받아들이는 오탐(commit이 아닌 것): 숫자와 글자를 가진 그 밖의 16진수 7~40자리 낱말, 예를 들어 파일의 SHA-1 digest. 그런
+  경로는 `--except`로 선언한다.
 
 ## kit이 하지 않는 것
 

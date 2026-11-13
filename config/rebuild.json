@@ -418,6 +418,10 @@
       "kind": "policy",
       "reason": "the rule of P10 and K348 that parallel work has its own worktree and branch, installed and checked there"
     },
+    "scripts/kit/commit-names-check.mts": {
+      "kind": "policy",
+      "reason": "the rule of the repositories that no tracked file names a Git commit (K1210); no linter of Markdown knows a commit name from another word of hexadecimal digits, so the boundary and the markers are polyspec's own"
+    },
     "scripts/kit/catch-check.mts": {
       "kind": "policy",
       "reason": "the rule of K537 that no catch swallows an error in silence; oxlint passes a catch that holds only a comment"

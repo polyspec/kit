@@ -46,6 +46,29 @@ and the driver fails, naming the merge. A driver that cannot merge a file, becau
 a checklist changed differently on both sides, writes the conflict of `git merge-file` into the file, with the markers of both
 sides, and exits 1, so the work file never holds one side alone without a sign of the other.
 
+## Commit names in documents (K1210)
+
+`commit-names-check.mts` is the check that no tracked Markdown file names a Git commit: a release and a lock pin a commit, and a
+name written in a document is a wrong value once the history changes. A repository whose rules forbid such a name runs it from its
+own recipe, `$(NODE) $(KIT)/commit-names-check.$(KIT_EXT) --except '<glob>'`, and declares each path that it does not read with a
+`--except <glob>`; lock files and workflows are no Markdown and are never read. It prints one line `<file>:<line>:<column>: names
+the Git commit <name>` for each finding and exits 1; a run that reads no Markdown file fails.
+
+- Boundary: a candidate is a run of 7 to 40 lowercase hexadecimal digits that no ASCII letter and no digit touches on either side.
+  Three joins make the run a part of a longer word, which is no candidate: a `.` between the run and a letter or a digit (a file
+  name, a version, a decimal), and a `-` or a `_` between the run and a neighbouring run of hexadecimal digits only (a UUID, a digest
+  written in groups, a date). Every other character ends the name, `:`, `=`, `@`, `#`, `/` and a `-` or `_` before a word that is
+  not hexadecimal included.
+- Content: a candidate that holds both a digit and a letter is a commit name. A candidate of digits only, or of letters only, is a
+  commit name only when a marker stands directly before it on its line: the word `commit`, `commits`, `sha`, `rev` or `revision`
+  in any case, followed by optional spaces, at most one of `:`, `=` and `/`, optional spaces and at most one backtick; or a `@`,
+  followed by at most one backtick. A number of 7 or more digits is most often a date, a size or a run id, so it is no name
+  without a marker.
+- Accepted misses: an unmarked name of digits only or of letters only, also after the word `at`, which precedes sizes and dates as
+  well; a name in uppercase digits; a name that a `-` or a `_` joins to a word of hexadecimal digits only.
+- Accepted findings that are no commits: every other word of 7 to 40 hexadecimal digits with a digit and a letter, such as a
+  SHA-1 digest of a file. Such a path is declared with `--except`.
+
 ## What kit does not do
 
 kit forces nothing. In particular:
