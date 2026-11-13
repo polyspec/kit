@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: ed664933f7a6251770df27135d883b5ff5406feb1c02223ab2ce0fa63b6bb571 -->
+<!-- source-sha256: 8274f156f79ed2bef0844783480126bcc0bddf0ed738654d26faae9e18763edc -->
 # 개발
 
 [English](AGENTS.md)
@@ -130,7 +130,7 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 - Own: 생성 파일은 Git에 추적하지 않습니다. 여기에는 의존성 설치(`node_modules/`, `vendor/`, 가상 환경), 빌드 산출물(`dist/`, `target/`, `*.tsbuildinfo`),
   캐시(`.cache/`, `__pycache__/`, `.pytest_cache/`), 테스트 실행 산출물(`test-results/`, `playwright-report/`, PHPUnit 캐시), 도구
   다운로드(`var/`)가 포함됩니다. 예외는 저장소가 의도적으로 필요로 하는 파일뿐이며 이것만 추적합니다: lock 파일(`package-lock.json`, `composer.lock`,
-  `Cargo.lock`, uv lock, `mise.lock`), 이 문서가 밝히는 커밋된 생성 문서, 테스트 fixture, 그리고 consumer가 tagged tree 그 자체로 설치하는 생성 source(Go module, Rust crate)로서 `config/generated.json`의 `tracked`에 이유와 함께 선언된 파일(P34). 각 `.gitignore`가 이 경로를 덮으며, 새 생성기는 같은 commit에서
+  `Cargo.lock`, uv lock, `mise.lock`), 이 문서가 밝히는 커밋된 생성 문서, 테스트 fixture, 그리고 consumer가 tagged tree 그 자체로 설치하는 생성 source(Go module, Rust crate)로서 `config/generated.json`의 `tracked`에 이유와 함께 선언된 파일(P34). 이 규칙의 범위는 모든 branch의 tree입니다. static library를 link하는 Go module을 위해 release workflow가 만드는 commit은 생성 파일과 각 플랫폼의 library를 tag `<directory>/vX.Y.Z` 아래에만 담고, 어느 branch에도 속하지 않으며, 사람이 만들지 않습니다(K1205). 각 `.gitignore`가 이 경로를 덮으며, 새 생성기는 같은 commit에서
   ignore 항목을 추가합니다.
   Enforced by: `make layout-check`
 

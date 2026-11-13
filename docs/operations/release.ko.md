@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: 8516eb6655e9e12a4aa8c1de9da204dd925cd165658c58495f4384e334fbd052 -->
+<!-- source-sha256: 43a5b0026ed303144f7ed65d1193a8386ef0311f6668297a32fab9cd9bd6719b -->
 # 릴리스
 
 [English](release.md)
@@ -119,6 +119,43 @@ pattern, 어느 asset도 이름 짓지 않는 파일은 각각 실패한다. 각
 `ubuntu-24.04-arm`, darwin-arm64는 `macos-15`)에서 돌며, set의 PHP minor를 설정하고 `RELEASE_PLATFORM`과 `RELEASE_PHP`로 `make
 release-assets`를 돌린 뒤 폴더를 upload한다. job `publish`는 모든 폴더를 한 asset 폴더로 download하고 `make release-publish`와
 `make release-undraft`를 돌린다.
+
+`go-static` package의 static library를 link하는 Go module은 자기 commit과 tag로 release한다(K1205). Go는 module을 tag의 source로
+받고, 어느 branch도 생성 파일이나 library를 추적하지 않기 때문이다. package가 config/release.json에 선언한다:
+
+```json
+"goModule": {
+  "directory": "packages/go",
+  "library": "internal/ffi/lib",
+  "generated": ["**/zz_generated_*.go", "internal/ffi/generated/**"],
+  "testSymbols": ["__panic_test", "__echo_", "__arm_faults", "__fault_left", "__alias_in_"]
+}
+```
+
+`directory`는 go.mod와 그 package의 crate를 담고, `release-tag`가 `vX.Y.Z`의 commit에 tag를 다는 `goModules`의 key가 아니며,
+package는 release의 모든 플랫폼을 빌드한다. `make release-go-modules TAG=vX.Y.Z`(`release.mts go-modules`)는 job `publish`에서,
+tag의 checkout에 모든 set의 asset이 asset 폴더에 있는 상태로, GitHub Release를 만들기 전에 돈다. Go module을 선언한 package가
+있을 때만 돈다(`release-sets`가 쓰는 `GITHUB_OUTPUT`의 `go-modules`):
+
+1. package의 `generated` entry의 make target을 checkout에서 돌린다. 이 target이 Go module의 생성 파일을 쓴다. 담는 파일은
+   `directory` 아래에서 Git이 추적하지 않고 `generated`의 glob이 가리키는 파일이다.
+2. 각 플랫폼의 library는 그 플랫폼의 `go-static` asset에서 가져온다. 그 플랫폼의 set이 자기 runner에서 feature 없이
+   `cargo build --release --locked -p <package>`로 빌드한 것이다. 여기서는 다른 플랫폼의 library를 빌드하지 않는다.
+   `linux-x64-gnu`의 library는 `<library>/linux_amd64/`, `linux-arm64-gnu`는 `<library>/linux_arm64/`, `darwin-arm64`는
+   `<library>/darwin_arm64/`에 cargo가 준 파일 이름으로 둔다.
+3. 다음이면 commit도 tag도 만들지 않고 멈춘다: 어느 플랫폼의 library가 없거나 비어 있을 때, 그 object가 그 플랫폼의 것이 아닐
+   때(archive의 각 member의 ELF machine이나 Mach-O CPU type), 이름에 `testSymbols`의 일부가 든 symbol을 정의할
+   때(rust-toolchain.toml의 component `llvm-tools`의 `llvm-nm --defined-only`), commit의 go.mod에 `replace`가 있거나 module을
+   `v0.0.0`으로 require할 때, checkout에 생성 파일이 없을 때, tag `<directory>/vX.Y.Z`가 저장소나 remote에 이미 있을 때. 실패
+   하나가 모든 문제를 적는다.
+4. commit을 하나 만든다. 부모는 `vX.Y.Z`의 commit 하나이고, tree는 그 tree에 생성 파일과 library를 더한 것이다. 실행의 index에서
+   만들므로 checkout의 work tree, index, 모든 branch는 그대로다. 여러 package의 Go module은 그 commit 하나를 함께 쓴다.
+5. 저장소에 tag를 만들기 전에, go.mod에 `require <module> vX.Y.Z`만 있는 consumer module이 runner에서 `go mod tidy`와 `go test`를
+   돌린다. `GOPROXY=direct`, `GOSUMDB=off`, `GOENV=off`, 빈 `GOFLAGS`와 `CGO_LDFLAGS`, 실행의 module cache를 쓴다. Git은 module
+   path의 저장소를, 그 commit을 tag 아래에 담은 실행의 저장소에서 읽는다. go.mod가 require하는 다른 저장소의 module은 자기
+   remote에서 받으므로, 그 tag는 이 release보다 먼저 있어야 한다.
+6. module마다 그 commit에 annotated tag `<directory>/vX.Y.Z`를 만들고 그 tag만 push한다. 어느 branch도 그 commit을 담지 않고,
+   다시 돌리면 이미 있는 tag를 거부한다. 이 commit과 tag는 workflow가 만든다. 사람이 만드는 tag는 없다.
 
 `make release-tools`는 플랫폼별 package가 있으면 install-tools를 돌린다. install-tools는 rust-toolchain.toml의 toolchain을 rustup으로,
 mise.lock의 도구를, 예컨대 maturin을 돌리는 Python과 uv를 설치한다(K1190). npm-native package의 napi CLI는 저장소의 devDependency이고

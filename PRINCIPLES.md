@@ -155,7 +155,7 @@ repository.
   Enforced by: none, a guided rule: kit does not check how implementations relate; each repository runs its own tests (K1129)
 - P34 Repeated code is fixed by restructuring it into one module, never by excluding it; a tool source is classified; generated
   output is never tracked in Git, except a generated source that a consumer installs as the tagged tree itself (a Go module, a Rust
-  crate), which is tracked and declared with its reason in config/generated.json. A released package that needs generated output
+  crate), which is tracked and declared with its reason in config/generated.json. The rule covers the tree of every branch: the commit that the release workflow makes for a Go module with a static library carries its generated files and the library of each platform under the tag `<directory>/vX.Y.Z` alone, lies on no branch, and is never made by hand (K1205). A released package that needs generated output
   declares each generated path in config/release.json with the repository's make target that produces it; the release first refuses a
   checkout that differs from the tagged commit, holds a changed or untracked path, or links a dependency from outside it; it then
   deletes each declared path, runs that target in the checkout, and fails when a declared path is missing from the result or is

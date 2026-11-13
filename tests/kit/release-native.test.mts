@@ -37,7 +37,7 @@ const REPOSITORY_JSON: JSONSchemaType<Repository> = {
   properties: { packages: { type: 'object', required: [], additionalProperties: { type: 'object', required: [], additionalProperties: { type: 'object', required: ['version', 'dist'], properties: { version: STRING, dist: { type: 'object', required: ['type', 'url'], properties: { type: STRING, url: STRING } } } } } } },
 };
 /** The fields of workflows/release.yml that the case of the workflow reads. */
-type Step = { uses?: string; run?: string; with?: { path?: string; 'merge-multiple'?: boolean } };
+type Step = { if?: string; uses?: string; run?: string; with?: { path?: string; 'merge-multiple'?: boolean } };
 type Job = { 'runs-on': string; env?: Record<string, string>; outputs?: Record<string, string>; strategy?: { matrix: string }; steps: Step[] };
 const TEXT_MAP = { type: 'object', nullable: true, required: [], additionalProperties: STRING } as const;
 const JOB: JSONSchemaType<Job> = {
@@ -48,7 +48,7 @@ const JOB: JSONSchemaType<Job> = {
     env: TEXT_MAP,
     outputs: TEXT_MAP,
     strategy: { type: 'object', nullable: true, required: ['matrix'], properties: { matrix: STRING } },
-    steps: { type: 'array', items: { type: 'object', required: [], properties: { uses: { ...STRING, nullable: true }, run: { ...STRING, nullable: true }, with: { type: 'object', nullable: true, required: [], properties: { path: { ...STRING, nullable: true }, 'merge-multiple': { type: 'boolean', nullable: true } } } } } },
+    steps: { type: 'array', items: { type: 'object', required: [], properties: { if: { ...STRING, nullable: true }, uses: { ...STRING, nullable: true }, run: { ...STRING, nullable: true }, with: { type: 'object', nullable: true, required: [], properties: { path: { ...STRING, nullable: true }, 'merge-multiple': { type: 'boolean', nullable: true } } } } } },
   },
 };
 const WORKFLOW: JSONSchemaType<{ jobs: Record<string, Job> }> = { type: 'object', required: ['jobs'], properties: { jobs: { type: 'object', required: [], additionalProperties: JOB } } };
@@ -153,6 +153,29 @@ test('K1189: a native package names its platforms of the release, a php-ext pack
   stop(() => release.loadConfig(box.root), /platforms/);
 });
 
+// K1205: a go-static package declares the Go module that links its library; the release carries it in a commit of its own tag.
+test('K1205: a goModule belongs to a go-static package that builds every platform, holds its crate and is no key of goModules, and sets tells the workflow of it', (t) => {
+  const goModule = { directory: 'packages/fixture-native-go', library: 'internal/ffi/lib', generated: ['**/zz_generated_*.go'], testSymbols: ['__panic_test'] };
+  const withModule = (edit: (config: release.ReleaseConfig) => release.ReleaseConfig) => nativeSandbox(t, (root) => {
+    const config = readJson<release.ReleaseConfig>(root, 'config/release.json');
+    writeJson(root, 'config/release.json', edit({ ...config, packages: config.packages.map(item => (item.kind === 'go-static' ? { ...item, goModule } : item)) }));
+  });
+  const declared = withModule(config => config);
+  assert.deepEqual(release.loadConfig(declared.root).packages.find(item => item.kind === 'go-static')?.goModule, goModule);
+  const output = path.join(declared.root, '.stubs/github-output');
+  assert.equal(release.main(['sets'], { root: declared.root, env: { ...declared.env, GITHUB_OUTPUT: output }, print: () => {}, error: () => {} }), 0);
+  assert.match(readFileSync(output, 'utf8'), /^go-modules=true$/m);
+  stop(() => release.loadConfig(withModule(config => ({ ...config, goModules: { 'packages/fixture-native-go': 'example.invalid/fixture' } })).root), /packages\/fixture-native-go is the goModule of fixture-native-go and a key of goModules/);
+  stop(() => release.loadConfig(withModule(config => ({ ...config, packages: config.packages.map(item => (item.goModule ? { ...item, platforms: ['darwin-arm64'] } : item)) })).root), /the goModule packages\/fixture-native-go of fixture-native-go carries the library of every platform, and platforms lacks linux-x64-gnu, linux-arm64-gnu/);
+  stop(() => release.loadConfig(withModule(config => ({ ...config, packages: config.packages.map(item => (item.goModule ? { ...item, goModule: { ...goModule, directory: 'packages/other' } } : item)) })).root), /the goModule packages\/other of fixture-native-go does not hold packages\/fixture-native-go, the crate of its library/);
+  stop(() => release.loadConfig(withModule(config => ({ ...config, packages: config.packages.map(item => (item.kind === 'wheel-abi3' ? { ...item, goModule } : item)) })).root), /the wheel-abi3 package kit-fixture-native declares a goModule; only a go-static package builds the library of a Go module/);
+  // A release without a Go module passes the step and tags nothing.
+  const plain = nativeSandbox(t);
+  const printed: string[] = [];
+  assert.equal(release.main(['go-modules', plain.tag(`v${VERSION}`)], { root: plain.root, env: { ...plain.env, RELEASE_ASSETS: 'var/release/assets' }, print: line => printed.push(line), error: line => printed.push(line) }), 0, printed.join('\n'));
+  assert.match(printed.join('\n'), /no go-static package of config\/release\.json declares a goModule, so the release carries no Go module/);
+});
+
 test('K1189: the sets are the set without a platform, the set of each platform and the set of each platform and PHP minor, and sets prints them as the matrix of the workflow', (t) => {
   const box = nativeSandbox(t);
   const config = release.loadConfig(box.root);
@@ -162,7 +185,7 @@ test('K1189: the sets are the set without a platform, the set of each platform a
   const printed: string[] = [];
   assert.equal(release.main(['sets'], { root: box.root, env: { ...box.env, GITHUB_OUTPUT: output }, print: line => printed.push(line), error: line => printed.push(line) }), 0, printed.join('\n'));
   assert.deepEqual(printed, [JSON.stringify({ include: expected })]);
-  assert.equal(readFileSync(output, 'utf8'), `sets=${JSON.stringify({ include: expected })}\n`);
+  assert.equal(readFileSync(output, 'utf8'), `sets=${JSON.stringify({ include: expected })}\ngo-modules=false\n`, 'no package declares a Go module (K1205)');
   // A configuration without a native package has the set without a platform alone.
   assert.deepEqual(assetSets(config.packages.filter(item => !NATIVE_PACKAGES.some(native => native.directory === item.directory))), [{}]);
   // RELEASE_PLATFORM and RELEASE_PHP name a set; a PHP minor without a platform, and a platform that is not one, are refused.
@@ -410,7 +433,7 @@ test('K1189: the example release workflow tags, builds each asset set on a runne
   const { tag, assets, publish } = workflow.jobs as Record<'tag' | 'assets' | 'publish', Job>;
   const runs = (job: Job) => job.steps.flatMap(step => (step.run === undefined ? [] : [step.run]));
   assert.deepEqual(runs(tag).filter(line => line.startsWith('make ')).map(line => line.split(' ')[1]), ['release-tag', 'release-sets']);
-  assert.deepEqual(tag.outputs, { tag: '${{ steps.tag.outputs.tag }}', sets: '${{ steps.sets.outputs.sets }}' });
+  assert.deepEqual(tag.outputs, { tag: '${{ steps.tag.outputs.tag }}', sets: '${{ steps.sets.outputs.sets }}', 'go-modules': '${{ steps.sets.outputs.go-modules }}' });
   assert.equal(assets.strategy?.matrix, '${{ fromJson(needs.tag.outputs.sets) }}');
   // linux-x64-gnu and the set without a platform build on ubuntu-24.04, the default of the expression.
   assert.equal(assets['runs-on'], "${{ matrix.platform == 'linux-arm64-gnu' && 'ubuntu-24.04-arm' || matrix.platform == 'darwin-arm64' && 'macos-15' || 'ubuntu-24.04' }}");
@@ -420,7 +443,9 @@ test('K1189: the example release workflow tags, builds each asset set on a runne
   assert.ok(assets.steps.some(step => step.uses?.startsWith('actions/upload-artifact@') && step.with?.path === 'var/release/assets/'), 'each set uploads its assets');
   assert.match(text, /^ {2}publish:\n {4}needs: \[tag, assets\]$/m, 'publish waits for the jobs of every set');
   assert.ok(publish.steps.some(step => step.uses?.startsWith('actions/download-artifact@') && step.with?.path === 'var/release/assets' && step.with['merge-multiple'] === true), 'publish gathers every set into one folder');
-  assert.deepEqual(runs(publish), ['make release-publish', 'make release-undraft TAG="$TAG"']);
+  // The Go modules are tagged before the GitHub Release is created, with the tools of the repository (K1205).
+  assert.deepEqual(runs(publish), ['make release-prepare', 'make release-tools', 'make release-tools-path', 'make release-go-modules', 'make release-publish', 'make release-undraft TAG="$TAG"']);
+  for (const step of publish.steps.filter(step => step.run !== undefined && !step.run.startsWith('make release-publish') && !step.run.startsWith('make release-undraft'))) assert.equal(step.if, "${{ needs.tag.outputs.go-modules == 'true' }}", `${step.run ?? ''} runs only for a release with a Go module`);
   // Every action of another repository is pinned by its commit.
   for (const step of Object.values(workflow.jobs).flatMap(job => job.steps)) if (step.uses && !step.uses.startsWith('./')) assert.match(step.uses, /^[\w.-]+\/[\w.-]+@[0-9a-f]{40}$/, step.uses);
 });

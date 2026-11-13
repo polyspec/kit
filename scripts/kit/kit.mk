@@ -293,7 +293,7 @@ ci-passed: ## Fail unless every job of RESULTS, the JSON of toJSON(needs), has t
 # The steps of a release (scripts/kit/release.mts, config/release.json). release-tag tags the commit of the successful CI run RUN
 # with vX.Y.Z, X.Y.Z the newest section of the change log of that commit, and the Go module tags (K911, K924); TAG is that tag
 # vX.Y.Z, which release-tag appends to GITHUB_ENV with VERSION. The release workflow runs the steps in this order.
-.PHONY: release-prepare release-tools release-tag release-sets release-assets release-candidate-assets release-publish release-undraft release-coverage
+.PHONY: release-prepare release-tools release-tag release-sets release-assets release-candidate-assets release-go-modules release-publish release-undraft release-coverage
 
 # kit's own release names its main ref, its asset folder and the folder of its release records, which the release tools take
 # from the caller and never fix (K1102, K1115).
@@ -336,6 +336,10 @@ release-assets: ## Build the archive of every package of TAG in the asset set of
 release-candidate-assets: ## Build the archive of every package from committed HEAD for VERSION, and packages.json of its Composer packages (K871), into RELEASE_ASSETS (K1102); ONLINE, since uv build installs the build-system.requires of a wheel package
 	@test -n "$$VERSION" || { echo "release-candidate-assets: VERSION is required, for example make release-candidate-assets VERSION=0.0.1"; exit 1; }
 	RELEASE_ASSETS="$(RELEASE_ASSETS)" $(ONLINE) $(NODE) $(KIT)/release.$(KIT_EXT) candidate-assets "$$VERSION"
+
+release-go-modules: ## Tag the Go module of each go-static package that declares a goModule as <directory>/TAG, at a commit of no branch that adds its generated files and the library of each platform from RELEASE_ASSETS to the commit of TAG, after a consumer passes go test at that tag, and push the tags alone (K1205); none declared passes; ONLINE, since go fetches the modules that the go.mod requires
+	@test -n "$$TAG" || { echo "release-go-modules: TAG is required, for example make release-go-modules TAG=v0.0.1"; exit 1; }
+	RELEASE_MAIN="$(RELEASE_MAIN)" RELEASE_ASSETS="$(RELEASE_ASSETS)" $(ONLINE) $(NODE) $(KIT)/release.$(KIT_EXT) go-modules "$$TAG"
 
 release-publish: ## Create the GitHub Release of TAG as a draft with the notes and the files of release-assets, the archives and packages.json; a draft of an earlier run is replaced
 	@test -n "$$TAG" || { echo "release-publish: TAG is required, for example make release-publish TAG=v0.0.1"; exit 1; }
@@ -395,7 +399,7 @@ unlink: ## Remove the links of PROJECT and the go.work files that link wrote, of
 	$(NODE) $(KIT)/link.$(KIT_EXT) unlink$(if $(PROJECT), --project $(PROJECT))$(if $(RUNTIME), --runtime $(RUNTIME))
 
 # The release uses the released versions (K343), so its Go runs without the go.work of the links.
-release-prepare release-tools release-tag release-assets release-candidate-assets release-publish release-undraft release-coverage: export GOWORK := off
+release-prepare release-tools release-tag release-assets release-candidate-assets release-go-modules release-publish release-undraft release-coverage: export GOWORK := off
 # The archive builds build the tree of the repository, so the go.work that it tracks, its own workspace and not a link, is their GOWORK;
 # naming it also hides the git-ignored go.work that link writes in each module (K774). A repository that tracks none builds with GOWORK
 # off.

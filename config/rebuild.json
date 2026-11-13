@@ -282,6 +282,10 @@
       "kind": "ecosystem",
       "tool": "pip install --dry-run --report reads the METADATA of a wheel (K123) and smol-toml the pyproject (K73)"
     },
+    "scripts/kit/release-go-module.mts": {
+      "kind": "policy",
+      "reason": "Go fetches a module as the source of a tag, and no tool of Go, cargo or GitHub makes the commit that carries the generated files and the static library of every platform under the tag of a module in a subdirectory; goreleaser publishes binaries, not a module with its libraries. The commit and the tag are made with git plumbing, the symbols are read with llvm-nm and the consumer runs go mod tidy and go test (K1205)"
+    },
     "scripts/kit/retained-branches.mts": {
       "kind": "policy",
       "reason": "validates the pinned cancellation-backup branch and its retention lifecycle under P10; no ecosystem tool interprets this repository policy"

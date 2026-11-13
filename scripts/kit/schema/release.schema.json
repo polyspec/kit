@@ -61,6 +61,17 @@
             "minItems": 1,
             "items": { "type": "string", "enum": ["linux-x64-gnu", "linux-arm64-gnu", "darwin-arm64"] }
           },
+          "goModule": {
+            "description": "The Go module that links the static library of a go-static package (K1205). The release carries it in a commit of its own, whose parent is the commit of vX.Y.Z and which the tag <directory>/vX.Y.Z names: the generated files and the library of each platform below the directory of the module.",
+            "type": "object",
+            "required": ["directory", "library", "generated", "testSymbols"],
+            "properties": {
+              "directory": { "description": "The directory of the Go module, which holds its go.mod.", "type": "string", "pattern": "^[^/\\\\.][^\\\\]*[^/\\\\]$" },
+              "library": { "description": "The directory of the libraries below the Go module; the library of a platform lies in <library>/<GOOS>_<GOARCH>/.", "type": "string", "pattern": "^[^/\\\\.][^\\\\]*[^/\\\\]$" },
+              "generated": { "description": "The globs, relative to the Go module, of the generated files that the commit carries.", "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+              "testSymbols": { "description": "The parts of the names of the test entry points, which no library of a release defines.", "type": "array", "items": { "type": "string", "minLength": 1 } }
+            }
+          },
           "php": {
             "description": "The PHP minors X.Y that a php-ext package is built for, since the extension ABI differs for each minor (K1189).",
             "type": "array",

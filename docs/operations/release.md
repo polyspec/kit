@@ -136,6 +136,46 @@ without a platform, `ubuntu-24.04-arm` for linux-arm64-gnu, `macos-15` for darwi
 `make release-assets` with `RELEASE_PLATFORM` and `RELEASE_PHP` and uploads the folder; the job `publish` downloads every folder
 into one asset folder and runs `make release-publish` and `make release-undraft`.
 
+A Go module that links the static library of a `go-static` package is released by a commit and a tag of its own (K1205), since Go
+fetches a module as the source of a tag and no branch tracks a generated file or a library. The package declares it in
+config/release.json:
+
+```json
+"goModule": {
+  "directory": "packages/go",
+  "library": "internal/ffi/lib",
+  "generated": ["**/zz_generated_*.go", "internal/ffi/generated/**"],
+  "testSymbols": ["__panic_test", "__echo_", "__arm_faults", "__fault_left", "__alias_in_"]
+}
+```
+
+`directory` holds the go.mod and the crate of the package, is no key of `goModules`, which `release-tag` tags at the commit of
+`vX.Y.Z`, and the package builds every platform of the release. `make release-go-modules TAG=vX.Y.Z` (`release.mts go-modules`)
+runs in the job `publish`, in the checkout of the tag with the assets of every set in the asset folder, before the GitHub Release
+is created, and only when a package declares a Go module (`go-modules` of `GITHUB_OUTPUT`, which `release-sets` writes):
+
+1. It runs the make targets of the `generated` entries of the package in the checkout, which write the generated files of the Go
+   module; the files that it carries are those below `directory` that Git does not track and a glob of `generated` names.
+2. It takes the library of each platform from the `go-static` asset of that platform, which the set of the platform built on its
+   own runner with `cargo build --release --locked -p <package>` and no feature; no library is built for another platform here.
+   The library of `linux-x64-gnu` goes to `<library>/linux_amd64/`, of `linux-arm64-gnu` to `<library>/linux_arm64/` and of
+   `darwin-arm64` to `<library>/darwin_arm64/`, under the file name that cargo gave it.
+3. It stops, and makes no commit and no tag, when the library of a platform is missing or empty, when its objects are not those of
+   its platform (the ELF machine or the Mach-O CPU type of each member of the archive), when it defines a symbol whose name holds a
+   part of `testSymbols` (`llvm-nm --defined-only` of the component `llvm-tools` of rust-toolchain.toml), when the go.mod of the
+   commit holds a `replace` or requires a module at `v0.0.0`, when the checkout holds no generated file, and when the tag
+   `<directory>/vX.Y.Z` exists in the repository or on the remote. One failure names every problem.
+4. It makes one commit whose one parent is the commit of `vX.Y.Z` and whose tree is that tree with the generated files and the
+   libraries added, in an index of the run, so the work tree, the index and every branch of the checkout stay. The Go modules of
+   several packages share that commit.
+5. Before a tag is made in the repository, a consumer module whose go.mod holds `require <module> vX.Y.Z` alone runs `go mod tidy`
+   and `go test` on the runner, with `GOPROXY=direct`, `GOSUMDB=off`, `GOENV=off`, an empty `GOFLAGS` and `CGO_LDFLAGS` and a module
+   cache of the run; Git reads the repository of the module path from a repository of the run that holds the commit under its
+   tag. A module of another repository that the go.mod requires is fetched from its own remote, so its tag exists before this
+   release.
+6. It creates the annotated tag `<directory>/vX.Y.Z` at that commit for each module and pushes those tags alone. No branch holds the
+   commit, and a second run refuses the tag that exists. This commit and tag are made by the workflow; no tag is made by hand.
+
 `make release-tools` runs install-tools for a per-platform package, which installs the toolchain of rust-toolchain.toml with
 rustup and the tools of mise.lock, such as the Python and uv that run maturin (K1190). The napi CLI of an npm-native package is a
 devDependency of the repository, which `make install-packages` installs; release-tools fails before it installs anything when

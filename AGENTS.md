@@ -144,7 +144,7 @@ and its Korean twin, as such an example; a repository's AGENTS.md links to its c
   (`var/`). The only exceptions are files the repository deliberately needs, and only these are tracked: lock files
   (`package-lock.json`, `composer.lock`, `Cargo.lock`, uv locks, `mise.lock`), committed generated documents that this
   file names, test fixtures, and generated sources that a consumer installs as the tagged tree itself (a Go module, a Rust crate), each declared
-  with its reason in `config/generated.json` `tracked` (P34). Each `.gitignore` covers these paths; a new generator adds its ignore entry in the same
+  with its reason in `config/generated.json` `tracked` (P34). The rule covers the tree of every branch: the commit that the release workflow makes for a Go module with a static library carries its generated files and the library of each platform under the tag `<directory>/vX.Y.Z` alone, lies on no branch, and is never made by hand (K1205). Each `.gitignore` covers these paths; a new generator adds its ignore entry in the same
   commit.
   Enforced by: `make layout-check`
 
