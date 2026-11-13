@@ -31,7 +31,8 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
-import { pathToFileURL } from 'node:url';
+import { Readable } from 'node:stream';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createProgress } from './test-progress.mts';
 import { compactSeconds } from './time.mts';
 import { composerVendor, packageVendorFile } from './composer-vendor.mts';
@@ -61,6 +62,12 @@ function runnerWords(words: readonly string[]): { options: [string, string | und
   }
   return { options, args: words.slice(words[index] === '--' ? index + 1 : index) };
 }
+
+// The unittest runner of kit beside this tool (the build copies scripts/kit/runners into dist/runners), started with -c so that
+// sys.path[0] stays the current directory, as python -m leaves it; the descriptor of its events (K1194).
+const PYTHON_RUNNER = fileURLToPath(new URL('./runners/python.py', import.meta.url));
+export const PYTHON_START = "import runpy, sys; runpy.run_path(sys.argv[1], run_name='__main__')";
+const PYTHON_EVENTS_FD = 3;
 
 const TOOLS: readonly string[] = ['node', 'vitest', 'playwright', 'go', 'cargo', 'phpunit', 'python'];
 const USAGE = `Usage: node scripts/kit/run-tests.mts <${TOOLS.join('|')}> [--php-extension <file>]... [--venv <directory>] [--module <name>] [--cwd <directory>] [--results <file> [--inputs <path>]...] [--] [<arguments>]`;
@@ -222,10 +229,12 @@ export function toolCommand({ tool, cwd, args, phpExtensions = [], venv, module 
       return { command: phpunit, args: ['--teamcity', ...args] };
     }
     case 'python':
-      // -v prints each test with its outcome on standard error; unittest runs one test at a time. -v goes last: before a
-      // `discover` argument unittest would read `discover` as a test name. A --module harness runs `-m <module>` instead.
+      // runners/python.py runs unittest, or the harness module of --module, as python -m runs it, and writes the start and the
+      // outcome of each test as JSON lines to the descriptor of KIT_TEST_EVENTS_FD (K1194). -v keeps the verbose lines of
+      // unittest on standard error for the reader of the log; it goes last, since before a `discover` argument unittest would
+      // read `discover` as a test name.
       const interpreter = venv ? path.join(venv, 'bin', 'python') : miseCommand(root, 'python3');
-      return { command: interpreter, args: ['-m', module ?? 'unittest', ...args, '-v'] };
+      return { command: interpreter, args: ['-c', PYTHON_START, PYTHON_RUNNER, module ?? 'unittest', ...args, '-v'] };
   }
   throw new Error(USAGE);
 }
@@ -381,7 +390,8 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
       }
     }
     const since = Date.now();
-    const child = spawn(command, args, { cwd: options.cwd, env, stdio: ['ignore', reads ? 'pipe' : 'inherit', cargo || python ? 'pipe' : 'inherit'], detached: true });
+    // python writes its events to a pipe of their own, the descriptor PYTHON_EVENTS_FD (K1194).
+    const child = spawn(command, args, { cwd: options.cwd, env: python ? { ...env, KIT_TEST_EVENTS_FD: String(PYTHON_EVENTS_FD) } : env, stdio: ['ignore', reads ? 'pipe' : 'inherit', cargo || python ? 'pipe' : 'inherit', ...(python ? ['pipe' as const] : [])], detached: true });
     const spawnedChild = watchRoot(child, since);
     // A tool that cannot start, such as a command missing on PATH, fails with its command and the install fix.
     const closed = new Promise<Ended>((resolve) => {
@@ -409,12 +419,15 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
       present(child.stdout, 'child.stdout').setEncoding('utf8').on('data', (data: string) => events.stdout(data)); // The stream is piped for this tool.
       readline.createInterface({ input: present(child.stderr, 'child.stderr') }).on('line', line => events.stderr(line)); // The stream is piped for this tool.
     } else if (python) {
-      // unittest writes its progress to standard error; the standard output of the tests is printed as it is.
+      // The events of runners/python.py count the tests (K1194); the standard output and the standard error of the run, the
+      // verbose lines of unittest and whatever a test writes, are printed as they are.
       const events = pythonEvents(present(sink, 'sink')); // A tool that this runner reads has a sink.
       readers.push(events);
-      present(child.stderr, 'child.stderr').setEncoding('utf8').on('data', (data: string) => events(data)); // The stream is piped for this tool.
+      const pipe = child.stdio[PYTHON_EVENTS_FD];
+      if (!(pipe instanceof Readable)) throw new Error('the events pipe of python is piped for this tool');
+      readline.createInterface({ input: pipe }).on('line', line => events(line));
       // python is a tool that this runner reads, so it has a progress.
-      readline.createInterface({ input: present(child.stdout, 'child.stdout') }).on('line', text => present(progress, 'progress').line(`  ${text}`));
+      for (const stream of [child.stdout, child.stderr]) readline.createInterface({ input: present(stream, 'the output of python') }).on('line', text => present(progress, 'progress').line(`  ${text}`));
     } else if (reads) {
       const toolSink = present(sink, 'sink'); // A tool that this runner reads has a sink.
       const phpunit = options.tool === 'go' ? undefined : phpunitEvents(toolSink);

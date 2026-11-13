@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 15726717e6e1935cbe82da631f8a0ecee843d1e688182632e72d8890f7f973da -->
+<!-- source-sha256: 5ee0028a23a9698c4bdcfbdd4e2f721e13207b9231430752e884b29b7ba97cc0 -->
 
 # 도구 목록
 
@@ -478,10 +478,13 @@ Export된 `runCommand`는 자신이 시작한 command만 소유한다. 긴 comma
   load되므로 의존하는 extension 뒤에 load되며, 각각이 build되었는지 tool이 시작하기 전에 확인합니다(K165). extension 실행은
   `<cwd>`의 Composer project와 PHPUnit을 그대로 쓰며, kit은 자기 autoloader를 준비하지 않습니다(K790).
 - 시작할 수 없는 tool은 command와 고치는 방법과 함께 실패합니다.
-- `python`(K17)은 `python3 -m unittest <arguments> -v`를 실행하고 표준 오류를 읽습니다. test는 시작할 때 `<description> ... `을,
-  끝날 때 결과를 쓰며, 이는 cargo의 직렬 libtest 출력과 같은 모양이므로 시작·결과 줄 parser 하나가 둘을 읽습니다. `ok`는
-  pass, `expected failure`는 todo(통과가 아님), `skipped`는 skip, `FAIL`, `ERROR`, `unexpected success`는 fail입니다. description 뒤의 docstring 줄은
-  description의 id를 유지합니다. `--module` harness는 `-m unittest` 대신 `-m <module>`을 실행합니다.
+- `python`(K17, K1194)은 `scripts/kit/runners/python.py`를 `python3 -c`로 실행하며, 이는 `python -m`처럼 현재 디렉터리를
+  `sys.path`의 첫째로 둡니다. runner는 `unittest.TextTestRunner`의 기본 result class를 바꾸고 `unittest <arguments> -v`를,
+  또는 `unittest` 대신 `--module`의 harness module을 `python -m`이 돌리듯 실행합니다. 그 result class는 각 test의 시작과 결과를
+  JSON 줄 하나로(`start`, text가 있는 `fail`, 이유가 있는 `skip`, expected failure인 `todo`, `pass`) `KIT_TEST_EVENTS_FD`가 이름
+  짓는 descriptor, 곧 run-tests의 전용 pipe에 쓰고, run-tests는 이를 `python-test-event.schema.json`으로 읽습니다(HR-83). 그래서
+  test가 standard error에 쓰는 것은 줄 끝이 없어도 어느 수도 바꾸지 않습니다. run의 standard output과 standard error는
+  unittest의 verbose 줄을 포함해 그대로 출력됩니다. 시작했으나 event가 끝날 때 결과가 없는 test는 실패합니다.
 - `--results <file>`(K18)은 성공 여부와 관계없이 실행 기록을 임시 파일과 rename으로 씁니다. 기록은 count, 각 test의
   `{id, status, elapsedMs}`(`pass`, `fail`, `skip`), tool, 실행 경과 시간, 그리고 `--inputs` 경로(기본은 `--cwd`
   directory)의 추적 파일과 무시되지 않은 파일에 대한 `inputsDigest`인 `inputs`입니다. test 기록은 progress module이 하므로

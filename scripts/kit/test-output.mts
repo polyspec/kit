@@ -296,42 +296,39 @@ export function cargoEvents(sink: Sink): { stdout: (data: string) => void; stder
   };
 }
 
+/** An event of runners/python.py: the start or the outcome of a test, its id as unittest prints it, and the text of a failure or a skip. */
+type PythonEvent = { event: 'start' | 'pass' | 'fail' | 'skip' | 'todo'; id: string; text?: string };
+
 /**
- * Read the verbose output of Python unittest, which it writes to standard error, into the sink. A test prints
- * `<method> (<module>.<class>.<method>) ... ` when it starts and its outcome when it ends: `ok` passes, `expected failure` is a
- * todo, `skipped '<reason>'` is skipped, and `FAIL`, `ERROR` and `unexpected success` fail. A test with a docstring prints its
- * description on a line of its own and the first docstring line before ` ... `; the test keeps the id of the description.
- * The failure reports at the end of the run are printed as they are, and so is a description that no test start follows (K1140).
+ * Read the events of runners/python.py into the sink, one JSON line each (K1194): the start of a test and its outcome, `pass`,
+ * `fail` with the text of the failure, `skip` with its reason and `todo` for an expected failure, each with the id that unittest
+ * prints for the test, `<method> (<module>.<class>.<method>)`; the name of the test is its method. The events come on a
+ * descriptor of their own, so what a test writes to standard error never changes a count. A test that started and has no outcome
+ * when the events end, as after a crash of the interpreter, fails (K1141).
  */
 export function pythonEvents(sink: Sink): Reader<string> {
-  const DESCRIPTION = /^\w+ \([\w.]+\)$/;
-  // The description line of a test with a docstring, which names the test whose outcome follows.
-  let described: string | undefined;
-  // A description that no test start followed is printed as the line it is (K1140).
-  const unclaimed = () => {
-    if (described !== undefined) sink.line(`  ${described}`);
-    described = undefined;
-  };
-  const lines = startResultLines(sink, {
-    result: /^(.+?) \.\.\. (ok|FAIL|ERROR|skipped\b.*?|expected failure|unexpected success)$/,
-    pending: /^(.+?) \.\.\. $/,
-    // The words of the object are two of those that `result` matches; any other word is looked up as undefined.
-    outcome: word => ({ ok: 'pass', 'expected failure': 'todo' } as Record<string, Outcome>)[word] ?? (word.startsWith('skipped') ? 'skip' : 'fail'),
-    idOf: (name) => {
-      const id = described ?? name;
-      described = undefined;
-      return { id, name: present(id.split(' ')[0], 'id.split(\' \')[0]') }; // split returns at least one part.
-    },
-    other: (text) => {
-      unclaimed();
-      if (DESCRIPTION.test(text)) { described = text; return; }
-      if (text.trim()) sink.line(`  ${text}`);
-    },
-  });
-  return Object.assign((data: string) => lines(data), {
+  let current: TestRef | undefined;
+  const test = (id: string): TestRef => ({ id, name: present(id.split(' ')[0], 'id.split(\' \')[0]') }); // split returns at least one part.
+  return Object.assign((line: string) => {
+    if (!line.trim()) return;
+    const event = parseJson<PythonEvent>(line, 'python-test-event.schema.json', 'an event of runners/python.py');
+    const ref = test(event.id);
+    if (event.event === 'start') {
+      current = ref;
+      sink.start(ref);
+      return;
+    }
+    // An outcome without a start, such as the error of a setUpClass, starts its test first.
+    if (current?.id !== ref.id) sink.start(ref);
+    current = undefined;
+    if (event.event === 'fail') sink.fail(ref, undefined, event.text);
+    else if (event.event === 'skip') sink.skip(ref);
+    else if (event.event === 'todo') sink.todo(ref);
+    else sink.pass(ref);
+  }, {
     end(): void {
-      lines.end();
-      unclaimed();
+      if (current !== undefined) sink.fail(current, undefined, 'the test started and the run ended before its outcome');
+      current = undefined;
     },
   });
 }

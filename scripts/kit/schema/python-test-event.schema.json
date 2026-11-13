@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "an event of scripts/kit/runners/python.py",
+  "description": "One JSON line that the unittest runner of kit writes to the descriptor of KIT_TEST_EVENTS_FD (K1194): the start or the outcome of a test, its id as unittest prints it, and the text of a failure or the reason of a skip.",
+  "type": "object",
+  "required": ["event", "id"],
+  "additionalProperties": false,
+  "properties": {
+    "event": { "enum": ["start", "pass", "fail", "skip", "todo"] },
+    "id": { "type": "string" },
+    "text": { "type": "string" }
+  }
+}

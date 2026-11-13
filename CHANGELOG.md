@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1194: run-tests python counts the tests of unittest from events, not from its verbose lines (HR-83). `scripts/kit/runners/python.py` runs unittest, or the harness module of `--module`, with a result class that writes the start and the outcome of each test as a JSON line to the descriptor of `KIT_TEST_EVENTS_FD`, a pipe of its own; run-tests reads them through `python-test-event.schema.json` and prints standard error as it is. A test that wrote to standard error without a line end, such as the message of a Rust panic, joined its line to the outcome and was not counted: unittest ran 556 tests OK and run-tests counted 555 passed.
+
 ## 0.0.110
 
 - Release: kit 0.0.110 with the row K1187, so that link leaves the links that the package manager made from a local path of the consumer's own manifest (K1188).

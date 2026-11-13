@@ -132,7 +132,7 @@ kit-build: ## Build the package @polyspec/kit into dist/ through dist.next/ and 
 	rm -rf dist.next dist.old
 	$(CURDIR)/node_modules/.bin/tsc -p tsconfig.build.json --outDir dist.next
 	cp -R scripts/kit/schema dist.next/schema
-	tar -C scripts/kit --exclude=vendor -cf - symbols | tar -C dist.next -xf -
+	tar -C scripts/kit --exclude=vendor --exclude=__pycache__ -cf - symbols runners | tar -C dist.next -xf -
 	$(NODE) $(KIT)/kit-items.$(KIT_EXT) dist.next/kit-items.json
 	if [ -d dist ]; then mv dist dist.old; fi
 	if mv dist.next dist; then rm -rf dist.old; else if [ -d dist.old ]; then mv dist.old dist; fi; exit 1; fi

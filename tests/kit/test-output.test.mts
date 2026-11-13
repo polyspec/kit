@@ -251,10 +251,18 @@ test('startResultLines prints the rest without a line end and fails a test that 
   assert.match(result.text, /the last line without an end/);
 });
 
-test('pythonEvents prints a description that no test start follows (K1140)', () => {
+test('pythonEvents reads the JSON events of runners/python.py and fails a test without an outcome (K1194)', () => {
   const run = reading(sink => pythonEvents(sink));
-  run.reader('test_a (m.C) ... ok\nlooks_like_a_description (m.D)\nTraceback (most recent call last):\ntrailing_description (m.E)\n');
+  const event = (value: Record<string, string>) => `${JSON.stringify(value)}`;
+  run.reader(event({ event: 'start', id: 'test_a (m.C.test_a)' }));
+  run.reader(event({ event: 'pass', id: 'test_a (m.C.test_a)' }));
+  // The error of a setUpClass comes as an outcome with no start.
+  run.reader(event({ event: 'fail', id: 'setUpClass (m.D)', text: 'Traceback: boom' }));
+  run.reader(event({ event: 'start', id: 'test_c (m.E.test_c)' }));
+  run.reader.end();
   const result = run.close();
-  assert.match(result.text, /looks_like_a_description \(m\.D\)/, result.text);
-  assert.match(result.text, /trailing_description \(m\.E\)/, result.text);
+  assert.equal(result.ok, false);
+  assert.match(result.text, /✔ test_a \(m\.C\.test_a\)/, result.text);
+  assert.match(result.text, /✖ setUpClass \(m\.D\)[^\n]*\n\s+Traceback: boom/, result.text);
+  assert.match(result.text, /✖ test_c \(m\.E\.test_c\)[^\n]*\n\s+the test started and the run ended before its outcome/, result.text);
 });

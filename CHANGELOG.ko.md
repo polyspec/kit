@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d3465c60caf0788cddbdcd54406c9ce6c3bfd637d3a63c31ac237ab54fe29f9e -->
+<!-- source-sha256: 72456fcac7b42855c0ae7563199430b21ffe84d378a01303c3da42e3445acf94 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1194: run-tests python이 unittest의 시험을 verbose 줄이 아니라 event로 센다(HR-83). `scripts/kit/runners/python.py`는 unittest, 또는 `--module`의 harness module을 각 시험의 시작과 결과를 `KIT_TEST_EVENTS_FD`의 descriptor, 곧 전용 pipe에 JSON 줄로 쓰는 result class로 돌리고, run-tests는 그 줄을 `python-test-event.schema.json`으로 읽으며 standard error는 그대로 출력한다. Rust panic 메시지처럼 줄 끝 없이 standard error에 쓴 시험은 자기 줄을 결과와 이어 붙여 세어지지 않았다: unittest는 556개를 OK로 돌렸는데 run-tests는 555 passed로 셌다.
 
 ## 0.0.110
 

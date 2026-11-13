@@ -520,11 +520,14 @@ The exported `runCommand` owns only the commands it starts. Long commands have n
   an extension that it depends on, and each is checked as built before the tool starts (K165). An extension run uses the
   Composer project and the PHPUnit of `<cwd>` as they are; kit prepares no autoloader of its own (K790).
 - A tool that cannot start fails with its command and the fix.
-- `python` (K17) runs `python3 -m unittest <arguments> -v` and reads its standard error: a test prints `<description> ... `
-  when it starts and its outcome when it ends, the same shape as the serial libtest output of cargo, so one parser of start
-  and result lines reads both. `ok` passes, `expected failure` is a todo (no pass), `skipped` is skipped, `FAIL`, `ERROR` and `unexpected
-  success` fail; a docstring line after the description keeps the id of the description. A `--module` harness runs
-  `-m <module>` instead of `-m unittest`.
+- `python` (K17, K1194) runs `scripts/kit/runners/python.py` with `python3 -c`, which leaves the current directory first on
+  `sys.path` as `python -m` does. The runner replaces the default result class of `unittest.TextTestRunner` and runs
+  `unittest <arguments> -v`, or the harness module of `--module` in place of `unittest`, as `python -m` runs it. The result
+  class writes the start and the outcome of each test as one JSON line (`start`, `pass`, `fail` with its text, `skip` with
+  its reason, `todo` for an expected failure) to the descriptor that `KIT_TEST_EVENTS_FD` names, a pipe of run-tests of its
+  own, which run-tests reads through `python-test-event.schema.json` (HR-83): what a test writes to standard error, even
+  without a line end, changes no count. The standard output and the standard error of the run, the verbose lines of
+  unittest included, are printed as they are. A test that started and has no outcome when the events end fails.
 - `--results <file>` (K18) writes the record of a run, passed or not, through a temporary file and a rename: the counts, every
   test as `{id, status, elapsedMs}` (`pass`, `fail` or `skip`), the tool, the elapsed time of the run and `inputs`,
   the `inputsDigest` of the `--inputs` paths (the `--cwd` directory by default) over the tracked and non-ignored files. The

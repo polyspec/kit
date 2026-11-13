@@ -9,7 +9,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { listedTests, parseArguments, probeExtensions, run, toolCommand } from '../../scripts/kit/run-tests.mts';
+import { listedTests, parseArguments, probeExtensions, PYTHON_START, run, toolCommand } from '../../scripts/kit/run-tests.mts';
 import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress } from '../../scripts/kit/test-output.mts';
 import { inputsDigest } from '../../scripts/kit/tracked-files.mts';
 import { createProgress } from '../../scripts/kit/test-progress.mts';
@@ -55,6 +55,10 @@ async function runInProcess(root: string, args: string[]): Promise<{ status: num
   }
 }
 const output = (result: { stdout: string; stderr: string }) => result.stdout + result.stderr;
+// The events of runners/python.py that a python3 stub writes to the descriptor 3 (K1194), from [event, id] pairs.
+const writeEvents = (events: [string, string][]) => `require('node:fs').writeSync(3, ${JSON.stringify(events.map(([event, id]) => JSON.stringify({ event, id })).join('\n') + '\n')});`;
+const passA = writeEvents([['start', 'test_a (t.T.test_a)'], ['pass', 'test_a (t.T.test_a)']]);
+
 // The Python of a checkout is var/tools/mise/shims/python3, the shim of mise: a test writes its stub there.
 function pythonStub(root: string, script: string) {
   const file = path.join(root, 'var/tools/mise/shims/python3');
@@ -191,7 +195,7 @@ test('each tool starts with its progress arguments and no time limit of kit (K11
   assert.throws(() => toolCommand({ tool: 'playwright', cwd: '/r', args: [] }, '/r'), /project-local Playwright CLI does not exist; run make install/);
   assert.deepEqual(toolCommand({ tool: 'go', cwd: '/r', args: ['./...'] }, shims), { command: path.join(shims, 'var/tools/mise/shims/go'), args: ['test', '-json', './...'], build: ['test', '-exec=true', './...'] });
   assert.deepEqual(toolCommand({ tool: 'cargo', cwd: '/r', args: ['-p', 'x', '--', '--nocapture'] }, '/r').build, ['test', '--no-run', '-p', 'x']);
-  assert.deepEqual(toolCommand({ tool: 'python', cwd: '/r', args: ['discover', '-s', 'tests'] }, shims), { command: path.join(shims, 'var/tools/mise/shims/python3'), args: ['-m', 'unittest', 'discover', '-s', 'tests', '-v'] });
+  assert.deepEqual(toolCommand({ tool: 'python', cwd: '/r', args: ['discover', '-s', 'tests'] }, shims), { command: path.join(shims, 'var/tools/mise/shims/python3'), args: ['-c', PYTHON_START, fileURLToPath(new URL('../../scripts/kit/runners/python.py', import.meta.url)), 'unittest', 'discover', '-s', 'tests', '-v'] });
 });
 
 // Composer gives the vendor directory of the PHPUnit (K184): its folder `vendor`, COMPOSER_VENDOR_DIR, or config.vendor-dir.
@@ -350,7 +354,8 @@ test('the cargo events read the names that libtest-mimic pads to the longest one
 
 test('the python events report an expected failure as todo, which is no pass (K47)', () => {
   const { calls, sink } = recording();
-  pythonEvents(sink)('test_known (tests.test_x.T.test_known) ... expected failure\ntest_ok (tests.test_x.T.test_ok) ... ok\n');
+  const feed = pythonEvents(sink);
+  for (const [event, id] of [['start', 'test_known (tests.test_x.T.test_known)'], ['todo', 'test_known (tests.test_x.T.test_known)'], ['start', 'test_ok (tests.test_x.T.test_ok)'], ['pass', 'test_ok (tests.test_x.T.test_ok)']]) feed(JSON.stringify({ event, id }));
   assert.deepEqual(calls, ['start test_known (tests.test_x.T.test_known)', 'todo test_known (tests.test_x.T.test_known)', 'start test_ok (tests.test_x.T.test_ok)', 'pass test_ok (tests.test_x.T.test_ok)']);
 });
 
@@ -385,28 +390,24 @@ test('the phpunit events pair tests, join the failure messages and print other l
   assert.equal(progress.close('phpunit').ok, false);
 });
 
-test('the python events pair each test with its outcome, keep the description id over a docstring line and print other lines', () => {
+test('the python events pair each test with its outcome and keep the text of a failure (K1194)', () => {
   const lines: string[] = [];
   const progress = createProgress({ write: (text: string) => lines.push(text), heartbeatMs: 10_000, resultFile: '' });
   const feed = pythonEvents(toProgress(progress));
-  feed('test_a (tests.test_x.T.test_a) ... ok\n');
-  feed('test_b (tests.test_x.T.test_b) ... ');
-  feed('FAIL\n');
-  feed('test_c (tests.test_x.T.test_c) ... ERROR\ntest_d (tests.test_x.T.test_d) ... skipped \'later\'\n');
-  feed('test_e (tests.test_x.T.test_e) ... expected failure\ntest_f (tests.test_x.T.test_f) ... unexpected success\n');
-  feed('test_g (tests.test_x.T.test_g)\nChecks the docstring. ... ok\n');
-  feed('======================================================================\nFAIL: test_b (tests.test_x.T.test_b)\nAssertionError: 1 != 2\n');
+  const id = (name: string) => `${name} (tests.test_x.T.${name})`;
+  const outcomes: [string, string, string?][] = [['test_a', 'pass'], ['test_b', 'fail', 'AssertionError: 1 != 2'], ['test_c', 'fail', 'ZeroDivisionError'], ['test_d', 'skip', 'later'], ['test_e', 'todo'], ['test_f', 'fail', 'unexpected success']];
+  for (const [name, event, text] of outcomes) {
+    feed(JSON.stringify({ event: 'start', id: id(name) }));
+    feed(JSON.stringify({ event, id: id(name), ...(text === undefined ? {} : { text }) }));
+  }
   const text = lines.join('');
   assert.match(text, /✔ test_a \(tests\.test_x\.T\.test_a\)/);
-  assert.match(text, /✖ test_b \(tests\.test_x\.T\.test_b\)/);
+  assert.match(text, /✖ test_b \(tests\.test_x\.T\.test_b\)[^\n]*\n\s+AssertionError: 1 != 2/);
   assert.match(text, /✖ test_c \(tests\.test_x\.T\.test_c\)/);
   assert.match(text, /○ test_d \(tests\.test_x\.T\.test_d\) skipped/);
   assert.match(text, /✔ test_e \(tests\.test_x\.T\.test_e\)/);
   assert.match(text, /✖ test_f \(tests\.test_x\.T\.test_f\)/);
-  assert.match(text, /✔ test_g \(tests\.test_x\.T\.test_g\)/);
-  assert.doesNotMatch(text, /✔ Checks the docstring/);
-  assert.match(text, /AssertionError: 1 != 2/);
-  assert.deepEqual(progress.counts, { passed: 3, failed: 3, skipped: 1 });
+  assert.deepEqual(progress.counts, { passed: 2, failed: 3, skipped: 1 });
 });
 
 async function inProcess(t: TestContext, args: string[], { path: extraPath, root = tree(t) }: { path?: string; root?: string } = {}) {
@@ -532,12 +533,12 @@ test('a phpunit run loads its PHP extensions in order through an ini file of PHP
 });
 
 test('python tests run through var/tools/mise/shims/python3, pass and fail', async (t) => {
-  const passing = pythonRoot(t, `process.stderr.write('test_a (t.T.test_a) ... ok\\n\\n' + '-'.repeat(70) + '\\nRan 1 test in 0.001s\\n\\nOK\\n');`);
+  const passing = pythonRoot(t, `process.stderr.write('Ran 1 test in 0.001s\\n\\nOK\\n'); ${passA}`);
   const passed = await inProcess(t, ['python', 'tests'], { root: passing });
   assert.equal(passed.status, 0, passed.text);
   assert.match(passed.text, /✔ python \. tests: 1 passed/);
 
-  const failing = pythonRoot(t, `process.stderr.write('test_a (t.T.test_a) ... FAIL\\n'); process.exitCode = 1;`);
+  const failing = pythonRoot(t, `${writeEvents([['start', 'test_a (t.T.test_a)'], ['fail', 'test_a (t.T.test_a)']])} process.exitCode = 1;`);
   const failed = await inProcess(t, ['python', 'tests'], { root: failing });
   assert.equal(failed.status, 1, failed.text);
   assert.match(failed.text, /✖ test_a \(t\.T\.test_a\)/);
@@ -564,6 +565,22 @@ test('a python run is unittest of the checkout Python, read as unittest prints i
   assert.match(result.text, /✖ python \. discover: 1 passed, 1 failed, 0 skipped/);
 });
 
+// K1194: the counts come from the result events of unittest, not from its verbose lines. A test that writes to standard error
+// without a line end, as the message of a Rust panic in a binding test does, joins its line to the outcome of the test; the run
+// still counts that test, as unittest does.
+test('a python test that writes to standard error without a line end is counted as unittest counts it (K1194)', async (t) => {
+  const root = checkout(t, { 'tests/__init__.py': '', 'tests/test_panic.py': 'import sys\nimport unittest\n\n\nclass Panic(unittest.TestCase):\n    def test_panic(self):\n        sys.stderr.write("thread panicked at src/lib.rs:1:1: boom")\n\n    def test_quiet(self):\n        pass\n' });
+  const python = execFileSync('python3', ['-c', 'import sys; print(sys.executable)'], { encoding: 'utf8' }).trim();
+  const stub = path.join(root, 'var/tools/mise/shims/python3');
+  mkdirSync(path.dirname(stub), { recursive: true });
+  writeFileSync(stub, `#!/bin/sh\nexec '${python}' "$@"\n`);
+  chmodSync(stub, 0o755);
+  const result = await inProcess(t, ['python', 'discover'], { root });
+  assert.equal(result.status, 0, result.text);
+  assert.match(result.text, /✔ python \. discover: 2 passed, 0 failed, 0 skipped/);
+  assert.match(result.text, /thread panicked at src\/lib\.rs:1:1: boom/, 'the standard error of the test is printed as it is');
+});
+
 // A stopped tool leaves no process (K141): the runner starts the tool in its own process group and stops the whole group when
 // the runner itself is interrupted or loses its parent. The hanging stub starts a grandchild, as the mise shim starts the
 // interpreter, and records both pids in a file of its own directory; t.after kills every recorded pid that is still alive, so a
@@ -587,7 +604,7 @@ function hangingPython(t: TestContext) {
     "const { appendFileSync } = process.getBuiltinModule('node:fs');",
     "const grandchild = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000);'], { stdio: 'inherit' });",
     `appendFileSync(${JSON.stringify(pids)}, process.pid + '\\n' + grandchild.pid + '\\n');`,
-    "process.stderr.write('test_hang (t.T.test_hang) ... '); setInterval(() => {}, 1000);",
+    `${writeEvents([['start', 'test_hang (t.T.test_hang)']])} setInterval(() => {}, 1000);`,
   ].join('\n'));
   return { root, pids };
 }
@@ -648,7 +665,7 @@ function venvRoot(t: TestContext, { home }: { home?: string } = {}) {
   const venv = path.join(root, 'pkg/.venv');
   mkdirSync(path.join(venv, 'bin'), { recursive: true });
   writeFileSync(path.join(venv, 'pyvenv.cfg'), `home = ${home ?? path.join(root, 'var/tools/mise/installs/python/3.14.8/bin')}\nversion = 3.14.8\n`);
-  writeFileSync(path.join(venv, 'bin/python'), `#!/usr/bin/env node\nprocess.stderr.write('test_a (t.T.test_a) ... ok\\n\\n' + '-'.repeat(70) + '\\nRan 1 test in 0.001s\\n\\nOK\\n');\n`);
+  writeFileSync(path.join(venv, 'bin/python'), `#!/usr/bin/env node\n${passA}\n`);
   chmodSync(path.join(venv, 'bin/python'), 0o755);
   return root;
 }
@@ -657,10 +674,10 @@ function venvRoot(t: TestContext, { home }: { home?: string } = {}) {
 // reader counts; run-tests runs it in place of `-m unittest` (K219).
 test('python tests run through a harness module named by --module, and its cases are counted (K219)', async (t) => {
   assert.equal(parseArguments(['python', '--module', 'pkg.harness', 'discover'], '/repo').module, 'pkg.harness');
-  assert.deepEqual(toolCommand({ tool: 'python', cwd: '/r', args: ['discover'], module: 'pkg.harness' }, tree(t, { 'var/tools/mise/shims/python3': '' })).args, ['-m', 'pkg.harness', 'discover', '-v']);
+  assert.deepEqual(toolCommand({ tool: 'python', cwd: '/r', args: ['discover'], module: 'pkg.harness' }, tree(t, { 'var/tools/mise/shims/python3': '' })).args.slice(3), ['pkg.harness', 'discover', '-v']);
   assert.throws(() => parseArguments(['node', '--module', 'pkg.harness'], '/repo'), /Usage: node/);
   // The stub answers only the harness command; any other command of python3 ends with no case, so the run fails.
-  const root = pythonRoot(t, `if (process.argv.slice(2, 4).join(' ') !== '-m pkg.harness') { process.exitCode = 2; } else { process.stderr.write('test_a (pkg.t.T.test_a) ... ok\\ntest_b (pkg.t.T.test_b) ... ok\\n\\n' + '-'.repeat(70) + '\\nRan 2 tests in 0.001s\\n\\nOK\\n'); }`);
+  const root = pythonRoot(t, `if (process.argv[5] !== 'pkg.harness') { process.exitCode = 2; } else { ${writeEvents([['start', 'test_a (pkg.t.T.test_a)'], ['pass', 'test_a (pkg.t.T.test_a)'], ['start', 'test_b (pkg.t.T.test_b)'], ['pass', 'test_b (pkg.t.T.test_b)']])} }`);
   const harness = await inProcess(t, ['python', '--module', 'pkg.harness', 'discover', 'tests'], { root });
   assert.equal(harness.status, 0, harness.text);
   assert.match(harness.text, /✔ python \. discover tests: 2 passed, 0 failed/);
@@ -783,13 +800,14 @@ test('a node file of 89 tests reports every test when the reporter reads its eve
   assert.match(result.stdout, /✔ node --test: 89 passed, 0 failed, 0 skipped/);
 });
 
-test('python tests are read without color when FORCE_COLOR is set and the caller passes PYTHON_COLORS=0', (t) => {
+test('python tests are counted from their events whatever the color of the verbose lines (K1194)', (t) => {
   // A stub of python3 that colors its verbose lines as Python 3.14 does under FORCE_COLOR, unless PYTHON_COLORS is 0.
   const root = checkout(t, { 'tests/t.py': '' });
   pythonStub(root, `
 const colored = process.env.FORCE_COLOR && process.env.PYTHON_COLORS !== '0';
 const ok = colored ? '\\x1b[32mok\\x1b[0m' : 'ok';
-process.stderr.write('test_a (t.T.test_a) ... ' + ok + '\\n\\n' + '-'.repeat(70) + '\\nRan 1 test in 0.001s\\n\\nOK\\n');`);
+process.stderr.write('test_a (t.T.test_a) ... ' + ok + '\\n');
+${passA}`);
   const colored = runner(root, ['python', 'tests'], { FORCE_COLOR: '3', PYTHON_COLORS: '0' });
   assert.equal(colored.status, 0, output(colored));
   assert.match(colored.stdout, /✔ test_a \(t\.T\.test_a\)/);
@@ -914,7 +932,7 @@ test('K1094: run-tests sets the runner flags and the environment of a run only a
   pythonStub(root, `
 const names = ['PYTHONUNBUFFERED', 'NO_COLOR', 'PYTHON_COLORS', 'NODE_TEST_CONTEXT'];
 require('node:fs').writeFileSync(process.env.SEEN, JSON.stringify(Object.fromEntries(names.map(name => [name, process.env[name] ?? null]))));
-process.stderr.write('test_a (t.T.test_a) ... ok\\n\\n' + '-'.repeat(70) + '\\nRan 1 test in 0.001s\\n\\nOK\\n');`);
+${passA}`);
   const { PYTHONUNBUFFERED: _unbuffered, NO_COLOR: _noColor, PYTHON_COLORS: _colors, ...inherited } = process.env;
   const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'python', 'tests'], { cwd: root, encoding: 'utf8', env: { ...inherited, SEEN: seen, NODE_TEST_CONTEXT: 'child-v8' } });
   assert.equal(result.status, 0, output(result));

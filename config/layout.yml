@@ -81,4 +81,6 @@ rules:
       - "!tests/kit/fixture/**"
       # The extension of the PHP extension tests (S10): its stub is PHP, which gen_stub.php reads, as data of the tests.
       - "!tests/kit/php-ext-fixture/**"
+      # The unittest runner of kit (K1194) replaces the result class of unittest, which only a Python program can do.
+      - "!scripts/kit/runners/**"
       - "!scripts/kit/symbols/**"
