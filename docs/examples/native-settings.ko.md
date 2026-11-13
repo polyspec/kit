@@ -1,5 +1,5 @@
 <!-- doc-id: example-native-settings -->
-<!-- source-sha256: b0992d6c92dc5924976bd72ded4c44c0bacca2960b2b428f9e298b4325df75ba -->
+<!-- source-sha256: 6f90db5a5adb62040b0efc0c39b55f92f8ef59090a92892fc512c03299d1eebd -->
 # 예제: 네이티브 설정
 
 [English](native-settings.md)
@@ -67,6 +67,17 @@ allow_attributes_without_reason = "deny"
 let_underscore_must_use = "deny"
 let_underscore_untyped = "deny"
 map_err_ignore = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
+cast_possible_truncation = "deny"
+cast_possible_wrap = "deny"
+cast_sign_loss = "deny"
 ```
+
+`unwrap_used`와 `expect_used`는 오류 대신 panic하는 것을 거부하고, 세 cast lint는 값을 자르거나 부호를 뒤집거나 버리는 `as` cast를
+거부한다. 그래서 코드는 `try_from`으로 변환하고 그 오류를 처리한다. `unwrap`이 필요한 test module은
+`#[allow(clippy::unwrap_used, reason = "...")]`로 그것을 밝힌다. [`clippy.toml`](../../clippy.toml)은 오류나 부재를 값으로 바꾸는
+`Option`과 `Result`의 method `unwrap_or`, `unwrap_or_default`, `unwrap_or_else`, `map_or`, `map_or_else`, `Result::ok`를
+`disallowed-methods`에 더한다. clippy는 그 파일을 workspace의 폴더와 그 위 폴더에서 읽는다(K1191).
 
 oxlint는 `error`로 정한 규칙에서 실패한다. `.oxlintrc.json`의 `"categories": { "correctness": "error" }`는 모든 correctness 지적을 실패로 만든다.

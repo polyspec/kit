@@ -1,6 +1,6 @@
 // The real Rust lint: lint-rust.mts runs cargo clippy on each workspace of a repository whose rust-toolchain.toml pins Rust
 // 1.99.0, the pin of S4 (rustup toolchain install 1.99.0 --component clippy). The workspace holds its own lints, the [lints]
-// of docs/examples/native-settings, and its own clippy.toml (K1050). A crate that follows them passes; each violation planted into a copy fails
+// of docs/examples/native-settings, and its own clippy.toml (K1050, K1191). A crate that follows them passes; each violation planted into a copy fails
 // with the lint that names it, including the transmute_copy of the plan's verification. Nothing is stubbed.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -20,7 +20,7 @@ const LIB = 'packages/rust/src/lib.rs';
 const GOOD: Record<string, string> = {
   '.gitignore': 'target/\n',
   'rust-toolchain.toml': '[toolchain]\nchannel = "1.99.0"\ncomponents = ["clippy"]\n',
-  'Cargo.toml': '[workspace]\nmembers = ["packages/rust"]\nresolver = "3"\n\n[workspace.lints.rust]\nwarnings = "deny"\nunsafe_code = "deny"\nunused_must_use = "deny"\n\n[workspace.lints.clippy]\nall = { level = "deny", priority = -1 }\nallow_attributes_without_reason = "deny"\nlet_underscore_must_use = "deny"\nlet_underscore_untyped = "deny"\nmap_err_ignore = "deny"\n',
+  'Cargo.toml': '[workspace]\nmembers = ["packages/rust"]\nresolver = "3"\n\n[workspace.lints.rust]\nwarnings = "deny"\nunsafe_code = "deny"\nunused_must_use = "deny"\n\n[workspace.lints.clippy]\nall = { level = "deny", priority = -1 }\nallow_attributes_without_reason = "deny"\nlet_underscore_must_use = "deny"\nlet_underscore_untyped = "deny"\nmap_err_ignore = "deny"\nunwrap_used = "deny"\nexpect_used = "deny"\ncast_possible_truncation = "deny"\ncast_possible_wrap = "deny"\ncast_sign_loss = "deny"\n',
   'packages/rust/Cargo.toml': '[package]\nname = "demo"\nversion = "0.0.1"\nedition = "2024"\n\n[lints]\nworkspace = true\n',
   [LIB]: '/// Doubles a value.\npub fn double(value: u32) -> u32 {\n    value * 2\n}\n',
 };
@@ -39,7 +39,14 @@ const VIOLATIONS: { name: string; files: Record<string, string>; finding: RegExp
   { name: 'a let underscore of a must_use value', files: { [LIB]: `${GOOD[LIB]}\n/// Parses a value and drops the result.\npub fn parse(text: &str) {\n    let _ = text.parse::<u32>();\n}\n` }, finding: /let_underscore_must_use/ },
   { name: 'a let underscore of an untyped value', files: { [LIB]: `${GOOD[LIB]}\n/// Drops a value.\npub fn drop_value(value: u32) {\n    let _ = value;\n}\n` }, finding: /let_underscore_untyped/ },
   { name: 'a map_err that ignores its error', files: { [LIB]: `${GOOD[LIB]}\n/// Parses a value.\npub fn parse(text: &str) -> Result<u32, String> {\n    text.parse::<u32>().map_err(|_| String::from("bad"))\n}\n` }, finding: /map_err_ignore/ },
-  ...(['ok()', 'unwrap_or(0)', 'unwrap_or_default()', 'unwrap_or_else(|_| 0)'] as const).map(call => ({ name: `Result::${call.split('(')[0]}`, files: { [LIB]: `${GOOD[LIB]}\n/// Parses a value.\npub fn parse(text: &str) -> u32 {\n    ${call === 'ok()' ? 'text.parse::<u32>().ok().unwrap_or(1)' : `text.parse::<u32>().${call}`}\n}\n` }, finding: /disallowed_methods|use of a disallowed method `core::result::Result::/ })),
+  ...(['ok()', 'unwrap_or(0)', 'unwrap_or_default()', 'unwrap_or_else(|_| 0)', 'map_or(0, |value| value)', 'map_or_else(|_| 0, |value| value)'] as const).map(call => ({ name: `Result::${call.split('(')[0]}`, files: { [LIB]: `${GOOD[LIB]}\n/// Parses a value.\npub fn parse(text: &str) -> u32 {\n    ${call === 'ok()' ? 'match text.parse::<u32>().ok() {\n        Some(value) => value,\n        None => 1,\n    }' : `text.parse::<u32>().${call}`}\n}\n` }, finding: /use of a disallowed method `core::result::Result::/ })),
+  // K1191: the Option methods that turn an absence into a value, a panic in place of an error, and the lossy casts.
+  ...(['unwrap_or(0)', 'unwrap_or_default()', 'unwrap_or_else(|| 0)', 'map_or(0, |value| value)', 'map_or_else(|| 0, |value| value)'] as const).map(call => ({ name: `Option::${call.split('(')[0]}`, files: { [LIB]: `${GOOD[LIB]}\n/// The first value.\npub fn first(values: &[u32]) -> u32 {\n    values.first().copied().${call}\n}\n` }, finding: /use of a disallowed method `core::option::Option::/ })),
+  { name: 'an unwrap', files: { [LIB]: `${GOOD[LIB]}\n/// Parses a value.\npub fn parse(text: &str) -> u32 {\n    text.parse::<u32>().unwrap()\n}\n` }, finding: /unwrap_used/ },
+  { name: 'an expect', files: { [LIB]: `${GOOD[LIB]}\n/// Parses a value.\npub fn parse(text: &str) -> u32 {\n    text.parse::<u32>().expect("a number")\n}\n` }, finding: /expect_used/ },
+  { name: 'a cast that cuts a value', files: { [LIB]: `${GOOD[LIB]}\n/// Narrows a value.\npub fn narrow(value: u64) -> u32 {\n    value as u32\n}\n` }, finding: /cast_possible_truncation/ },
+  { name: 'a cast that wraps a value', files: { [LIB]: `${GOOD[LIB]}\n/// Signs a value.\npub fn signed(value: u32) -> i32 {\n    value as i32\n}\n` }, finding: /cast_possible_wrap/ },
+  { name: 'a cast that drops a sign', files: { [LIB]: `${GOOD[LIB]}\n/// Unsigns a value.\npub fn unsigned(value: i32) -> u32 {\n    value as u32\n}\n` }, finding: /cast_sign_loss/ },
 ];
 
 /** Writes `files` below `root`. */

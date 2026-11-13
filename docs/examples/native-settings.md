@@ -66,6 +66,18 @@ allow_attributes_without_reason = "deny"
 let_underscore_must_use = "deny"
 let_underscore_untyped = "deny"
 map_err_ignore = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
+cast_possible_truncation = "deny"
+cast_possible_wrap = "deny"
+cast_sign_loss = "deny"
 ```
+
+`unwrap_used` and `expect_used` deny a panic in place of an error, and the three cast lints deny an `as` cast that cuts a value,
+wraps its sign or drops it, so the code converts with `try_from` and handles the error. A test module that needs `unwrap` says so
+with `#[allow(clippy::unwrap_used, reason = "...")]`. [`clippy.toml`](../../clippy.toml) adds the methods of `Option` and
+`Result` that turn an error or an absence into a value, `unwrap_or`, `unwrap_or_default`, `unwrap_or_else`, `map_or`,
+`map_or_else` and `Result::ok`, to `disallowed-methods`; clippy reads it from the folder of the workspace and the folders above it
+(K1191).
 
 oxlint fails on a rule set to `error`; `"categories": { "correctness": "error" }` in `.oxlintrc.json` makes every correctness finding fail.

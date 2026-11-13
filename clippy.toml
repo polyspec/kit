@@ -1,10 +1,17 @@
 # kit's own clippy configuration; docs/examples/native-settings offers it as an example (K1050). clippy reads clippy.toml from the folder of the Cargo workspace
 # and the folders above it.
-# P8 (K334): a Result is never turned into a plausible value. A use that is truly needed says so with
+# P8 (K334, K1191): a Result or an Option is never turned into a plausible value. A use that is truly needed says so with
 # #[allow(clippy::disallowed_methods, reason = "...")], which allow_attributes_without_reason requires to carry its reason.
 disallowed-methods = [
   { path = "core::result::Result::ok", reason = "P8: an Err becomes None and its error is dropped; match it, use ? or state the need" },
   { path = "core::result::Result::unwrap_or", reason = "P8: an Err becomes a plausible value; handle the error or state the need" },
   { path = "core::result::Result::unwrap_or_default", reason = "P8: an Err becomes a default value; handle the error or state the need" },
   { path = "core::result::Result::unwrap_or_else", reason = "P8: an Err becomes a computed fallback; handle the error or state the need" },
+  { path = "core::result::Result::map_or", reason = "P8: an Err becomes a default value; handle the error or state the need" },
+  { path = "core::result::Result::map_or_else", reason = "P8: an Err becomes a computed fallback; handle the error or state the need" },
+  { path = "core::option::Option::unwrap_or", reason = "P8: a None becomes a plausible value; match it, use ? or state the need" },
+  { path = "core::option::Option::unwrap_or_default", reason = "P8: a None becomes a default value; match it, use ? or state the need" },
+  { path = "core::option::Option::unwrap_or_else", reason = "P8: a None becomes a computed fallback; match it, use ? or state the need" },
+  { path = "core::option::Option::map_or", reason = "P8: a None becomes a default value; match it, use ? or state the need" },
+  { path = "core::option::Option::map_or_else", reason = "P8: a None becomes a computed fallback; match it, use ? or state the need" },
 ]
