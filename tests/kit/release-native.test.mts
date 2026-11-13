@@ -5,7 +5,7 @@
 // write files of the form the real tools write; no library is compiled and no case reaches GitHub or a registry.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
@@ -321,6 +321,15 @@ test('K1189: the set of a PHP minor builds the PIE binary of the php-ext package
   assert.ok(build?.env.PHP?.endsWith('var/tools/bin/php') && build.env.PHP_CONFIG?.endsWith('var/tools/bin/php-config'), JSON.stringify(build?.env));
   assert.ok(calls.some(call => call.tool === 'php' && call.args.includes('-d') && call.args.some(arg => arg.startsWith('extension=') && arg.endsWith('kit_fixture.so'))), 'the binary is loaded before it is packed');
   stop(() => release.assets(context(box, { platform, php: '8.5' }), tag), /the php of the checkout is PHP 8\.4, and the set of .* and PHP 8\.5 builds for PHP 8\.5; set up PHP 8\.5 before the run/);
+});
+
+// K1203: PHP loads a binary whose module names another extension without a message, so the set names what the binary registered.
+test('K1203: a php-ext set names the extension that the binary registered when PHP does not load it under its extension name', (t) => {
+  const platform = host();
+  const box = nativeSandbox(t);
+  const tag = box.tag(`v${VERSION}`);
+  stop(() => release.assets(context(box, { platform, php: '8.4' }, { env: { STUB_PHP_EXTENSION: 'fixture-native-php' } }), tag), /^.*PHP 8\.4 loads the binary that cargo built from packages\/fixture-native-php as the extension fixture-native-php, not as kit_fixture, the php-ext\.extension-name of its composer\.json/);
+  assert.equal(existsSync(path.join(box.root, 'var/release/assets')), false, 'no binary is packed');
 });
 
 test('K1189: a platform set builds on its own platform alone, and a set that no package builds is refused', (t) => {

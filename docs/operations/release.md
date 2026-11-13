@@ -80,6 +80,9 @@ each minor. Its composer.json names `php-ext.extension-name` and lists `pre-pack
 so that PIE looks for the binary among the assets of the release. PIE finds that release by the version of the package
 (`releases/tags/<version>`) and names the asset with the same version, so packages.json lists a `php-ext` package under the
 version `vX.Y.Z`, the tag, with the dist of the source archive of the tag (`https://api.github.com/repos/<owner>/<repository>/zipball/vX.Y.Z`).
+Before a set packs the binary it loads it into the PHP of the checkout with no php.ini and requires the extension of
+`php-ext.extension-name` among the loaded ones. PHP loads a binary whose module names another extension without a message, so a
+failure names the extensions that the binary added to those of the PHP, which is what it registered (K1203).
 An `npm-native` package names `napi.binaryName` and `napi.targets` in its package.json, the configuration that the napi CLI reads;
 the targets are the Rust triples of its platforms (`x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `aarch64-apple-darwin`),
 and the package.json of the source names no platform package, since `npm ci` refuses a dependency that the lock of the workspace

@@ -46,7 +46,14 @@ if (args[0] === '-n' && args[1] === '-r' && code.includes('json_encode')) {
   console.log(JSON.stringify({ minor: process.env.STUB_PHP_MINOR, zts: false, debug: false }));
   process.exit(0);
 }
-if (args[0] === '-n' && args[1] === '-d' && args[2].startsWith('extension=')) process.exit(fs.existsSync(args[2].slice('extension='.length)) ? 0 : 1);
+// STUB_PHP_EXTENSION is the extension that the binary registers; without it the binary registers the name that the check asks for.
+const registered = process.env.STUB_PHP_EXTENSION;
+if (code.includes('get_loaded_extensions')) {
+  const binary = args[1] === '-d' && args[2].startsWith('extension=') && fs.existsSync(args[2].slice('extension='.length));
+  console.log(['Core', 'standard', ...(binary && registered ? [registered] : [])].join('\\n'));
+  process.exit(0);
+}
+if (args[0] === '-n' && args[1] === '-d' && args[2].startsWith('extension=')) process.exit(fs.existsSync(args[2].slice('extension='.length)) && (!registered || code.includes(JSON.stringify(registered))) ? 0 : 1);
 console.error('php stub: unexpected arguments ' + JSON.stringify(args));
 process.exit(1);
 `;

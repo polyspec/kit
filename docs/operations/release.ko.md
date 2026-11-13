@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: e7cb59442ec8a23d23273a9619b0c540fe8af6536b7f39df8d55db86abe5125d -->
+<!-- source-sha256: 8516eb6655e9e12a4aa8c1de9da204dd925cd165658c58495f4384e334fbd052 -->
 # 릴리스
 
 [English](release.md)
@@ -68,6 +68,9 @@ Rust core와 그 생성 binding은 플랫폼별 asset으로 release된다: abi3 
 binary를 찾는다. PIE는 package의 version으로 그 release를 찾고(`releases/tags/<version>`) 같은 version으로 asset 이름을 짓는다.
 그래서 packages.json은 `php-ext` package를 version `vX.Y.Z`, 곧 tag 아래에 두고, dist는 tag의 source archive
 (`https://api.github.com/repos/<owner>/<repository>/zipball/vX.Y.Z`)다.
+set은 바이너리를 pack하기 전에 php.ini 없이 checkout의 PHP에 load하고, load된 확장 가운데 `php-ext.extension-name`의 확장이
+있어야 한다. module이 다른 확장 이름을 적은 바이너리를 PHP는 메시지 없이 load하므로, 실패는 그 바이너리가 PHP의 확장 목록에
+더한 확장, 곧 바이너리가 등록한 이름을 적는다(K1203).
 `npm-native` package는 napi CLI가 읽는 설정인 `napi.binaryName`과 `napi.targets`를 package.json에 적는다. targets는 그 플랫폼들의
 Rust triple(`x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `aarch64-apple-darwin`)이다. 소스의 package.json은 플랫폼
 package를 적지 않는다. `npm ci`는 workspace의 lock에 없는 의존을 거부하기 때문이다. root package는 실행할 때 자기 플랫폼 package를

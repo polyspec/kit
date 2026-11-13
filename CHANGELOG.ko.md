@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 14a8a8a8c4dcfda43190a8b6fba2e98f38d9e9b8bc4ce1b62041c68bf8dc238b -->
+<!-- source-sha256: 30b429a950b04352a71eb44190667de56f53bbca18e4c548486d7e6e4cdca2f1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1203: php-ext set은 PHP가 바이너리를 `php-ext.extension-name`으로 load하지 않을 때 그 바이너리가 등록한 확장 이름을 적는다: `PHP 8.4 loads the binary that cargo built from <directory> as the extension <registered>, not as <name>`. load 검사가 실패하면 set은 바이너리가 있을 때와 없을 때의 PHP 확장 목록을 읽어 바이너리가 더한 확장을 적는다. 전에는 실패가 빈 원인으로 끝났다. module이 다른 확장 이름을 적은 바이너리를 PHP가 메시지 없이 load하기 때문이다. 확장 이름을 적지 않은 ext-php-rs module은 crate 이름을 등록한다. 확장을 더하지 않는 바이너리는 PHP가 출력한 내용을 적은 이전 메시지를 유지한다. 검사와 통과 경로는 바뀌지 않는다. Red: `tests/kit/release-native.test.mts`의 K1203 case가 이전 메시지로 실패했다.
 - K1204: `php-build.schema.json`(K1189)과 `python-test-event.schema.json`(K1194, K1201)의 두 형태가 `additionalProperties`를 false로 두지 않는다. K1069가 kit의 모든 schema에 요구하는 것이다. run event와 시험 event는 `event`로 구별된다. 전에는 `tests/kit/schema-validate.test.mts`의 K1069 case `no schema of kit refuses a key that it does not describe`가 실패했고, 그 schema를 더한 행들은 이 case를 돌리지 않았다. Red: 그 case가 커밋된 tree에서 실패했다.
 - K1202: kit의 asset 검사(K421)가 kit-build의 tar가 적은 폴더를 모두 읽는다. 전에는 `shippedAssets`가 `-cf -` 뒤의 첫 이름만 읽어, `symbols`와 `runners`를 싣는 K1194의 recipe가 `tests/kit/kit-assets.test.mts`의 K421 case를 `scripts/kit/run-tests.mts: runners`로 실패시켰다. kit-build는 그 폴더를 싣고 있었다. Red: K1202 case와 Makefile의 K421 case가 실패했다.
 - K1201: run-tests python이 시작한 test의 수가 unittest가 돌린 test의 수와 다른 기록을 실패시킨다. `runners/python.py`는 unittest의 각 실행의 `testsRun`을 `run` event로 쓰고, reader는 그 합을 자기가 시작한 test의 수와 비교해 두 수를 댄다. 결과 전에 자기 이름, panic, `ok`를 standard error에 쓰는 test는 K1194부터 그렇듯 기록에 남는다. runner는 `make lint-python`의 `ruff format`이 요구하는 대로 정리했다. K1194의 runner는 그렇지 않았다. Red: `tests/kit/run-tests.test.mts`의 K1201 event 경우가 실패했다. event schema에 `run` event가 없었기 때문이다. panic 경우는 전에도 통과한 guard이다. Green: `tests/kit/run-tests.test.mts` 59 passed, `make lint-python`.

@@ -222,6 +222,9 @@ type PhpBuild = { minor: string; zts: boolean; debug: boolean };
 
 const PHP_BUILD = 'echo json_encode(["minor" => PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION, "zts" => PHP_ZTS === 1, "debug" => PHP_DEBUG === 1]);';
 
+/** The PHP code that prints the extensions of the PHP, one on each line. */
+const PHP_EXTENSIONS = 'echo implode("\\n", get_loaded_extensions());';
+
 /** The extension name and the download methods that the composer.json of a php-ext package names, or the problems of them. */
 /**
  * The problems of the composer.json of a php-ext package `file`: the name of the extension that PIE installs and the binary carries,
@@ -259,7 +262,18 @@ function phpExtension(build: NativeBuild, item: NativePackage, extension: string
   copyFileSync(library, path.join(folder, module));
   // The binary loads into the PHP it was built for, with no php.ini of the machine, before it is packed.
   const loaded = execute(php, ['-n', '-d', `extension=${path.join(folder, module)}`, '-r', `exit(extension_loaded(${JSON.stringify(extension)}) ? 0 : 1);`], { cwd: build.root, env: build.env });
-  if (loaded.error || loaded.status !== 0) throw new Stop(`PHP ${set.php} does not load the extension ${extension} that cargo built from ${item.directory}: ${(loaded.error?.message ?? `${loaded.stdout}${loaded.stderr}`).trim()}`);
+  if (loaded.error || loaded.status !== 0) {
+    // PHP loads a binary whose module names another extension without a message, so the extensions that the binary adds to those of
+    // the PHP are what it registered (K1203).
+    const extensions = (binary: string[]) => {
+      const listed = execute(php, ['-n', ...binary, '-r', PHP_EXTENSIONS], { cwd: build.root, env: build.env });
+      return listed.error || listed.status !== 0 ? [] : listed.stdout.split('\n').filter(Boolean);
+    };
+    const own = new Set(extensions([]));
+    const registered = extensions(['-d', `extension=${path.join(folder, module)}`]).filter(name => !own.has(name));
+    if (registered.length) throw new Stop(`PHP ${set.php} loads the binary that cargo built from ${item.directory} as the extension ${registered.join(', ')}, not as ${extension}, the php-ext.extension-name of its composer.json; the module of the crate names the extension that the binary registers`);
+    throw new Stop(`PHP ${set.php} does not load the extension ${extension} that cargo built from ${item.directory}: ${(loaded.error?.message ?? `${loaded.stdout}${loaded.stderr}`).trim() || 'php printed nothing'}`);
+  }
   const name = `${pieName(extension, version, set.php, set.platform)}${info.debug ? '-debug' : ''}-${info.zts ? 'zts' : 'nts'}.zip`;
   zipEntries({ folder, entries: [module], archive: path.join(build.output, name), epoch: build.epoch, env: build.env, deflate: true });
   return name;
