@@ -73,6 +73,13 @@ const GOOD: Record<string, string> = {
   'docs/spec/a.md': '# a\n',
   'docs/features.md': '# Features\n',
   'contracts/vectors.json': '{}\n',
+  // K1193 (C-0 L-1, L-2a): the stub of a cargo extension and of the native part of a component's PHP package lies in generated/,
+  // a generated Go file lies in a binding package, and host code lies in src/host/.
+  'packages/php-ext/generated/polyspec_demo.stub.php': '<?php\n',
+  'packages/codec/php/native/generated/polyspec_codec.stub.php': '<?php\n',
+  'packages/go/binding/zz_generated_binding.go': 'package binding\n',
+  'packages/ts/src/host/index.ts': 'export {};\n',
+  'packages/ts/generated/binding.ts': 'export {};\n',
 };
 
 // One violation for each rule: the files it adds or replaces, and the rule that must name it.
@@ -113,6 +120,12 @@ const VIOLATIONS: { rule: string; files: Record<string, string> }[] = [
   { rule: 'suites-at-root', files: { 'packages/ts/integration/a.test.ts': 'export {};\n' } },
   // S10: the one stub of the PHP extension lies in packages/php-ext/src/.
   { rule: 'php-ext-stub-place', files: { 'packages/php-ext/stubs/polyspec_demo.stub.php': '<?php\n' } },
+  { rule: 'php-ext-stub-place', files: { 'packages/codec/php/src/polyspec_codec.stub.php': '<?php\n' } },
+  // K1193: no generated Go file in a host or test package of Go, no generated/ below src/, and no host code in generated/.
+  { rule: 'go-generated-place', files: { 'packages/go/host/zz_generated_binding.go': 'package host\n' } },
+  { rule: 'go-generated-place', files: { 'packages/codec/go/tests/zz_generated_binding.go': 'package tests\n' } },
+  { rule: 'generated-outside-src', files: { 'packages/ts/src/generated/binding.ts': 'export {};\n' } },
+  { rule: 'host-outside-generated', files: { 'packages/ts/generated/host/index.ts': 'export {};\n' } },
 ];
 
 /** Writes `files` below `root`. */

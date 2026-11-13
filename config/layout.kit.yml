@@ -96,12 +96,32 @@ rules:
     level: error
     paths: ["packages/**/integration", "packages/**/conformance"]
     message: "K244: an integration or conformance suite lives in tests/integration/<runtime> or tests/conformance/<runtime> of the root"
-  # S10: the stubs of the PHP extension lie in packages/php-ext/src/, where the build reads them.
+  # S10: the stubs of the PHP extension lie where its build reads them: src/ of a phpize extension, generated/ of a cargo
+  # extension, whose bindings write the stub, and generated/ of the native part of the PHP package of a component (K1193).
   - id: php-ext-stub-place
     kind: file_absent
     level: error
-    paths: ["**/*.stub.php", "!packages/php-ext/src/*.stub.php"]
-    message: "S10: a stub of the PHP extension lies in packages/php-ext/src/"
+    paths: ["**/*.stub.php", "!packages/php-ext/src/*.stub.php", "!packages/php-ext/generated/*.stub.php", "!packages/*/php/native/generated/*.stub.php"]
+    message: "S10: a stub of the PHP extension lies in packages/php-ext/src/, packages/php-ext/generated/ or packages/<component>/php/native/generated/"
+  # K1193: a Go file that the bindings generate, zz_generated_*.go, lies in the binding package; a host package and a test
+  # package of Go hold the code that people write, which a regeneration never replaces.
+  - id: go-generated-place
+    kind: file_absent
+    level: error
+    paths: ["packages/go/host/**/zz_generated_*.go", "packages/*/go/host/**/zz_generated_*.go", "packages/go/tests/**/zz_generated_*.go", "packages/*/go/tests/**/zz_generated_*.go"]
+    message: "K1193: a generated Go file lies in the binding package, never in packages/go/host/ or packages/go/tests/"
+  # K1193: generated/ holds what a generator writes, beside src/, which holds what people write; a generated/ below src/ mixes them.
+  - id: generated-outside-src
+    kind: dir_absent
+    level: error
+    paths: ["packages/**/src/generated", "packages/**/src/**/generated"]
+    message: "K1193: a generated/ folder lies beside src/, never below it"
+  # K1193: host code lies in src/host/; a host/ below generated/ would be replaced by the next generation.
+  - id: host-outside-generated
+    kind: dir_absent
+    level: error
+    paths: ["packages/**/generated/host", "packages/**/generated/**/host"]
+    message: "K1193: host code lies in src/host/, never in generated/"
   # S5: the root folders of every monorepo, and the dot folders of Git, GitHub, kit and Claude Code. .mise holds .mise/locks/,
   # the uv lock sidecars that make toolchain-lock writes and mise.lock names: lock data that is tracked with mise.lock (K192).
   # .claude holds settings.json, the Claude Code settings, such as the example of kit with the hook of K240.

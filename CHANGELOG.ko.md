@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c04317884237ac59b9b29c93c0edcf32e835215cfdb6b2ad490ac1a760c6ef9e -->
+<!-- source-sha256: 6ff8bdd0da70b6d1f5de3147732ae4fae4a531796134ce7a99fa7a0888d48814 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1193: config/layout.kit.yml이 생성 출력과 host 코드의 자리를 정한다: PHP 확장의 stub은 `packages/php-ext/generated/`와 `packages/<component>/php/native/generated/`에도 둘 수 있고, `zz_generated_*.go` 파일은 `packages/go/host/`나 `packages/go/tests/` package에 두지 않으며(`go-generated-place`), `src/` 아래에는 `generated/` 폴더를 두지 않고(`generated-outside-src`), `generated/` 아래에는 `host/` 폴더를 두지 않는다(`host-outside-generated`). 전에는 cargo 확장의 stub이 `php-ext-stub-place`에 걸렸고, 사람이 쓰는 코드의 폴더에 놓인 생성 파일은 통과했다.
 - K1192: php-extension이 cargo가 ext-php-rs로 빌드하는 확장을 빌드한다. Cargo.toml이 있고 src/config.m4가 없는 확장 폴더는 composer.json의 `php-ext.extension-name`으로 이름을 얻고, stub은 `generated/<extension>.stub.php`이며, check는 그 이름과 cdylib crate를 요구하고, build는 checkout의 php와 php-config를 `PHP`와 `PHP_CONFIG`에 두고 target 폴더 `<build-dir>/target`으로 Cargo workspace에서 `cargo build --release --locked -p <package>`를 돌린 뒤 `<build-dir>/<extension>.so`를 게시한다. 전에는 그런 폴더에 대해 check가 src/config.m4의 PHP_NEW_EXTENSION이 없다고 보고하고 build가 phpize를 돌렸다.
 - K1191: kit의 clippy.toml, 곧 docs/examples/native-settings의 예시가 `Result::map_or`, `Result::map_or_else`와 `Option`의 method `unwrap_or`, `unwrap_or_default`, `unwrap_or_else`, `map_or`, `map_or_else`도 금지하고, `[workspace.lints]` 예시가 `unwrap_used`, `expect_used`, `cast_possible_truncation`, `cast_possible_wrap`, `cast_sign_loss`도 거부한다. 전에는 예시를 복사한 crate가 `None`을 그럴듯한 값으로 바꾸거나, 오류 대신 `unwrap`으로 panic하거나, `as` cast로 값을 잘라도 clippy가 통과시켰다.
 - K1190: `make release-tools`가 `wheel-abi3`, `php-ext`, `npm-native`, `go-static` package에 대해 install-tools를 돌려 rust-toolchain.toml의 Rust toolchain과 mise.lock의 도구를 설치하고, npm-native package인데 `node_modules/.bin`에 napi CLI가 없으면 무엇을 설치하기 전에 실패하며 devDependency `@napi-rs/cli`와 `make install-packages`를 적는다. 전에는 release-tools가 이 kind에 아무것도 설치하지 않아 asset 빌드가 cargo나 napi가 없어서 실패했다.
