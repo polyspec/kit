@@ -113,6 +113,8 @@ export interface ReleaseConfig {
   fixtures?: string[];
   /** The repository's own rule that an existing release tag is annotated (K1084); without it a tag at the commit passes. */
   annotatedTags?: boolean;
+  /** The contracts of the repository and the check command of its contract tool, which the release runs with --release (K1209). */
+  contracts?: { check: string[]; files: string[] };
 }
 
 /** config/release.json as the schema admits it: the values of the maps are not checked yet, two lists may be absent. */
@@ -653,6 +655,28 @@ export function matchAssets(expected: readonly ExpectedAsset[], files: readonly 
   return matched;
 }
 
+/**
+ * Checks each contract of `contracts` of the configuration in its release form (K1209): runs `<check> <file> --release` in the
+ * checkout, which requireCheckout has checked to be the commit, for every file, and stops with the standard error of each failed
+ * run as the tool wrote it. A repository without contracts runs nothing, and nothing skips the check of one that declares them.
+ */
+function checkContracts(ctx: Context, reference: string, commit: string): void {
+  const contracts = ctx.config.contracts;
+  if (contracts === undefined) return;
+  const [command, ...leading] = contracts.check;
+  if (command === undefined) throw new Stop(`${CONFIG}: contracts.check names no command`);
+  const missing = contracts.files.filter(file => execute('git', ['cat-file', '-e', `${commit}:${file}`], at(ctx)).status !== 0);
+  if (missing.length) throw new Stop(`${reference}: ${missing.map(file => `${file}, a contract of contracts.files of ${CONFIG}, is no file of the commit ${commit}`).join('; ')}`);
+  const failures = contracts.files.flatMap((file) => {
+    const args = [...leading, file, '--release'];
+    ctx.log(`[release] ${reference}: ${[command, ...args].join(' ')}`);
+    const result = execute(command, args, at(ctx));
+    if (!result.error && result.status === 0) return [];
+    return [`${[command, ...args].join(' ')} ${result.error ? `could not start: ${result.error.message}` : `ended with exit status ${String(result.status)}`}; a tool without the option --release of its check cannot check a release; update the tool that the repository pins:\n${result.stderr.trimEnd()}`];
+  });
+  if (failures.length) throw new Stop(`${reference}: the contracts of the commit ${commit} are not in their release form, so no archive is built:\n${failures.join('\n')}`);
+}
+
 /** Builds archives from one committed tree through the producer shared by tagged releases and tagless candidates. */
 function assetsFromCommit(ctx: Context, reference: string, commit: string, version: string): string[] {
   const { root, config, set } = ctx;
@@ -666,6 +690,7 @@ function assetsFromCommit(ctx: Context, reference: string, commit: string, versi
   // Every set checks the manifest of every package, also of one that another set builds, before any tool runs (K1196).
   const problems = config.packages.flatMap((item, index) => manifestProblems(item, present(sources[index], 'sources[index]')));
   if (problems.length) throw new Stop(`${reference}: the manifests of the commit ${commit} do not release their packages: ${problems.join('; ')}`);
+  checkContracts(ctx, reference, commit);
   const extensions: ExtensionNames = Object.fromEntries(config.packages.flatMap((item, index) => (item.kind === 'php-ext' ? [[index, extensionOf(parseManifest('composer', present(sources[index], 'sources[index]'), item.directory), path.posix.join(item.directory, 'composer.json'))]] : [])));
   const expected = set.platform === undefined ? sourceAssets(config, version) : platformAssets(config.packages, config.repositoryUrl, version, set, extensions);
   if (expected.length === 0 && set.platform !== undefined) throw new Stop(`${reference}: no package of ${CONFIG} builds ${setName(set)}; the sets are ${assetSets(config.packages).map(setName).join(', ')}`);

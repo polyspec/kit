@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4a0aa8a1af767079ee962eca4b60b61a6d701b39f579ad8d34c13ef6e24444b7 -->
+<!-- source-sha256: 9db17ced005ddd3a68133656f56d3b67d5c923f63ccb2e1cb500f5f613dd3e49 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1209: release는 archive를 빌드하기 전에 저장소의 계약마다 release 형태를 검사한다. config/release.json이 `contracts`를 선언한다: `check`는 저장소의 계약 도구가 check를 돌리는 명령, `files`는 계약 파일이다. manifest 검사 뒤, 모든 asset set과 candidate는 commit의 checkout에서 파일마다 `<check> <file> --release`를 돌린다. 상태가 0이 아니면 모든 계약을 검사한 뒤 명령과 상태, 도구의 standard error를 그대로 보여 주고 release를 멈추며 archive를 만들지 않는다. 검사를 건너뛰는 옵션은 없다. `--release`를 모르는 도구는 실패하고, 메시지는 그런 도구로는 release를 검사할 수 없다고 적는다. commit에 없는 선언 파일은 문제이고, `contracts`가 없는 저장소는 아무것도 돌리지 않는다. 전에는 release의 어느 단계도 이 검사를 돌리지 않아, core가 다른 library에 path, branch, commit으로 의존하는 package를 pack할 수 있었다. Red: `tests/kit/release.test.mts`의 K1209 case 세 개가 실패했다.
 - K1208: Go module의 static library는 debug section을 담지 않는다. 플랫폼 set은 `go-static` asset을 pack하기 전에 checkout의 Rust toolchain의 component `llvm-tools`의 `llvm-strip --strip-debug`(`<sysroot>/lib/rustlib/<host>/bin`, PATH의 strip이 아님)를 library에 실행하고, `release-go-modules`는 그 component의 `llvm-size -A`로 각 플랫폼 library의 section을 읽는다. 크기가 0이 아닌 `__debug_*`, `.debug_*`, `.zdebug_*` section은 크기와 함께 적고 commit도 tag도 만들지 않는다. 도구가 없으면 component `llvm-tools`와 rust-toolchain.toml을 적고 실패한다. 전에는 library가 standard library의 debug section을 담았다. Cargo profile의 `strip` 설정은 static library에서 이를 지우지 않는다. Red: `tests/kit/release-go-module.test.mts`와 `tests/kit/release-native.test.mts`의 K1208 case가 실패했다. 실제 도구에서는 cargo가 빌드한 library가 llvm-strip으로 지우기 전까지 그 section 이름과 함께 거부된다.
 - K1207: K1205의 case가 `initRepository`로 저장소를 만들고, `releaseGoModules`가 consumer를 위해 만드는 실행의 저장소가 `maintenance.auto`, `gc.auto`, `receive.autogc`를 끄며, `tests/kit/release.test.mts`의 usage case가 mode `go-modules`를 적는다. 전에는 `tests/kit/release-go-module.test.mts`가 `git init`을 직접 돌렸는데, 그런 저장소는 명령보다 오래 사는 maintenance를 시작하므로 `tests/kit/sandbox-repository.test.mts`가 이를 거부한다. usage case는 `go-modules`가 없는 usage를 기대했다. K1205는 자기 case만 돌렸다. Red: K1205의 tree에서 `make kit-test`가 두 case를 실패시켰다. 978 통과, 2 실패.
 - K1206: config/rebuild.json이 `scripts/kit/release-native.mts`(K1189)와 `scripts/kit/runners/python.py`(K1194)를 자신이 실행하는 도구와 함께 ecosystem tool로 분류한다. 전에는 둘 다 class가 없어 `make rebuild-check`가 커밋된 tree에서 실패했고, 그 tool을 더한 행들은 이 검사를 돌리지 않았다. Red: `make rebuild-check`가 두 파일을 적었다.

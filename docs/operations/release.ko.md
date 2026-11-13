@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: c49824bdd671a6b790e08586f94db6fb4607210bb839ad5205faaf137eb86a0c -->
+<!-- source-sha256: c55f82adae3ce21c5798f182faabfe5d2930294e095cf47908e710dafe66b5df -->
 # 릴리스
 
 [English](release.md)
@@ -89,6 +89,13 @@ addon만 빌드한다. 그래서 `napi create-npm-dirs`와 `napi artifacts`는 �
 package의 `php-ext.extension-name`과 `php-ext.download-url-method`의 `pre-packaged-binary`이다. 실패 하나가 찾은 문제를
 모두 이름으로 댄다. 그래서 matrix의 각 runner는 cargo, maturin, napi CLI가 돌기 전에 같은 메시지로 실패하고, 도구가 거부할
 manifest를 set의 다른 asset을 빌드한 뒤에야 찾는 일이 없다(K1196).
+
+계약이 있는 저장소는 config/release.json에 선언한다: `"contracts": { "check": ["node", "scripts/<tool>.mts", "check"],
+"files": ["packages/rust/interface.json"] }`. `check`는 저장소의 lock이 고정한 계약 도구가 check를 돌리는 명령이고, `files`는 계약
+파일이다. 모든 asset set과 candidate는 manifest 검사 뒤, archive를 빌드하기 전에 commit의 checkout에서 파일마다
+`<check> <file> --release`를 돌린다(K1209). 상태가 0이 아니면 명령과 상태, 도구의 standard error를 그대로 보여 주고 release를 멈추며
+archive를 만들지 않는다. release가 멈추기 전에 모든 계약을 검사한다. 검사를 건너뛰는 옵션은 없고, `--release`를 모르는 도구는
+실패하므로 저장소는 자신이 고정한 도구를 올린다. `contracts`가 없는 저장소는 아무것도 돌리지 않는다.
 
 native package는 Composer나 wheel package처럼 make entry(`generated`)를 선언할 수 있다. native kind의 빌드는 저장소의 Cargo
 workspace를 읽으므로 tag된 tree 전체의 사본(commit의 `git archive`)에서 돌고, make entry의 출력은 그 사본의 제 경로에 복사된다.
