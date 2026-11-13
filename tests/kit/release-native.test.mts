@@ -208,6 +208,29 @@ test('K1189: the root package of an npm-native package names each platform packa
   stop(() => release.assets(context(targets, {}), targets.tag(`v${VERSION}`)), /napi\.targets \[aarch64-apple-darwin\] are not the triples of its platforms \[x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, aarch64-apple-darwin\]/);
 });
 
+// K1196: every set checks the manifest of every native package before it builds anything, whichever set builds that package.
+const { napi: _napi, ...withoutNapi } = nativeManifest();
+
+test('K1196: a platform set refuses an npm-native package without its napi configuration with the message of kit, before any tool builds', (t) => {
+  const platform = host();
+  const box = nativeSandbox(t, root => writeJson(root, 'packages/fixture-native-js/package.json', withoutNapi));
+  stop(() => release.assets(context(box, { platform }, { env: { STUB_WHEEL_TAGS: WHEEL_TAGS[platform] } }), box.tag(`v${VERSION}`)), /packages\/fixture-native-js\/package\.json names no napi\.binaryName/);
+  assert.deepEqual(box.calls(), [], 'neither cargo nor the napi CLI ran');
+  assert.deepEqual(box.pipCalls().filter(call => call.args[0] === 'build'), [], 'uv built no wheel');
+});
+
+test('K1196: a set names the problems of a php-ext and of an npm-native manifest together, also when it builds neither package', (t) => {
+  const box = nativeSandbox(t, (root) => {
+    writeJson(root, 'packages/fixture-native-js/package.json', withoutNapi);
+    writeJson(root, 'packages/fixture-native-php/composer.json', { name: 'polyspec/kit-fixture-ext', type: 'php-ext', 'php-ext': { 'extension-name': 'kit_fixture' } });
+  });
+  const tag = box.tag(`v${VERSION}`);
+  for (const set of [{}, { platform: host() }]) {
+    stop(() => release.assets(context(box, set, { env: { STUB_WHEEL_TAGS: WHEEL_TAGS[host()] } }), tag), /(?=[\s\S]*packages\/fixture-native-php\/composer\.json lists no pre-packaged-binary in php-ext\.download-url-method)(?=[\s\S]*packages\/fixture-native-js\/package\.json names no napi\.binaryName)/);
+  }
+  assert.deepEqual(box.calls(), [], 'no tool built');
+});
+
 test('K1189: the set of the platform of this machine builds the abi3 wheel, the npm platform package and the Go static library with cargo in a copy of the tagged tree', (t) => {
   const platform = host();
   const box = nativeSandbox(t);
@@ -266,6 +289,8 @@ test('K1189: a platform set builds on its own platform alone, and a set that no 
   const lone = nativeSandbox(t, (root) => {
     const config = readJson<release.ReleaseConfig>(root, 'config/release.json');
     writeJson(root, 'config/release.json', { ...config, packages: config.packages.map(item => (item.kind === 'php-ext' ? item : item.platforms ? { ...item, platforms: [other] } : item)) });
+    // The npm-native manifest names the one platform of its package, as every set checks it (K1196).
+    writeJson(root, 'packages/fixture-native-js/package.json', { ...nativeManifest({ [`@polyspec/kit-fixture-native-${other}`]: VERSION }), napi: { binaryName: 'kit-fixture-native', targets: [TRIPLES[other]] } });
   });
   stop(() => release.assets(context(lone, { platform }), lone.tag(`v${VERSION}`)), new RegExp(`no package of config/release\\.json builds the set of ${platform}; the sets are`));
 });

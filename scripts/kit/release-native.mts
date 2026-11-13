@@ -223,13 +223,26 @@ type PhpBuild = { minor: string; zts: boolean; debug: boolean };
 const PHP_BUILD = 'echo json_encode(["minor" => PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION, "zts" => PHP_ZTS === 1, "debug" => PHP_DEBUG === 1]);';
 
 /** The extension name and the download methods that the composer.json of a php-ext package names, or the problems of them. */
-export function extensionOf(manifest: ComposerManifest, file: string): string {
+/**
+ * The problems of the composer.json of a php-ext package `file`: the name of the extension that PIE installs and the binary carries,
+ * and pre-packaged-binary among its download methods, so that PIE looks for the binaries of the release (K1196).
+ */
+export function phpExtProblems(manifest: ComposerManifest, file: string): string[] {
   const pie = manifest['php-ext'];
   const name = pie?.['extension-name'];
-  if (name === undefined || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) throw new Stop(`${file} names no php-ext.extension-name, the name of the extension that PIE installs and the binary carries`);
   const methods = pie?.['download-url-method'];
   const list = methods === undefined ? [] : typeof methods === 'string' ? [methods] : methods;
-  if (!list.includes('pre-packaged-binary')) throw new Stop(`${file} lists no pre-packaged-binary in php-ext.download-url-method, so PIE would not look for the binaries of the release`);
+  return [
+    ...(name !== undefined && /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ? [] : [`${file} names no php-ext.extension-name, the name of the extension that PIE installs and the binary carries`]),
+    ...(list.includes('pre-packaged-binary') ? [] : [`${file} lists no pre-packaged-binary in php-ext.download-url-method, so PIE would not look for the binaries of the release`]),
+  ];
+}
+
+/** The name of the extension of the php-ext package `file`; Stop with every problem of its composer.json. */
+export function extensionOf(manifest: ComposerManifest, file: string): string {
+  const name = manifest['php-ext']?.['extension-name'];
+  const problems = phpExtProblems(manifest, file);
+  if (problems.length || name === undefined) throw new Stop(problems.join('; '));
   return name;
 }
 

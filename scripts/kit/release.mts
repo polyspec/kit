@@ -50,7 +50,7 @@ import { present } from './present.mts';
 import { linksOutsideCheckout } from './link.mts';
 import { toolCommand } from './mise-tools.mts';
 import { packedPackageManifest } from './pack-manifest.mts';
-import { assetSets, buildPlatformAsset, extensionOf, inSet, isNative, namedSet, nativeProblems, npmNativeRoot, npmPackName, platformAssets, requireHost, setName, zipEntries, type AssetSet, type ExpectedAsset, type ExtensionNames, type NativeBuild } from './release-native.mts';
+import { assetSets, buildPlatformAsset, extensionOf, inSet, isNative, namedSet, nativeProblems, npmNativeProblems, npmNativeRoot, npmPackName, phpExtProblems, platformAssets, requireHost, setName, zipEntries, type AssetSet, type ExpectedAsset, type ExtensionNames, type NativeBuild } from './release-native.mts';
 import { readToml, isTable } from './toml.mts';
 
 export const CONFIG = 'config/release.json';
@@ -603,8 +603,11 @@ function withNativeSource<T>(ctx: Context, commit: string, epoch: number, output
   }
 }
 
-/** The problems of the manifest `text` of the package `item` at the commit: it names the package that config/release.json declares. */
-function manifestProblems(item: ReleasePackage, text: string): string[] {
+/**
+ * The problems of the manifest `text` of the package `item` at the commit: it names the package that config/release.json declares, and
+ * the manifest of an npm-native or php-ext package holds what its tools read for the release `version` (K1196).
+ */
+function manifestProblems(item: ReleasePackage, text: string, version: string): string[] {
   const file = path.posix.join(item.directory, MANIFEST_OF[item.kind]);
   if (item.kind === 'wheel' || item.kind === 'wheel-abi3') return [];
   if (item.kind === 'go-static') {
@@ -613,7 +616,10 @@ function manifestProblems(item: ReleasePackage, text: string): string[] {
     return name === item.name ? [] : [`${file}: name ${typeof name === 'string' ? name : 'none'}, ${CONFIG} declares ${item.name}`];
   }
   const manifest = parseManifest(item.kind === 'npm' || item.kind === 'npm-native' ? 'npm' : 'composer', text, file);
-  return manifest.name === item.name ? [] : [`${file}: name ${manifest.name ?? 'none'}, ${CONFIG} declares ${item.name}`];
+  const named = manifest.name === item.name ? [] : [`${file}: name ${manifest.name ?? 'none'}, ${CONFIG} declares ${item.name}`];
+  if (item.kind === 'npm-native') return [...named, ...npmNativeProblems(parseJson<NpmManifest>(text, 'npm-manifest.schema.json', file), item, version, file)];
+  if (item.kind === 'php-ext') return [...named, ...phpExtProblems(parseJson<ComposerManifest>(text, 'composer-manifest.schema.json', file), file)];
+  return named;
 }
 
 /** Whether the file name `file` is the asset `expected`: its predicted name, or a name that its pattern matches. */
@@ -646,8 +652,9 @@ function assetsFromCommit(ctx: Context, reference: string, commit: string, versi
   const target = path.resolve(root, folder);
   const sources = config.packages.map(({ kind, directory: folder }) => run('git', ['show', `${commit}:${path.posix.join(folder, MANIFEST_OF[kind])}`], at(ctx)));
   // sources holds the manifest of each package at its index.
-  const problems = config.packages.flatMap((item, index) => manifestProblems(item, present(sources[index], 'sources[index]')));
-  if (problems.length) throw new Stop(`${reference}: the manifests of the commit ${commit} do not install outside the repository: ${problems.join('; ')}`);
+  // Every set checks the manifest of every package, also of one that another set builds, before any tool runs (K1196).
+  const problems = config.packages.flatMap((item, index) => manifestProblems(item, present(sources[index], 'sources[index]'), version));
+  if (problems.length) throw new Stop(`${reference}: the manifests of the commit ${commit} do not release their packages: ${problems.join('; ')}`);
   const extensions: ExtensionNames = Object.fromEntries(config.packages.flatMap((item, index) => (item.kind === 'php-ext' ? [[index, extensionOf(parseManifest('composer', present(sources[index], 'sources[index]'), item.directory), path.posix.join(item.directory, 'composer.json'))]] : [])));
   const expected = set.platform === undefined ? sourceAssets(config, version) : platformAssets(config.packages, config.repositoryUrl, version, set, extensions);
   if (expected.length === 0 && set.platform !== undefined) throw new Stop(`${reference}: no package of ${CONFIG} builds ${setName(set)}; the sets are ${assetSets(config.packages).map(setName).join(', ')}`);

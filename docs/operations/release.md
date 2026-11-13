@@ -87,6 +87,12 @@ package. The root package selects its platform package at run time; it is packed
 outputs of its make entries and `--ignore-scripts`, since those entries build what it carries, and it carries its package.json
 byte for byte.
 
+Before it builds anything, every set checks the manifest of every native package of config/release.json, whichever set builds
+that package: the name of each manifest, `napi.binaryName`, `napi.targets` and the `optionalDependencies` of an `npm-native`
+package, and `php-ext.extension-name` and `pre-packaged-binary` in `php-ext.download-url-method` of a `php-ext` package. One
+failure names every problem it finds, so each runner of the matrix fails with the same message before cargo, maturin or the
+napi CLI runs, and a manifest that a tool would reject is not found only after another asset of the set was built (K1196).
+
 A native package may declare make entries (`generated`), as a Composer or wheel package does. A build of a native kind reads
 the Cargo workspace of the repository, so it runs in a copy of the whole tagged tree (`git archive` of the commit), into which
 the outputs of the make entries are copied at their paths; cargo writes into a target folder of the run, outside the checkout,

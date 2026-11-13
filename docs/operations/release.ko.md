@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: f7521002c35265eb25da472fda179855026b65b0ccc1cc5a19aa1416cc74abb8 -->
+<!-- source-sha256: c4e80dc9e7a67264a57c912b88900eecd3d155ebd9236e6a896a893414c4d015 -->
 # 릴리스
 
 [English](release.md)
@@ -73,6 +73,12 @@ Rust triple(`x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `aarch64-ap
 플랫폼마다 `<name>-<platform>`을 release의 version으로 적으며 다른 플랫폼 package는 적지 않는다. root package는 실행할 때 자기
 플랫폼 package를 고른다. root package는 make entry의 출력을 넣은 tag된 tree의 사본에서 `--ignore-scripts`로 pack한다. 그 entry가
 root package가 담는 것을 빌드하기 때문이다. root package는 자기 package.json을 byte 그대로 담는다.
+
+모든 set은 무엇이든 빌드하기 전에 config/release.json의 모든 native package의 manifest를, 그 package를 어느 set이 빌드하든
+검사한다. 각 manifest의 이름, `npm-native` package의 `napi.binaryName`, `napi.targets`, `optionalDependencies`, `php-ext`
+package의 `php-ext.extension-name`과 `php-ext.download-url-method`의 `pre-packaged-binary`이다. 실패 하나가 찾은 문제를
+모두 이름으로 댄다. 그래서 matrix의 각 runner는 cargo, maturin, napi CLI가 돌기 전에 같은 메시지로 실패하고, 도구가 거부할
+manifest를 set의 다른 asset을 빌드한 뒤에야 찾는 일이 없다(K1196).
 
 native package는 Composer나 wheel package처럼 make entry(`generated`)를 선언할 수 있다. native kind의 빌드는 저장소의 Cargo
 workspace를 읽으므로 tag된 tree 전체의 사본(commit의 `git archive`)에서 돌고, make entry의 출력은 그 사본의 제 경로에 복사된다.
