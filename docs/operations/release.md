@@ -159,10 +159,14 @@ is created, and only when a package declares a Go module (`go-modules` of `GITHU
 2. It takes the library of each platform from the `go-static` asset of that platform, which the set of the platform built on its
    own runner with `cargo build --release --locked -p <package>` and no feature; no library is built for another platform here.
    The library of `linux-x64-gnu` goes to `<library>/linux_amd64/`, of `linux-arm64-gnu` to `<library>/linux_arm64/` and of
-   `darwin-arm64` to `<library>/darwin_arm64/`, under the file name that cargo gave it.
+   `darwin-arm64` to `<library>/darwin_arm64/`, under the file name that cargo gave it. The set of a platform removes the debug
+   sections of its library before it packs the asset, with `llvm-strip --strip-debug` of the component `llvm-tools` of the Rust
+   toolchain of the checkout (`<sysroot>/lib/rustlib/<host>/bin/llvm-strip`, never the strip of PATH), since the `strip` setting
+   of a Cargo profile does not change a static library (K1208).
 3. It stops, and makes no commit and no tag, when the library of a platform is missing or empty, when its objects are not those of
    its platform (the ELF machine or the Mach-O CPU type of each member of the archive), when it defines a symbol whose name holds a
-   part of `testSymbols` (`llvm-nm --defined-only` of the component `llvm-tools` of rust-toolchain.toml), when the go.mod of the
+   part of `testSymbols` (`llvm-nm --defined-only` of the component `llvm-tools` of rust-toolchain.toml), when `llvm-size -A` of
+   that component lists a section `__debug_*`, `.debug_*` or `.zdebug_*` of a size other than 0 in it (K1208), when the go.mod of the
    commit holds a `replace` or requires a module at `v0.0.0`, when the checkout holds no generated file, and when the tag
    `<directory>/vX.Y.Z` exists in the repository or on the remote. One failure names every problem.
 4. It makes one commit whose one parent is the commit of `vX.Y.Z` and whose tree is that tree with the generated files and the

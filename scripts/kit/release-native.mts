@@ -279,12 +279,29 @@ function phpExtension(build: NativeBuild, item: NativePackage, extension: string
   return name;
 }
 
+/**
+ * The tool `name` of the component llvm-tools of the Rust toolchain of the checkout `root`, `<sysroot>/lib/rustlib/<host>/bin/<name>`:
+ * the release reads and changes a library with the LLVM of the toolchain that built it, never with a tool of PATH (K1205, K1208).
+ */
+export function llvmTool(root: string, env: NodeJS.ProcessEnv, name: string): string {
+  const rustc = toolCommand(root, 'rustc');
+  const print = (what: string) => run(rustc, ['--print', what], { cwd: root, env }).trim();
+  const file = path.join(print('sysroot'), 'lib', 'rustlib', print('host-tuple'), 'bin', process.platform === 'win32' ? `${name}.exe` : name);
+  if (!existsSync(file)) throw new Stop(`${file}: ${name} is missing; name the component llvm-tools in rust-toolchain.toml and run make install-tools`);
+  return file;
+}
+
 /** Builds the zip of the Go static library of a go-static package: the lib<name>.a that cargo writes, under its label. */
 function goStatic(build: NativeBuild, item: NativePackage, label: string): string {
   const library = cargoLibrary(build, item.directory, 'staticlib', build.env);
   const folder = path.join(build.work, 'go-static', item.directory);
   mkdirSync(folder, { recursive: true });
-  copyFileSync(library, path.join(folder, path.basename(library)));
+  const copy = path.join(folder, path.basename(library));
+  copyFileSync(library, copy);
+  // The strip setting of a Cargo profile does not change a static library, so the debug sections that the objects of the standard
+  // library carry are removed here, on the platform of the library (K1208).
+  build.log(`[release] llvm-strip --strip-debug ${path.basename(library)}`);
+  run(llvmTool(build.root, build.env, 'llvm-strip'), ['--strip-debug', copy], { cwd: build.work, env: build.env });
   const name = `${label}.zip`;
   zipEntries({ folder, entries: [path.basename(library)], archive: path.join(build.output, name), epoch: build.epoch, env: build.env, deflate: true });
   return name;

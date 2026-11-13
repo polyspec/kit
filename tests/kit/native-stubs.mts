@@ -103,9 +103,24 @@ if (args[0] === 'build') {
 }
 `;
 
+// rustc names a sysroot of the stubs and the host stub-host, where llvm-strip of the component llvm-tools lies (K1208).
+const RUSTC_STUB = `#!/usr/bin/env node
+const path = require('node:path');
+const args = process.argv.slice(2);
+if (args[0] === '--print' && args[1] === 'sysroot') console.log(path.resolve(__dirname, '../../../.stubs/sysroot'));
+else if (args[0] === '--print' && args[1] === 'host-tuple') console.log('stub-host');
+else { console.error('rustc stub: unexpected arguments ' + JSON.stringify(args)); process.exit(1); }
+`;
+
+const LLVM_STRIP_STUB = `#!/usr/bin/env node
+const fs = require('node:fs');
+${LOG}
+logCall('llvm-strip', process.argv.slice(2));
+`;
+
 /** Writes the stubs into the checkout `root`: cargo and php as tools of the checkout (var/tools/bin), napi as the bin link of npm. */
 export function writeNativeStubs(root: string): void {
-  for (const [file, source] of [['var/tools/bin/cargo', CARGO_STUB], ['var/tools/bin/php', PHP_STUB], ['node_modules/.bin/napi', NAPI_STUB]] as const) {
+  for (const [file, source] of [['var/tools/bin/cargo', CARGO_STUB], ['var/tools/bin/php', PHP_STUB], ['node_modules/.bin/napi', NAPI_STUB], ['var/tools/bin/rustc', RUSTC_STUB], ['.stubs/sysroot/lib/rustlib/stub-host/bin/llvm-strip', LLVM_STRIP_STUB]] as const) {
     mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
     writeFileSync(path.join(root, file), source);
     chmodSync(path.join(root, file), 0o755);

@@ -50,7 +50,7 @@ import { present } from './present.mts';
 import { linksOutsideCheckout } from './link.mts';
 import { toolCommand } from './mise-tools.mts';
 import { packedPackageManifest } from './pack-manifest.mts';
-import { PLATFORM_NAMES, isPlatform, assetSets, buildPlatformAsset, extensionOf, inSet, isNative, namedSet, nativeProblems, npmNativeProblems, npmNativeRoot, npmPackName, packedNativeManifest, phpExtProblems, platformAssets, requireHost, setName, zipEntries, type AssetSet, type ExpectedAsset, type ExtensionNames, type NativeBuild } from './release-native.mts';
+import { PLATFORM_NAMES, isPlatform, llvmTool, assetSets, buildPlatformAsset, extensionOf, inSet, isNative, namedSet, nativeProblems, npmNativeProblems, npmNativeRoot, npmPackName, packedNativeManifest, phpExtProblems, platformAssets, requireHost, setName, zipEntries, type AssetSet, type ExpectedAsset, type ExtensionNames, type NativeBuild } from './release-native.mts';
 import { readToml, isTable } from './toml.mts';
 import { GO_PLATFORMS, libraryIn, releaseGoModules, type GoModule, type GoPlatform } from './release-go-module.mts';
 
@@ -883,9 +883,8 @@ export function goModules(ctx: Context, tag: string): string[] {
   const folder = path.resolve(ctx.root, assetFolder(ctx));
   const remote = ctx.main?.split('/')[0];
   if (!remote) throw new Stop('go-modules needs the remote that receives the tags; name the main ref <remote>/<branch> in RELEASE_MAIN');
-  const rustc = toolCommand(ctx.root, 'rustc');
-  const llvmNm = path.join(run(rustc, ['--print', 'sysroot'], at(ctx)).trim(), 'lib', 'rustlib', run(rustc, ['--print', 'host-tuple'], at(ctx)).trim(), 'bin', process.platform === 'win32' ? 'llvm-nm.exe' : 'llvm-nm');
-  if (!existsSync(llvmNm)) throw new Stop(`${llvmNm} is missing; name the component llvm-tools in rust-toolchain.toml and run make install-tools, since llvm-nm reads the symbols of the library of every platform`);
+  const llvmNm = llvmTool(ctx.root, ctx.env, 'llvm-nm');
+  const llvmSize = llvmTool(ctx.root, ctx.env, 'llvm-size');
   for (const target of new Set(declared.flatMap(({ item }) => (item.generated ?? []).map(entry => entry.target)))) {
     ctx.log(`[release] ${tag}: make ${target} in the checkout, for the generated files of the Go module`);
     const result = execute('make', ['-C', ctx.root, target], at(ctx));
@@ -907,7 +906,7 @@ export function goModules(ctx: Context, tag: string): string[] {
       }
       return { module, libraries };
     });
-    return releaseGoModules({ root: ctx.root, env: ctx.env, log: ctx.log, tag, remote, modules, llvmNm, go: toolCommand(ctx.root, 'go') }).tags;
+    return releaseGoModules({ root: ctx.root, env: ctx.env, log: ctx.log, tag, remote, modules, llvmNm, llvmSize, go: toolCommand(ctx.root, 'go') }).tags;
   } finally {
     rmSync(work, { recursive: true, force: true });
   }

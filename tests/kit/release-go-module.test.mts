@@ -39,6 +39,16 @@ for last; do :; done
 [ -f "$last.symbols" ] && cat "$last.symbols"
 exit 0
 `;
+const LLVM_SIZE = `#!/bin/sh
+# llvm-size stub: prints the sections that the test wrote beside the library, in the form of llvm-size -A.
+for last; do :; done
+echo "fixture.o   (ex $last):"
+echo "section     size   addr"
+echo ".text         16      0"
+[ -f "$last.sections" ] && cat "$last.sections"
+echo "Total         16"
+exit 0
+`;
 const GO = `#!/bin/sh
 # go stub: records its arguments and what the consumer may not carry, and fails the command that STUB_GO_FAIL names.
 echo "$* CGO_LDFLAGS=[$CGO_LDFLAGS] GOPROXY=$GOPROXY GOFLAGS=[$GOFLAGS]" >> "$STUB_GO_LOG"
@@ -96,12 +106,12 @@ function sandbox(t: TestContext, directories: string[] = ['packages/go']) {
     writeFileSync(file, body);
     return file;
   };
-  for (const [name, source] of [['llvm-nm', LLVM_NM], ['go', GO]] as const) {
+  for (const [name, source] of [['llvm-nm', LLVM_NM], ['llvm-size', LLVM_SIZE], ['go', GO]] as const) {
     writeFileSync(path.join(base, name), source);
     chmodSync(path.join(base, name), 0o755);
   }
   const modules = directories.map(directory => ({ module: moduleOf(directory), libraries: Object.fromEntries(GO_PLATFORM_NAMES.map(platform => [platform, library(directory, platform)])) as Partial<Record<GoPlatform, string>> }));
-  const release = (change: Partial<{ env: NodeJS.ProcessEnv }> = {}) => releaseGoModules({ root, env: { ...env, ...change.env }, log: () => {}, tag: TAG, remote: 'origin', modules, llvmNm: path.join(base, 'llvm-nm'), go: path.join(base, 'go') });
+  const release = (change: Partial<{ env: NodeJS.ProcessEnv }> = {}) => releaseGoModules({ root, env: { ...env, ...change.env }, log: () => {}, tag: TAG, remote: 'origin', modules, llvmNm: path.join(base, 'llvm-nm'), llvmSize: path.join(base, 'llvm-size'), go: path.join(base, 'go') });
   /** Every ref and every commit object of the repository and the refs of the remote: what a refused release leaves as it was. */
   const state = () => ({
     refs: git('for-each-ref', '--format=%(refname) %(objectname)'),
@@ -174,6 +184,18 @@ test('K1205: a library that defines a test entry point stops the release', (t) =
   writeFileSync(`${box.modules[0]?.libraries.linux_amd64 ?? ''}.symbols`, 'fixture.o:\npolyspec_fixture_parse\npolyspec_fixture__panic_test\n');
   const { before, after } = refused(box, /packages\/go: the library of linux_amd64, libpolyspec_fixture_go\.a, defines the test entry points polyspec_fixture__panic_test; a release builds it without a feature/);
   assert.equal(after.commits, before.commits);
+});
+
+test('K1208: a library that holds a debug section of a size other than 0 stops the release with the names of the sections', (t) => {
+  const box = sandbox(t);
+  writeFileSync(`${box.modules[0]?.libraries.linux_arm64 ?? ''}.sections`, '.debug_info  1200  0\n.debug_str  0  0\n.zdebug_line  40  0\n.comment  12  0\n');
+  writeFileSync(`${box.modules[0]?.libraries.darwin_arm64 ?? ''}.sections`, '__debug_abbrev  7  0\n');
+  const { before, after } = refused(box, /packages\/go: the library of linux_arm64, libpolyspec_fixture_go\.a, holds the debug sections \.debug_info \(1200 bytes\), \.zdebug_line \(40 bytes\); the set of its platform strips them with llvm-strip --strip-debug.*the library of darwin_arm64, libpolyspec_fixture_go\.a, holds the debug sections __debug_abbrev \(7 bytes\)/);
+  assert.equal(after.commits, before.commits, 'no commit object is written');
+  // A debug section of size 0 and a section of another name are none.
+  const clean = sandbox(t);
+  writeFileSync(`${clean.modules[0]?.libraries.linux_amd64 ?? ''}.sections`, '.debug_str  0  0\n.comment  12  0\n.note.debug_like  9  0\n');
+  assert.deepEqual(clean.release().tags, ['packages/go/v0.0.1']);
 });
 
 test('K1205: a library whose objects are of another platform stops the release', (t) => {

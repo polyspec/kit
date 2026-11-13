@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: 43a5b0026ed303144f7ed65d1193a8386ef0311f6668297a32fab9cd9bd6719b -->
+<!-- source-sha256: c49824bdd671a6b790e08586f94db6fb4607210bb839ad5205faaf137eb86a0c -->
 # 릴리스
 
 [English](release.md)
@@ -142,10 +142,13 @@ tag의 checkout에 모든 set의 asset이 asset 폴더에 있는 상태로, GitH
 2. 각 플랫폼의 library는 그 플랫폼의 `go-static` asset에서 가져온다. 그 플랫폼의 set이 자기 runner에서 feature 없이
    `cargo build --release --locked -p <package>`로 빌드한 것이다. 여기서는 다른 플랫폼의 library를 빌드하지 않는다.
    `linux-x64-gnu`의 library는 `<library>/linux_amd64/`, `linux-arm64-gnu`는 `<library>/linux_arm64/`, `darwin-arm64`는
-   `<library>/darwin_arm64/`에 cargo가 준 파일 이름으로 둔다.
+   `<library>/darwin_arm64/`에 cargo가 준 파일 이름으로 둔다. 플랫폼의 set은 asset을 pack하기 전에 checkout의 Rust toolchain의
+   component `llvm-tools`의 `llvm-strip --strip-debug`(`<sysroot>/lib/rustlib/<host>/bin/llvm-strip`, PATH의 strip이 아님)로
+   자기 library의 debug section을 지운다. Cargo profile의 `strip` 설정은 static library를 바꾸지 않기 때문이다(K1208).
 3. 다음이면 commit도 tag도 만들지 않고 멈춘다: 어느 플랫폼의 library가 없거나 비어 있을 때, 그 object가 그 플랫폼의 것이 아닐
    때(archive의 각 member의 ELF machine이나 Mach-O CPU type), 이름에 `testSymbols`의 일부가 든 symbol을 정의할
-   때(rust-toolchain.toml의 component `llvm-tools`의 `llvm-nm --defined-only`), commit의 go.mod에 `replace`가 있거나 module을
+   때(rust-toolchain.toml의 component `llvm-tools`의 `llvm-nm --defined-only`), 그 component의 `llvm-size -A`가 크기가 0이 아닌
+   `__debug_*`, `.debug_*`, `.zdebug_*` section을 적을 때(K1208), commit의 go.mod에 `replace`가 있거나 module을
    `v0.0.0`으로 require할 때, checkout에 생성 파일이 없을 때, tag `<directory>/vX.Y.Z`가 저장소나 remote에 이미 있을 때. 실패
    하나가 모든 문제를 적는다.
 4. commit을 하나 만든다. 부모는 `vX.Y.Z`의 commit 하나이고, tree는 그 tree에 생성 파일과 library를 더한 것이다. 실행의 index에서

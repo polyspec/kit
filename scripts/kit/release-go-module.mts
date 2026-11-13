@@ -46,8 +46,9 @@ export type GoModuleRun = {
   /** The remote that receives the tags. */
   remote: string;
   modules: GoModuleRelease[];
-  /** llvm-nm of the Rust toolchain and the go of the checkout. */
+  /** llvm-nm and llvm-size of the Rust toolchain, and the go of the checkout. */
   llvmNm: string;
+  llvmSize: string;
   go: string;
 };
 
@@ -120,7 +121,24 @@ function libraryProblems(run_: GoModuleRun, module: GoModule, platform: GoPlatfo
   const names = execute(run_.llvmNm, ['--defined-only', '--format=just-symbols', file], { cwd: run_.root, env: run_.env });
   if (names.error || names.status !== 0) return [...problems, `${where}: llvm-nm could not read ${path.basename(file)}: ${(names.error?.message ?? names.stderr).trim()}`];
   const tests = [...new Set(names.stdout.split('\n').map(line => line.trim()).filter(line => module.testSymbols.some(part => line.includes(part))))];
+  problems.push(...debugSections(run_, file).map(found => `${where}, ${path.basename(file)}, ${found}`));
   return tests.length ? [...problems, `${where}, ${path.basename(file)}, defines the test entry points ${tests.slice(0, 5).join(', ')}${tests.length > 5 ? ` and ${tests.length - 5} more` : ''}; a release builds it without a feature`] : problems;
+}
+
+/**
+ * The finding of the debug sections of the library `file`, none when it holds none: the sections `__debug_*`, `.debug_*` and
+ * `.zdebug_*` of a size other than 0 that `llvm-size -A` lists, each once with the sum of its sizes over the members (K1208).
+ */
+function debugSections(run_: GoModuleRun, file: string): string[] {
+  const listed = execute(run_.llvmSize, ['-A', file], { cwd: run_.root, env: run_.env });
+  if (listed.error || listed.status !== 0) return [`is not read by llvm-size: ${(listed.error?.message ?? listed.stderr).trim()}`];
+  const sizes = new Map<string, number>();
+  for (const line of listed.stdout.split('\n')) {
+    const row = /^(\S+)\s+(\d+)\s+\d+\s*$/.exec(line);
+    const [, name, size] = row ?? [];
+    if (name !== undefined && size !== undefined && /^(?:__debug_|\.debug_|\.zdebug_)/.test(name) && Number(size) > 0) sizes.set(name, (sizes.get(name) ?? 0) + Number(size));
+  }
+  return sizes.size ? [`holds the debug sections ${[...sizes].map(([name, size]) => `${name} (${size} bytes)`).join(', ')}; the set of its platform strips them with llvm-strip --strip-debug`] : [];
 }
 
 /** The files of the checkout below the Go module that Git does not track and the globs of `module.generated` name. */

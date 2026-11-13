@@ -287,6 +287,8 @@ test('K1189: the set of the platform of this machine builds the abi3 wheel, the 
   // Every native build reads the copy of the tagged tree and writes into the target folder of the run, both outside the checkout.
   for (const call of calls) {
     assert.ok(!call.cwd.startsWith(box.root), `${call.tool} ran in the checkout`);
+    // llvm-strip builds nothing: it changes the copy of the library in the work folder of the run (K1208).
+    if (call.tool === 'llvm-strip') continue;
     const target = call.env.CARGO_TARGET_DIR;
     assert.ok(typeof target === 'string' && !target.startsWith(box.root), `${call.tool} wrote into ${call.env.CARGO_TARGET_DIR ?? 'no target folder'}`);
   }
@@ -353,6 +355,21 @@ test('K1203: a php-ext set names the extension that the binary registered when P
   const tag = box.tag(`v${VERSION}`);
   stop(() => release.assets(context(box, { platform, php: '8.4' }, { env: { STUB_PHP_EXTENSION: 'fixture-native-php' } }), tag), /^.*PHP 8\.4 loads the binary that cargo built from packages\/fixture-native-php as the extension fixture-native-php, not as kit_fixture, the php-ext\.extension-name of its composer\.json/);
   assert.equal(existsSync(path.join(box.root, 'var/release/assets')), false, 'no binary is packed');
+});
+
+// K1208: the strip setting of a Cargo profile does not change a static library, so the set strips the debug sections itself.
+test('K1208: a platform set strips the debug sections of the Go static library with llvm-strip of the toolchain before it packs it', (t) => {
+  const platform = host();
+  const box = nativeSandbox(t);
+  release.assets(context(box, { platform }, { env: { STUB_WHEEL_TAGS: WHEEL_TAGS[platform] } }), box.tag(`v${VERSION}`));
+  const strips = box.calls().filter(call => call.tool === 'llvm-strip');
+  assert.equal(strips.length, 1, 'one library, the one of the go-static package');
+  assert.deepEqual(strips[0]?.args.slice(0, 1), ['--strip-debug']);
+  assert.match(strips[0]?.args[1] ?? '', /go-static\/packages\/fixture-native-go\/lib[\w-]+\.a$/, 'the copy that the zip holds, not the file of the target folder');
+  // Without the component the set names it and packs no library.
+  const bare = nativeSandbox(t);
+  rmSync(path.join(bare.root, '.stubs/sysroot'), { recursive: true });
+  stop(() => release.assets(context(bare, { platform }, { env: { STUB_WHEEL_TAGS: WHEEL_TAGS[platform] } }), bare.tag(`v${VERSION}`)), /llvm-strip is missing; name the component llvm-tools in rust-toolchain\.toml and run make install-tools/);
 });
 
 test('K1189: a platform set builds on its own platform alone, and a set that no package builds is refused', (t) => {

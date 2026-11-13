@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { initRepository } from '../kit/sandbox-repository.mts';
 import { toolCommand } from '../../scripts/kit/mise-tools.mts';
 import { Stop } from '../../scripts/kit/process.mts';
+import { llvmTool } from '../../scripts/kit/release-native.mts';
 import { GO_PLATFORM_NAMES, releaseGoModules, type GoPlatform } from '../../scripts/kit/release-go-module.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -39,7 +40,7 @@ function emptyLibrary(platform: GoPlatform): Buffer {
 }
 
 /** A repository with a Go module that calls a Rust static library through cgo, its tag, a remote, and the library of each platform. */
-function sandbox(t: TestContext) {
+function sandbox(t: TestContext, { strip = true }: { strip?: boolean } = {}) {
   const base = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-go-module-real-')));
   t.after(() => rmSync(base, { recursive: true, force: true }));
   const root = path.join(base, 'repository');
@@ -86,12 +87,14 @@ function sandbox(t: TestContext) {
   const libraries = Object.fromEntries(GO_PLATFORM_NAMES.map((platform) => {
     const file = path.join(base, 'libraries', platform, 'libkit_fixture_go.a');
     mkdirSync(path.dirname(file), { recursive: true });
-    if (platform === HOST) copyFileSync(built, file);
-    else writeFileSync(file, emptyLibrary(platform));
+    // The set of a platform strips the debug sections of its library before it packs it (K1208).
+    if (platform === HOST) {
+      copyFileSync(built, file);
+      if (strip) command(llvmTool(root, env, 'llvm-strip'), ['--strip-debug', file]);
+    } else writeFileSync(file, emptyLibrary(platform));
     return [platform, file];
   })) as Partial<Record<GoPlatform, string>>;
-  const llvmNm = path.join(command('rustc', ['--print', 'sysroot']), 'lib/rustlib', command('rustc', ['--print', 'host-tuple']), 'bin/llvm-nm');
-  const release = () => releaseGoModules({ root, env, log: () => {}, tag: TAG, remote: 'origin', modules: [{ module: { directory: 'packages/go', library: 'internal/ffi/lib', generated: ['**/zz_generated_*.go'], testSymbols: ['__panic_test'] }, libraries }], llvmNm, go });
+  const release = () => releaseGoModules({ root, env, log: () => {}, tag: TAG, remote: 'origin', modules: [{ module: { directory: 'packages/go', library: 'internal/ffi/lib', generated: ['**/zz_generated_*.go'], testSymbols: ['__panic_test'] }, libraries }], llvmNm: llvmTool(root, env, 'llvm-nm'), llvmSize: llvmTool(root, env, 'llvm-size'), go });
   return { root, remote, env, command, libraries, release };
 }
 
@@ -116,4 +119,10 @@ test('K1205: a module whose library of this platform lacks the function fails th
   assert.throws(() => box.release(), error => error instanceof Stop && /fails go test -count=1 \., so no tag is made/.test(error.message));
   assert.equal(box.command('git', ['tag', '--list', 'packages/*']), '', 'no tag in the repository');
   assert.equal(box.command('git', ['--git-dir', box.remote, 'tag', '--list', 'packages/*']), '', 'no tag on the remote');
+});
+
+test('K1208: the library that cargo builds holds debug sections, which stop the release until llvm-strip of the toolchain removes them', (t) => {
+  const box = sandbox(t, { strip: false });
+  assert.throws(() => box.release(), error => error instanceof Stop && new RegExp(`the library of ${HOST}, libkit_fixture_go\\.a, holds the debug sections (?:__debug_|\\.debug_)\\w+ \\(\\d+ bytes\\)`).test(error.message));
+  assert.equal(box.command('git', ['tag', '--list', 'packages/*']), '', 'no tag in the repository');
 });
