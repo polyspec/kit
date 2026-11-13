@@ -226,6 +226,68 @@ test('a rebase merges checklist rows by id, so a row that main closes is kept on
   assert.equal(ko, korean(en, en.split('\n').slice(1).join('\n').replace('# P', '# 피')), 'the twin holds the same rows and the marker of the merged English');
 });
 
+// K1197: a branch lands by a merge, so the drivers read the English sides of a merge from MERGE_HEAD and the merge base. The case of
+// polyspec/kit#37: two branches that both add an entry to the changelog and a row to the checklist merge with current twins.
+const repository = (t: Parameters<typeof tree>[0]) => {
+  const root = tree(t, { 'Makefile': KIT_MAKEFILE, 'config/checklist.json': CONFIG_JSON });
+  const git = (...args: string[]) => {
+    const result = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
+    return { ...result, ok: result.status === 0 };
+  };
+  const english = { changelog: 'CHANGELOG.md', checklist: 'docs/plans/p/checklist.md' };
+  const head = { changelog: '<!-- doc-id: changelog -->\n# Changelog\n\n## Unreleased\n\n', checklist: '<!-- doc-id: checklist-p -->\n# P\n\n| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n' };
+  const twin = (file: string) => file.replace(/\.md$/, '.ko.md');
+  // A side writes its lines into both languages and the marker of its English files, as make commit leaves them.
+  const write = (lines: { changelog: string[]; checklist: string[] }) => {
+    for (const key of ['changelog', 'checklist'] as const) {
+      const en = `${head[key]}${lines[key].map(line => `${line}\n`).join('')}`;
+      put(root, { [english[key]]: en, [twin(english[key])]: korean(en, en.split('\n').slice(1).join('\n').replace('# Changelog', '# 변경 기록').replace(/\(T(\d)\)/g, '(항목 T$1)')) });
+    }
+    assert.ok(git('add', '-A').ok);
+    assert.ok(git('commit', '--quiet', '-m', 'step').ok);
+  };
+  const read = (file: string) => readFileSync(path.join(root, file), 'utf8');
+  installMerges(root, KIT_MERGES);
+  return { root, git, english, twin, write, read };
+};
+
+test('K1197: a merge of two branches that both add changelog entries and checklist rows resolves the Korean twins as their English files (polyspec/kit#37)', (t) => {
+  const { git, english, twin, write, read } = repository(t);
+  write({ changelog: ['- a (T1).'], checklist: ['| T1 | a | `a` | `a` | [o] |'] });
+  assert.ok(git('branch', '-M', 'main').ok);
+  assert.ok(git('checkout', '--quiet', '-b', 'side').ok);
+  write({ changelog: ['- b (T2).', '- a (T1).'], checklist: ['| T1 | a | `a` | `a` | [o] |', '| T2 | b | `b` | `b` | [o] |'] });
+  assert.ok(git('checkout', '--quiet', 'main').ok);
+  write({ changelog: ['- c (T3).', '- a (T1).'], checklist: ['| T1 | a | `a` | `a` | [o] |', '| T3 | c | `c` | `c` | [o] |'] });
+  const merge = git('merge', '--no-ff', '--no-edit', 'side');
+  assert.equal(merge.status, 0, `the merge conflicts: ${merge.stdout}${merge.stderr}`);
+  for (const key of ['changelog', 'checklist'] as const) {
+    const en = read(english[key]);
+    const ko = read(twin(english[key]));
+    // The Korean changelog entries are their own text, (항목 T<n>), so each one comes from the Korean side that wrote it.
+    for (const id of ['T1', 'T2', 'T3']) assert.ok(en.includes(id) && ko.includes(key === 'changelog' ? `(항목 ${id})` : `| ${id} |`), `${english[key]} and its twin hold ${id}`);
+    assert.equal(/<!-- source-sha256: ([0-9a-f]+) -->/.exec(ko)?.[1], createHash('sha256').update(en).digest('hex'), `the twin of ${english[key]} is current`);
+  }
+});
+
+test('K1197: a checklist row that both branches changed differently fails the merge and leaves the conflict of both sides in the file and its twin', (t) => {
+  const { git, english, twin, write, read } = repository(t);
+  write({ changelog: ['- a (T1).'], checklist: ['| T1 | a | `a` | `a` | [ ] |'] });
+  assert.ok(git('branch', '-M', 'main').ok);
+  assert.ok(git('checkout', '--quiet', '-b', 'side').ok);
+  write({ changelog: ['- a (T1).'], checklist: ['| T1 | a | `a` | `a` | [!] cause: x; retry: y |'] });
+  assert.ok(git('checkout', '--quiet', 'main').ok);
+  write({ changelog: ['- a (T1).'], checklist: ['| T1 | a | `a` | `a` | [o] |'] });
+  const merge = git('merge', '--no-ff', '--no-edit', 'side');
+  assert.notEqual(merge.status, 0, 'the merge stops at the row');
+  assert.match(`${merge.stdout}${merge.stderr}`, /the task T1 changed differently on both sides/);
+  for (const file of [english.checklist, twin(english.checklist)]) {
+    const text = read(file);
+    assert.match(text, /^<<<<<<< /m, `${file} holds the conflict markers`);
+    assert.ok(text.includes('[o] |') && text.includes('[!] cause: x; retry: y |'), `${file} holds both sides:\n${text}`);
+  }
+});
+
 // K1099: the tool fixes no folder, attribute or driver: it installs what the caller declares, and a call without a declaration is
 // a usage error that changes nothing.
 test('K1099: git-hooks installs the folder, merges and drivers that the caller declares, and refuses a bare call (exit 2)', (t) => {

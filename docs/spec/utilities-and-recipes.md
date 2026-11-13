@@ -34,6 +34,18 @@ separator; `TestRef.name` retains the native display name. The parser keeps simu
 Two classes in different namespaces remain distinct even when their class basename, method and data set are equal.
 Repositories own their explicit invocation, selection and expected case inventory. This utility adds none of those policies.
 
+## Merge drivers of the twins (K1197)
+
+`make hooks` declares the merge drivers `kit-twin`, `kit-changelog` and `kit-checklist` (`twin-merge.mts`, K354). A Korean twin
+takes the revision marker of its English file as git merges that file, so the driver reads the English file on the three sides of
+the merge that git runs. In a merge, the default way that a branch lands, theirs is the commit that git merges, which git names to
+the driver in the variable `GITHEAD_<commit>` of its environment, since it writes `MERGE_HEAD` only after the merge stopped, and
+the base is `git merge-base HEAD <commit>`. In the rebase that `make land` runs on a branch behind `main` (K495-1), theirs is the commit that the rebase
+applies, the last of `rebase-merge/done`, and the base is its parent. Any other operation, such as a cherry-pick, names neither,
+and the driver fails, naming the merge. A driver that cannot merge a file, because its sides are unknown or because a task row of
+a checklist changed differently on both sides, writes the conflict of `git merge-file` into the file, with the markers of both
+sides, and exits 1, so the work file never holds one side alone without a sign of the other.
+
 ## What kit does not do
 
 kit forces nothing. In particular:

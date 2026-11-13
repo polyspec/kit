@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // The merge driver kit-twin of a Korean twin (K354). kit's `make hooks` declares it in .git/info/attributes for CHANGELOG.ko.md and the
 // Korean checklists, whose English files merge with merge=union, since the lines of a changelog and the rows of a checklist are
-// independent. Git runs it for each such twin of a rebase: the text is the union of both sides without their revision markers, and
-// the marker is the sha256 of the English file as git merges it (the same union of the same three sides), so every commit that the
-// rebase writes holds a current twin, with no conflict, hand edit or script after it.
+// independent. Git runs it for each such twin of a merge or of a rebase: the text is the union of both sides without their revision
+// markers, and the marker is the sha256 of the English file as git merges it (the same union of the same three sides), so every
+// commit that the merge or the rebase writes holds a current twin, with no conflict, hand edit or script after it. A driver that
+// cannot merge a file leaves the conflict of both sides in it and fails (K1197).
 //
 // It is also the driver kit-changelog of CHANGELOG.md (K354-1). A union of a rebase puts the lines of main before those of the commit
 // that the rebase applies, so the entry of a branch would land below the newer entries of main; the driver of a changelog, English
@@ -186,17 +187,49 @@ export function mergeChecklist(root: string, texts: { base: string; ours: string
 export const textAt = (root: string, rev: string, file: string): string => fileAt(root, rev, file);
 
 /**
- * The base and theirs of the rebase that runs in `root`: the commit that it applies over HEAD, the last of rebase-merge/done, and its
- * parent. Git names no such commit to a driver of a merge or a cherry-pick, so the English side is unknown there and the driver
- * fails, naming the rebase that lands a branch.
+ * The base and theirs of the operation that runs in `root` (K1197). A merge, the way a branch lands, names the commit that it merges
+ * to the driver in the variable GITHEAD_<commit> of the environment `env`, since git writes MERGE_HEAD only after the merge stopped;
+ * its base is the merge base of HEAD and that commit. The rebase that make land runs on a branch behind main (K495-1) applies the last
+ * commit of rebase-merge/done over HEAD, and its base is the parent of that commit. Any other operation, such as a cherry-pick, names
+ * neither, and the driver fails.
  */
-function sides(root: string): { base: string; theirs: string } {
-  const done = path.resolve(root, gitResult(root, 'rev-parse', '--git-path', 'rebase-merge/done').stdout.trim());
-  const commit = existsSync(done) ? readFileSync(done, 'utf8').trim().split('\n').at(-1)?.split(/\s+/)[1] : undefined;
-  if (commit === undefined || gitResult(root, 'rev-parse', '--verify', '--quiet', `${commit}^{commit}`).status !== 0) {
-    throw new Error('the driver kit-twin merges a Korean twin in a rebase, where it knows the commit that the rebase applies; rebase the branch onto main instead of merging it');
+function sides(root: string, env: NodeJS.ProcessEnv): { base: string; theirs: string } {
+  const merged = Object.keys(env).flatMap(name => /^GITHEAD_([0-9a-f]{40,64})$/.exec(name)?.slice(1) ?? []);
+  if (merged.length > 1) throw new Error(`the merge names ${merged.length} commits (${merged.join(', ')}); the driver kit-twin merges two sides`);
+  const [commit] = merged;
+  if (commit !== undefined) {
+    const found = gitResult(root, 'merge-base', 'HEAD', commit);
+    const base = found.stdout.trim();
+    if (found.error || found.status !== 0 || base === '') throw new Error(`HEAD and the merged commit ${commit} have no merge base, so the English side of the base is unknown`);
+    return { base, theirs: commit };
   }
-  return { base: `${commit}^`, theirs: commit };
+  const done = path.resolve(root, gitResult(root, 'rev-parse', '--git-path', 'rebase-merge/done').stdout.trim());
+  const applied = existsSync(done) ? readFileSync(done, 'utf8').trim().split('\n').at(-1)?.split(/\s+/)[1] : undefined;
+  if (applied === undefined || gitResult(root, 'rev-parse', '--verify', '--quiet', `${applied}^{commit}`).status !== 0) {
+    throw new Error('the driver kit-twin reads the English file on the sides of a merge, which git names in GITHEAD_<commit>, or of a rebase (rebase-merge/done); this operation names neither, so merge the branch');
+  }
+  return { base: `${applied}^`, theirs: applied };
+}
+
+/**
+ * The conflict of `git merge-file` over the three sides `texts` in the work tree `root`, with the markers of both sides, which a
+ * driver that cannot merge a file leaves in it (K1197).
+ */
+export function conflict(root: string, texts: { base: string; ours: string; theirs: string }): string {
+  const folder = mkdtempSync(path.join(tmpdir(), 'kit-twin-conflict-'));
+  try {
+    const files = (['ours', 'base', 'theirs'] as const).map((name) => {
+      const file = path.join(folder, name);
+      writeFileSync(file, texts[name]);
+      return file;
+    });
+    const result = gitResult(root, 'merge-file', '-p', '-L', 'ours', '-L', 'base', '-L', 'theirs', ...files);
+    // git merge-file exits with the number of conflicts, and with a negative status on an error.
+    if (result.error || result.status === null || result.status < 0) throw new Error(`git merge-file failed: ${result.error?.message ?? result.stderr.trim()}`);
+    return result.stdout;
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
 }
 
 /**
@@ -213,15 +246,15 @@ function mergerOf(root: string, file: string, attribute: string): (sides: { base
 }
 
 /** The merged twin of `twin` (a path of the work tree `root`) from its three sides: the union, with the marker of the merged English. */
-export function mergeTwin(root: string, twin: string, texts: { base: string; ours: string; theirs: string }): string {
+export function mergeTwin(root: string, twin: string, texts: { base: string; ours: string; theirs: string }, env: NodeJS.ProcessEnv = process.env): string {
   const plain = { base: texts.base.replace(MARKER, ''), ours: texts.ours.replace(MARKER, ''), theirs: texts.theirs.replace(MARKER, '') };
   const english = twin.replace(/\.ko\.md$/, '.md');
   // The twin merges as git merges its English file, by the attribute of that file: a checkout whose hooks predate K354-1 merges
   // CHANGELOG.md with merge=union, and its marker is the sha256 of that union (K354-2). A checklist merges by its rows (K354-3).
   const merge = mergerOf(root, twin, mergeAttribute(root, english));
   const body = merge(plain);
-  const { base, theirs } = sides(root);
-  // The English file merges as its own driver merges it, so the marker is the sha256 of the English file that the rebase writes.
+  const { base, theirs } = sides(root, env);
+  // The English file merges as its own driver merges it, so the marker is the sha256 of the English file that the operation writes.
   const merged = merge({ base: textAt(root, base, english), ours: textAt(root, 'HEAD', english), theirs: textAt(root, theirs, english) });
   const result = stamped(body, sha256(merged));
   if (result === null) throw new Error(`${twin} has no doc-id line, so it holds no revision marker`);
@@ -230,10 +263,13 @@ export function mergeTwin(root: string, twin: string, texts: { base: string; our
 
 if (isMain(import.meta.url)) {
   const [base, ours, theirs, twin] = process.argv.slice(2);
+  if (!base || !ours || !theirs || !twin) {
+    console.error('[twin-merge] Usage: node twin-merge.mts <base> <ours> <theirs> <path>');
+    process.exit(2);
+  }
+  const read = (file: string) => readFileSync(file, 'utf8');
+  const texts = { base: read(base), ours: read(ours), theirs: read(theirs) };
   try {
-    if (!base || !ours || !theirs || !twin) throw new Error('Usage: node twin-merge.mts <base> <ours> <theirs> <path>');
-    const read = (file: string) => readFileSync(file, 'utf8');
-    const texts = { base: read(base), ours: read(ours), theirs: read(theirs) };
     // A Korean twin takes the marker of its merged English file; the English changelog is the union with its entries ordered, and
     // the English checklist is the merge of its rows by ID.
     if (twin.endsWith('.ko.md')) writeAtomic(ours, mergeTwin(process.cwd(), twin, texts));
@@ -241,7 +277,9 @@ if (isMain(import.meta.url)) {
     else writeAtomic(ours, mergeChangelog(process.cwd(), texts));
   } catch (error) {
     if (!(error instanceof Error)) throw error;
-    console.error(`[twin-merge] ${error.message}`);
+    console.error(`[twin-merge] ${twin}: ${error.message}`);
+    // The file keeps the conflict of both sides, so a resolution sees the other side and no commit drops it without a sign (K1197).
+    writeAtomic(ours, conflict(process.cwd(), texts));
     process.exit(1);
   }
 }

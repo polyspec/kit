@@ -1,5 +1,5 @@
 <!-- doc-id: spec-utilities-and-recipes -->
-<!-- source-sha256: 97cd63ec0ecadf917a82dddd0d09f817b75eddcb6f8b625f3590aabf5b5057dc -->
+<!-- source-sha256: f12e68c9d1f3b899d2dcd19c5b8e3c08d1e1d783fd116a22e82080cdadae8585 -->
 # 유틸리티와 예제
 
 [English](utilities-and-recipes.md)
@@ -34,6 +34,18 @@ Native event parser는 framework의 완전한 test identity를 보존한다. PHP
 `TestRef.name`은 native display name을 유지한다. Parser는 동시에 진행되는 event flow를 구분한다.
 서로 다른 namespace의 class는 class basename, method, data set이 같아도 구별된다.
 명시적 invocation, selection, expected case inventory는 repository가 소유하며 이 utility는 해당 정책을 추가하지 않는다.
+
+## 짝 문서의 merge driver (K1197)
+
+`make hooks`는 merge driver `kit-twin`, `kit-changelog`, `kit-checklist`를 선언한다(`twin-merge.mts`, K354). 한국어 짝은 git이
+merge하는 그대로의 영어 파일에서 revision marker를 받으므로, driver는 git이 실행하는 merge의 세 쪽에서 영어 파일을 읽는다.
+branch를 들이는 기본 방법인 merge에서 theirs는 git이 merge하는 commit이다. git은 `MERGE_HEAD`를 merge가 멈춘 뒤에야
+쓰므로, 그 commit을 driver 환경의 변수 `GITHEAD_<commit>`으로 알려 준다. base는 `git merge-base HEAD <commit>`이다. `main`보다
+뒤진 branch에 `make land`가 실행하는 rebase(K495-1)에서 theirs는 rebase가 적용하는 commit, 곧 `rebase-merge/done`의 마지막
+commit이고 base는 그 부모이다. cherry-pick처럼 그 밖의 작업은 어느 쪽도 알려 주지 않으며, driver는 merge를 이름으로 대고
+실패한다. 세 쪽을 알 수 없거나 checklist의 task row를 양쪽이 서로 다르게 바꿔 파일을 merge할 수 없는 driver는 `git
+merge-file`의 충돌을 양쪽 표시와 함께 그 파일에 쓰고 1로 끝난다. 그래서 작업 파일은 다른 쪽의 흔적 없이 한쪽만 담는 일이
+없다.
 
 ## kit이 하지 않는 것
 
