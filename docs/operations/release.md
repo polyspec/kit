@@ -89,7 +89,9 @@ byte for byte.
 
 The napi CLI keeps the folders of the platform packages inside the package of its package.json, since it refuses a folder
 outside the project that it discovers from there. So `napi create-npm-dirs` and `napi artifacts` write them into `.kit-napi/npm/<platform>`
-of the package in the copy of the tagged tree, a folder of kit that no repository tracks, and npm packs each from there (K1198).
+of the package in the copy of the tagged tree, a folder of kit that no repository tracks, and npm packs each from there (K1198). `napi artifacts` requires the addon of every target of its configuration,
+and a platform set builds the addon of its own platform alone, so `napi create-npm-dirs` and `napi artifacts` read a configuration
+file of the run (`--config-path`) that names the target of the set alone and overrides `napi.targets` of package.json (K1199).
 
 Before it builds anything, every set checks the manifest of every native package of config/release.json, whichever set builds
 that package: the name of each manifest, `napi.binaryName`, `napi.targets` and the `optionalDependencies` of an `npm-native`

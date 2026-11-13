@@ -275,6 +275,17 @@ test('K1198: a platform set writes the folders of the npm platform packages into
   }
 });
 
+// K1199: napi artifacts requires the addon of every configured target, and a platform set builds its own alone, so create-npm-dirs
+// and artifacts read a configuration of the run that names the target of the set.
+test('K1199: a platform set gives napi create-npm-dirs and napi artifacts a configuration with the target of its platform alone', (t) => {
+  const platform = host();
+  const box = nativeSandbox(t);
+  release.assets(context(box, { platform }, { env: { STUB_WHEEL_TAGS: WHEEL_TAGS[platform] } }), box.tag(`v${VERSION}`));
+  const calls = box.calls().filter(item => item.tool === 'napi' && item.args[0] !== 'build');
+  assert.deepEqual(calls.map(call => call.args[0]), ['create-npm-dirs', 'artifacts']);
+  for (const call of calls) assert.ok(call.args.includes('--config-path'), call.args.join(' '));
+});
+
 test('K1189: the set of a PHP minor builds the PIE binary of the php-ext package for the PHP of the checkout, which loads it, and refuses another minor', (t) => {
   const platform = host();
   const box = nativeSandbox(t);

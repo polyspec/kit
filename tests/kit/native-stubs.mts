@@ -4,7 +4,8 @@
 // type of its [lib] into CARGO_TARGET_DIR/release and prints the compiler-artifact message of cargo for it. php prints the build
 // that STUB_PHP_MINOR names and loads an extension file that exists. The napi CLI writes the addon of its package.json, the
 // folder of each platform package with the package.json that napi create-npm-dirs writes, and copies the addon into its folder;
-// like the napi CLI, it refuses an npm folder outside the package of its package.json (K1198).
+// like the napi CLI, it refuses an npm folder outside the package of its package.json (K1198), and artifacts requires the addon of
+// every configured target, where a file of --config-path overrides the napi field of package.json (K1199).
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -70,19 +71,24 @@ if (args[0] !== 'build') {
   const inside = path.relative(root, path.join(fs.realpathSync(existing), path.relative(existing, npmDir)));
   if (inside.startsWith('..') || path.isAbsolute(inside)) { console.error('Internal Error: Managed package paths must stay within the project or workspace boundary discovered from ' + process.cwd() + ': ' + root + ', ' + npmDir); process.exit(1); }
 }
+// A configuration file of --config-path overrides the napi field of package.json, as in the napi CLI.
+const targets = args.includes('--config-path') ? (JSON.parse(fs.readFileSync(option('--config-path'), 'utf8')).targets ?? manifest.napi.targets) : manifest.napi.targets;
 if (args[0] === 'build') {
   fs.mkdirSync(option('--output-dir'), { recursive: true });
   fs.writeFileSync(path.join(option('--output-dir'), addon(platforms[option('--target')][0])), 'stub addon\\n');
 } else if (args[0] === 'create-npm-dirs') {
-  for (const triple of manifest.napi.targets) {
+  for (const triple of targets) {
     const [platform, os, cpu] = platforms[triple];
     fs.mkdirSync(path.join(option('--npm-dir'), platform), { recursive: true });
     fs.writeFileSync(path.join(option('--npm-dir'), platform, 'package.json'), JSON.stringify({ name: manifest.name + '-' + platform, version: process.env.STUB_NAPI_VERSION || manifest.version, os: [os], cpu: [cpu], main: addon(platform), files: [addon(platform)] }, null, 2) + '\\n');
   }
 } else if (args[0] === 'artifacts') {
-  for (const file of fs.readdirSync(option('--output-dir')).filter(file => file.endsWith('.node'))) {
-    const platform = file.split('.')[1];
-    fs.copyFileSync(path.join(option('--output-dir'), file), path.join(option('--npm-dir'), platform, file));
+  // Like the napi CLI, artifacts requires the addon of every configured target (K1199).
+  const missing = targets.filter(triple => !fs.existsSync(path.join(option('--output-dir'), addon(platforms[triple][0]))));
+  if (missing.length) { console.error('Internal Error: Missing artifacts for configured targets: ' + missing.join(', ')); process.exit(1); }
+  for (const triple of targets) {
+    const platform = platforms[triple][0];
+    fs.copyFileSync(path.join(option('--output-dir'), addon(platform)), path.join(option('--npm-dir'), platform, addon(platform)));
   }
 } else {
   console.error('napi stub: unexpected arguments ' + JSON.stringify(args));

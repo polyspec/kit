@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: dc1dd9822eac5a7b5eff1c788b9cc0d925ba5a855e02b4d9e4b17754541b1234 -->
+<!-- source-sha256: fcb5c9218ad0c4ab941e7b58a1cde22475cbd72e2ba608901ec5bb5d7cad0eb7 -->
 # 릴리스
 
 [English](release.md)
@@ -76,7 +76,9 @@ root package가 담는 것을 빌드하기 때문이다. root package는 자기 
 
 napi CLI는 package.json에서 찾은 project 밖의 폴더를 거부하므로, 플랫폼 package의 폴더를 그 package.json의 package 안에 둔다.
 그래서 `napi create-npm-dirs`와 `napi artifacts`는 tag된 tree 사본의 package 안 `.kit-napi/npm/<platform>`에 그 폴더를 쓰고, npm은
-각각을 거기서 pack한다. 그 폴더는 kit의 것이며 어느 저장소도 추적하지 않는다(K1198).
+각각을 거기서 pack한다. 그 폴더는 kit의 것이며 어느 저장소도 추적하지 않는다(K1198). `napi artifacts`는 설정의 모든 target의 addon을 요구하고, platform set은 자기 플랫폼의
+addon만 빌드한다. 그래서 `napi create-npm-dirs`와 `napi artifacts`는 그 set의 target만 적고 package.json의 `napi.targets`를
+덮어쓰는 실행의 설정 파일(`--config-path`)을 읽는다(K1199).
 
 모든 set은 무엇이든 빌드하기 전에 config/release.json의 모든 native package의 manifest를, 그 package를 어느 set이 빌드하든
 검사한다. 각 manifest의 이름, `npm-native` package의 `napi.binaryName`, `napi.targets`, `optionalDependencies`, `php-ext`

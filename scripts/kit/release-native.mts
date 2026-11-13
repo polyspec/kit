@@ -9,7 +9,7 @@
 // cross-compiles here. Every native build reads the Cargo workspace of the repository, so it runs in a copy of the whole tagged
 // tree with the outputs of the make entries of its package, and cargo writes into a target folder of the run; both are
 // removed after the run.
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, utimesSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { execute, run, Stop } from './process.mts';
 import { parseJson } from './schema-validate.mts';
@@ -326,8 +326,12 @@ function npmPlatform(build: NativeBuild, item: NativePackage, platform: Platform
   const place = { cwd: build.source, env: { ...build.env, CARGO_TARGET_DIR: build.target } };
   build.log(`[release] napi build --platform --release ${item.directory} for ${PLATFORMS[platform].triple}`);
   run(napi, ['build', '--platform', '--release', '--no-js', '--manifest-path', manifest, '--package-json-path', packageJson, '--target-dir', build.target, '--output-dir', addons, '--target', PLATFORMS[platform].triple, '--', '--locked'], place);
-  run(napi, ['create-npm-dirs', '--package-json-path', packageJson, '--npm-dir', npm], place);
-  run(napi, ['artifacts', '--package-json-path', packageJson, '--output-dir', addons, '--npm-dir', npm], place);
+  // napi artifacts requires the addon of every configured target, and the set builds its own alone, so the two commands read a
+  // configuration of the run with the target of the set, which overrides napi.targets of package.json (K1199).
+  const config = path.join(build.work, 'napi', item.directory, 'napi.json');
+  writeFileSync(config, `${JSON.stringify({ targets: [PLATFORMS[platform].triple] })}\n`);
+  run(napi, ['create-npm-dirs', '--package-json-path', packageJson, '--config-path', config, '--npm-dir', npm], place);
+  run(napi, ['artifacts', '--package-json-path', packageJson, '--config-path', config, '--output-dir', addons, '--npm-dir', npm], place);
   const folder = path.join(npm, platform);
   const written = parseJson<NpmManifest>(readFileSync(path.join(folder, 'package.json'), 'utf8'), 'npm-manifest.schema.json', `the package.json that napi wrote for ${platform}`);
   const problems = [
