@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6a9014a0ddf352d16441b4423f9ba5c1083b6c9f1428cf30318e6a401e576ef9 -->
+<!-- source-sha256: 669f223bd1ad562381331ea4a682e8403abbbcacc5bb111c7289a54291620e32 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1222: release가 contract 검사를 실행하지 않습니다. config/release.json의 `contracts`와, archive를 빌드하기 전에 `<check> <file> --release`를 실행하던 단계(K1209)를 제거했습니다. 인자 `--release`와 release 안에서 그 검사의 자리는 한 contract 도구에 대한 지식이었고, 그것이 kit의 코드에 있었습니다. 저장소는 `release-assets`를 시작하기 전에 자기 recipe에서 contract 검사를 실행합니다. schema는 `contracts`를 더 설명하지 않고, 그 key는 아무도 읽지 않습니다.
 
 - K1220: release가 static library를 가진 Go module의 commit과 tag를 만들지 않습니다. `release.mts go-modules`, `release-go-module.mts`, target `release-go-modules`, `release.schema.json`의 `goModule`, 그것을 돌리던 예시 release workflow의 단계를 제거했습니다. Go module의 commit이 어떤 파일을 담는지, tag 이름이 무엇인지, 어떤 consumer가 증명하는지를 kit의 코드가 정했는데, 그것은 저장소의 release이고 어느 recipe도 이 mode를 부르지 않았습니다. 저장소는 그 commit과 tag를 자기 recipe에서 만듭니다(`git commit-tree`, `git tag -a <directory>/vX.Y.Z <commit>`, `git push <remote> <tag>`). `release-tag`는 `goModules`의 module에 계속 tag를 달고, 플랫폼 set은 `go-static` asset을 계속 strip하고 pack합니다(K1208).
 

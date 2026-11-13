@@ -809,59 +809,6 @@ test('the command line runs each step, prints a line per step and exits with 1 o
   assert.match(result.stderr, /\[release\] coverage failed: 1 package files are not classified/);
 });
 
-// K1209: the contract tool of a repository checks each contract in its release form before any archive is built. The stub stands
-// for that tool: it records its arguments and fails as STUB_CONTRACT names, or refuses the option --release as a tool without it does.
-const CONTRACT_STUB = `#!/bin/sh
-echo "$*" >> "$STUB_CONTRACT_LOG"
-if [ "$STUB_CONTRACT" = "old" ]; then echo "error: unknown option '--release'" >&2; exit 2; fi
-if [ "$STUB_CONTRACT" = "path" ]; then echo "packages/fixture-lib/Cargo.toml: polyspec-other is a path dependency, not =X.Y.Z or the tag vX.Y.Z" >&2; echo "packages/fixture-lib/Cargo.toml: polyspec-binding-core names a branch" >&2; exit 1; fi
-exit 0
-`;
-function contractSandbox(t: TestContext, files: string[] = ['contracts/a.json', 'contracts/b.json']) {
-  const box = releaseSandbox(t, {
-    mutate: (root) => {
-      mkdirSync(path.join(root, 'contracts'), { recursive: true });
-      mkdirSync(path.join(root, 'scripts'), { recursive: true });
-      for (const name of ['a', 'b']) writeFileSync(path.join(root, `contracts/${name}.json`), '{}\n');
-      writeFileSync(path.join(root, 'scripts/contract-tool'), CONTRACT_STUB);
-      chmodSync(path.join(root, 'scripts/contract-tool'), 0o755);
-      writeJson(root, 'config/release.json', { ...readJson<release.ReleaseConfig>(root, 'config/release.json'), contracts: { check: ['scripts/contract-tool', 'check'], files } });
-    },
-  });
-  const log = path.join(box.root, '.stubs/contract.log');
-  writeFileSync(log, '');
-  const run = (mode: string) => release.assets(release.context(box.root, { env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY, STUB_CONTRACT_LOG: log, STUB_CONTRACT: mode } }), box.tag('v0.0.1'));
-  return { box, run, calls: () => readFileSync(log, 'utf8').split('\n').filter(Boolean), assets: () => (existsSync(path.join(box.root, 'var/release/assets')) ? readdirSync(path.join(box.root, 'var/release/assets')) : []) };
-}
-
-test('K1209: the release runs the check of each contract with --release before it builds an archive', (t) => {
-  const { run, calls, assets } = contractSandbox(t);
-  assert.ok(run('').length > 0, 'the archives are built');
-  assert.deepEqual(calls(), ['check contracts/a.json --release', 'check contracts/b.json --release']);
-  assert.ok(assets().length > 0);
-  // A repository without contracts runs no tool.
-  const plain = releaseSandbox(t);
-  assert.ok(release.assets(context(plain), plain.tag('v0.0.1')).length > 0);
-});
-
-test('K1209: a contract that fails its release check stops the release with the standard error of the tool, and no archive is built', (t) => {
-  const { run, calls, assets } = contractSandbox(t);
-  assert.throws(() => run('path'), error => error instanceof Stop
-    && error.message.includes('scripts/contract-tool check contracts/a.json --release ended with exit status 1')
-    && error.message.includes('packages/fixture-lib/Cargo.toml: polyspec-other is a path dependency, not =X.Y.Z or the tag vX.Y.Z\npackages/fixture-lib/Cargo.toml: polyspec-binding-core names a branch'), 'the lines of the tool as they are');
-  assert.deepEqual(calls(), ['check contracts/a.json --release', 'check contracts/b.json --release'], 'every contract is checked before the release stops');
-  assert.deepEqual(assets(), [], 'no archive');
-});
-
-test('K1209: a contract tool without the option --release fails the release by name, never a skipped check, and a declared contract that the commit lacks is a problem', (t) => {
-  const { run, assets } = contractSandbox(t);
-  assert.throws(() => run('old'), error => error instanceof Stop && /ended with exit status 2.*a tool without the option --release of its check cannot check a release; update the tool that the repository pins[\s\S]*error: unknown option '--release'/.test(error.message));
-  assert.deepEqual(assets(), []);
-  const missing = contractSandbox(t, ['contracts/a.json', 'contracts/none.json']);
-  assert.throws(() => missing.run(''), error => error instanceof Stop && /contracts\/none\.json, a contract of contracts\.files of config\/release\.json, is no file of the commit/.test(error.message));
-  assert.deepEqual(missing.calls(), [], 'no tool runs');
-});
-
 test('the command line refuses a missing mode, missing arguments and extra arguments with the usage', (t) => {
   const box = releaseSandbox(t);
   for (const args of [[], ['verify', 'v0.0.1'], ['tag', 'v0.0.1'], ['go-tags', 'v0.0.1'], ['candidate-assets'], ['bogus', 'v0.0.1'], ['assets', 'v0.0.1', 'extra'], ['candidate-assets', '0.0.1', 'extra'], ['coverage', 'v0.0.1']]) {

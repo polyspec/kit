@@ -133,15 +133,6 @@
       "type": "array",
       "items": { "type": "string", "minLength": 1 }
     },
-    "contracts": {
-      "description": "The contracts of the repository (K1209). Before it builds an archive, the release runs the check command of the contract tool of the repository for each file, followed by the file and --release, in the checkout of the commit; a status other than 0 stops the release.",
-      "type": "object",
-      "required": ["check", "files"],
-      "properties": {
-        "check": { "description": "The command of the contract tool as the repository runs its check, a program path relative to the checkout or a name of PATH, and its leading arguments.", "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
-        "files": { "description": "The contract files, relative to the root of the repository.", "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
-      }
-    },
     "annotatedTags": {"description": "The repository's own rule that an existing release tag is annotated (K1084); without it a tag at the commit passes whatever its kind.", "type": "boolean"}
   }
 }

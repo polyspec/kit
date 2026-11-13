@@ -103,14 +103,6 @@ package, and `php-ext.extension-name` and `pre-packaged-binary` in `php-ext.down
 failure names every problem it finds, so each runner of the matrix fails with the same message before cargo, maturin or the
 napi CLI runs, and a manifest that a tool would reject is not found only after another asset of the set was built (K1196).
 
-A repository with contracts declares them in config/release.json, `"contracts": { "check": ["node", "scripts/<tool>.mts", "check"],
-"files": ["packages/rust/interface.json"] }`: `check` is the command of the contract tool that the lock of the repository pins, as
-the repository runs its check, and `files` are the contract files. After the manifest checks and before it builds an archive,
-every asset set and the candidate run `<check> <file> --release` in the checkout of the commit for each file (K1209). A status
-other than 0 stops the release with the command, its status and the standard error of the tool as it is, and no archive is built;
-every contract is checked before the release stops. No option skips the check, and a tool that does not know `--release` fails it,
-so the repository updates the tool that it pins. A repository without `contracts` runs nothing.
-
 A native package may declare make entries (`generated`), as a Composer or wheel package does. A build of a native kind reads
 the Cargo workspace of the repository, so it runs in a copy of the whole tagged tree (`git archive` of the commit), into which
 the outputs of the make entries are copied at their paths; cargo writes into a target folder of the run, outside the checkout,
