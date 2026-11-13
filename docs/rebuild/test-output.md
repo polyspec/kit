@@ -20,7 +20,7 @@ events of a run as they happen, from the standard runners of S3.
 | T2 | `go test -json` | the events of each test and package |
 | T3 | cargo test (libtest) text | the start and the result of each test, as they happen |
 | T4 | unittest verbose text | the start and the outcome of each test, as they happen |
-| T5 | PHPUnit TeamCity messages | the start, the result and the failure text of each test |
+| T5 | PHPUnit TeamCity messages | the start, the result and the failure text of each test; the number of tests of the run (`testCount`) and a class whose method before its first test failed or skipped, so that the tests that did not run are counted (K1214) |
 
 ## Tools evaluated
 

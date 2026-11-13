@@ -531,6 +531,21 @@ The exported `runCommand` owns only the commands it starts. Long commands have n
   each run of unittest the result class writes the number of tests that unittest ran (`run` with `tests`, its `testsRun`), and a
   record whose number of started tests differs from the sum of these numbers fails, naming both, so no test leaves the record
   without a sign (HR-84, K1201).
+- The summary line of every runner is `N passed, N failed, N skipped`, and it gains `, N not run` only when a test that the
+  tool counted for the run did not start (K1214). Such tests are no pass, no failure and no skip: they fail the run, and the
+  record of `--results` and of `KIT_TEST_RESULT` holds their number as `notRun`, which a record without one leaves out. PHPUnit
+  names the tests of a run in its `testCount` message, each data set and the selection of a filter included, as `--list-tests`
+  lists them. When a method before the first test of a class throws, such as `setUpBeforeClass`, PHPUnit 13.4 reports the class
+  as one failed test with no location inside the suite of the class and no message for its tests; when that method skips, it
+  reports `testIgnored` with the name of the class. The reader takes the class as a group, which fails or is skipped once and is
+  no test, and passes the tests of `testCount` that did not start as not run, so the counts add up to `testCount`. A record of
+  more tests than `testCount` fails, naming both numbers (HR-84).
+- `runtime-targets test --runner python` gives a root its harness module with `--module <root>=<package.module>`, which
+  repeats, one for each root (K1215). The run of that root is `run-tests python --module <package.module>` from the repository
+  root, where the package path of the module starts, so its tests import by that path and the `load_tests` of the harness
+  selects them; a root without a module runs the discovery of unittest in its folder. A value in another form, a root that is
+  none of `--roots`, a second module of a root, and a module for a runner other than python or for a build end with the
+  problem, the usage and exit 2.
 - `--results <file>` (K18) writes the record of a run, passed or not, through a temporary file and a rename: the counts, every
   test as `{id, status, elapsedMs}` (`pass`, `fail` or `skip`), the tool, the elapsed time of the run and `inputs`,
   the `inputsDigest` of the `--inputs` paths (the `--cwd` directory by default) over the tracked and non-ignored files. The

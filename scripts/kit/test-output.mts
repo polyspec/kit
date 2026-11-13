@@ -1,9 +1,10 @@
 // The parsers of the output of the test tools: go test -json, cargo test (libtest), python unittest (verbose) and PHPUnit
 // (TeamCity messages). run-tests reads a run's output with them into its progress lines. Each
 // parser reports to a sink with the methods `start(test, options)`, `pass(test, ms)`, `fail(test, ms, text)`, `skip(test)`,
-// `todo(test)`, `line(text)` and `raw(text)`, where `test` is `{ id, name }`: `id` is the name that the progress shows and
+// `todo(test)`, `notRun(count)`, `line(text)` and `raw(text)`, where `test` is `{ id, name }`: `id` is the name that the progress shows and
 // `name` is the name that the tool reports for the test. `todo` is a test that the tool expects to fail (a unittest expected
-// failure): it is no pass. `toProgress` turns a progress reporter into such a sink.
+// failure): it is no pass. `notRun` is the number of tests that the tool counted for the run and that did not start (K1214).
+// `toProgress` turns a progress reporter into such a sink.
 import type { Progress } from './test-progress.mts';
 import { ConfigError, parseJson } from './schema-validate.mts';
 import { present } from './present.mts';
@@ -18,6 +19,7 @@ export type Sink = {
   fail(test: TestRef, ms?: number, text?: string): unknown;
   skip(test: TestRef): unknown;
   todo(test: TestRef): unknown;
+  notRun(count: number): unknown;
   line(text: string): unknown;
   raw(text: string): unknown;
 };
@@ -296,6 +298,13 @@ export function cargoEvents(sink: Sink): { stdout: (data: string) => void; stder
   };
 }
 
+/** Fails the run with a test named `name` and the `text` that names the number of the tool and the number of the record. */
+function failCount(sink: Sink, name: string, text: string): void {
+  const count: TestRef = { id: name, name };
+  sink.start(count);
+  sink.fail(count, undefined, text);
+}
+
 /**
  * An event of runners/python.py: the start or the outcome of a test, its id as unittest prints it, and the text of a failure or a
  * skip; or the number of tests that a run of unittest ran (K1201).
@@ -340,11 +349,7 @@ export function pythonEvents(sink: Sink): Reader<string> {
     end(): void {
       if (current !== undefined) sink.fail(current, undefined, 'the test started and the run ended before its outcome');
       current = undefined;
-      if (ran !== undefined && ran !== started) {
-        const count: TestRef = { id: 'the count of unittest', name: 'the count of unittest' };
-        sink.start(count);
-        sink.fail(count, undefined, `unittest ran ${ran} tests and the record holds ${started}; a test left the record (HR-84)`);
-      }
+      if (ran !== undefined && ran !== started) failCount(sink, 'the count of unittest', `unittest ran ${ran} tests and the record holds ${started}; a test left the record (HR-84)`);
     },
   });
 }
@@ -356,6 +361,14 @@ const unescapeTeamcity = (value: string): string => value.replace(/\|(['|\][nr])
  * Read PHPUnit TeamCity messages into the sink. Other lines, such as the summary with the warnings that fail the run
  * under failOnWarning, are printed as they are, and so is the output of testStdOut and testStdErr and a message that this
  * reader does not read (K1138). A test that failed and did not finish, as after a fatal error, fails with its failure at `end`.
+ *
+ * `testCount` names the tests that the run holds, each data set and the tests that a filter selects alone, as --list-tests lists
+ * them. The tests of a class do not start when a method before its first test, such as setUpBeforeClass, throws or skips: PHPUnit
+ * reports the class inside its suite, as a test with no location that fails, or as testIgnored, and no message for its tests
+ * (K1214). The class is then a group, which fails or is skipped once and is no test, and at `end` the tests of testCount that did
+ * not start reach the sink as `notRun`: the tests of such a class, and those that a run that stopped early left. So the tests
+ * that passed, failed and were skipped and those that did not run add up to testCount. A record of more tests than testCount
+ * fails, naming both numbers.
  */
 export function phpunitEvents(sink: Sink): Reader<string> {
   const failures = new Map<string | undefined, string>();
@@ -368,6 +381,13 @@ export function phpunitEvents(sink: Sink): Reader<string> {
   const groups = new Set<string | undefined>();
   // A skipped or incomplete test gets testIgnored and then testFinished: its finish is no pass.
   const ignored = new Set<string | undefined>();
+  // The suites with a location (a class or a method with a data provider) that are open in each flow, the innermost last.
+  const located = new Map<string, string[]>();
+  // The tests that started and have not finished.
+  const open = new Set<string | undefined>();
+  // The tests that testCount names, and those that started or were skipped before their start.
+  let counted: number | undefined;
+  let started = 0;
   const qualified = (attributes: Record<string, string>): string | undefined => {
     const hint = /::\\?([^:]+)::(.+)$/.exec(attributes.locationHint ?? '');
     // Both capture groups take part in a matching native location.
@@ -384,22 +404,49 @@ export function phpunitEvents(sink: Sink): Reader<string> {
     const event = JSON.stringify([attributes.flowId ?? '', id]);
     // PHPUnit names each test and suite; a message without a name, such as testCount, reaches only the default case.
     const test = (): TestRef => ({ id: present(id, 'the id of a PHPUnit test'), name: present(attributes.name, 'the name of a PHPUnit test') });
+    const flow = attributes.flowId ?? '';
+    // Whether the message names the class whose suite is the innermost open one, and not a test of it.
+    const ofClass = (): boolean => attributes.locationHint === undefined && attributes.name !== undefined && located.get(flow)?.at(-1) === attributes.name;
     switch (message[1]) {
       case 'testSuiteStarted': {
-        if (attributes.locationHint) return undefined;
+        if (attributes.locationHint) {
+          located.set(flow, [...(located.get(flow) ?? []), present(attributes.name, 'the name of a PHPUnit suite')]);
+          return undefined;
+        }
         groups.add(event);
         return sink.start(test(), { group: true });
       }
-      case 'testSuiteFinished': return groups.delete(event) ? sink.pass(test()) : undefined;
-      case 'testStarted': return sink.start(test());
+      case 'testSuiteFinished': {
+        const suites = located.get(flow);
+        if (suites?.at(-1) === attributes.name) suites?.pop();
+        return groups.delete(event) ? sink.pass(test()) : undefined;
+      }
+      case 'testStarted':
+        if (ofClass()) {
+          // The class that PHPUnit reports as a test, since a method before its first test failed: a group, which fails once.
+          return sink.start(test(), { group: true });
+        }
+        started += 1;
+        open.add(event);
+        return sink.start(test());
       // PHPUnit reports a test that ran out of its time limit and also made no assertion twice.
       case 'testFailed':
         failures.set(event, [failures.get(event), attributes.message ?? '', attributes.details ?? ''].filter(Boolean).join('\n'));
         failed.set(event, test());
         return undefined;
-      case 'testIgnored': ignored.add(event); return sink.skip(test());
+      case 'testIgnored':
+        // A class that a method before its first test skips: a group, which the progress names as skipped.
+        if (!open.has(event) && ofClass()) {
+          sink.start(test(), { group: true });
+          return sink.skip(test());
+        }
+        // A test that its dependency skips has no start and no finish; any other skip comes between both.
+        if (open.has(event)) ignored.add(event);
+        else started += 1;
+        return sink.skip(test());
       case 'testFinished': {
         const duration = Number(attributes.duration);
+        open.delete(event);
         if (ignored.delete(event)) return undefined;
         // has() above makes the failure text exist.
         if (failures.has(event)) { const text = present(failures.get(event), 'failures.get(event)'); failures.delete(event); failed.delete(event); return sink.fail(test(), duration, text); }
@@ -410,8 +457,10 @@ export function phpunitEvents(sink: Sink): Reader<string> {
       case 'testStdErr':
         for (const text of String(attributes.out ?? '').split('\n').filter(entry => entry.trim())) sink.line(`  ${text}`);
         return undefined;
-      // The number of tests that a suite holds, which the progress counts as they run.
-      case 'testCount': return undefined;
+      // The number of tests that the run holds, which `end` compares with the tests that started (K1214).
+      case 'testCount':
+        if (/^\d+$/.test(attributes.count ?? '')) counted = (counted ?? 0) + Number(attributes.count);
+        return undefined;
       default: return sink.line(line);
     }
   };
@@ -421,6 +470,10 @@ export function phpunitEvents(sink: Sink): Reader<string> {
       for (const [event, text] of failures) sink.fail(present(failed.get(event), 'the test of a failure'), 0, ['the test did not finish', text].join('\n'));
       failures.clear();
       failed.clear();
+      if (counted === undefined || counted === started) return;
+      if (counted > started) sink.notRun(counted - started);
+      else failCount(sink, 'the count of PHPUnit', `PHPUnit counted ${counted} tests and the record holds ${started}; the record holds a test that PHPUnit did not count (HR-84)`);
+      counted = undefined;
     },
   });
 }
@@ -437,6 +490,7 @@ export function toProgress(progress: Progress, write: (text: string) => unknown 
     fail: (test, ms, text) => progress.fail(test.id, ms, text),
     skip: test => progress.skip(test.id),
     todo: test => progress.pass(test.id),
+    notRun: count => progress.notRun(count),
     line: text => progress.line(text),
     raw: text => write(text),
   };

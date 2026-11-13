@@ -331,7 +331,7 @@ test('the cargo events pair each test with its result and name the binary', () =
 function recording() {
   const calls: string[] = [];
   const note = (method: string) => (test?: { id: string }) => calls.push(`${method} ${test?.id ?? ''}`.trim());
-  return { calls, sink: { start: note('start'), pass: note('pass'), fail: note('fail'), skip: note('skip'), todo: note('todo'), line: () => {}, raw: () => {} } };
+  return { calls, sink: { start: note('start'), pass: note('pass'), fail: note('fail'), skip: note('skip'), todo: note('todo'), notRun: (count: number) => calls.push(`notRun ${count}`), line: () => {}, raw: () => {} } };
 }
 
 test('the cargo events read a should_panic test by its name and result (K47)', () => {
@@ -1004,4 +1004,96 @@ test('a test that runs past 30 s, to 40 s, runs to its end, and the exit status 
   assert.match(failed.text, /✔ p › TestSlow/);
   assert.match(failed.text, /✖ go \. \.\/\.\.\.: 1 passed, 0 failed, .*the tool exited with 1/);
   assert.doesNotMatch(failed.text, /⏱|timeout/);
+});
+
+// K1214: the TeamCity messages of PHPUnit 13.4 for a run of 4 tests: testCount names the tests that the run holds, a class whose
+// setUpBeforeClass throws reports the class as a test with no location inside its suite, and none of its 3 tests starts.
+const phpunitMessage = (name: string, attributes: Record<string, string>) => `##teamcity[${name} ${Object.entries({ ...attributes, flowId: '7' }).map(([key, value]) => `${key}='${value}'`).join(' ')}]`;
+const HOOK_FAILURE = [
+  phpunitMessage('testCount', { count: '4' }),
+  phpunitMessage('testSuiteStarted', { name: 'all' }),
+  phpunitMessage('testSuiteStarted', { name: 'Pkg\\BrokenTest', locationHint: 'php_qn://t/BrokenTest.php::\\Pkg\\BrokenTest' }),
+  phpunitMessage('testStarted', { name: 'Pkg\\BrokenTest' }),
+  phpunitMessage('testFailed', { name: 'Pkg\\BrokenTest', message: 'RuntimeException: no database', details: 't/BrokenTest.php:5|n', duration: '0' }),
+  phpunitMessage('testFinished', { name: 'Pkg\\BrokenTest', duration: '0' }),
+  phpunitMessage('testSuiteFinished', { name: 'Pkg\\BrokenTest' }),
+  phpunitMessage('testSuiteStarted', { name: 'Pkg\\GoodTest', locationHint: 'php_qn://t/GoodTest.php::\\Pkg\\GoodTest' }),
+  phpunitMessage('testStarted', { name: 'testA', locationHint: 'php_qn://t/GoodTest.php::\\Pkg\\GoodTest::testA' }),
+  phpunitMessage('testFinished', { name: 'testA', duration: '1' }),
+  phpunitMessage('testSuiteFinished', { name: 'Pkg\\GoodTest' }),
+  phpunitMessage('testSuiteFinished', { name: 'all' }),
+];
+/** The lines and the result of the PHPUnit `messages` read into a progress that closes with the exit status `exitCode`. */
+function phpunitRun(messages: readonly string[], exitCode = 0) {
+  const lines: string[] = [];
+  const progress = createProgress({ write: (text: string) => lines.push(text), heartbeatMs: 10_000, resultFile: '' });
+  const feed = phpunitEvents(toProgress(progress));
+  for (const message of messages) feed(message);
+  feed.end();
+  const result: { passed: number; failed: number; skipped: number; notRun?: number; ok: boolean } = progress.close('phpunit', { exitCode });
+  return { result, text: lines.join('') };
+}
+
+test('K1214: a PHPUnit class whose setUpBeforeClass fails is one failed group, and the summary names its tests as not run', () => {
+  const { result, text } = phpunitRun(HOOK_FAILURE, 2);
+  assert.match(text, /✖ phpunit: 1 passed, 0 failed, 0 skipped, 3 not run, 1 group failed, the tool exited with 2 /, text);
+  assert.equal(result.passed + result.failed + result.skipped + (result.notRun ?? 0), 4, 'the counts add up to the testCount of PHPUnit');
+  assert.equal(result.ok, false);
+  assert.equal(text.split('\n').filter(line => line.includes('✖ Pkg\\BrokenTest')).length, 1, text);
+  assert.match(text, /✖ Pkg\\BrokenTest[^\n]*\n\s+RuntimeException: no database\n\s+t\/BrokenTest\.php:5/, text);
+});
+
+test('K1214: tests that did not run fail the run and are named, even when PHPUnit exits with 0 and no group failed', () => {
+  const stopped = [HOOK_FAILURE[0], HOOK_FAILURE[1], ...HOOK_FAILURE.slice(7)].map(line => known(line, 'a message'));
+  const { result, text } = phpunitRun(stopped);
+  assert.match(text, /✖ phpunit: 1 passed, 0 failed, 0 skipped, 3 not run \(/, text);
+  assert.equal(result.notRun, 3);
+  assert.equal(result.ok, false);
+});
+
+test('K1214: a PHPUnit class that its setUpBeforeClass skips is a skipped group, whose tests are not run and are no skipped tests', () => {
+  const skippedClass = [
+    phpunitMessage('testCount', { count: '3' }),
+    phpunitMessage('testSuiteStarted', { name: 'Pkg\\SkipTest', locationHint: 'php_qn://t/SkipTest.php::\\Pkg\\SkipTest' }),
+    phpunitMessage('testIgnored', { name: 'Pkg\\SkipTest', message: 'no service', duration: '0' }),
+    phpunitMessage('testSuiteFinished', { name: 'Pkg\\SkipTest', message: 'no service', duration: '0' }),
+    ...HOOK_FAILURE.slice(7, 11),
+  ];
+  const { result, text } = phpunitRun(skippedClass);
+  assert.match(text, /✖ phpunit: 1 passed, 0 failed, 0 skipped, 2 not run; skipped cases: Pkg\\SkipTest \(/, text);
+  assert.equal(result.passed + result.failed + result.skipped + (result.notRun ?? 0), 3);
+});
+
+test('K1214: a run whose tests all ran keeps the summary of three counts, with a skip by a dependency and a test that did not finish', () => {
+  const all = [
+    phpunitMessage('testCount', { count: '3' }),
+    ...HOOK_FAILURE.slice(7, 10),
+    // A test that its dependency skips has testIgnored alone, with no start and no finish.
+    phpunitMessage('testIgnored', { name: 'testAfter', message: 'This test depends on "Pkg\\GoodTest::testA" to pass', duration: '0' }),
+    // A test that started and whose finish never came, as after a fatal error.
+    phpunitMessage('testStarted', { name: 'testFatal', locationHint: 'php_qn://t/GoodTest.php::\\Pkg\\GoodTest::testFatal' }),
+  ];
+  const { result, text } = phpunitRun(all, 255);
+  assert.match(text, /✖ phpunit: 1 passed, 1 failed, 1 skipped; skipped cases: testAfter, the tool exited with 255 \(/, text);
+  assert.equal(result.notRun, undefined);
+  const { text: plain } = phpunitRun(HOOK_FAILURE.slice(7, 11));
+  assert.match(plain, /✔ phpunit: 1 passed, 0 failed, 0 skipped \(/, plain);
+});
+
+test('K1214: a PHPUnit record of more tests than testCount names fails, naming both numbers', () => {
+  const { result, text } = phpunitRun([phpunitMessage('testCount', { count: '0' }), ...HOOK_FAILURE.slice(7, 11)]);
+  assert.match(text, /✖ the count of PHPUnit[^\n]*\n\s+PHPUnit counted 0 tests and the record holds 1/, text);
+  assert.equal(result.ok, false);
+});
+
+test('K1214: the record of a PHPUnit run holds the number of the tests that did not run', async (t) => {
+  const root = tree(t, { ...COMPOSER_PROJECT, 'vendor/bin/phpunit': `#!/usr/bin/env node\nfor (const line of ${JSON.stringify(HOOK_FAILURE)}) console.log(line);\nprocess.exitCode = 2;\n` });
+  chmodSync(path.join(root, 'vendor/bin/phpunit'), 0o755);
+  const result = await inProcess(t, ['phpunit', '--results', 'var/record.json'], { root });
+  assert.equal(result.status, 1, result.text);
+  assert.match(result.text, /✖ phpunit \.: 1 passed, 0 failed, 0 skipped, 3 not run, 1 group failed, the tool exited with 2 /, result.text);
+  const count = { type: 'integer' } as const;
+  const counts: JSONSchemaType<{ passed: number; failed: number; skipped: number; notRun: number }> = { type: 'object', required: ['passed', 'failed', 'skipped', 'notRun'], properties: { passed: count, failed: count, skipped: count, notRun: count } };
+  const record = readStub(path.join(root, 'var/record.json'), counts);
+  assert.deepEqual([record.passed, record.failed, record.skipped, record.notRun], [1, 0, 0, 3]);
 });

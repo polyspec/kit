@@ -1,5 +1,5 @@
 <!-- doc-id: rebuild-test-output -->
-<!-- source-sha256: ec17536fc7a9c7b2b27d6c16fd273432f22260b75260f1dfcf4e263cd5e1d27e -->
+<!-- source-sha256: 70c2d7ec43856dbc39ed4ca7bc5ea44d91edb6856809708c4218c635ada32756 -->
 # 재구현 기록: test-output
 
 [English](test-output.md)
@@ -21,7 +21,7 @@ run-tests는 각 test가 시작하고, 계속 실행되고, 끝나는 것을 출
 | T2 | `go test -json` | 각 test와 package의 event |
 | T3 | cargo test (libtest) text | 각 test의 시작과 결과를 그때그때 |
 | T4 | unittest verbose text | 각 test의 시작과 결과를 그때그때 |
-| T5 | PHPUnit TeamCity message | 각 test의 시작, 결과, 실패 내용 |
+| T5 | PHPUnit TeamCity message | 각 test의 시작, 결과, 실패 내용; run의 test 수(`testCount`)와 첫 test 앞의 method가 실패하거나 skip한 class. 이것으로 실행되지 않은 test를 셉니다(K1214) |
 
 ## 평가한 도구
 

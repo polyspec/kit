@@ -34,6 +34,8 @@ export function createProgress({ write, heartbeatMs = 5000, now = () => Date.now
   // Each test with its outcome and elapsed time, in the order they ended.
   const cases: TestCase[] = [];
   const groupCounts = { passed: 0, failed: 0 };
+  // The tests that the tool counted for the run and that did not start (K1214): they are no pass, no failure and no skip.
+  let notRun = 0;
   // The ids of the tests and groups that skipped, which the run names: a skip is not a verification (K460).
   const skipped: string[] = [];
   const line = (text: string): unknown => write(`[${compactSeconds(now() - started).padStart(8)}] ${text}\n`);
@@ -84,10 +86,18 @@ export function createProgress({ write, heartbeatMs = 5000, now = () => Date.now
       line(`○ ${id} skipped`);
     },
     /**
-     * End the run and return `{ passed, failed, skipped, ran, ok, cases }`; `cases` holds `{ id, status, elapsedMs }` of each
-     * test, `status` being `pass`, `fail` or `skip`. Tests still running are failures. A failed group, a nonzero `exitCode` of
-     * the tool, or a run in which no test passed or failed fails the run even when no test failed: a run that only skipped
-     * checked nothing. The summary of a nonzero `exitCode` states that status and no guess at its cause, which the lines of
+     * Adds `count` tests that the tool counted for the run and that did not start, as the tests of a class whose hook before
+     * its first test failed (K1214). They belong to no other count, the summary names them, and they fail the run.
+     */
+    notRun(count: number): void {
+      notRun += count;
+    },
+    /**
+     * End the run and return `{ passed, failed, skipped, ran, ok, cases }`, with `notRun` when a test did not run; `cases` holds
+     * `{ id, status, elapsedMs }` of each test, `status` being `pass`, `fail` or `skip`. Tests still running are failures. A failed
+     * group, a test that did not run, a nonzero `exitCode` of the tool, or a run in which no test passed or failed fails the run even
+     * when no test failed: a run that only skipped checked nothing. The summary is `N passed, N failed, N skipped`, followed by
+     * `, N not run` only when a test did not run, so the sum of the counts is the number of tests that the tool counted (K1214). The summary of a nonzero `exitCode` states that status and no guess at its cause, which the lines of
      * the tool above it show (K1172); it also names the `build` errors, which test2json reports for a package that did not
      * build. The counts go to `resultFile` so that the runner can require that a test ran.
      */
@@ -97,16 +107,16 @@ export function createProgress({ write, heartbeatMs = 5000, now = () => Date.now
       const ran = counts.passed + counts.failed;
       const none = ran === 0;
       // A skipped test fails the run as a failed one does, so the run that only skipped checks nothing and fails (K460).
-      const failed = counts.failed + groupCounts.failed + skipped.length + (exitCode === 0 ? 0 : 1) + (none ? 1 : 0);
+      const failed = counts.failed + groupCounts.failed + skipped.length + notRun + (exitCode === 0 ? 0 : 1) + (none ? 1 : 0);
       // A group can fail while every test in it passed, for example on a failed hook of a file.
       const groupsFailed = groupCounts.failed === 1 ? ', 1 group failed' : `, ${groupCounts.failed} groups failed`;
-      const summary = `${counts.passed} passed, ${counts.failed} failed, ${counts.skipped} skipped${groupCounts.failed ? groupsFailed : ''}${none ? ', no test ran' : ''}`;
+      const summary = `${counts.passed} passed, ${counts.failed} failed, ${counts.skipped} skipped${notRun ? `, ${notRun} not run` : ''}${groupCounts.failed ? groupsFailed : ''}${none ? ', no test ran' : ''}`;
       // The exit status is a fact; the lines of the tool, printed above, show its cause (K1172).
       const exit = exitCode === 0 ? '' : `, the tool exited with ${exitCode}`;
       const named = skipped.length ? `; skipped cases: ${skipped.join('; ')}` : '';
       const built = build.length ? `; build errors: ${build.slice(0, 10).join('; ')}${build.length > 10 ? `; and ${build.length - 10} more` : ''}` : '';
       line(`${failed ? '✖' : '✔'} ${label}: ${summary}${named}${exit}${built} (${compactSeconds(now() - started)})`);
-      const result = { ...counts, ran, ok: failed === 0, cases };
+      const result = { ...counts, ...(notRun ? { notRun } : {}), ran, ok: failed === 0, cases };
       if (resultFile) writeFileSync(resultFile, JSON.stringify(result));
       return result;
     },

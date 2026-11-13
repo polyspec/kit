@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "var/test result.json",
-  "description": "The counts that the reporter of a test tool writes to KIT_TEST_RESULT and scripts/kit/run-tests.mts records (K158): the tests that ran and that were skipped, and any further count of the tool.",
+  "description": "The counts that the reporter of a test tool writes to KIT_TEST_RESULT and scripts/kit/run-tests.mts records (K158): the tests that ran and that were skipped, the tests that the tool counted and that did not run, when there is one (K1214), and any further count of the tool.",
   "type": "object",
   "required": [
     "ran",
@@ -13,6 +13,10 @@
     },
     "skipped": {
       "type": "integer"
+    },
+    "notRun": {
+      "type": "integer",
+      "minimum": 1
     }
   }
 }

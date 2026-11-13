@@ -17,6 +17,7 @@ function counting(): Sink & { counts: Record<string, number>; lines: string[]; r
     fail: record('fail'),
     skip: record('skip'),
     todo: record('todo'),
+    notRun: (count) => { counts.notRun = (counts.notRun ?? 0) + count; },
     line: text => { lines.push(text); },
     raw: text => { raws.push(text); },
   };

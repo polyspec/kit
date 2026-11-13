@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 1b2f46a917f6d443e7fd1b5bff41916354b9dab423ea09a8fffafd524b518a64 -->
+<!-- source-sha256: a20aa6c7889d474886747471e42b509bcab7928816f1520abecbc736a124768d -->
 
 # 도구 목록
 
@@ -487,6 +487,20 @@ Export된 `runCommand`는 자신이 시작한 command만 소유한다. 긴 comma
   unittest의 verbose 줄을 포함해 그대로 출력됩니다. 시작했으나 event가 끝날 때 결과가 없는 test는 실패합니다. unittest의 각
   실행이 끝나면 result class는 unittest가 돌린 test의 수(`tests`가 있는 `run`, 곧 `testsRun`)를 쓰고, 시작한 test의 수가 그 수들의
   합과 다른 기록은 두 수를 대며 실패합니다. 그래서 어떤 test도 흔적 없이 기록에서 빠지지 않습니다(HR-84, K1201).
+- 모든 runner의 summary 줄은 `N passed, N failed, N skipped`이며, tool이 그 run에 대해 센 test 가운데 시작하지 않은 것이 있을
+  때에만 `, N not run`이 붙습니다(K1214). 그런 test는 pass도 failure도 skip도 아닙니다. run을 실패시키며, `--results`와
+  `KIT_TEST_RESULT`의 기록은 그 수를 `notRun`으로 가지고, 그런 test가 없는 기록은 이 key를 두지 않습니다. PHPUnit은 run의 test
+  수를 `testCount` message로 알리며, 각 data set과 filter의 선택을 포함해 `--list-tests`가 나열하는 것과 같습니다. class의 첫 test
+  앞의 method, 예를 들어 `setUpBeforeClass`가 throw하면 PHPUnit 13.4는 그 class를 class의 suite 안에서 location이 없는 실패한 test
+  하나로 알리고 그 class의 test에 대해서는 아무 message도 내지 않습니다. 그 method가 skip하면 class 이름의 `testIgnored`를
+  알립니다. reader는 그 class를 group으로 받아 한 번 실패하거나 skip된 것으로 두고 test로 세지 않으며, `testCount` 가운데
+  시작하지 않은 test를 not run으로 넘깁니다. 그래서 count의 합은 `testCount`와 같습니다. `testCount`보다 많은 test를 가진 기록은
+  두 수를 대며 실패합니다(HR-84).
+- `runtime-targets test --runner python`은 `--module <root>=<package.module>`로 root에 harness module을 줍니다. 이 option은
+  root마다 하나씩 반복합니다(K1215). 그 root의 run은 module의 package path가 시작하는 repository root에서 실행하는
+  `run-tests python --module <package.module>`입니다. 그래서 test는 그 path로 import하고 harness의 `load_tests`가 test를
+  고릅니다. module이 없는 root는 자기 folder에서 unittest의 discovery를 실행합니다. 다른 형식의 값, `--roots`에 없는 root, 한
+  root의 둘째 module, python이 아닌 runner나 build에 준 module은 문제와 usage를 출력하고 exit 2로 끝납니다.
 - `--results <file>`(K18)은 성공 여부와 관계없이 실행 기록을 임시 파일과 rename으로 씁니다. 기록은 count, 각 test의
   `{id, status, elapsedMs}`(`pass`, `fail`, `skip`), tool, 실행 경과 시간, 그리고 `--inputs` 경로(기본은 `--cwd`
   directory)의 추적 파일과 무시되지 않은 파일에 대한 `inputsDigest`인 `inputs`입니다. test 기록은 progress module이 하므로
