@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1217: `link.mts` has no `packages` command. It printed the polyspec packages that the manifests of a folder declare, as the arguments of `uv sync --no-install-package`; choosing the packages that a package manager installs is the work of the recipe that starts the manager, and no recipe called it. `link.mts packages` now ends with the usage and exit 1.
+
 - K1219: the specification states the work that is not kit's (`docs/spec/utilities-and-recipes.md`): the work of a package manager and the work of a repository, the utilities removed for it, and the utilities that leave, each with the native commands that the recipe of a repository holds instead: link-build, python-venv, the bootstrap, install-tools with its installers, install-vscode, release-tools, the assets, publish, undraft and tag of the release, and php-extension. A leaving utility keeps working until its callers hold those commands. The local links, the lint utilities, the shipped workflows and the default of ci-setup are listed as not decided.
 
 ## 0.0.111

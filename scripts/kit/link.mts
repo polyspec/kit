@@ -16,7 +16,7 @@
 // into the consumer is one that Git ignores there, and link writes nothing into .git (K512) (the links in the install folders, var/link, and each go.work).
 // unlink only removes the links and the files that link wrote; make install restores the locked installs, reinstalling each Python
 // distribution whose package folder a removed link left missing (K856).
-//   node link.mjs link [--project <dir>] [--runtime <runtime>] | unlink [--project <dir>] | packages <dir> python|npm |
+//   node link.mjs link [--project <dir>] [--runtime <runtime>] | unlink [--project <dir>] |
 //                 providers [--ecosystem npm|composer|python|go] [<checkout>...] | cargo <dir> <args>...
 // The providers are the checkouts that the link declaration names (K869): LINKS_FILE at the root of the checkout itself (K1118), one path per
 // line; with no file nothing is linked. make link-check (link-check.mts) compares the declaration with the state.
@@ -614,15 +614,6 @@ function declaredWithoutFolder(work: Run, consumer: Consumer, project: string, f
   });
 }
 
-/** The polyspec packages of `ecosystem` that the consumer `directory` declares, for a recipe (uv sync --no-install-package). */
-export function packages(directory: string, ecosystem: 'python' | 'npm'): string[] {
-  const consumer = consumerOf(directory);
-  const names = ecosystem === 'python'
-    ? consumer.manifests('python').flatMap(file => declaredPython(file))
-    : consumer.manifests('npm').flatMap(file => declaredNpm(file));
-  return [...new Set(names)].sort();
-}
-
 /**
  * Removes the links of each directory (K856): the npm and Composer folders that are links out of the checkout, the package links of
  * each Python environment and the files that link wrote. It installs nothing; make install restores the locked installs.
@@ -829,12 +820,6 @@ if (isMain(import.meta.url)) {
         for (const provider of found.sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0))) print(`${provider.name}\t${provider.folder}`);
         break;
       }
-      case 'packages': {
-        const [directory, ecosystem] = rest;
-        if (!directory || (ecosystem !== 'python' && ecosystem !== 'npm')) throw new Error('Usage: link.mjs packages <dir> python|npm');
-        for (const name of packages(directory, ecosystem)) print(name);
-        break;
-      }
       case 'cargo': {
         // K869: the providers are those of the link declaration of the project; with no file cargo runs as given.
         const [directory, ...args] = rest;
@@ -842,7 +827,7 @@ if (isMain(import.meta.url)) {
         process.exitCode = cargo({ directory, args, checkouts: declaredCheckouts(directory) ?? [] });
         break;
       }
-      default: throw new Error('Usage: link.mjs link [--project <dir>] [--runtime <runtime>] | unlink [--project <dir>] | packages <dir> python|npm | providers [--ecosystem npm|composer|python|go] [<checkout>...] | cargo <dir> <args>...');
+      default: throw new Error('Usage: link.mjs link [--project <dir>] [--runtime <runtime>] | unlink [--project <dir>] | providers [--ecosystem npm|composer|python|go] [<checkout>...] | cargo <dir> <args>...');
     }
   } catch (error) {
     if (!(error instanceof Error)) throw error;

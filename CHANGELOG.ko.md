@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a44e7bd288c78c0522294503d824a54027c28b13c268b32fca49cde08acb9797 -->
+<!-- source-sha256: c79b9b81a7e8a34c93782657a3ad9fba26232c00a676c666b2b36159bab67ae7 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1217: `link.mts`에 `packages` 명령이 없습니다. 이 명령은 폴더의 manifest가 선언한 polyspec package를 `uv sync --no-install-package`의 인자로 출력했습니다. package manager가 설치할 package를 고르는 일은 그 manager를 시작하는 recipe의 일이고, 어느 recipe도 이 명령을 부르지 않았습니다. `link.mts packages`는 이제 usage와 exit 1로 끝납니다.
 
 - K1219: 명세가 kit의 일이 아닌 것을 적습니다(`docs/spec/utilities-and-recipes.md`). package manager의 일과 저장소의 일, 그래서 제거한 유틸리티, 그리고 떠나는 유틸리티와 저장소의 recipe가 대신 가질 native 명령입니다. 떠나는 것은 link-build, python-venv, bootstrap, install-tools와 그 installer, install-vscode, release-tools, release의 assets, publish, undraft, tag, php-extension입니다. 떠나는 유틸리티는 호출자가 그 명령을 가질 때까지 동작합니다. local link, lint 유틸리티, 싣는 workflow, ci-setup의 기본값은 결정하지 않은 것으로 적었습니다.
 
