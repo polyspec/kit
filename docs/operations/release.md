@@ -139,8 +139,8 @@ the label `<vendor>-<product>-<runtime>-<version>`, followed by `-<platform>` fo
 for a php-ext asset (P39).
 
 `workflows/release.yml` builds the sets in a matrix: the job `tag` tags the commit, checks the tag out and runs `make
-release-sets`; the job `assets` runs for each set on a runner of its platform (`ubuntu-24.04` for linux-x64-gnu and the set
-without a platform, `ubuntu-24.04-arm` for linux-arm64-gnu, `macos-15` for darwin-arm64), sets up the PHP minor of the set, runs
+release-sets`; the job `assets` runs for each set on the runner of its platform, the `runner` of the set (`ubuntu-24.04` for linux-x64-gnu and the set
+without a platform, `ubuntu-24.04-arm` for linux-arm64-gnu, `macos-15` for darwin-arm64; K1211), sets up the PHP minor of the set, runs
 `make release-assets` with `RELEASE_PLATFORM` and `RELEASE_PHP` and uploads the folder; the job `publish` downloads every folder
 into one asset folder and runs `make release-publish` and `make release-undraft`.
 
@@ -187,6 +187,33 @@ is created, and only when a package declares a Go module (`go-modules` of `GITHU
    release.
 6. It creates the annotated tag `<directory>/vX.Y.Z` at that commit for each module and pushes those tags alone. No branch holds the
    commit, and a second run refuses the tag that exists. This commit and tag are made by the workflow; no tag is made by hand.
+
+A repository with a native package proves the assets of every platform before a release (K1211). The job `assets` of the release
+workflow runs after the tag is made, so a set that fails there leaves a tag without a release. `workflows/release-candidate.yml`
+is the example of the proof: the repository copies it to `.github/workflows/release-candidate.yml`, calls it from its CI
+(`uses: ./.github/workflows/release-candidate.yml`) and names that job among those that its final job requires. Its job `sets`
+runs `make release-sets`, which gives each set of the include list its `runner` (`ubuntu-24.04` for linux-x64-gnu and the set
+without a platform, `ubuntu-24.04-arm` for linux-arm64-gnu, `macos-15` for darwin-arm64) and writes `version`, the newest version
+of the change log, to `GITHUB_OUTPUT`; its job `candidate` runs once for each set on that runner and builds the assets from the
+commit of the run with `make release-candidate-assets`, `VERSION`, `RELEASE_PLATFORM` and `RELEASE_PHP`. A repository whose
+change log has no version yet names `VERSION` itself. A job that builds the native asset of a platform runs on a runner of that
+platform, whatever runner the rules of the repository name for its other jobs: no tool cross-compiles, so the runner is the
+platform. The release workflow reads the same `runner` from its matrix.
+
+The steps of a repository that releases a Go module with a static library (K1205, K1208):
+
+1. Name the component `llvm-tools` in `components` of rust-toolchain.toml; `make install-tools` installs it, and the sets and
+   `release-go-modules` read llvm-strip, llvm-size and llvm-nm from it.
+2. Declare `goModule` in the `go-static` package of config/release.json and remove its directory from `goModules`, which
+   `release-tag` tags at the commit of `vX.Y.Z`. Keep the make targets that write the generated Go files in `generated` of that
+   package.
+3. Make those targets run in the job `publish` (ubuntu-24.04, x64): `release-prepare` and `release-tools` install what they
+   need there, as they do in the job `assets`.
+4. Copy `workflows/release.yml` again, since its job `publish` runs `make release-go-modules` before `make release-publish`,
+   and add the recipe `release-go-modules` to the Makefile of the repository (`release.mts go-modules "$$TAG"` with
+   `RELEASE_MAIN` and `RELEASE_ASSETS`).
+5. Release the repositories in the order of their Go requirements: the tag `<directory>/vX.Y.Z` of a module that the go.mod
+   requires exists before this release, since the consumer of the step fetches it.
 
 `make release-tools` runs install-tools for a per-platform package, which installs the toolchain of rust-toolchain.toml with
 rustup and the tools of mise.lock, such as the Python and uv that run maturin (K1190). The napi CLI of an npm-native package is a

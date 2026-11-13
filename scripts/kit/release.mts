@@ -50,7 +50,7 @@ import { present } from './present.mts';
 import { linksOutsideCheckout } from './link.mts';
 import { toolCommand } from './mise-tools.mts';
 import { packedPackageManifest } from './pack-manifest.mts';
-import { PLATFORM_NAMES, isPlatform, llvmTool, assetSets, buildPlatformAsset, extensionOf, inSet, isNative, namedSet, nativeProblems, npmNativeProblems, npmNativeRoot, npmPackName, packedNativeManifest, phpExtProblems, platformAssets, requireHost, setName, zipEntries, type AssetSet, type ExpectedAsset, type ExtensionNames, type NativeBuild } from './release-native.mts';
+import { PLATFORM_NAMES, RUNNERS, SOURCE_RUNNER, isPlatform, llvmTool, assetSets, buildPlatformAsset, extensionOf, inSet, isNative, namedSet, nativeProblems, npmNativeProblems, npmNativeRoot, npmPackName, packedNativeManifest, phpExtProblems, platformAssets, requireHost, setName, zipEntries, type AssetSet, type ExpectedAsset, type ExtensionNames, type NativeBuild } from './release-native.mts';
 import { readToml, isTable } from './toml.mts';
 import { GO_PLATFORMS, libraryIn, releaseGoModules, type GoModule, type GoPlatform } from './release-go-module.mts';
 
@@ -866,8 +866,8 @@ export function publish(ctx: Context, tag: string): string[] {
 const readComposerManifestAt = (root: string, directory: string): ComposerManifest => readConfig<ComposerManifest>(root, path.posix.join(directory, 'composer.json'), 'composer-manifest.schema.json');
 
 /** The asset sets of the release as the include list of a GitHub matrix: each set with its platform and PHP minor, empty when it has none (K1189). */
-export function matrix(config: Pick<ReleaseConfig, 'packages'>): { include: { platform: string; php: string }[] } {
-  return { include: assetSets(config.packages).map(set => ({ platform: set.platform ?? '', php: set.php ?? '' })) };
+export function matrix(config: Pick<ReleaseConfig, 'packages'>): { include: { platform: string; php: string; runner: string }[] } {
+  return { include: assetSets(config.packages).map(set => ({ platform: set.platform ?? '', php: set.php ?? '', runner: set.platform === undefined ? SOURCE_RUNNER : RUNNERS[set.platform] })) };
 }
 
 /**
@@ -994,8 +994,9 @@ export function main(argv: string[], { root = repositoryRoot(), env = process.en
       // The sets of the release, which the release workflow builds in a matrix: printed, and written to GITHUB_OUTPUT as sets (K1189).
       const sets = JSON.stringify(matrix(ctx.config));
       print(sets);
-      // go-modules tells the workflow whether the release carries a Go module, whose step needs the tools of the repository (K1205).
-      if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `sets=${sets}\ngo-modules=${goModulePackages(ctx.config).length > 0}\n`);
+      // go-modules tells the workflow whether the release carries a Go module, whose step needs the tools of the repository (K1205),
+      // and version is the newest version of the change log, the version of a candidate of HEAD, empty when it has none (K1211).
+      if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `sets=${sets}\ngo-modules=${goModulePackages(ctx.config).length > 0}\nversion=${topVersion(readFileSync(path.join(root, ctx.config.changelog), 'utf8')) ?? ''}\n`);
       return 0;
     }
     if (candidate) {

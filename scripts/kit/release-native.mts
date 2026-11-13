@@ -36,6 +36,14 @@ export const PLATFORMS = {
   'darwin-arm64': { os: 'darwin', cpu: 'arm64', glibc: false, triple: 'aarch64-apple-darwin', pie: 'arm64-darwin-bsdlibc', wheel: String.raw`macosx_\d+_\d+_arm64` },
 } as const;
 export type Platform = keyof typeof PLATFORMS;
+
+/**
+ * The GitHub-hosted runner that builds the assets of each platform, since no tool cross-compiles here, and the runner of the set
+ * without a platform (K1211). A job that builds the native asset of a platform runs on the runner of that platform, whatever
+ * runner the rules of a repository name for its other jobs.
+ */
+export const RUNNERS: Record<Platform, string> = { 'linux-x64-gnu': 'ubuntu-24.04', 'linux-arm64-gnu': 'ubuntu-24.04-arm', 'darwin-arm64': 'macos-15' };
+export const SOURCE_RUNNER = 'ubuntu-24.04';
 export const PLATFORM_NAMES = Object.keys(PLATFORMS);
 
 /** Whether `name` names a platform of the release. */

@@ -100,9 +100,9 @@ jobs:
     if: ${{ needs.tag.outputs.tag != '' }}
     strategy:
       matrix: ${{ fromJson(needs.tag.outputs.sets) }}
-    # The set without a platform and the sets of linux-x64-gnu build on ubuntu-24.04, those of linux-arm64-gnu on ubuntu-24.04-arm
-    # and those of darwin-arm64 on macos-15.
-    runs-on: ${{ matrix.platform == 'linux-arm64-gnu' && 'ubuntu-24.04-arm' || matrix.platform == 'darwin-arm64' && 'macos-15' || 'ubuntu-24.04' }}
+    # Each set builds on the runner of its platform, which release-sets names: the set without a platform and the sets of
+    # linux-x64-gnu on ubuntu-24.04, those of linux-arm64-gnu on ubuntu-24.04-arm and those of darwin-arm64 on macos-15 (K1211).
+    runs-on: ${{ matrix.runner }}
     env:
       TAG: ${{ needs.tag.outputs.tag }}
       RELEASE_PLATFORM: ${{ matrix.platform }}

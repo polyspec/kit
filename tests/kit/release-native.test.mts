@@ -179,13 +179,15 @@ test('K1205: a goModule belongs to a go-static package that builds every platfor
 test('K1189: the sets are the set without a platform, the set of each platform and the set of each platform and PHP minor, and sets prints them as the matrix of the workflow', (t) => {
   const box = nativeSandbox(t);
   const config = release.loadConfig(box.root);
-  const expected = [{ platform: '', php: '' }, ...PLATFORM_NAMES.flatMap(platform => [{ platform, php: '' }, { platform, php: '8.4' }, { platform, php: '8.5' }])];
+  // Each set names the runner of its platform, which builds it; the set without a platform builds on the x64 runner (K1211).
+  const RUNNERS: Record<string, string> = { 'linux-x64-gnu': 'ubuntu-24.04', 'linux-arm64-gnu': 'ubuntu-24.04-arm', 'darwin-arm64': 'macos-15' };
+  const expected = [{ platform: '', php: '', runner: 'ubuntu-24.04' }, ...PLATFORM_NAMES.flatMap(platform => [{ platform, php: '', runner: RUNNERS[platform] }, { platform, php: '8.4', runner: RUNNERS[platform] }, { platform, php: '8.5', runner: RUNNERS[platform] }])];
   assert.deepEqual(release.matrix(config), { include: expected });
   const output = path.join(box.root, '.stubs/github-output');
   const printed: string[] = [];
   assert.equal(release.main(['sets'], { root: box.root, env: { ...box.env, GITHUB_OUTPUT: output }, print: line => printed.push(line), error: line => printed.push(line) }), 0, printed.join('\n'));
   assert.deepEqual(printed, [JSON.stringify({ include: expected })]);
-  assert.equal(readFileSync(output, 'utf8'), `sets=${JSON.stringify({ include: expected })}\ngo-modules=false\n`, 'no package declares a Go module (K1205)');
+  assert.equal(readFileSync(output, 'utf8'), `sets=${JSON.stringify({ include: expected })}\ngo-modules=false\nversion=${VERSION}\n`, 'no package declares a Go module (K1205), and the version is that of the change log (K1211)');
   // A configuration without a native package has the set without a platform alone.
   assert.deepEqual(assetSets(config.packages.filter(item => !NATIVE_PACKAGES.some(native => native.directory === item.directory))), [{}]);
   // RELEASE_PLATFORM and RELEASE_PHP name a set; a PHP minor without a platform, and a platform that is not one, are refused.
@@ -443,6 +445,27 @@ test('K1189: make release-sets prints the matrix, and make release-assets builds
 
 // The example release workflow (workflows/release.yml) builds each set of release-sets in a job of a matrix on a runner of its
 // platform, and the job publish gathers the artifacts of every set before release-publish (K1189).
+// K1211: a repository proves the assets of every platform before a release, in a workflow that its CI calls.
+test('K1211: the example candidate workflow lists the sets and builds the candidate assets of each set on the runner of its platform', () => {
+  const text = readFileSync(path.join(import.meta.dirname, '../../workflows/release-candidate.yml'), 'utf8');
+  assert.match(text, /^on:\n {2}workflow_call:$/m, 'the CI of the repository calls it');
+  const workflow = parseStub(JSON.stringify(parseYaml(text)), WORKFLOW, 'workflows/release-candidate.yml');
+  assert.deepEqual(Object.keys(workflow.jobs), ['sets', 'candidate']);
+  const { sets, candidate } = workflow.jobs as Record<'sets' | 'candidate', Job>;
+  const runs = (job: Job) => job.steps.flatMap(step => (step.run === undefined ? [] : [step.run]));
+  assert.deepEqual(runs(sets), ['make release-sets']);
+  assert.deepEqual(sets.outputs, { sets: '${{ steps.sets.outputs.sets }}', version: '${{ steps.sets.outputs.version }}' });
+  assert.equal(candidate.strategy?.matrix, '${{ fromJson(needs.sets.outputs.sets) }}');
+  assert.equal(candidate['runs-on'], '${{ matrix.runner }}');
+  assert.deepEqual({ platform: candidate.env?.RELEASE_PLATFORM, php: candidate.env?.RELEASE_PHP, version: candidate.env?.VERSION }, { platform: '${{ matrix.platform }}', php: '${{ matrix.php }}', version: '${{ needs.sets.outputs.version }}' });
+  assert.deepEqual(runs(candidate).filter(line => line.startsWith('make ')), ['make release-prepare', 'make release-tools', 'make release-tools-path', 'make release-candidate-assets']);
+  assert.match(text, /^ {6}fail-fast: false$/m, 'every set is built to its end');
+  for (const step of Object.values(workflow.jobs).flatMap(job => job.steps)) if (step.uses && !step.uses.startsWith('./')) assert.match(step.uses, /^[\w.-]+\/[\w.-]+@[0-9a-f]{40}$/, step.uses);
+  // The recipe gives the set to the tool.
+  const recipe = readFileSync(path.join(import.meta.dirname, '../../scripts/kit/kit.mk'), 'utf8');
+  assert.match(recipe, /RELEASE_PLATFORM="\$\(RELEASE_PLATFORM\)" RELEASE_PHP="\$\(RELEASE_PHP\)" RELEASE_ASSETS="\$\(RELEASE_ASSETS\)" \$\(ONLINE\) \$\(NODE\) \$\(KIT\)\/release\.\$\(KIT_EXT\) candidate-assets/);
+});
+
 test('K1189: the example release workflow tags, builds each asset set on a runner of its platform and publishes the assets of every set', () => {
   const text = readFileSync(path.join(import.meta.dirname, '../../workflows/release.yml'), 'utf8');
   const workflow = parseStub(JSON.stringify(parseYaml(text)), WORKFLOW, 'workflows/release.yml');
@@ -453,7 +476,7 @@ test('K1189: the example release workflow tags, builds each asset set on a runne
   assert.deepEqual(tag.outputs, { tag: '${{ steps.tag.outputs.tag }}', sets: '${{ steps.sets.outputs.sets }}', 'go-modules': '${{ steps.sets.outputs.go-modules }}' });
   assert.equal(assets.strategy?.matrix, '${{ fromJson(needs.tag.outputs.sets) }}');
   // linux-x64-gnu and the set without a platform build on ubuntu-24.04, the default of the expression.
-  assert.equal(assets['runs-on'], "${{ matrix.platform == 'linux-arm64-gnu' && 'ubuntu-24.04-arm' || matrix.platform == 'darwin-arm64' && 'macos-15' || 'ubuntu-24.04' }}");
+  assert.equal(assets['runs-on'], '${{ matrix.runner }}', 'the runner of the set, which release sets names (K1211)');
   assert.deepEqual(PLATFORM_NAMES, ['linux-x64-gnu', 'linux-arm64-gnu', 'darwin-arm64'], 'each platform of the release has its runner in the expression');
   assert.deepEqual({ platform: assets.env?.RELEASE_PLATFORM, php: assets.env?.RELEASE_PHP }, { platform: '${{ matrix.platform }}', php: '${{ matrix.php }}' });
   assert.deepEqual(runs(assets).filter(line => line.startsWith('make ')), ['make release-prepare', 'make release-tools', 'make release-tools-path', 'make release-assets']);

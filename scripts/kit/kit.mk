@@ -333,9 +333,9 @@ release-assets: ## Build the archive of every package of TAG in the asset set of
 	@test -n "$$TAG" || { echo "release-assets: TAG is required, for example make release-assets TAG=v0.0.1"; exit 1; }
 	RELEASE_PLATFORM="$(RELEASE_PLATFORM)" RELEASE_PHP="$(RELEASE_PHP)" RELEASE_ASSETS="$(RELEASE_ASSETS)" $(ONLINE) $(NODE) $(KIT)/release.$(KIT_EXT) assets "$$TAG"
 
-release-candidate-assets: ## Build the archive of every package from committed HEAD for VERSION, and packages.json of its Composer packages (K871), into RELEASE_ASSETS (K1102); ONLINE, since uv build installs the build-system.requires of a wheel package
+release-candidate-assets: ## Build the archive of every package from committed HEAD for VERSION in the asset set of RELEASE_PLATFORM and RELEASE_PHP, none for the set without a platform (K1211), and packages.json of its Composer packages (K871), into RELEASE_ASSETS (K1102); ONLINE, since uv build installs the build-system.requires of a wheel package
 	@test -n "$$VERSION" || { echo "release-candidate-assets: VERSION is required, for example make release-candidate-assets VERSION=0.0.1"; exit 1; }
-	RELEASE_ASSETS="$(RELEASE_ASSETS)" $(ONLINE) $(NODE) $(KIT)/release.$(KIT_EXT) candidate-assets "$$VERSION"
+	RELEASE_PLATFORM="$(RELEASE_PLATFORM)" RELEASE_PHP="$(RELEASE_PHP)" RELEASE_ASSETS="$(RELEASE_ASSETS)" $(ONLINE) $(NODE) $(KIT)/release.$(KIT_EXT) candidate-assets "$$VERSION"
 
 release-go-modules: ## Tag the Go module of each go-static package that declares a goModule as <directory>/TAG, at a commit of no branch that adds its generated files and the library of each platform from RELEASE_ASSETS to the commit of TAG, after a consumer passes go test at that tag, and push the tags alone (K1205); none declared passes; ONLINE, since go fetches the modules that the go.mod requires
 	@test -n "$$TAG" || { echo "release-go-modules: TAG is required, for example make release-go-modules TAG=v0.0.1"; exit 1; }

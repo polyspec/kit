@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: c55f82adae3ce21c5798f182faabfe5d2930294e095cf47908e710dafe66b5df -->
+<!-- source-sha256: 4b3ae974b139d3048a095cfa2d3ace8bf560b0a1f54afef412ab960ffdbedc6d -->
 # 릴리스
 
 [English](release.md)
@@ -122,7 +122,7 @@ pattern, 어느 asset도 이름 짓지 않는 파일은 각각 실패한다. 각
 달고, 플랫폼 asset은 그 뒤에 `-<platform>`을, php-ext asset은 `-php<X.Y>-<platform>`을 붙인다(P39).
 
 `workflows/release.yml`은 set을 matrix로 빌드한다: job `tag`는 commit에 tag를 달고 tag를 check out한 뒤 `make release-sets`를
-돌린다. job `assets`는 set마다 그 플랫폼의 runner(linux-x64-gnu와 플랫폼 없는 set은 `ubuntu-24.04`, linux-arm64-gnu는
+돌린다. job `assets`는 set마다 그 플랫폼의 runner, 곧 set의 `runner`(K1211; linux-x64-gnu와 플랫폼 없는 set은 `ubuntu-24.04`, linux-arm64-gnu는
 `ubuntu-24.04-arm`, darwin-arm64는 `macos-15`)에서 돌며, set의 PHP minor를 설정하고 `RELEASE_PLATFORM`과 `RELEASE_PHP`로 `make
 release-assets`를 돌린 뒤 폴더를 upload한다. job `publish`는 모든 폴더를 한 asset 폴더로 download하고 `make release-publish`와
 `make release-undraft`를 돌린다.
@@ -166,6 +166,31 @@ tag의 checkout에 모든 set의 asset이 asset 폴더에 있는 상태로, GitH
    remote에서 받으므로, 그 tag는 이 release보다 먼저 있어야 한다.
 6. module마다 그 commit에 annotated tag `<directory>/vX.Y.Z`를 만들고 그 tag만 push한다. 어느 branch도 그 commit을 담지 않고,
    다시 돌리면 이미 있는 tag를 거부한다. 이 commit과 tag는 workflow가 만든다. 사람이 만드는 tag는 없다.
+
+native package를 가진 저장소는 release 전에 모든 플랫폼의 asset을 증명한다(K1211). release workflow의 job `assets`는 tag를 만든 뒤에
+돌기 때문에, 거기서 실패한 set은 release 없는 tag를 남긴다. `workflows/release-candidate.yml`이 그 증명의 예시다. 저장소는 이를
+`.github/workflows/release-candidate.yml`로 복사해 자기 CI에서 부르고(`uses: ./.github/workflows/release-candidate.yml`), 최종 job이
+요구하는 job에 그 job을 넣는다. job `sets`는 `make release-sets`를 돌린다. 이 명령은 include 목록의 set마다 `runner`를
+주고(linux-x64-gnu와 플랫폼 없는 set은 `ubuntu-24.04`, linux-arm64-gnu는 `ubuntu-24.04-arm`, darwin-arm64는 `macos-15`), change
+log의 가장 새 version인 `version`을 `GITHUB_OUTPUT`에 쓴다. job `candidate`는 set마다 그 runner에서 한 번 돌며, `VERSION`,
+`RELEASE_PLATFORM`, `RELEASE_PHP`와 함께 `make release-candidate-assets`로 실행의 commit에서 asset을 빌드한다. change log에 아직
+version이 없는 저장소는 `VERSION`을 직접 적는다. 플랫폼의 native asset을 빌드하는 job은 저장소의 규칙이 다른 job에 정한 runner와
+상관없이 그 플랫폼의 runner에서 돈다. 어떤 도구도 cross-compile하지 않으므로 runner가 곧 플랫폼이다. release workflow도 같은
+`runner`를 matrix에서 읽는다.
+
+static library를 가진 Go module을 release하는 저장소의 절차(K1205, K1208):
+
+1. rust-toolchain.toml의 `components`에 component `llvm-tools`를 적는다. `make install-tools`가 이를 설치하고, set과
+   `release-go-modules`가 거기서 llvm-strip, llvm-size, llvm-nm을 읽는다.
+2. config/release.json의 `go-static` package에 `goModule`을 선언하고, 그 디렉터리를 `goModules`에서 뺀다. `goModules`는
+   `release-tag`가 `vX.Y.Z`의 commit에 tag를 다는 목록이다. 생성 Go 파일을 쓰는 make target은 그 package의 `generated`에 둔다.
+3. 그 target이 job `publish`(ubuntu-24.04, x64)에서 돌게 한다. job `assets`에서처럼 `release-prepare`와 `release-tools`가 필요한
+   것을 거기에 설치한다.
+4. `workflows/release.yml`을 다시 복사한다. 그 job `publish`가 `make release-publish` 전에 `make release-go-modules`를 돌린다.
+   저장소의 Makefile에 recipe `release-go-modules`를 더한다(`RELEASE_MAIN`, `RELEASE_ASSETS`와 함께
+   `release.mts go-modules "$$TAG"`).
+5. Go require의 순서대로 저장소를 release한다. go.mod가 require하는 module의 tag `<directory>/vX.Y.Z`는 이 release보다 먼저
+   있어야 한다. 이 단계의 consumer가 그 tag를 받기 때문이다.
 
 `make release-tools`는 플랫폼별 package가 있으면 install-tools를 돌린다. install-tools는 rust-toolchain.toml의 toolchain을 rustup으로,
 mise.lock의 도구를, 예컨대 maturin을 돌리는 Python과 uv를 설치한다(K1190). npm-native package의 napi CLI는 저장소의 devDependency이고
