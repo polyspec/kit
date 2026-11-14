@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1224: the refusal of an existing directory that is not a venv of the checkout Python names a remedy that runs. The directory cannot be remade while it exists, so the remedy is now `remove it with rm -rf <dir>, then run make python-venv DIR=<dir>`, for a directory without pyvenv.cfg and for a venv of another Python (`scripts/kit/python-venv.mts`). The test `tests/kit/python-venv.test.mts` asserts both steps.
+
 ## 0.0.112
 
 - K1221: the release builds no per-platform asset, prints no matrix of asset sets and proves no set before a tag. The package kinds `wheel-abi3`, `php-ext`, `npm-native` and `go-static` of config/release.json, `release-native.mts`, the asset sets (`RELEASE_PLATFORM`, `RELEASE_PHP`), `release.mts sets` with the target `release-sets`, the steps of release-tools for those kinds, the outputs `tag` and `version` of release-tag in `GITHUB_OUTPUT`, the matrix of the example release workflow, the example `workflows/release-candidate.yml` and the paragraphs of PRINCIPLES.md and AGENTS.md about those assets are gone (K1189, K1190, K1196, K1198, K1199, K1200, K1203, K1208, K1211): the code of kit decided how a Rust core and its bindings are built and packed for each platform, the names of those assets, the jobs of a workflow and the runner of each platform, which is the build and the release of the repository. The release tools, their schemas, recipes and documents hold the form that they had before K1189; a repository builds such assets in its own recipe and states the matrix in its own workflow. `rust-toolchain.toml` of kit names the component `llvm-tools` no longer.

@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- K1224: 체크아웃 Python의 venv가 아닌 기존 디렉터리의 거부 메시지가 실행되는 해결 방법을 제시합니다. 디렉터리가 있는 동안에는 다시 만들 수 없으므로 해결 방법이 `remove it with rm -rf <dir>, then run make python-venv DIR=<dir>`가 되었습니다. pyvenv.cfg가 없는 디렉터리와 다른 Python의 venv에 적용됩니다(`scripts/kit/python-venv.mts`). 테스트 `tests/kit/python-venv.test.mts`가 두 단계를 모두 확인합니다.
+
 ## 0.0.112
 
 - K1221: release가 플랫폼별 asset을 빌드하지 않고, asset set의 matrix를 출력하지 않으며, tag 전에 set을 증명하지 않습니다. config/release.json의 package 종류 `wheel-abi3`, `php-ext`, `npm-native`, `go-static`, `release-native.mts`, asset set(`RELEASE_PLATFORM`, `RELEASE_PHP`), `release.mts sets`와 target `release-sets`, 그 종류를 위한 release-tools의 단계, release-tag가 `GITHUB_OUTPUT`에 쓰던 `tag`와 `version`, 예시 release workflow의 matrix, 예시 `workflows/release-candidate.yml`, 그 asset에 관한 PRINCIPLES.md와 AGENTS.md의 문단을 제거했습니다(K1189, K1190, K1196, K1198, K1199, K1200, K1203, K1208, K1211). Rust core와 그 binding을 플랫폼마다 어떻게 build하고 pack하는지, 그 asset의 이름, workflow의 job과 플랫폼별 runner를 kit의 코드가 정했는데, 그것은 저장소의 build와 release입니다. release 도구와 그 schema, recipe, 문서는 K1189 이전의 형태입니다. 저장소는 그런 asset을 자기 recipe에서 빌드하고 matrix를 자기 workflow에 적습니다. kit의 `rust-toolchain.toml`은 component `llvm-tools`를 더 적지 않습니다.

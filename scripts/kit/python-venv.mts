@@ -19,7 +19,7 @@ import { SHIMS, toolCommand } from './mise-tools.mts';
 import { present } from './present.mts';
 import { cleanupAfter } from './process.mts';
 
-const MAKE = (directory: string): string => `make it from the checkout Python, with make python-venv DIR=${directory} or ${SHIMS}/uv venv --python ${SHIMS}/python3 ${directory}`;
+const MAKE = (directory: string): string => `remove it with rm -rf ${directory}, then run make python-venv DIR=${directory}`;
 
 /** Whether `file` lies in `directory`, both read through their links. */
 function inside(file: string, directory: string): boolean {
