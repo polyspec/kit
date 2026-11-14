@@ -6,6 +6,7 @@
 // the run, the contexts as plain values, the texts with `${{ }}` of a workflow, and the references of an expression to its
 // contexts, which the run checks before any step runs.
 import { data, Evaluator, Lexer, Parser, type Expr } from '@actions/expressions';
+import { TokenType } from '@actions/expressions/lexer';
 import { Binary, ContextAccess, FunctionCall, Grouping, IndexAccess, Literal, Logical, Star, Unary } from '@actions/expressions/ast';
 import type { FunctionDefinition } from '@actions/expressions/funcs/info';
 import { truthy as dataTruthy } from '@actions/expressions/result';
@@ -25,7 +26,11 @@ const CONTEXTS = ['github', 'needs', 'matrix', 'runner', 'env', 'steps', 'inputs
 /** Parses an expression, the text between `${{` and `}}`; throws the error of the parser for a syntax error or an unknown function or context. */
 export function parseExpression(source: string): Expr {
   try {
-    return new Parser(new Lexer(source).lex().tokens, CONTEXTS, STATUS_INFO).parse();
+    // K1228-1: the pinned lexer decodes only the first pair; raw lexemes prevent decoding that pair twice.
+    const tokens = new Lexer(source).lex().tokens.map(token => token.type === TokenType.STRING
+      ? { ...token, value: token.lexeme.slice(1, -1).replaceAll("''", "'") }
+      : token);
+    return new Parser(tokens, CONTEXTS, STATUS_INFO).parse();
   } catch (error) {
     throw new Error(`${source}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
   }
@@ -34,8 +39,8 @@ export function parseExpression(source: string): Expr {
 /**
  * A text of the workflow with its `${{ }}` expressions, in order. GitHub reads a text that is one `${{ }}` alone as that
  * expression, which keeps the kind of its value, and any other text as `format('<texts with {N}>', <expressions>)`; the
- * run joins the texts and the values written as texts, which is that format(), and does not pass its own texts through
- * the lexer of @actions/expressions 0.3.61, which turns only the first '' of a quoted text into a quote.
+ * run joins the texts and the values written as texts, which is that format(), without treating literal workflow text
+ * as expression source.
  */
 export type Template = { text: string; parts: (string | Expr)[] };
 

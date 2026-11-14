@@ -1,11 +1,20 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a305a4461ad061ba907ccc2571dc0758eda6679e030747b7fe2393539c9cc941 -->
+<!-- source-sha256: 2dbe5b25175bf2ada8719c5c729dfcdb5cb957e1cb25af532f0c6c24c3aed5d5 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1228-1 검증: 선언한 명령은 Node 26.12.0에서 commit된 구현의 시험 일곱 개를 실패나 skip 없이 통과한다.
+- K1228-1: Workflow expression은 모든 겹친 작은따옴표를 한 번씩 해석한다. Adapter는 검증한 raw lexeme에서 STRING
+  token 값을 만들고 lexeme과 range를 보존하며 native tokenization, syntax 오류, parsing, evaluation을 유지한다.
+  이전에는 pin한 lexer가 첫 쌍만 해석해 literal과 format 인자의 반복 escape를 바꾸고 참인 step condition을
+  건너뛰었다. 집중 회귀 시험 일곱 개가 이 실패를 재현한다.
+  Node 26.12.0과 npm 12.2.0에서 집중 runner는 실패 일곱 개에서 통과 일곱 개로 바뀌며, 전체 owner 파일의 시험
+  38개가 skip 없이 통과한다. Typecheck, duplication-check, lint-ts, docs-check가 통과한다.
+- K1231 검증: 선언된 command가 commit된 구현에서 회귀 시험 5개를 통과한다. 전체 owner인 runtime-targets file은 skip 없이 시험 30개를 통과하며 typecheck, duplication-check, lint-ts, docs-check도 통과한다. Native smoke와 별도 K1231-1 action/signal lifetime 증명은 아직 남아 있다.
+- K1231: Darwin case-sensitive test는 disk image를 caller의 임시 저장소에 두고 빈 mountpoint만 `getconf DARWIN_USER_TEMP_DIR`로 찾은 native 사용자 임시 directory에 둔다. 소유권을 무시하는 volume의 mountpoint는 같은 image가 owner-aware 위치에 mount되어도 거부될 수 있다. Detach가 성공하면 두 resource path를 정리하고, detach를 확인하지 못하면 둘 다 보존하고 이름을 밝힌다. 실제 case probe는 계속 필수다. 회귀 시험 5개가 배치, native discovery, 실패 보고, cleanup 순서를 확인한다.
 - K1231-1: Command resource scope는 정상 완료와 중단 모두 비동기 action과 cleanup을 기다린다. 중단하면 일반 command 실행을 막고 cleanup command는 해당 단계가 끝날 때까지 소유한다. Runtime runner는 native 자식 close까지 case directory와 결과 record를 유지하고 상속한 표준 입력을 보존한다. 명시적인 report의 부모 안에 private reporter 파일을 두고 입력 digest에서는 제외한다. Event로 순서를 정한 수명, 준비, 중단, report 소유 회귀 시험이 통과한다.
 
 ## 0.0.113

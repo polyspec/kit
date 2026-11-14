@@ -1,5 +1,5 @@
 <!-- doc-id: spec-utilities-and-recipes -->
-<!-- source-sha256: 2898b18059210ae1589055eee642a7376351df6f176954056e98322e201e9535 -->
+<!-- source-sha256: 820fcdae97ce5f803f7bee2c8aa15a18f7897ee738e6e965d9e46cfd4f1879e3 -->
 # 유틸리티와 예제
 
 [English](utilities-and-recipes.md)
@@ -54,6 +54,19 @@ allow-remote 사례가 그 연쇄를 보여 준다.
   끝나는 matrix 조합을 재현할 수 없으므로 거부한다.
 - 실행은 script process와 runner 임시 디렉터리를 소유한다. 중단하면 새 step의 실행을 막고, 소유한 process를 종료하고
   기다린 뒤 디렉터리를 지운다. Process는 runner 디렉터리가 존재하는 동안 cleanup을 마쳐야 한다.
+
+## Case-sensitive test directory (K1231)
+
+이름의 대소문자 구분이 필요한 test는 실행 전에 실제 두 이름 probe를 통과한 filesystem의 directory를 받는다.
+Darwin은 disk image를 caller의 임시 parent 아래에 두지만 빈 mountpoint는 `getconf DARWIN_USER_TEMP_DIR`가 보고하는
+native 사용자 임시 directory 아래에 만든다. Disk Arbitration은 소유권을 무시하는 volume의 mountpoint를 거부할 수
+있으므로 caller가 선택한 임시 저장 volume으로 native mountpoint도 선택할 수는 없다. 모든 test file은 mount된 image에
+있으며 빈 mountpoint directory만 native 임시 저장소를 사용한다. Linux와 Windows는 기존 directory provisioning을 유지한다.
+
+실행은 image 저장 directory와 mountpoint directory를 따로 소유한다. 두 directory를 지우기 전에 image를 detach한다.
+Detach가 실패하거나 결과를 확인하지 못하면 두 directory를 보존하고 두 path, command 실패, 필요한 cleanup 순서를
+보고한다. 비어 있지 않은 절대 경로의 native 임시 directory를 찾지 못하면 attach 전에 실패하며, 추측한 path를 대신
+사용하거나 case probe를 건너뛰지 않는다.
 
 ## Command resource 수명 (K1231-1)
 

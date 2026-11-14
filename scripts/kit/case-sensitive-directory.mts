@@ -44,13 +44,23 @@ export async function withCaseSensitiveDirectory<T>(key: string, action: (direct
   const command: Command = options.command ?? ((file, args, runner) => runner({ command: file, args, stdout: 'pipe', stderr: 'pipe' }));
   let parent: string | undefined;
   let directory: string | undefined;
+  let separateMountpoint = false;
   let attachAttempted = false;
   let environmentSet = false;
   let previous: string | undefined;
   return withCommandResources(async () => {
     parent = mkdtempSync(path.join(options.parent ?? tmpdir(), 'kit-case-sensitive-'));
     directory = path.join(parent, 'directory');
-    mkdirSync(directory);
+    if (platform === 'darwin') {
+      // TMPDIR can select image storage on a noowners volume. Only the empty native mountpoint uses owner-aware storage.
+      const native = (await run('getconf', ['DARWIN_USER_TEMP_DIR'], command)).trim();
+      if (!path.isAbsolute(native)) throw new Error('getconf DARWIN_USER_TEMP_DIR must report a nonempty absolute directory');
+      admitWork();
+      directory = mkdtempSync(path.join(native, 'kit-case-mount-'));
+      separateMountpoint = true;
+    } else {
+      mkdirSync(directory);
+    }
     // Creating a directory on Linux's supported CI filesystems is sufficient; verification catches an unusual case-folding mount.
     if (platform === 'win32') {
       // NTFS stores case sensitivity on a directory. fsutil is the Windows-native interface; unsupported filesystems fail here.
@@ -78,26 +88,29 @@ export async function withCaseSensitiveDirectory<T>(key: string, action: (direct
       if (previous === undefined) delete process.env[key];
       else process.env[key] = previous;
     }
-    let cleanupFailure: Error | undefined;
+    const cleanupFailures: Error[] = [];
     let retainResources = false;
     if (attachAttempted && directory !== undefined) {
       try {
         await run('hdiutil', ['detach', directory], command, cleanupRunner);
       } catch (error) {
         retainResources = true;
-        cleanupFailure = new Error(
-          `could not confirm detachment of ${directory} (${error instanceof Error ? error.message : String(error)}); retained the mountpoint and image at ${parent}. Fix: run hdiutil detach ${JSON.stringify(directory)}, then remove ${JSON.stringify(parent)}`,
+        cleanupFailures.push(new Error(
+          `could not confirm detachment of ${directory} (${error instanceof Error ? error.message : String(error)}); retained the mountpoint and image: mountpoint ${directory}; image storage ${parent}. Fix: run hdiutil detach ${JSON.stringify(directory)}, then remove ${JSON.stringify(directory)} and ${JSON.stringify(parent)}`,
           { cause: error },
-        );
+        ));
       }
     }
     if (!retainResources && parent !== undefined) {
-      try {
-        rmSync(parent, { recursive: true, force: true });
-      } catch (error) {
-        cleanupFailure = new Error(`could not remove temporary test resources at ${parent}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+      for (const resource of separateMountpoint && directory !== undefined ? [directory, parent] : [parent]) {
+        try {
+          rmSync(resource, { recursive: true, force: true });
+        } catch (error) {
+          cleanupFailures.push(new Error(`could not remove temporary test resources at ${resource}: ${error instanceof Error ? error.message : String(error)}`, { cause: error }));
+        }
       }
     }
-    if (cleanupFailure !== undefined) throw cleanupFailure;
+    if (cleanupFailures.length === 1) throw cleanupFailures[0];
+    if (cleanupFailures.length > 1) throw new AggregateError(cleanupFailures, cleanupFailures.map(error => error.message).join('; '));
   });
 }

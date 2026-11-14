@@ -86,6 +86,7 @@ test('case-sensitive directory uses the platform provisioner and restores the na
   let verified = false;
   const command = (file: string, args: string[]) => {
     calls.push({ file, args });
+    if (file === 'getconf') return { status: 0, stdout: `${parent}\n`, stderr: '' };
     return { status: 0, stdout: '', stderr: '' };
   };
   try {
@@ -99,7 +100,7 @@ test('case-sensitive directory uses the platform provisioner and restores the na
     assert.equal(verified, true);
     assert.equal(process.env[key], previous);
     assert.equal(existsSync(used), false, 'the temporary test directory is removed');
-    if (process.platform === 'darwin') assert.deepEqual(calls.map(call => call.file), ['hdiutil', 'hdiutil', 'hdiutil']);
+    if (process.platform === 'darwin') assert.deepEqual(calls.map(call => call.file), ['getconf', 'hdiutil', 'hdiutil', 'hdiutil']);
     else if (process.platform === 'win32') assert.match(calls[0]?.file ?? '', /fsutil\.exe$/);
     else assert.deepEqual(calls, []);
   } finally {
@@ -260,7 +261,7 @@ for (const scenario of [
             fs.writeFileSync(${JSON.stringify(path.join(root, 'events.json'))}, JSON.stringify(events));
             if (args[0] === 'create') parent = path.dirname(args.at(-1));
             if (args[0] === ${JSON.stringify(scenario.stage)}) {
-              fs.writeFileSync(${JSON.stringify(path.join(root, 'resources.json'))}, JSON.stringify({ parent, directory: args[0] === 'attach' ? args[3] : null }));
+              fs.writeFileSync(${JSON.stringify(path.join(root, 'resources.json'))}, JSON.stringify({ parent, directory: args[0] === 'attach' ? args[3] : path.join(${JSON.stringify(root)}, fs.readdirSync(${JSON.stringify(root)}).find(name => name.startsWith('kit-case-mount-'))) }));
               return await run({ command: process.execPath, args: ['-e', ${JSON.stringify(workerBody)}], stdout: 'pipe', stderr: 'pipe' });
             }
             if (args[0] === 'detach' && ${JSON.stringify(scenario.failDetach)}) return { status: 1, stderr: 'simulated busy mount' };
@@ -282,12 +283,16 @@ for (const scenario of [
       await Promise.race([ready, closed.then(result => assert.fail(`provisioner exited before readiness: ${JSON.stringify(result)}\n${output}`))]);
       child.kill(scenario.signal);
       assert.equal((await closed)[0], scenario.signal === 'SIGINT' ? 130 : 143, output);
-      assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'worker-cleanup.json'), 'utf8')), { parentExists: true, directoryExists: scenario.stage === 'attach' ? true : null });
+      assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'worker-cleanup.json'), 'utf8')), { parentExists: true, directoryExists: true });
       assert.equal(existsSync(path.join(root, 'action-ran')), false);
       assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'events.json'), 'utf8')), scenario.stage === 'create' ? ['create'] : ['create', 'attach', 'detach']);
       const retained = readdirSync(root).filter(name => name.startsWith('kit-case-'));
       if (scenario.failDetach) {
-        assert.ok(retained.length > 0);
+        assert.equal(retained.length, 2, 'both mountpoint and image storage remain');
+        const resources: unknown = JSON.parse(readFileSync(path.join(root, 'resources.json'), 'utf8'));
+        assert.ok(resources !== null && typeof resources === 'object' && 'parent' in resources && typeof resources.parent === 'string' && 'directory' in resources && typeof resources.directory === 'string');
+        assert.ok(output.includes(resources.parent));
+        assert.ok(output.includes(resources.directory));
         assert.match(output, /could not confirm detachment.*retained the mountpoint and image/s);
       } else assert.deepEqual(retained, []);
       complete = true;
@@ -345,6 +350,155 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   });
 }
 
+test('K1231: Darwin separates caller image storage from the native owner-aware mountpoint', async () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'kit-case-placement-'));
+  const storage = path.join(root, 'noowners');
+  const native = path.join(root, 'native-temp');
+  mkdirSync(storage);
+  mkdirSync(native);
+  const calls: string[][] = [];
+  let image = '';
+  let mountpoint = '';
+  try {
+    const result = await withCaseSensitiveDirectory('KIT_CASE_SENSITIVE_TEST_DIR', directory => {
+      assert.equal(directory, mountpoint);
+      assert.equal(path.dirname(directory), native);
+      return 'ran';
+    }, {
+      platform: 'darwin', parent: storage, verify: () => undefined,
+      command: (file, args) => {
+        calls.push([file, ...args]);
+        if (file === 'getconf') return { status: 0, stdout: `${native}\n` };
+        if (args[0] === 'create') image = args.at(-1) ?? '';
+        if (args[0] === 'attach') {
+          mountpoint = args[3] ?? '';
+          if (mountpoint.startsWith(`${storage}${path.sep}`)) return { status: 1, stderr: 'Disk Arbitration: mountpoint ignores ownership' };
+        }
+        return { status: 0 };
+      },
+    });
+    assert.equal(result, 'ran');
+    assert.equal(path.dirname(path.dirname(image)), storage);
+    assert.deepEqual(calls[0], ['getconf', 'DARWIN_USER_TEMP_DIR']);
+    assert.deepEqual(readdirSync(storage), []);
+    assert.deepEqual(readdirSync(native), []);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('K1231: an uncertain Darwin detach retains and reports both resource locations', async () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'kit-case-two-resources-'));
+  const native = path.join(root, 'native-temp');
+  mkdirSync(native);
+  let image = '';
+  let mountpoint = '';
+  try {
+    await assert.rejects(() => withCaseSensitiveDirectory('KIT_CASE_SENSITIVE_TEST_DIR', () => 'ran', {
+      platform: 'darwin', parent: root, verify: () => undefined,
+      command: (file, args) => {
+        if (file === 'getconf') return { status: 0, stdout: `${native}\n` };
+        if (args[0] === 'create') {
+          image = args.at(-1) ?? '';
+          writeFileSync(image, 'image');
+        }
+        if (args[0] === 'attach') mountpoint = args[3] ?? '';
+        return args[0] === 'detach' ? { status: 1, stderr: 'resource busy' } : { status: 0 };
+      },
+    }), error => {
+      assert.ok(error instanceof Error);
+      assert.ok(error.message.includes(path.dirname(image)), error.message);
+      assert.ok(error.message.includes(mountpoint), error.message);
+      assert.match(error.message, /resource busy/);
+      return true;
+    });
+    assert.equal(path.dirname(mountpoint), native);
+    assert.equal(existsSync(image), true);
+    assert.equal(existsSync(mountpoint), true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('K1231: invalid native temporary discovery fails before attachment and removes its image directory', async () => {
+  const parent = mkdtempSync(path.join(tmpdir(), 'kit-case-bad-native-'));
+  try {
+    for (const value of ['', 'relative/directory']) {
+      const calls: string[][] = [];
+      await assert.rejects(() => withCaseSensitiveDirectory('KIT_CASE_SENSITIVE_TEST_DIR', () => assert.fail('must not run'), {
+        platform: 'darwin', parent, verify: () => undefined,
+        command: (file, args) => {
+          calls.push([file, ...args]);
+          return { status: 0, stdout: value };
+        },
+      }), /DARWIN_USER_TEMP_DIR.*absolute/i);
+      assert.equal(calls.some(call => call[1] === 'attach'), false);
+      assert.deepEqual(readdirSync(parent), []);
+    }
+  } finally {
+    rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test('K1231: a failed native temporary lookup names its command output and cleans its resources', async () => {
+  const parent = mkdtempSync(path.join(tmpdir(), 'kit-case-native-error-'));
+  const calls: string[] = [];
+  try {
+    await assert.rejects(() => withCaseSensitiveDirectory('KIT_CASE_SENSITIVE_TEST_DIR', () => assert.fail('must not run'), {
+      platform: 'darwin', parent, verify: () => undefined,
+      command: file => {
+        calls.push(file);
+        return file === 'getconf' ? { status: 1, stderr: 'native temporary directory unavailable' } : { status: 0 };
+      },
+    }), /getconf DARWIN_USER_TEMP_DIR.*native temporary directory unavailable/);
+    assert.deepEqual(calls, ['getconf']);
+    assert.deepEqual(readdirSync(parent), []);
+  } finally {
+    rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test('K1231: an action error detaches before removing either owned directory and restores its environment', async () => {
+  const parent = mkdtempSync(path.join(tmpdir(), 'kit-case-action-error-'));
+  const native = path.join(parent, 'native-temp');
+  mkdirSync(native);
+  const key = 'KIT_CASE_SENSITIVE_TEST_DIR';
+  const previous = process.env[key];
+  const actionError = new Error('the action failed');
+  let image = '';
+  let mountpoint = '';
+  let detached = false;
+  try {
+    await assert.rejects(() => withCaseSensitiveDirectory(key, directory => {
+      assert.equal(directory, mountpoint);
+      throw actionError;
+    }, {
+      platform: 'darwin', parent, verify: () => undefined,
+      command: (file, args) => {
+        if (file === 'getconf') return { status: 0, stdout: `${native}\n` };
+        if (args[0] === 'create') image = args.at(-1) ?? '';
+        if (args[0] === 'attach') mountpoint = args[3] ?? '';
+        if (args[0] === 'detach') {
+          assert.equal(existsSync(path.dirname(image)), true);
+          assert.equal(existsSync(mountpoint), true);
+          detached = true;
+        }
+        return { status: 0 };
+      },
+    }), error => error === actionError);
+    assert.equal(detached, true);
+    assert.equal(existsSync(path.dirname(image)), false);
+    assert.equal(existsSync(mountpoint), false);
+    assert.equal(process.env[key], previous);
+    assert.deepEqual(readdirSync(native), []);
+    assert.deepEqual(readdirSync(parent), ['native-temp']);
+  } finally {
+    if (previous === undefined) delete process.env[key];
+    else process.env[key] = previous;
+    rmSync(parent, { recursive: true, force: true });
+  }
+});
+
 test('a failed disk-image detach retains its resources and preserves the action failure (K739)', async () => {
   const parent = mkdtempSync(path.join(tmpdir(), 'kit-case-detach-'));
   const actionError = new Error('case-sensitive action failed');
@@ -359,7 +513,8 @@ test('a failed disk-image detach retains its resources and preserves the action 
       platform: 'darwin',
       parent,
       verify: () => undefined,
-      command: (_file, args) => {
+      command: (file, args) => {
+        if (file === 'getconf') return { status: 0, stdout: `${parent}\n` };
         calls.push(args);
         return args[0] === 'detach' ? { status: 1, stderr: 'busy' } : { status: 0, stdout: '', stderr: '' };
       },
@@ -387,7 +542,8 @@ test('a failed attach with an unconfirmed detach retains the possibly mounted pa
       platform: 'darwin',
       parent,
       verify: () => undefined,
-      command: (_file, args) => {
+      command: (file, args) => {
+        if (file === 'getconf') return { status: 0, stdout: `${parent}\n` };
         calls.push(args);
         if (args[0] === 'attach') {
           mountpoint = args[3] ?? '';
@@ -494,7 +650,7 @@ test('a failed command of the case-sensitive directory names its standard output
   try {
     await assert.rejects(withCaseSensitiveDirectory('KIT_CASE_SENSITIVE_TEST_DIR', () => assert.fail('must not run'), {
       platform: 'darwin', parent, verify: () => undefined,
-      command: () => ({ status: 1, stdout: 'hdiutil: create failed - the disk is full', stderr: '' }),
+      command: file => file === 'getconf' ? { status: 0, stdout: `${parent}\n` } : { status: 1, stdout: 'hdiutil: create failed - the disk is full', stderr: '' },
     }), /the disk is full/);
   } finally {
     rmSync(parent, { recursive: true, force: true });
@@ -507,7 +663,7 @@ test('a failed detach names the output of hdiutil in its message (K1151)', async
   try {
     await assert.rejects(withCaseSensitiveDirectory('KIT_CASE_SENSITIVE_TEST_DIR', () => 'ran', {
       platform: 'darwin', parent, verify: () => undefined,
-      command: (_file, args) => (args[0] === 'detach' ? { status: 1, stderr: 'hdiutil: couldn\'t unmount: resource busy' } : { status: 0, stdout: '', stderr: '' }),
+      command: (file, args) => file === 'getconf' ? { status: 0, stdout: `${parent}\n` } : args[0] === 'detach' ? { status: 1, stderr: 'hdiutil: couldn\'t unmount: resource busy' } : { status: 0, stdout: '', stderr: '' },
     }), /could not confirm detachment.*resource busy/s);
   } finally {
     rmSync(parent, { recursive: true, force: true });
