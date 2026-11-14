@@ -1,10 +1,17 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 7b437a9ef93a633cbc759bba416df793480cc3683c4df26622abfb91aec1d975 -->
+<!-- source-sha256: a99877238b25263e412449fada08230e28847fa52112c9658db185e874f77261 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1228-1: Workflow expression은 모든 겹친 작은따옴표를 한 번씩 해석한다. Adapter는 검증한 raw lexeme에서 STRING
+  token 값을 만들고 lexeme과 range를 보존하며 native tokenization, syntax 오류, parsing, evaluation을 유지한다.
+  이전에는 pin한 lexer가 첫 쌍만 해석해 literal과 format 인자의 반복 escape를 바꾸고 참인 step condition을
+  건너뛰었다. 집중 회귀 시험 일곱 개가 이 실패를 재현한다.
+  Node 26.12.0과 npm 12.2.0에서 집중 runner는 실패 일곱 개에서 통과 일곱 개로 바뀌며, 전체 owner 파일의 시험
+  38개가 skip 없이 통과한다. Typecheck, duplication-check, lint-ts, docs-check가 통과한다.
 
 ## 0.0.113
 

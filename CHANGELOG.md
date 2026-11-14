@@ -5,6 +5,13 @@
 
 ## Unreleased
 
+- K1228-1: Workflow expressions decode every doubled single quote once. The adapter derives STRING token values from
+  their validated raw lexemes and keeps their lexemes and ranges; native tokenization, syntax errors, parsing and
+  evaluation are retained. Before, the pinned lexer decoded only the first pair, changing repeated escapes in literals
+  and format arguments and skipping a true step condition. Seven focused regressions reproduce those failures.
+  On Node 26.12.0 with npm 12.2.0, the focused runner changes from seven failures to seven passes; the complete owner
+  files pass 38 tests, with no skips. Typecheck, duplication-check, lint-ts and docs-check pass.
+
 ## 0.0.113
 
 - K1228 verification: the declared command passes 26 tests on the committed implementation. The complete expression and local-job owner files pass 31 tests; typecheck, duplication-check and lint-ts pass.
