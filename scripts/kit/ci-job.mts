@@ -18,8 +18,8 @@
 // matches fails the run with the combinations that exist. In `run:`, `env:` and `working-directory`, `${{ matrix.<key> }}`
 // is the value of the combination and `${{ runner.temp }}` is `RUNNER_TEMP`. Refused by name, because the run could not
 // give them the meaning that CI gives: a job that calls a reusable workflow, any other `${{ }}` expression in those places,
-// and an `if:` other than a conjunction (`&&`) of `always()`, `success()`, `!cancelled()`, `matrix.<key> == '<text>'` or `!=`,
-// and `contains(fromJSON('<list>'), matrix.<key>)`, which the run decides for the combination; a step whose condition does not
+// and an `if:` other than a conjunction (`&&`) of `always()`, `success()`, `!cancelled()`, `matrix.<key>` or `runner.os` `==` or `!=` a
+// text or a number, and `contains(fromJSON('<list>'), matrix.<key>)`, which the run decides for the combination; a step whose condition does not
 // hold is named and not run. `RUNNER_TEMP` is a directory that the
 // run makes under the temporary directory of the system (`TMPDIR`) for each combination and removes at its end, also
 // on SIGINT and SIGTERM. The run makes no download; the steps that download are the install targets of the repository.
@@ -34,6 +34,8 @@ import { isMain, repositoryRoot } from './paths.mts';
 const USAGE = 'usage: node scripts/kit/ci-job.mts --workflow <file> --job <id> [--matrix <key>=<value>]...';
 const SHELL_ARGS = ['--noprofile', '--norc', '-eo', 'pipefail', '-c'];
 const RUN_CONDITIONS = new Set(['always()', 'success()', '!cancelled()']);
+/** `runner.os` of GitHub for the machine of the run. */
+const RUNNER_OS = ({ darwin: 'macOS', linux: 'Linux', win32: 'Windows' } as Record<string, string>)[process.platform] ?? process.platform;
 
 type Mapping = Record<string, unknown>;
 
@@ -88,16 +90,17 @@ function textMap(map: unknown, combination: Combination, where: string): Record<
 
 /**
  * The value of one term of a condition: a status function, which holds while no earlier step failed, since the run stops at
- * the first failing step; `matrix.<key> == '<text>'` or `!=`; or `contains(fromJSON('<list>'), matrix.<key>)`, whose list holds
+ * the first failing step; `matrix.<key>` or `runner.os` (the system of this machine) `==` or `!=` a quoted text or a number; or `contains(fromJSON('<list>'), matrix.<key>)`, whose list holds
  * texts or numbers. Undefined for any other term.
  */
 function term(text: string, combination: Combination): boolean | undefined {
   if (RUN_CONDITIONS.has(text)) return true;
-  const compared = /^matrix\.([A-Za-z0-9_-]+)\s*(==|!=)\s*'([^']*)'$/.exec(text);
+  const compared = /^(matrix\.[A-Za-z0-9_-]+|runner\.os)\s*(==|!=)\s*(?:'([^']*)'|(-?\d+(?:\.\d+)?))$/.exec(text);
   if (compared) {
-    const [, key = '', operator, literal] = compared;
-    if (!(key in combination)) return undefined;
-    return (combination[key] === literal) === (operator === '==');
+    const [, name = '', operator, quoted, number] = compared;
+    const value = name === 'runner.os' ? RUNNER_OS : combination[name.slice('matrix.'.length)];
+    if (value === undefined) return undefined;
+    return (value === (quoted ?? number)) === (operator === '==');
   }
   const contained = /^contains\(\s*fromJSON\(\s*'([^']*)'\s*\)\s*,\s*matrix\.([A-Za-z0-9_-]+)\s*\)$/.exec(text);
   if (contained) {
@@ -119,7 +122,7 @@ function condition(step: Mapping, combination: Combination, where: string): bool
   if (when === undefined) return true;
   const bare = when.replace(/^\$\{\{\s*/, '').replace(/\s*\}\}$/, '').trim();
   const values = bare.split('&&').map(part => term(part.trim(), combination));
-  if (values.some(value => value === undefined)) throw new Error(`${where}: if: ${when} is not a condition that the local run decides as CI does: always(), success(), !cancelled(), matrix.<key> == or != '<text>', contains(fromJSON('<list>'), matrix.<key>), joined by &&`);
+  if (values.some(value => value === undefined)) throw new Error(`${where}: if: ${when} is not a condition that the local run decides as CI does: always(), success(), !cancelled(), matrix.<key> or runner.os == or != a text or a number, contains(fromJSON('<list>'), matrix.<key>), joined by &&`);
   return values.every(Boolean);
 }
 

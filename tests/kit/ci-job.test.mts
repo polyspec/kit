@@ -157,6 +157,8 @@ const CONDITIONS = `jobs:
     steps:
       - if: \${{ contains(fromJSON('[1,3]'), matrix.shard) && matrix.runner != 'windows' }}
         run: printf "\${{ matrix.shard }}-\${{ matrix.runner }};" >> picked.log
+      - if: \${{ matrix.shard == 2 && matrix.runner == 'linux' && runner.os != 'Plan9' }}
+        run: printf "\${{ matrix.shard }}-\${{ matrix.runner }};" >> picked.log
 `;
 
 test('K1227: a condition of matrix values and literals is decided as CI decides it', async () => {
@@ -164,7 +166,7 @@ test('K1227: a condition of matrix values and literals is decided as CI decides 
   try {
     const lines: string[] = [];
     assert.equal(await ciJob({ root, workflow: '.github/workflows/ci.yml', job: 'shards', print: line => lines.push(line) }), 0, lines.join('\n'));
-    assert.equal(readFileSync(path.join(root, 'picked.log'), 'utf8'), '1-linux;3-linux;');
+    assert.equal(readFileSync(path.join(root, 'picked.log'), 'utf8'), '1-linux;2-linux;3-linux;');
     assert.ok(lines.some(line => line.includes('not run on this machine') && line.includes('if: ')), lines.join('\n'));
   } finally {
     rmSync(root, { recursive: true, force: true });
