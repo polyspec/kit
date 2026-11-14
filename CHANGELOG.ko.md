@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 7b437a9ef93a633cbc759bba416df793480cc3683c4df26622abfb91aec1d975 -->
+<!-- source-sha256: 47f15de5bac7b29c2602ae34dcfd31124bd27723a1922ee1a0ac772c5eae535e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1231-1 Red: 비동기 case-directory action이 끝나기 전에 디렉터리가 사라진다. SIGINT와 SIGTERM worker도 자신의 cleanup 전에 디렉터리가 제거됐음을 관찰한다. 소유 선택 시험은 native stdin 기준 시험을 통과하고 이 세 수명 assertion에 실패한다. Resource scope 수정은 아직 구현하지 않았다.
 ## 0.0.113
 
 - K1228 검증: 선언한 명령은 commit된 구현에서 26개 시험을 통과한다. Expression과 local-job 소유 파일 전체는 31개 시험을 통과하고, typecheck, duplication-check, lint-ts도 통과한다.

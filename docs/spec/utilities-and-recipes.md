@@ -55,6 +55,24 @@ are printed with their inputs and are not executed, so the local run requires th
   terminates and awaits the owned processes, and then removes their directories. A process must finish cleanup while its
   runner directory still exists.
 
+## Command resource lifetime (K1231-1)
+
+An asynchronous command resource scope owns its resources from provisioning through cleanup. Its controlled action awaits its
+owned normal commands; it does not leave unawaited work using the resource. The action must settle before cleanup starts; a
+returned promise keeps the resource alive until it settles. Normal completion and action failure both await cleanup. If the
+action and cleanup fail, the caller receives both errors.
+
+Interruption closes normal command admission immediately, requests termination of owned work groups, and awaits their child
+close and cleanup. The harness then waits for each active resource scope to finish its cleanup before exiting with status 130
+for SIGINT or 143 for SIGTERM. A resource cleanup callback receives a runner that is valid only while that callback executes.
+Its commands remain owned and awaited; they are cleanup, not newly admitted work. A retained cleanup runner cannot start a
+command after its callback ends.
+
+The runtime runner preserves native arguments and inherited standard input. It keeps its result directories and its
+case-sensitive test filesystem until the associated native runner has closed. It restores the selected environment value
+and detaches an image before removing its mountpoint or image storage.
+A cleanup failure reports the resources that remain; it never turns an interrupted or failed run into success.
+
 ## Native event identity (K1091)
 
 A native event parser preserves the framework's complete test identity. For PHPUnit TeamCity messages,

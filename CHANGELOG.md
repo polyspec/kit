@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K1231-1 Red: the asynchronous case-directory action loses its directory before it settles. The SIGINT and SIGTERM workers also observe the directory removed before their cleanup. The owning selection passes the native stdin baseline and fails these three lifetime assertions; the resource-scope repair is not implemented yet.
 ## 0.0.113
 
 - K1228 verification: the declared command passes 26 tests on the committed implementation. The complete expression and local-job owner files pass 31 tests; typecheck, duplication-check and lint-ts pass.

@@ -1,5 +1,5 @@
 <!-- doc-id: spec-utilities-and-recipes -->
-<!-- source-sha256: cda0e78f00d88cb13056af31a5e777ec2d3461ddcc6b7f67d2c25817e23fdf0a -->
+<!-- source-sha256: 9c118d3c1de66dda15ea6dd34dcc72ae3899747b3ccb0311353e7f09bf799ae1 -->
 # 유틸리티와 예제
 
 [English](utilities-and-recipes.md)
@@ -54,6 +54,23 @@ allow-remote 사례가 그 연쇄를 보여 준다.
   끝나는 matrix 조합을 재현할 수 없으므로 거부한다.
 - 실행은 script process와 runner 임시 디렉터리를 소유한다. 중단하면 새 step의 실행을 막고, 소유한 process를 종료하고
   기다린 뒤 디렉터리를 지운다. Process는 runner 디렉터리가 존재하는 동안 cleanup을 마쳐야 한다.
+
+## Command resource 수명 (K1231-1)
+
+비동기 command resource scope는 준비부터 cleanup까지 resource를 소유한다. 제어하는 action은 소유한 일반 command를
+기다리며 resource를 사용하는 작업을 기다리지 않은 채 남기지 않는다. Action이 끝난 뒤에 cleanup을 시작하며 반환한
+promise가 끝날 때까지 resource를 유지한다. 정상 완료와 action 실패 모두 cleanup을 기다린다. Action과 cleanup이
+모두 실패하면 호출자에게 두 오류를 전달한다.
+
+중단하면 일반 command 실행을 즉시 막고, 소유한 작업 group에 종료를 요청하여 자식 close와 cleanup을 기다린다.
+Harness는 이어서 모든 active resource scope의 cleanup이 끝난 뒤 SIGINT는 130, SIGTERM은 143으로 종료한다.
+Resource cleanup callback은 그 callback 실행 중에만 유효한 runner를 받는다. 해당 command도 소유하고 기다리며,
+새 작업 실행이 아니라 cleanup이다. 보관한 cleanup runner는 callback이 끝난 뒤 command를 시작할 수 없다.
+
+Runtime runner는 native 인자와 상속한 표준 입력을 유지한다. 해당 native runner가 닫힐 때까지 결과 디렉터리와
+case-sensitive 시험 filesystem을 유지한다.
+선택한 environment 값을 복구하고 image를 detach한 뒤 mountpoint나 image 저장소를 제거한다. Cleanup 실패는
+남아 있는 resource를 보고하며 중단되거나 실패한 실행을 성공으로 바꾸지 않는다.
 
 ## Native event identity (K1091)
 

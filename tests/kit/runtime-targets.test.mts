@@ -2,13 +2,16 @@
 // unit tests of each root that the caller selects with the name filter of its runner, in the folder of the root; kit sets no runtime,
 // package layout, test folder or build command (K244, K1106).
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { once } from 'node:events';
 import { chmodSync, existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { buildRuns, caseSensitiveSmokeRuns, infrastructureRuns, nothingRan, rootModules, selectionOf, testRuns, type Run } from '../../scripts/kit/runtime-targets.mts';
 import { withCaseSensitiveDirectory } from '../../scripts/kit/case-sensitive-directory.mts';
+import { stopGroup } from '../../scripts/kit/process-group.mts';
+import { filePublished } from './file-events.mts';
 import { tool } from './kit-tools.mts';
 import { tree } from './tree.mts';
 
@@ -105,6 +108,116 @@ test('case-sensitive directory uses the platform provisioner and restores the na
     rmSync(parent, { recursive: true, force: true });
   }
 });
+
+test('K1231-1: an asynchronous case-directory action retains its directory and environment until it settles', async () => {
+  const parent = mkdtempSync(path.join(tmpdir(), 'kit-case-async-'));
+  const key = 'KIT_ASYNC_CASE_TEST_DIR';
+  const previous = process.env[key];
+  let release: () => void = () => assert.fail('action was not started');
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  let directory = '';
+  const pending = withCaseSensitiveDirectory(key, async place => {
+    directory = place;
+    await gate;
+    return 'finished';
+  }, { platform: 'linux', parent, verify: () => undefined });
+  try {
+    assert.equal(existsSync(directory), true, 'the pending action still owns its directory');
+    assert.equal(process.env[key], directory, 'the pending action still owns its environment value');
+    release();
+    assert.equal(await pending, 'finished');
+    assert.equal(existsSync(directory), false);
+    assert.equal(process.env[key], previous);
+  } finally {
+    release();
+    await pending;
+    if (previous === undefined) delete process.env[key];
+    else process.env[key] = previous;
+    rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  test(`K1231-1: ${signal} closes the worker before detaching and removing case resources`, { skip: process.platform === 'win32' && 'POSIX signals' }, async t => {
+    const root = mkdtempSync(path.join(tmpdir(), 'kit-case-signal-'));
+    const readyPath = path.join(root, 'ready.json');
+    const ready = filePublished(t, readyPath);
+    const workerBody = `
+      const fs = require('node:fs');
+      const hold = fs.watch(${JSON.stringify(root)}, () => {});
+      process.on('SIGTERM', () => {
+        fs.writeFileSync(${JSON.stringify(path.join(root, 'worker-cleanup.json'))}, JSON.stringify({ directoryExists: fs.existsSync(process.env.KIT_CASE_SCOPE) }));
+        hold.close();
+      });
+      fs.writeFileSync(${JSON.stringify(readyPath)}, JSON.stringify({ pid: process.pid }));
+    `;
+    const driver = `
+      import fs from 'node:fs';
+      import path from 'node:path';
+      import { syncBuiltinESMExports } from 'node:module';
+      const cp = process.getBuiltinModule('node:child_process');
+      const spawn = cp.spawn;
+      const records = [];
+      cp.spawn = (...args) => {
+        const child = spawn(...args);
+        const record = { closed: false };
+        records.push(record);
+        child.once('close', () => { record.closed = true; });
+        return child;
+      };
+      syncBuiltinESMExports();
+      let directory = '';
+      let imageParent = '';
+      const originalExit = process.exit;
+      process.exit = status => {
+        fs.writeFileSync(${JSON.stringify(path.join(root, 'owner-exit.json'))}, JSON.stringify({ records, directoryExists: fs.existsSync(directory), imageParentExists: fs.existsSync(imageParent) }));
+        originalExit(status);
+      };
+      const { withCaseSensitiveDirectory } = await import(${JSON.stringify(new URL('../../scripts/kit/case-sensitive-directory.mts', import.meta.url).href)});
+      const { runCommand } = await import(${JSON.stringify(new URL('../../scripts/kit/run-command.mts', import.meta.url).href)});
+      process.exitCode = await withCaseSensitiveDirectory('KIT_CASE_SCOPE', async place => {
+        directory = place;
+        await runCommand({ command: process.execPath, args: ['-e', ${JSON.stringify(workerBody)}], stdout: 'pipe', stderr: 'pipe' });
+        await runCommand({ command: process.execPath, args: ['-e', ${JSON.stringify(`require('node:fs').writeFileSync(${JSON.stringify(path.join(root, 'later'))}, 'bad')`)}] });
+        return 0;
+      }, {
+        platform: 'darwin', parent: ${JSON.stringify(root)}, verify: () => {},
+        command: (file, args) => {
+          if (file === 'getconf') return { status: 0, stdout: ${JSON.stringify(root + '\n')} };
+          if (args[0] === 'create') imageParent = path.dirname(args.at(-1));
+          if (args[0] === 'detach') fs.writeFileSync(${JSON.stringify(path.join(root, 'detach.json'))}, JSON.stringify({ workerClosed: records.every(record => record.closed), workerCleanup: fs.existsSync(${JSON.stringify(path.join(root, 'worker-cleanup.json'))}) }));
+          return { status: 0, stdout: '', stderr: '' };
+        },
+      });
+    `;
+    const child = spawn(process.execPath, ['--input-type=module', '-e', driver], { stdio: ['ignore', 'pipe', 'pipe'], detached: true });
+    let output = '';
+    for (const stream of [child.stdout, child.stderr]) stream.setEncoding('utf8').on('data', (chunk: string) => { output += chunk; });
+    const closed = once(child, 'close');
+    let complete = false;
+    try {
+      await Promise.race([ready, closed.then(result => assert.fail(`owner exited before worker readiness: ${JSON.stringify(result)}\n${output}`))]);
+      child.kill(signal);
+      assert.equal((await closed)[0], signal === 'SIGINT' ? 130 : 143, output);
+      assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'worker-cleanup.json'), 'utf8')), { directoryExists: true });
+      assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'detach.json'), 'utf8')), { workerClosed: true, workerCleanup: true });
+      assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'owner-exit.json'), 'utf8')), { records: [{ closed: true }], directoryExists: false, imageParentExists: false });
+      assert.equal(existsSync(path.join(root, 'later')), false, 'no normal command starts after interruption');
+      complete = true;
+    } finally {
+      if (!complete) {
+        if (child.pid !== undefined) await stopGroup(child.pid, closed, 1000);
+        if (existsSync(readyPath)) {
+          const worker: unknown = JSON.parse(readFileSync(readyPath, 'utf8'));
+          assert.ok(worker !== null && typeof worker === 'object' && 'pid' in worker && typeof worker.pid === 'number');
+          await stopGroup(worker.pid, Promise.resolve(), 1000);
+        }
+      }
+      await closed;
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
 
 test('case-sensitive directory rejects an invalid environment key before running the action', () => {
   assert.throws(() => withCaseSensitiveDirectory('BAD-NAME', () => assert.fail('must not run')), /invalid environment variable name/);
@@ -280,6 +393,14 @@ test('a failed detach names the output of hdiutil in its message (K1151)', () =>
 });
 
 // A build that fails names its command and how it ended, a signal included (K1164).
+test('K1231-1: asynchronous build execution preserves native standard input', t => {
+  const root = tree(t, { 'sub/a.txt': 'a\n' });
+  const body = "let input = ''; process.stdin.setEncoding('utf8'); process.stdin.on('data', text => { input += text; }); process.stdin.on('end', () => { require('node:fs').writeFileSync('stdin.log', input); });";
+  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/runtime-targets.mts')), 'build', '--roots', 'sub', '--', process.execPath, '-e', body], { cwd: root, input: 'native input\n', encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(readFileSync(path.join(root, 'sub/stdin.log'), 'utf8'), 'native input\n');
+});
+
 test('a failed build of runtime-targets names its command and its exit status or signal (K1164)', (t) => {
   const root = tree(t, { 'sub/a.txt': 'a\n' });
   const build = (command: string) => spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/runtime-targets.mts')), 'build', '--roots', 'sub', '--', 'sh', '-c', command], { cwd: root, encoding: 'utf8' });
