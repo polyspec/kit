@@ -21,7 +21,6 @@
 // A call without a selection is a usage error (exit 2), and a selection that runs nothing fails: it has tested nothing. That holds
 // for a root too: each run records the counts of its tests (run-tests --results), and a run that reports no test that ran fails
 // with "found nothing to run", so a node or vitest root without a test file never passes (K1074, K1106).
-import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -31,6 +30,7 @@ import { isMain, repositoryRoot, siblingTool } from './paths.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { listedTests } from './run-tests.mts';
 import { withCaseSensitiveDirectory } from './case-sensitive-directory.mts';
+import { interruptionStatus, runCommand, withCommandResources } from './run-command.mts';
 
 /**
  * A run of run-tests.mts: the folder, relative to the root, the tool, the options of run-tests and the arguments of the tool; `root`
@@ -202,7 +202,7 @@ export function selectionOf(args: readonly string[]): Selection | undefined {
   return selection;
 }
 
-if (isMain(import.meta.url)) {
+async function main(): Promise<void> {
   const root = repositoryRoot();
   const [mode = '', ...args] = process.argv.slice(2);
   const usage = (problem?: string): never => {
@@ -230,7 +230,11 @@ if (isMain(import.meta.url)) {
       // The command runs as the caller writes it, from the root of the build: a path such as var/tools/bin/go, or a name on PATH.
       const command = build.command.includes('/') ? path.resolve(root, build.command) : build.command;
       console.log(`[runtime-targets] ${build.cwd}: ${build.command} ${build.args.join(' ')}`);
-      const result = spawnSync(command, build.args, { cwd: path.join(root, build.cwd), stdio: 'inherit' });
+      const result = await runCommand({ command, args: build.args, cwd: path.join(root, build.cwd), stdin: 'inherit' });
+      if (interruptionStatus() !== undefined) {
+        process.exitCode = interruptionStatus();
+        break;
+      }
       if (result.error) throw new Error(`${build.command} could not start: ${result.error.message}`);
       if (result.status !== 0) {
         // The failed build is named with how it ended, a signal included (K1164).
@@ -238,7 +242,8 @@ if (isMain(import.meta.url)) {
         process.exit(1);
       }
     }
-    process.exit(0);
+    process.exitCode = interruptionStatus() ?? 0;
+    return;
   }
   const caseSensitiveEnv = process.env.CASE_SENSITIVE_ENV || undefined;
   let runs: Run[] = [];
@@ -279,35 +284,37 @@ if (isMain(import.meta.url)) {
     console.error(`[runtime-targets] ${mode} found nothing to run`);
     process.exit(1);
   }
-  const execute = () => {
+  const execute = async () => {
     let failed = 0;
     for (const run of runs) {
+      if (interruptionStatus() !== undefined) break;
       // The root that the run tests, which names it in a finding.
       const name = run.root ?? run.cwd;
       if (run.root !== undefined) console.log(`[runtime-targets] ${run.root}: its run starts in ${run.cwd}, with ${(run.options ?? []).join(' ')}`);
       // The counts of the run go to a temporary file, which is read and removed here.
-      const record = mkdtempSync(path.join(tmpdir(), 'kit-runtime-targets-'));
-      try {
+      let record: string | undefined;
+      failed += await withCommandResources(async () => {
+        record = mkdtempSync(path.join(tmpdir(), 'kit-runtime-targets-'));
         const file = path.join(record, 'result.json');
-        const result = spawnSync(process.execPath, [siblingTool(import.meta.url, 'run-tests'), run.tool, '--cwd', run.cwd, ...(run.options ?? []), '--results', file, '--', ...run.args], { cwd: root, stdio: 'inherit' });
+        const result = await runCommand({ command: process.execPath, args: [siblingTool(import.meta.url, 'run-tests'), run.tool, '--cwd', run.cwd, ...(run.options ?? []), '--results', file, '--', ...run.args], cwd: root, stdin: 'inherit' });
+        if (interruptionStatus() !== undefined) return 0;
         const finding = nothingRan(name, existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) as unknown : undefined);
         if (finding !== undefined) console.error(`[runtime-targets] ${finding}`);
         if (result.error) console.error(`[runtime-targets] ${name}: run-tests ${run.tool} could not start: ${result.error.message}`);
         else if (result.signal) console.error(`[runtime-targets] ${name}: run-tests ${run.tool} ended by signal ${result.signal}`);
-        if (result.status !== 0 || finding !== undefined) failed += 1;
-      } finally {
-        rmSync(record, { recursive: true, force: true });
-      }
+        return result.status !== 0 || finding !== undefined ? 1 : 0;
+      }, () => {
+        if (record !== undefined) rmSync(record, { recursive: true, force: true });
+      });
     }
-    return failed ? 1 : 0;
+    return interruptionStatus() ?? (failed ? 1 : 0);
   };
-  if (caseSensitiveEnv !== undefined) {
-    try {
-      process.exit(withCaseSensitiveDirectory(caseSensitiveEnv, execute));
-    } catch (error) {
-      console.error(`[runtime-targets] ${error instanceof Error ? error.message : String(error)}`);
-      process.exit(1);
-    }
+  try {
+    process.exitCode = caseSensitiveEnv !== undefined ? await withCaseSensitiveDirectory(caseSensitiveEnv, execute) : await execute();
+  } catch (error) {
+    console.error(`[runtime-targets] ${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = interruptionStatus() ?? 1;
   }
-  process.exit(execute());
 }
+
+if (isMain(import.meta.url)) await main();

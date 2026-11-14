@@ -3,15 +3,24 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { interruptionStatus, runCommand, withCommandResources, type CleanupCommand } from './run-command.mts';
 
-type Command = (file: string, args: string[]) => { status: number | null; error?: Error; stdout?: string; stderr?: string };
+type CommandResult = { status: number | null; signal?: string | null; error?: Error | undefined; stdout?: string; stderr?: string };
+type Command = (file: string, args: string[], runner: CleanupCommand) => CommandResult | Promise<CommandResult>;
 
-function run(file: string, args: string[], command: Command): void {
-  const result = command(file, args);
+function admitWork(): void {
+  if (interruptionStatus() !== undefined) throw new Error('case-sensitive directory work stopped because the harness was interrupted');
+}
+
+async function run(file: string, args: string[], command: Command, runner: CleanupCommand = runCommand): Promise<string> {
+  if (runner === runCommand) admitWork();
+  const result = await command(file, args, runner);
   if (result.error || result.status !== 0) {
-    throw new Error(`${file} ${args.join(' ')} failed${result.error ? `: ${result.error.message}` : ` (${result.status}): ${[result.stderr, result.stdout].map(text => (text ?? '').trim()).filter(Boolean).join('\n')}`}`);
+    const output = [result.stderr, result.stdout].map(text => (text ?? '').trim()).filter(Boolean).join('\n');
+    const detail = result.error?.message ?? (result.signal ? `signal ${result.signal}` : String(result.status));
+    throw new Error(`${file} ${args.join(' ')} failed (${detail})${output ? `: ${output}` : ''}`);
   }
+  return result.stdout ?? '';
 }
 
 function verify(directory: string): void {
@@ -28,69 +37,67 @@ function verify(directory: string): void {
   }
 }
 
-/** Run `action` with an empty, verified case-sensitive directory under the caller-selected environment key. */
-export function withCaseSensitiveDirectory<T>(key: string, action: (directory: string) => T, options: { platform?: NodeJS.Platform; parent?: string; command?: Command; verify?: (directory: string) => void } = {}): T {
+/** Await `action` with an empty, verified case-sensitive directory, and await resource cleanup before returning. */
+export async function withCaseSensitiveDirectory<T>(key: string, action: (directory: string) => T | Promise<T>, options: { platform?: NodeJS.Platform; parent?: string; command?: Command; verify?: (directory: string) => void } = {}): Promise<T> {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) throw new Error(`invalid environment variable name ${JSON.stringify(key)}`);
   const platform = options.platform ?? process.platform;
-  const command = options.command ?? ((file, args) => spawnSync(file, args, { encoding: 'utf8' }));
-  const parent = mkdtempSync(path.join(options.parent ?? tmpdir(), 'kit-case-sensitive-'));
-  const directory = path.join(parent, 'directory');
-  mkdirSync(directory);
+  const command: Command = options.command ?? ((file, args, runner) => runner({ command: file, args, stdout: 'pipe', stderr: 'pipe' }));
+  let parent: string | undefined;
+  let directory: string | undefined;
   let attachAttempted = false;
-  let outcome: { kind: 'value'; value: T } | { kind: 'error'; error: unknown };
-  try {
+  let environmentSet = false;
+  let previous: string | undefined;
+  return withCommandResources(async () => {
+    parent = mkdtempSync(path.join(options.parent ?? tmpdir(), 'kit-case-sensitive-'));
+    directory = path.join(parent, 'directory');
+    mkdirSync(directory);
     // Creating a directory on Linux's supported CI filesystems is sufficient; verification catches an unusual case-folding mount.
     if (platform === 'win32') {
       // NTFS stores case sensitivity on a directory. fsutil is the Windows-native interface; unsupported filesystems fail here.
       const fsutil = process.env.SystemRoot ? path.join(process.env.SystemRoot, 'System32', 'fsutil.exe') : 'fsutil.exe';
-      run(fsutil, ['file', 'setCaseSensitiveInfo', directory, 'enable'], command);
+      await run(fsutil, ['file', 'setCaseSensitiveInfo', directory, 'enable'], command);
     } else if (platform === 'darwin') {
       const image = path.join(parent, 'case-sensitive.dmg');
-      run('hdiutil', ['create', '-size', '64m', '-fs', 'Case-sensitive APFS', '-volname', 'kit-case', '-ov', image], command);
+      await run('hdiutil', ['create', '-size', '64m', '-fs', 'Case-sensitive APFS', '-volname', 'kit-case', '-ov', image], command);
       // A failed attach may still have mounted the image. Always try to detach after starting it, and retain the
       // mountpoint and image if detachment cannot prove that they are safe to remove.
+      admitWork();
       attachAttempted = true;
-      run('hdiutil', ['attach', '-nobrowse', '-mountpoint', directory, image], command);
+      await run('hdiutil', ['attach', '-nobrowse', '-mountpoint', directory, image], command);
     } else if (platform !== 'linux') {
       throw new Error(`case-sensitive test directories are not supported on ${platform}`);
     }
+    admitWork();
     (options.verify ?? verify)(directory);
-    const previous = process.env[key];
+    previous = process.env[key];
     process.env[key] = directory;
-    try {
-      outcome = { kind: 'value', value: action(directory) };
-    } catch (error) {
-      outcome = { kind: 'error', error };
-    } finally {
+    environmentSet = true;
+    return await action(directory);
+  }, async cleanupRunner => {
+    if (environmentSet) {
       if (previous === undefined) delete process.env[key];
       else process.env[key] = previous;
     }
-  } catch (error) {
-    outcome = { kind: 'error', error };
-  }
-
-  let cleanupFailure: Error | undefined;
-  let retainResources = false;
-  if (attachAttempted) {
-    try {
-      run('hdiutil', ['detach', directory], command);
-    } catch (error) {
-      retainResources = true;
-      cleanupFailure = new Error(
-        `could not confirm detachment of ${directory} (${error instanceof Error ? error.message : String(error)}); retained the mountpoint and image at ${parent}. Fix: run hdiutil detach ${JSON.stringify(directory)}, then remove ${JSON.stringify(parent)}`,
-        { cause: error },
-      );
+    let cleanupFailure: Error | undefined;
+    let retainResources = false;
+    if (attachAttempted && directory !== undefined) {
+      try {
+        await run('hdiutil', ['detach', directory], command, cleanupRunner);
+      } catch (error) {
+        retainResources = true;
+        cleanupFailure = new Error(
+          `could not confirm detachment of ${directory} (${error instanceof Error ? error.message : String(error)}); retained the mountpoint and image at ${parent}. Fix: run hdiutil detach ${JSON.stringify(directory)}, then remove ${JSON.stringify(parent)}`,
+          { cause: error },
+        );
+      }
     }
-  }
-  if (!retainResources) {
-    try {
-      rmSync(parent, { recursive: true, force: true });
-    } catch (error) {
-      cleanupFailure = new Error(`could not remove temporary test resources at ${parent}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+    if (!retainResources && parent !== undefined) {
+      try {
+        rmSync(parent, { recursive: true, force: true });
+      } catch (error) {
+        cleanupFailure = new Error(`could not remove temporary test resources at ${parent}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+      }
     }
-  }
-  if (outcome.kind === 'error' && cleanupFailure) throw new AggregateError([outcome.error, cleanupFailure], `${String(outcome.error)}; cleanup also failed: ${cleanupFailure.message}`);
-  if (outcome.kind === 'error') throw outcome.error;
-  if (cleanupFailure) throw cleanupFailure;
-  return outcome.value;
+    if (cleanupFailure !== undefined) throw cleanupFailure;
+  });
 }

@@ -1,5 +1,5 @@
 <!-- doc-id: spec-utilities-and-recipes -->
-<!-- source-sha256: 9c118d3c1de66dda15ea6dd34dcc72ae3899747b3ccb0311353e7f09bf799ae1 -->
+<!-- source-sha256: 2898b18059210ae1589055eee642a7376351df6f176954056e98322e201e9535 -->
 # 유틸리티와 예제
 
 [English](utilities-and-recipes.md)
@@ -69,7 +69,10 @@ Resource cleanup callback은 그 callback 실행 중에만 유효한 runner를 �
 
 Runtime runner는 native 인자와 상속한 표준 입력을 유지한다. 해당 native runner가 닫힐 때까지 결과 디렉터리와
 case-sensitive 시험 filesystem을 유지한다.
-선택한 environment 값을 복구하고 image를 detach한 뒤 mountpoint나 image 저장소를 제거한다. Cleanup 실패는
+선택한 environment 값을 복구하고 image를 detach한 뒤 mountpoint나 image 저장소를 제거한다. 명시적인 결과 report가
+있으면 native test runner는 report의 부모 디렉터리를 만들고 그 안에 private counts와 extension 설정을 둔다. Report
+입력을 hash하기 전에 private 디렉터리를 제거한다. Report가 없으면 호출자의 임시 디렉터리 배치를 유지한다. 두 형태
+모두 자식의 임시 디렉터리 environment를 바꾸지 않는다. Cleanup 실패는
 남아 있는 resource를 보고하며 중단되거나 실패한 실행을 성공으로 바꾸지 않는다.
 
 ## Native event identity (K1091)

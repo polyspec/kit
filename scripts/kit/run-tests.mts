@@ -27,7 +27,7 @@
 // test file, name or id runs the whole runtime (K1053). A run in which no test passed or failed fails, so a selection that
 // matches nothing never passes; a file of node tests that registers no test fails.
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
@@ -321,15 +321,15 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
   const cargo = options.tool === 'cargo';
   const python = options.tool === 'python';
   // The progress reporters write their counts to this file; the runner requires that a test ran.
-  const results = mkdtempSync(path.join(tmpdir(), 'kit-test-result-'));
+  const resultParent = options.results ? path.dirname(options.results) : tmpdir();
+  if (options.results) mkdirSync(resultParent, { recursive: true });
+  const results = mkdtempSync(path.join(resultParent, 'kit-test-result-'));
   const resultFile = path.join(results, 'result.json');
   // The run passes the environment of its caller as it is (K1094): a runner started from inside node --test is started without
   // NODE_TEST_CONTEXT by that caller, and a caller whose environment sets FORCE_COLOR passes PYTHON_COLORS=0 for the python
   // tool, whose parser reads plain lines.
   // The reporters run in the --cwd directory, so they take the repository root from TEST_ROOT.
   const env: NodeJS.ProcessEnv = { ...callerEnv, KIT_TEST_RESULT: resultFile, [TEST_ROOT]: root };
-  // The ini file of the extensions lives in the folder of the results, which the run removes at its end (K900).
-  Object.assign(env, phpExtensionScan(options.phpExtensions, results, env));
   // The signal that interrupted the run, which the runner ends on once the tool's group is stopped.
   let interrupted: NodeJS.Signals | undefined;
   // How a process of the run, the build of the tests or the tool (`what`), ended: its status and signal, or why it did not run
@@ -345,6 +345,8 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
   // for a hangup.
   let parentWatch: NodeJS.Timeout | undefined;
   try {
+    // The ini file belongs to this scope even when preparing it fails (K900, K1231-1).
+    Object.assign(env, phpExtensionScan(options.phpExtensions, results, env));
     // The stop of the process group that runs now: the build of the tests, then the tool. Before either starts there is none.
     let stopRunning = (): void => {};
     onInterrupt = (signal) => { interrupted ??= signal; stopRunning(); };
@@ -455,6 +457,9 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
       exit = code === 0 ? 0 : 1;
     }
     const counts = existsSync(resultFile) ? readJsonFile<Counts>(resultFile, 'test-result.schema.json') : null;
+    // Private reporter files are outputs, not inputs of the report. Remove them before hashing even when only the
+    // final report file, rather than its whole parent, is ignored. The finally block also covers earlier failures.
+    rmSync(results, { recursive: true, force: true });
     if (counts !== null && options.results) {
       const inputs = { paths: options.inputs, digest: inputsDigest(root, options.inputs) };
       writeJson(options.results, { tool: options.tool, inputs, elapsedMs: Date.now() - began, ...counts });

@@ -71,6 +71,9 @@ command after its callback ends.
 The runtime runner preserves native arguments and inherited standard input. It keeps its result directories and its
 case-sensitive test filesystem until the associated native runner has closed. It restores the selected environment value
 and detaches an image before removing its mountpoint or image storage.
+With an explicit result report, the native test runner places its private counts and extension configuration inside the report
+parent, creates that parent when absent, and removes the private directory before hashing report inputs. Without a report it
+keeps the caller temporary-directory placement. Neither form changes the child temporary-directory environment.
 A cleanup failure reports the resources that remain; it never turns an interrupted or failed run into success.
 
 ## Native event identity (K1091)

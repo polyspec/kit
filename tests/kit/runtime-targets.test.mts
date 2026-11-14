@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -78,7 +78,7 @@ test('the platform smoke runs the files that the caller names with the standard 
   assert.throws(() => caseSensitiveSmokeRuns([]), /needs the smoke files as arguments/);
 });
 
-test('case-sensitive directory uses the platform provisioner and restores the named environment', () => {
+test('case-sensitive directory uses the platform provisioner and restores the named environment', async () => {
   const parent = mkdtempSync(path.join(tmpdir(), 'kit-case-test-'));
   const key = 'KIT_CASE_SENSITIVE_TEST_DIR';
   const previous = process.env[key];
@@ -90,7 +90,7 @@ test('case-sensitive directory uses the platform provisioner and restores the na
   };
   try {
     let used = '';
-    const result = withCaseSensitiveDirectory(key, directory => {
+    const result = await withCaseSensitiveDirectory(key, directory => {
       used = directory;
       assert.equal(process.env[key], directory);
       return 'ran';
@@ -219,17 +219,139 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   });
 }
 
-test('case-sensitive directory rejects an invalid environment key before running the action', () => {
-  assert.throws(() => withCaseSensitiveDirectory('BAD-NAME', () => assert.fail('must not run')), /invalid environment variable name/);
+test('case-sensitive directory rejects an invalid environment key before running the action', async () => {
+  await assert.rejects(withCaseSensitiveDirectory('BAD-NAME', () => assert.fail('must not run')), /invalid environment variable name/);
 });
 
-test('a failed disk-image detach retains its resources and preserves the action failure (K739)', () => {
+for (const scenario of [
+  { stage: 'create', signal: 'SIGINT', failDetach: false },
+  { stage: 'create', signal: 'SIGTERM', failDetach: false },
+  { stage: 'attach', signal: 'SIGINT', failDetach: false },
+  { stage: 'attach', signal: 'SIGTERM', failDetach: false },
+  { stage: 'attach', signal: 'SIGTERM', failDetach: true },
+] as const) {
+  test(`K1231-1: ${scenario.signal} during ${scenario.stage}${scenario.failDetach ? ' retains an unconfirmed mount' : ' cleans provisioned resources'}`, { skip: process.platform === 'win32' && 'POSIX signals' }, async t => {
+    const root = mkdtempSync(path.join(tmpdir(), 'kit-case-provision-'));
+    const readyPath = path.join(root, 'ready.json');
+    const ready = filePublished(t, readyPath);
+    const workerBody = `
+      const fs = require('node:fs');
+      const paths = JSON.parse(fs.readFileSync(${JSON.stringify(path.join(root, 'resources.json'))}, 'utf8'));
+      const hold = fs.watch(${JSON.stringify(root)}, () => {});
+      process.on('SIGTERM', () => {
+        fs.writeFileSync(${JSON.stringify(path.join(root, 'worker-cleanup.json'))}, JSON.stringify({ parentExists: fs.existsSync(paths.parent), directoryExists: paths.directory ? fs.existsSync(paths.directory) : null }));
+        hold.close();
+      });
+      fs.writeFileSync(${JSON.stringify(readyPath)}, JSON.stringify({ pid: process.pid }));
+    `;
+    const driver = `
+      import fs from 'node:fs';
+      import path from 'node:path';
+      const { withCaseSensitiveDirectory } = await import(${JSON.stringify(new URL('../../scripts/kit/case-sensitive-directory.mts', import.meta.url).href)});
+      const { interruptionStatus } = await import(${JSON.stringify(new URL('../../scripts/kit/run-command.mts', import.meta.url).href)});
+      let parent = '';
+      const events = [];
+      try {
+        await withCaseSensitiveDirectory('KIT_PROVISION_SCOPE', () => fs.writeFileSync(${JSON.stringify(path.join(root, 'action-ran'))}, 'bad'), {
+          platform: 'darwin', parent: ${JSON.stringify(root)}, verify: () => {},
+          command: async (file, args, run) => {
+            if (file === 'getconf') return { status: 0, stdout: ${JSON.stringify(root + '\n')} };
+            events.push(args[0]);
+            fs.writeFileSync(${JSON.stringify(path.join(root, 'events.json'))}, JSON.stringify(events));
+            if (args[0] === 'create') parent = path.dirname(args.at(-1));
+            if (args[0] === ${JSON.stringify(scenario.stage)}) {
+              fs.writeFileSync(${JSON.stringify(path.join(root, 'resources.json'))}, JSON.stringify({ parent, directory: args[0] === 'attach' ? args[3] : null }));
+              return await run({ command: process.execPath, args: ['-e', ${JSON.stringify(workerBody)}], stdout: 'pipe', stderr: 'pipe' });
+            }
+            if (args[0] === 'detach' && ${JSON.stringify(scenario.failDetach)}) return { status: 1, stderr: 'simulated busy mount' };
+            return { status: 0, stdout: '', stderr: '' };
+          },
+        });
+        process.exitCode = 0;
+      } catch (error) {
+        console.error(error);
+        process.exitCode = interruptionStatus() ?? 1;
+      }
+    `;
+    const child = spawn(process.execPath, ['--input-type=module', '-e', driver], { stdio: ['ignore', 'pipe', 'pipe'], detached: true });
+    let output = '';
+    for (const stream of [child.stdout, child.stderr]) stream.setEncoding('utf8').on('data', (chunk: string) => { output += chunk; });
+    const closed = once(child, 'close');
+    let complete = false;
+    try {
+      await Promise.race([ready, closed.then(result => assert.fail(`provisioner exited before readiness: ${JSON.stringify(result)}\n${output}`))]);
+      child.kill(scenario.signal);
+      assert.equal((await closed)[0], scenario.signal === 'SIGINT' ? 130 : 143, output);
+      assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'worker-cleanup.json'), 'utf8')), { parentExists: true, directoryExists: scenario.stage === 'attach' ? true : null });
+      assert.equal(existsSync(path.join(root, 'action-ran')), false);
+      assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'events.json'), 'utf8')), scenario.stage === 'create' ? ['create'] : ['create', 'attach', 'detach']);
+      const retained = readdirSync(root).filter(name => name.startsWith('kit-case-'));
+      if (scenario.failDetach) {
+        assert.ok(retained.length > 0);
+        assert.match(output, /could not confirm detachment.*retained the mountpoint and image/s);
+      } else assert.deepEqual(retained, []);
+      complete = true;
+    } finally {
+      if (!complete && child.pid !== undefined) await stopGroup(child.pid, closed, 1000);
+      await closed;
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
+
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  test(`K1231-1: runtime-targets ${signal} keeps result records through native child cleanup`, { skip: process.platform === 'win32' && 'POSIX signals' }, async t => {
+    const root = tree(t);
+    const scratch = path.join(root, 'record-parent');
+    mkdirSync(scratch);
+    const readyPath = path.join(root, 'runner-ready');
+    const cleanupPath = path.join(root, 'runner-cleanup.json');
+    const ready = filePublished(t, readyPath);
+    const body = `
+      import test from 'node:test';
+      import fs from 'node:fs';
+      test('held native test', () => new Promise(resolve => {
+        const hold = fs.watch(${JSON.stringify(root)}, () => {});
+        process.on('SIGTERM', () => {
+          const records = fs.readdirSync(${JSON.stringify(scratch)}).filter(name => name.startsWith('kit-runtime-targets-'));
+          fs.writeFileSync(${JSON.stringify(cleanupPath)}, JSON.stringify({ records: records.length }));
+          hold.close();
+          resolve();
+        });
+        fs.writeFileSync(${JSON.stringify(readyPath)}, 'ready');
+      }));
+    `;
+    mkdirSync(path.join(root, 'native-tests'));
+    writeFileSync(path.join(root, 'native-tests/hold.test.mjs'), body);
+    const { NODE_TEST_CONTEXT: _context, CASES: _cases, ...outside } = process.env;
+    const child = spawn(process.execPath, [tool(import.meta.resolve('../../scripts/kit/runtime-targets.mts')), 'infrastructure', 'native-tests'], {
+      cwd: root, env: { ...outside, TMPDIR: scratch }, stdio: ['ignore', 'pipe', 'pipe'], detached: true,
+    });
+    let output = '';
+    for (const stream of [child.stdout, child.stderr]) stream.setEncoding('utf8').on('data', (chunk: string) => { output += chunk; });
+    const closed = once(child, 'close');
+    let complete = false;
+    try {
+      await Promise.race([ready, closed.then(result => assert.fail(`native runner exited before readiness: ${JSON.stringify(result)}\n${output}`))]);
+      child.kill(signal);
+      assert.equal((await closed)[0], signal === 'SIGINT' ? 130 : 143, output);
+      assert.deepEqual(JSON.parse(readFileSync(cleanupPath, 'utf8')), { records: 1 });
+      assert.deepEqual(readdirSync(scratch), [], 'result directories are removed after runner closure');
+      complete = true;
+    } finally {
+      if (!complete && child.pid !== undefined) await stopGroup(child.pid, closed, 1000);
+      await closed;
+    }
+  });
+}
+
+test('a failed disk-image detach retains its resources and preserves the action failure (K739)', async () => {
   const parent = mkdtempSync(path.join(tmpdir(), 'kit-case-detach-'));
   const actionError = new Error('case-sensitive action failed');
   const calls: string[][] = [];
   let directory = '';
   try {
-    assert.throws(() => withCaseSensitiveDirectory('KIT_CASE_SENSITIVE_TEST_DIR', (place) => {
+    await assert.rejects(withCaseSensitiveDirectory('KIT_CASE_SENSITIVE_TEST_DIR', (place) => {
       directory = place;
       writeFileSync(path.join(place, 'owned'), 'preserve');
       throw actionError;
@@ -255,13 +377,13 @@ test('a failed disk-image detach retains its resources and preserves the action 
   }
 });
 
-test('a failed attach with an unconfirmed detach retains the possibly mounted path (K739)', () => {
+test('a failed attach with an unconfirmed detach retains the possibly mounted path (K739)', async () => {
   const parent = mkdtempSync(path.join(tmpdir(), 'kit-case-attach-'));
   const calls: string[][] = [];
   let mountpoint = '';
   let ran = false;
   try {
-    assert.throws(() => withCaseSensitiveDirectory('KIT_CASE_SENSITIVE_TEST_DIR', () => { ran = true; }, {
+    await assert.rejects(withCaseSensitiveDirectory('KIT_CASE_SENSITIVE_TEST_DIR', () => { ran = true; }, {
       platform: 'darwin',
       parent,
       verify: () => undefined,
@@ -367,10 +489,10 @@ test('K1106 the runner and the roots are the caller\'s, inside or outside packag
 });
 
 // A command that writes its error to standard output and nothing to standard error is named by that output (K1150).
-test('a failed command of the case-sensitive directory names its standard output when its standard error is empty (K1150)', () => {
+test('a failed command of the case-sensitive directory names its standard output when its standard error is empty (K1150)', async () => {
   const parent = mkdtempSync(path.join(tmpdir(), 'kit-case-stdout-'));
   try {
-    assert.throws(() => withCaseSensitiveDirectory('KIT_CASE_SENSITIVE_TEST_DIR', () => assert.fail('must not run'), {
+    await assert.rejects(withCaseSensitiveDirectory('KIT_CASE_SENSITIVE_TEST_DIR', () => assert.fail('must not run'), {
       platform: 'darwin', parent, verify: () => undefined,
       command: () => ({ status: 1, stdout: 'hdiutil: create failed - the disk is full', stderr: '' }),
     }), /the disk is full/);
@@ -380,10 +502,10 @@ test('a failed command of the case-sensitive directory names its standard output
 });
 
 // The failure of a detach names what hdiutil said in its message, which the caller prints, not only in its cause (K1151).
-test('a failed detach names the output of hdiutil in its message (K1151)', () => {
+test('a failed detach names the output of hdiutil in its message (K1151)', async () => {
   const parent = mkdtempSync(path.join(tmpdir(), 'kit-case-detach-message-'));
   try {
-    assert.throws(() => withCaseSensitiveDirectory('KIT_CASE_SENSITIVE_TEST_DIR', () => 'ran', {
+    await assert.rejects(withCaseSensitiveDirectory('KIT_CASE_SENSITIVE_TEST_DIR', () => 'ran', {
       platform: 'darwin', parent, verify: () => undefined,
       command: (_file, args) => (args[0] === 'detach' ? { status: 1, stderr: 'hdiutil: couldn\'t unmount: resource busy' } : { status: 0, stdout: '', stderr: '' }),
     }), /could not confirm detachment.*resource busy/s);
@@ -400,6 +522,43 @@ test('K1231-1: asynchronous build execution preserves native standard input', t 
   assert.equal(result.status, 0, result.stderr);
   assert.equal(readFileSync(path.join(root, 'sub/stdin.log'), 'utf8'), 'native input\n');
 });
+
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  test(`K1231-1: build ${signal} awaits owned cleanup and admits no later root`, { skip: process.platform === 'win32' && 'POSIX signals' }, async t => {
+    const root = tree(t, { 'a/input': 'a', 'b/input': 'b' });
+    const readyPath = path.join(root, 'build-ready');
+    const cleanupPath = path.join(root, 'build-cleaned');
+    const laterPath = path.join(root, 'later-build');
+    const ready = filePublished(t, readyPath);
+    const body = `
+      const fs = require('node:fs');
+      if (require('node:path').basename(process.cwd()) === 'b') {
+        fs.writeFileSync(${JSON.stringify(laterPath)}, 'unexpected');
+      } else {
+        const hold = fs.watch('.', () => {});
+        process.on('SIGTERM', () => {
+          fs.writeFileSync(${JSON.stringify(cleanupPath)}, 'closed');
+          hold.close();
+        });
+        fs.writeFileSync(${JSON.stringify(readyPath)}, 'ready');
+      }
+    `;
+    const child = spawn(process.execPath, [tool(import.meta.resolve('../../scripts/kit/runtime-targets.mts')), 'build', '--roots', 'a', 'b', '--', process.execPath, '-e', body], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
+    let output = '';
+    for (const stream of [child.stdout, child.stderr]) stream.setEncoding('utf8').on('data', (chunk: string) => { output += chunk; });
+    const closed = once(child, 'close');
+    try {
+      await Promise.race([ready, closed.then(result => assert.fail(`build exited before readiness: ${JSON.stringify(result)}\n${output}`))]);
+      child.kill(signal);
+      assert.equal((await closed)[0], signal === 'SIGINT' ? 130 : 143, output);
+      assert.equal(existsSync(cleanupPath), true, 'owned build cleanup finishes before the CLI closes');
+      assert.equal(existsSync(laterPath), false, 'interruption closes later build admission');
+    } finally {
+      if (child.exitCode === null && child.signalCode === null && child.pid !== undefined) await stopGroup(child.pid, closed, 1000);
+      await closed;
+    }
+  });
+}
 
 test('a failed build of runtime-targets names its command and its exit status or signal (K1164)', (t) => {
   const root = tree(t, { 'sub/a.txt': 'a\n' });

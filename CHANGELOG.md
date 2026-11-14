@@ -5,7 +5,8 @@
 
 ## Unreleased
 
-- K1231-1 Red: the asynchronous case-directory action loses its directory before it settles. The SIGINT and SIGTERM workers also observe the directory removed before their cleanup. The owning selection passes the native stdin baseline and fails these three lifetime assertions; the resource-scope repair is not implemented yet.
+- K1231-1: Command resource scopes await asynchronous actions and cleanup before normal or interrupted completion. Interrupted execution closes normal command admission while cleanup commands remain owned until their phase finishes. The runtime runner retains its case directory and result records through native child close, preserves inherited stdin, and nests private reporter files under an explicit report parent without including those files in the input digest. Event-driven lifetime, provisioning, interruption and report ownership regressions pass.
+
 ## 0.0.113
 
 - K1228 verification: the declared command passes 26 tests on the committed implementation. The complete expression and local-job owner files pass 31 tests; typecheck, duplication-check and lint-ts pass.
