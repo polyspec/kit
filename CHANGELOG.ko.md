@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ab4a9ffc6e3c43900af50cef99f87d6026363d0a58514197e757faa0a8c8bb39 -->
+<!-- source-sha256: 4e82b8eaeb111e342a7b359fd0c4e73a670598ccbd9ae758d6035da6d86a74c9 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.113
 
 - K1227: `scripts/kit/ci-job.mts`는 checkout의 GitHub workflow에서 job 하나의 step을 CI가 실행하는 대로, matrix의 각 조합 또는 `--matrix <key>=<value>`가 고른 조합마다 `${{ matrix.<key> }}`와 `${{ runner.temp }}`에 값을 넣어 실행하고, 로컬 composite action의 step은 그 자리에서 실행하며, 실행하지 않는 외부 action은 이름을 출력한다. 그래서 push 전 검사는 명령의 사본이 아니라 CI job 자체다. 처음 실패한 step에서 멈추고, CI처럼 실행할 수 없는 것, 즉 reusable workflow job, `${{ }}` 표현식, `always()`·`success()`·`!cancelled()`가 아닌 `if:`는 이름을 대고 거부한다. 시험 `tests/kit/ci-job.test.mts`가 순서, 멈춤, 각 거부를 확인한다.
 
