@@ -102,6 +102,10 @@
       "kind": "policy",
       "reason": "runs make targets past failures and writes their report, polyspec's CI contract"
     },
+    "scripts/kit/ci-job.mts": {
+      "kind": "policy",
+      "reason": "the rule that a check before a push runs the CI job itself, not a copy of its commands: it reads the workflow of the checkout and runs the steps of one job as CI runs them"
+    },
     "scripts/kit/composer-vendor.mts": {
       "kind": "ecosystem",
       "tool": "composer config vendor-dir, run with the Composer of the checkout in the folder of the composer.json, gives the vendor directory by Composer's own rule (K163, K184)"
@@ -409,6 +413,10 @@
     "scripts/kit/worktree-setup.mts": {
       "kind": "policy",
       "reason": "the rule of P10 and K348 that parallel work has its own worktree and branch, installed and checked there"
+    },
+    "scripts/kit/worktree-links.mts": {
+      "kind": "policy",
+      "reason": "the rule of K1226 that a worktree resolves its packages without an install: its node_modules links to the main checkout and its own workspace packages link into the worktree"
     },
     "scripts/kit/commit-names-check.mts": {
       "kind": "policy",
