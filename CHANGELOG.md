@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1231 verification: the declared command passes five regressions on the committed implementation. The complete owning runtime-targets file passes 30 tests with no skip; typecheck, duplication-check, lint-ts and docs-check pass. Native smoke and the separate K1231-1 action/signal lifetime proof remain pending.
+
 - K1231: Darwin case-sensitive tests keep the disk image in the caller's temporary storage and place only the empty mountpoint in the native user temporary directory discovered by `getconf DARWIN_USER_TEMP_DIR`. A mountpoint on a volume that ignores ownership can be refused even when the same image mounts at an owner-aware location. Successful detach permits cleanup of both resource paths; an uncertain detach retains and names both. The real case probe remains required. Five regressions cover placement, native discovery, failure reporting and cleanup order.
 
 ## 0.0.113

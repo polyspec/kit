@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 503471486597791d5016dffe00092af1cb30e6268a3c23caef472be47d73c2be -->
+<!-- source-sha256: 95b34221af2dd6e4210ee95ab9d856edc003280084f3d8b00643df1d379384c0 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1231 검증: 선언된 command가 commit된 구현에서 회귀 시험 5개를 통과한다. 전체 owner인 runtime-targets file은 skip 없이 시험 30개를 통과하며 typecheck, duplication-check, lint-ts, docs-check도 통과한다. Native smoke와 별도 K1231-1 action/signal lifetime 증명은 아직 남아 있다.
 
 - K1231: Darwin case-sensitive test는 disk image를 caller의 임시 저장소에 두고 빈 mountpoint만 `getconf DARWIN_USER_TEMP_DIR`로 찾은 native 사용자 임시 directory에 둔다. 소유권을 무시하는 volume의 mountpoint는 같은 image가 owner-aware 위치에 mount되어도 거부될 수 있다. Detach가 성공하면 두 resource path를 정리하고, detach를 확인하지 못하면 둘 다 보존하고 이름을 밝힌다. 실제 case probe는 계속 필수다. 회귀 시험 5개가 배치, native discovery, 실패 보고, cleanup 순서를 확인한다.
 
