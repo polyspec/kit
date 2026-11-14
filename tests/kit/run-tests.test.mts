@@ -3,7 +3,7 @@
 // PHPUnit. The runs use fixture test files in a temporary checkout and stubs of the tools on PATH; nothing needs a network.
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createServer, type Socket } from 'node:net';
 import path from 'node:path';
@@ -815,6 +815,34 @@ test('selected CLI --results defaults to root inputs and writes a passing report
   assert.equal(report.tool, 'node');
   assert.deepEqual(report.inputs, { paths: ['.'], digest: inputsDigest(root, ['.']) });
   assert.deepEqual(report.cases.map(({ id, status }) => [id, status]), [['tests/selected.test.mjs › selected', 'pass']]);
+});
+
+test('explicit reports own private counts without hashing them and default counts retain TMPDIR (K1231-1)', (t) => {
+  const root = checkout(t, {
+    '.gitignore': '/reports/only-report.json\n',
+    'tests/selected.test.mjs': `${SPEC}import { writeFileSync } from 'node:fs';
+import path from 'node:path';
+test('selected', () => {
+  writeFileSync('seen.json', JSON.stringify({ parent: path.dirname(path.dirname(process.env.KIT_TEST_RESULT)), tmp: process.env.TMPDIR }));
+  if (process.env.FAIL_CASE) throw new Error('selected failure');
+});
+`,
+  });
+  const scratch = mkdtempSync(path.join(tmpdir(), 'kit-count-owner-'));
+  t.after(() => rmSync(scratch, { recursive: true, force: true }));
+  for (const failing of [false, true]) {
+    const result = runner(root, ['node', '--results', 'reports/only-report.json', '--', 'tests/selected.test.mjs'], { TMPDIR: scratch, FAIL_CASE: failing ? '1' : '' });
+    assert.equal(result.status, failing ? 1 : 0, output(result));
+    assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'seen.json'), 'utf8')), { parent: path.join(realpathSync(root), 'reports'), tmp: scratch });
+    const report: Results = readStub(path.join(root, 'reports/only-report.json'), RESULTS);
+    assert.equal(report.inputs?.digest, inputsDigest(root, ['.']), 'the report excludes removed private counts');
+    assert.deepEqual(readdirSync(path.join(root, 'reports')), ['only-report.json']);
+    assert.deepEqual(readdirSync(scratch), []);
+  }
+  const result = runner(root, ['node', '--', 'tests/selected.test.mjs'], { TMPDIR: scratch });
+  assert.equal(result.status, 0, output(result));
+  assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'seen.json'), 'utf8')), { parent: realpathSync(scratch), tmp: scratch });
+  assert.deepEqual(readdirSync(scratch), []);
 });
 
 test('--results writes the cases, the tool, the inputs and the elapsed time of a passing and of a failing run', async (t) => {

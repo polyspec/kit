@@ -68,6 +68,41 @@ Fixtures remain available until the owned commands close. A test closes its prox
 close before removing their files, including when an assertion fails. Cooperative helper termination and escalation are
 verified by native lifecycle tests independently of download speed; no test adds a second deadline to that lifecycle.
 
+## Case-sensitive test directories (K1231)
+
+A test that needs case-distinct names receives a directory whose filesystem passes the actual two-name probe before the
+test runs. Darwin keeps its disk image under the caller's temporary parent, but creates its empty mountpoint under the
+native user temporary directory that `getconf DARWIN_USER_TEMP_DIR` reports. Disk Arbitration can reject a mountpoint on a
+volume that ignores ownership, so a caller-selected temporary storage volume cannot also choose the native mountpoint.
+The mounted image holds every test file; only the empty mountpoint directory uses native temporary storage. Linux and
+Windows keep their existing directory provisioning.
+
+The run owns the image storage directory and the mountpoint directory separately. It detaches the image before removing
+either directory. A failed or uncertain detach retains both directories and reports both paths, the command failure and
+the required cleanup order. Failure to discover a nonempty absolute native temporary directory fails before attachment;
+it does not substitute a guessed path or skip the case probe.
+
+## Command resource lifetime (K1231-1)
+
+An asynchronous command resource scope owns its resources from provisioning through cleanup. Its controlled action awaits its
+owned normal commands; it does not leave unawaited work using the resource. The action must settle before cleanup starts; a
+returned promise keeps the resource alive until it settles. Normal completion and action failure both await cleanup. If the
+action and cleanup fail, the caller receives both errors.
+
+Interruption closes normal command admission immediately, requests termination of owned work groups, and awaits their child
+close and cleanup. The harness then waits for each active resource scope to finish its cleanup before exiting with status 130
+for SIGINT or 143 for SIGTERM. A resource cleanup callback receives a runner that is valid only while that callback executes.
+Its commands remain owned and awaited; they are cleanup, not newly admitted work. A retained cleanup runner cannot start a
+command after its callback ends.
+
+The runtime runner preserves native arguments and inherited standard input. It keeps its result directories and its
+case-sensitive test filesystem until the associated native runner has closed. It restores the selected environment value
+and detaches an image before removing its mountpoint or image storage.
+With an explicit result report, the native test runner places its private counts and extension configuration inside the report
+parent, creates that parent when absent, and removes the private directory before hashing report inputs. Without a report it
+keeps the caller temporary-directory placement. Neither form changes the child temporary-directory environment.
+A cleanup failure reports the resources that remain; it never turns an interrupted or failed run into success.
+
 ## Native event identity (K1091)
 
 A native event parser preserves the framework's complete test identity. For PHPUnit TeamCity messages,

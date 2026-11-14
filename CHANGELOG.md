@@ -5,6 +5,18 @@
 
 ## Unreleased
 
+- K1231-1 verification: the declared selection passes 18 tests on the committed integrated implementation with Node 26.12.0. The placement and lifetime selection passes 23 tests, and the complete shared-signal and runtime owner files pass 51 tests without skips. Typecheck, lint-ts, duplication-check and docs-check pass. The exact native Darwin `make case-sensitive-runner-smoke` passes one test and exits 0; the image is detached, both owned resource paths are removed, and the caller temporary directory is empty.
+- K1228-1 verification: the declared command passes seven tests on the committed implementation with Node 26.12.0,
+  with zero failures or skips.
+- K1228-1: Workflow expressions decode every doubled single quote once. The adapter derives STRING token values from
+  their validated raw lexemes and keeps their lexemes and ranges; native tokenization, syntax errors, parsing and
+  evaluation are retained. Before, the pinned lexer decoded only the first pair, changing repeated escapes in literals
+  and format arguments and skipping a true step condition. Seven focused regressions reproduce those failures.
+  On Node 26.12.0 with npm 12.2.0, the focused runner changes from seven failures to seven passes; the complete owner
+  files pass 38 tests, with no skips. Typecheck, duplication-check, lint-ts and docs-check pass.
+- K1231 verification: the declared command passes five regressions on the committed implementation. The complete owning runtime-targets file passes 30 tests with no skip; typecheck, duplication-check, lint-ts and docs-check pass. Native smoke and the separate K1231-1 action/signal lifetime proof remain pending.
+- K1231: Darwin case-sensitive tests keep the disk image in the caller's temporary storage and place only the empty mountpoint in the native user temporary directory discovered by `getconf DARWIN_USER_TEMP_DIR`. A mountpoint on a volume that ignores ownership can be refused even when the same image mounts at an owner-aware location. Successful detach permits cleanup of both resource paths; an uncertain detach retains and names both. The real case probe remains required. Five regressions cover placement, native discovery, failure reporting and cleanup order.
+- K1231-1: Command resource scopes await asynchronous actions and cleanup before normal or interrupted completion. Interrupted execution closes normal command admission while cleanup commands remain owned until their phase finishes. The runtime runner retains its case directory and result records through native child close, preserves inherited stdin, and nests private reporter files under an explicit report parent without including those files in the input digest. Event-driven lifetime, provisioning, interruption and report ownership regressions pass.
 - K1232 verification: The declared selection passes seven cases on the committed implementation with Node 26.12.0. The complete installer owner files pass fourteen cases; typecheck, lint-ts, duplication-check and docs-check pass.
 - K1232: Installer command tests await owned command close instead of killing the owner after twenty seconds. A withheld archive response and an injected clock reproduce the premature kill without orphaning the downloader; the successful retry and exhausted retry cases observe downloader settlement, helper close, publication and cleanup. Proxy connections and servers close before fixture removal. Native helper tests retain cooperative termination and escalation checks without an independent ten-second deadline and preserve their fixture if cleanup fails.
 

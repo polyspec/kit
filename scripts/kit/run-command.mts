@@ -14,10 +14,14 @@ const LEFT_GRACE_MS = 1000;
 interface TrackedGroup {
   root: SpawnedRoot;
   closed: Promise<void>;
+  cleanup: boolean;
   stopping?: Promise<void>;
 }
 const groups = new Map<number, TrackedGroup>();
+interface ResourceScope { closed: Promise<unknown[]> }
+const resources = new Set<ResourceScope>();
 let interrupted: number | undefined;
+let listening = false;
 
 function stopTrackedGroup(pid: number, group: TrackedGroup): Promise<void> {
   return group.stopping ??= stopGroup(pid, group.closed, LEFT_GRACE_MS, undefined, group.root).then(() => group.closed);
@@ -28,6 +32,8 @@ export interface RunCommandOptions {
   args?: readonly string[] | undefined;
   cwd?: string | undefined;
   env?: NodeJS.ProcessEnv | undefined;
+  /** Standard input is ignored unless the caller explicitly inherits it. */
+  stdin?: 'inherit' | 'ignore' | undefined;
   stdout?: 'inherit' | 'pipe' | undefined;
   stderr?: 'inherit' | 'pipe' | undefined;
   /** The captured output of stdout and stderr together that stops the command; 16 MiB by default. */
@@ -48,6 +54,76 @@ export interface RunCommandResult {
   error?: Error | undefined;
 }
 
+/** A resource's owned command runner, valid only during its cleanup callback. Failed cleanup commands reject. */
+export type CleanupCommand = (options: RunCommandOptions) => Promise<RunCommandResult>;
+
+/** The status selected by the first harness interruption, or undefined while normal work is admitted. */
+export const interruptionStatus = (): number | undefined => interrupted;
+
+function containsFailure(root: unknown, failure: unknown, seen = new Set<unknown>()): boolean {
+  if (root === failure) return true;
+  if (!(root instanceof Error) || seen.has(root)) return false;
+  seen.add(root);
+  return containsFailure(root.cause, failure, seen)
+    || (root instanceof AggregateError && root.errors.some(each => containsFailure(each, failure, seen)));
+}
+
+/**
+ * Keep resources alive until the controlled action (which awaits its normal commands) and cleanup finish.
+ * Interruption waits for this scope; cleanup commands stay owned but are not new work to cancel.
+ */
+export async function withCommandResources<T>(action: () => T | Promise<T>, cleanup: (run: CleanupCommand) => void | Promise<void>): Promise<T> {
+  if (interrupted !== undefined) throw new Error('resource admission stopped because the harness was interrupted');
+  const completion = Promise.withResolvers<unknown[]>();
+  const resource: ResourceScope = { closed: completion.promise };
+  resources.add(resource);
+  updateListeners();
+  let outcome: { kind: 'value'; value: T } | { kind: 'error'; error: unknown };
+  try { outcome = { kind: 'value', value: await action() }; }
+  catch (error) { outcome = { kind: 'error', error }; }
+  let active = true;
+  const commands: Promise<void>[] = [];
+  const commandFailures: unknown[] = [];
+  const runCleanup: CleanupCommand = options => {
+    if (!active) return Promise.reject(new Error('cleanup command admission is closed outside its cleanup callback'));
+    const result = runTrackedCommand(options, true).then(done => {
+      const failure = failureOf(done);
+      if (failure !== undefined) {
+        const output = [done.stderr, done.stdout].map(text => text.trim()).filter(Boolean).join('\n');
+        throw new Error(`${options.command} ${(options.args ?? []).join(' ')} ${failure}${output ? `: ${output}` : ''}`);
+      }
+      return done;
+    });
+    // Observe rejection immediately, even when a callback forgets to await its admitted command.
+    commands.push(result.then(() => undefined, error => { commandFailures.push(error); }));
+    return result;
+  };
+  const cleanupErrors: unknown[] = [];
+  try { await cleanup(runCleanup); }
+  catch (error) { cleanupErrors.push(error); }
+  finally {
+    active = false;
+    try {
+      await Promise.all(commands);
+      for (const failure of commandFailures) {
+        if (!cleanupErrors.some(root => containsFailure(root, failure))) cleanupErrors.push(failure);
+      }
+    } catch (error) {
+      cleanupErrors.push(error);
+    } finally {
+      resources.delete(resource);
+      completion.resolve(cleanupErrors);
+      updateListeners();
+    }
+  }
+  const errors = [...(outcome.kind === 'error' ? [outcome.error] : []), ...cleanupErrors];
+  if (errors.length === 1) throw errors[0];
+  if (errors.length > 1) throw new AggregateError(errors, errors.map(error => error instanceof Error ? error.message : String(error)).join('; '));
+  // An error outcome always contributes an error above, including a thrown undefined.
+  if (outcome.kind === 'error') throw outcome.error;
+  return outcome.value;
+}
+
 export const formatSeconds = (milliseconds: number): string => `${(milliseconds / 1000).toFixed(1)}s`;
 
 // A forced synchronous exit cannot await cleanup; this emergency hook stops only still-owned groups.
@@ -59,30 +135,41 @@ const onSignal = (signal: NodeJS.Signals): void => {
   if (interrupted !== undefined) return;
   interrupted = signal === 'SIGINT' ? 130 : 143;
   const status = interrupted;
-  void Promise.allSettled([...groups].map(([pid, group]) => stopTrackedGroup(pid, group))).then(results => {
+  const activeResources = [...resources];
+  void Promise.allSettled([...groups].filter(([, group]) => !group.cleanup).map(([pid, group]) => stopTrackedGroup(pid, group))).then(async results => {
     for (const result of results) {
       if (result.status !== 'rejected') continue;
       const error: unknown = result.reason;
       process.stderr.write(`[run-command] interruption cleanup failed: ${error instanceof Error ? error.message : String(error)}\n`);
     }
+    const cleanupResults = await Promise.all(activeResources.map(resource => resource.closed));
+    for (const errors of cleanupResults) for (const error of errors) {
+      process.stderr.write(`[run-command] resource cleanup failed: ${error instanceof Error ? error.message : String(error)}\n`);
+    }
     process.exit(status);
   });
 };
-function track(pid: number, group: TrackedGroup): void {
-  if (groups.size === 0) {
+function updateListeners(): void {
+  const needed = groups.size > 0 || resources.size > 0 || interrupted !== undefined;
+  if (needed && !listening) {
     process.on('SIGINT', onSignal);
     process.on('SIGTERM', onSignal);
     process.on('exit', stopAll);
-  }
-  groups.set(pid, group);
-}
-function untrack(pid: number): void {
-  groups.delete(pid);
-  if (groups.size === 0) {
+    listening = true;
+  } else if (!needed && listening) {
     process.off('SIGINT', onSignal);
     process.off('SIGTERM', onSignal);
     process.off('exit', stopAll);
+    listening = false;
   }
+}
+function track(pid: number, group: TrackedGroup): void {
+  groups.set(pid, group);
+  updateListeners();
+}
+function untrack(pid: number): void {
+  groups.delete(pid);
+  updateListeners();
 }
 
 /**
@@ -90,14 +177,19 @@ function untrack(pid: number): void {
  * stdout and stderr, the elapsed time, `stopped: 'output'` when the output passed `maxOutputBytes`,
  * and `error` when the command did not start.
  */
-export function runCommand(
-  { command, args = [], cwd, env = process.env, stdout = 'inherit', stderr = 'inherit', maxOutputBytes = MAX_OUTPUT_BYTES, onLine }: RunCommandOptions,
+export function runCommand(options: RunCommandOptions): Promise<RunCommandResult> {
+  return runTrackedCommand(options, false);
+}
+
+function runTrackedCommand(
+  { command, args = [], cwd, env = process.env, stdin = 'ignore', stdout = 'inherit', stderr = 'inherit', maxOutputBytes = MAX_OUTPUT_BYTES, onLine }: RunCommandOptions,
+  cleanupCommand: boolean,
 ): Promise<RunCommandResult> {
-  if (interrupted !== undefined) return Promise.resolve({ status: null, signal: null, stdout: '', stderr: '', elapsedMs: 0, error: new Error('command admission stopped because the harness was interrupted; start a new harness invocation to run commands') });
+  if (interrupted !== undefined && !cleanupCommand) return Promise.resolve({ status: null, signal: null, stdout: '', stderr: '', elapsedMs: 0, error: new Error('command admission stopped because the harness was interrupted; start a new harness invocation to run commands') });
   const started = performance.now();
   return new Promise<RunCommandResult>(resolve => {
     const since = Date.now();
-    const child = spawn(command, args, { cwd, env, stdio: ['ignore', stdout, stderr], detached: true });
+    const child = spawn(command, args, { cwd, env, stdio: [stdin, stdout, stderr], detached: true });
     const root = watchRoot(child, since);
     const output = { stdout: '', stderr: '' };
     let bytes = 0, done = false;
@@ -111,7 +203,7 @@ export function runCommand(
       resolve({ ...output, elapsedMs: performance.now() - started, stopped, status: null, signal: null, ...result });
     };
     const closed = new Promise<void>(resolveClosed => child.once('close', () => resolveClosed()));
-    const group: TrackedGroup = { root, closed };
+    const group: TrackedGroup = { root, closed, cleanup: cleanupCommand };
     // A command that did not start has no pid and no group to track.
     if (child.pid !== undefined) track(child.pid, group);
     let cleanupError: Error | undefined;

@@ -1,5 +1,5 @@
 <!-- doc-id: spec-utilities-and-recipes -->
-<!-- source-sha256: 3d04af11c007e095ac6efb958b2bff4b74392eb84c6847de972393c96ebe6e65 -->
+<!-- source-sha256: 2a9f6cd31f3ceb1c55d4675693d9e7d9eb7b6f7fe7a5dada11e07f735efeb890 -->
 # 유틸리티와 예제
 
 [English](utilities-and-recipes.md)
@@ -67,6 +67,39 @@ cleanup을 검증한다.
 Fixture는 소유 command가 닫힐 때까지 유지한다. Assertion이 실패해도 test는 proxy의 upgraded connection을 닫고,
 server의 close를 기다린 뒤 관련 파일을 지운다. Download 속도와 별개로 native lifecycle test가 helper의 협력 종료와
 escalation을 검증한다. Test는 이 lifecycle에 두 번째 deadline을 추가하지 않는다.
+
+## Case-sensitive test directory (K1231)
+
+이름의 대소문자 구분이 필요한 test는 실행 전에 실제 두 이름 probe를 통과한 filesystem의 directory를 받는다.
+Darwin은 disk image를 caller의 임시 parent 아래에 두지만 빈 mountpoint는 `getconf DARWIN_USER_TEMP_DIR`가 보고하는
+native 사용자 임시 directory 아래에 만든다. Disk Arbitration은 소유권을 무시하는 volume의 mountpoint를 거부할 수
+있으므로 caller가 선택한 임시 저장 volume으로 native mountpoint도 선택할 수는 없다. 모든 test file은 mount된 image에
+있으며 빈 mountpoint directory만 native 임시 저장소를 사용한다. Linux와 Windows는 기존 directory provisioning을 유지한다.
+
+실행은 image 저장 directory와 mountpoint directory를 따로 소유한다. 두 directory를 지우기 전에 image를 detach한다.
+Detach가 실패하거나 결과를 확인하지 못하면 두 directory를 보존하고 두 path, command 실패, 필요한 cleanup 순서를
+보고한다. 비어 있지 않은 절대 경로의 native 임시 directory를 찾지 못하면 attach 전에 실패하며, 추측한 path를 대신
+사용하거나 case probe를 건너뛰지 않는다.
+
+## Command resource 수명 (K1231-1)
+
+비동기 command resource scope는 준비부터 cleanup까지 resource를 소유한다. 제어하는 action은 소유한 일반 command를
+기다리며 resource를 사용하는 작업을 기다리지 않은 채 남기지 않는다. Action이 끝난 뒤에 cleanup을 시작하며 반환한
+promise가 끝날 때까지 resource를 유지한다. 정상 완료와 action 실패 모두 cleanup을 기다린다. Action과 cleanup이
+모두 실패하면 호출자에게 두 오류를 전달한다.
+
+중단하면 일반 command 실행을 즉시 막고, 소유한 작업 group에 종료를 요청하여 자식 close와 cleanup을 기다린다.
+Harness는 이어서 모든 active resource scope의 cleanup이 끝난 뒤 SIGINT는 130, SIGTERM은 143으로 종료한다.
+Resource cleanup callback은 그 callback 실행 중에만 유효한 runner를 받는다. 해당 command도 소유하고 기다리며,
+새 작업 실행이 아니라 cleanup이다. 보관한 cleanup runner는 callback이 끝난 뒤 command를 시작할 수 없다.
+
+Runtime runner는 native 인자와 상속한 표준 입력을 유지한다. 해당 native runner가 닫힐 때까지 결과 디렉터리와
+case-sensitive 시험 filesystem을 유지한다.
+선택한 environment 값을 복구하고 image를 detach한 뒤 mountpoint나 image 저장소를 제거한다. 명시적인 결과 report가
+있으면 native test runner는 report의 부모 디렉터리를 만들고 그 안에 private counts와 extension 설정을 둔다. Report
+입력을 hash하기 전에 private 디렉터리를 제거한다. Report가 없으면 호출자의 임시 디렉터리 배치를 유지한다. 두 형태
+모두 자식의 임시 디렉터리 environment를 바꾸지 않는다. Cleanup 실패는
+남아 있는 resource를 보고하며 중단되거나 실패한 실행을 성공으로 바꾸지 않는다.
 
 ## Native event identity (K1091)
 
