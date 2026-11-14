@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K1228 verification: the declared command passes 26 tests on the committed implementation. The complete expression and local-job owner files pass 31 tests; typecheck, duplication-check and lint-ts pass.
 - K1228: Local workflow jobs evaluate conditions after the step environment and use the current failure state in script expressions. Interrupted scripts await their owned processes before removing runner files. File-command channels retain independent valid changes when another channel fails. Supported context lookup respects case, computed references cannot silently read external action outputs, and recursive job or composite plans fail with their cycle. The local-job contract is recorded in `docs/spec/utilities-and-recipes.md`.
 - K1229 verification: the declared regression passes on the committed implementation; the concurrent-file, imported-helper and empty-file selections pass three tests. The full runner file passes 65 tests and fails the PHPUnit case because this worktree has no installed PHPUnit; that prerequisite is installed by its CI job.
 - K1229: The node reporter counts each test case against the entry file in the native event, including cases registered by imported helpers. Concurrent file starts no longer overwrite case ownership and falsely report a passing file as empty. An event-coordinated two-file test reproduces the failure; the helper-registration and empty-file tests retain their checks.
