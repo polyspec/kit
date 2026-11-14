@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 7b437a9ef93a633cbc759bba416df793480cc3683c4df26622abfb91aec1d975 -->
+<!-- source-sha256: 503471486597791d5016dffe00092af1cb30e6268a3c23caef472be47d73c2be -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1231: Darwin case-sensitive test는 disk image를 caller의 임시 저장소에 두고 빈 mountpoint만 `getconf DARWIN_USER_TEMP_DIR`로 찾은 native 사용자 임시 directory에 둔다. 소유권을 무시하는 volume의 mountpoint는 같은 image가 owner-aware 위치에 mount되어도 거부될 수 있다. Detach가 성공하면 두 resource path를 정리하고, detach를 확인하지 못하면 둘 다 보존하고 이름을 밝힌다. 실제 case probe는 계속 필수다. 회귀 시험 5개가 배치, native discovery, 실패 보고, cleanup 순서를 확인한다.
 
 ## 0.0.113
 

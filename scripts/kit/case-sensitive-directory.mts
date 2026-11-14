@@ -7,11 +7,12 @@ import { spawnSync } from 'node:child_process';
 
 type Command = (file: string, args: string[]) => { status: number | null; error?: Error; stdout?: string; stderr?: string };
 
-function run(file: string, args: string[], command: Command): void {
+function run(file: string, args: string[], command: Command): string {
   const result = command(file, args);
   if (result.error || result.status !== 0) {
     throw new Error(`${file} ${args.join(' ')} failed${result.error ? `: ${result.error.message}` : ` (${result.status}): ${[result.stderr, result.stdout].map(text => (text ?? '').trim()).filter(Boolean).join('\n')}`}`);
   }
+  return result.stdout ?? '';
 }
 
 function verify(directory: string): void {
@@ -34,11 +35,21 @@ export function withCaseSensitiveDirectory<T>(key: string, action: (directory: s
   const platform = options.platform ?? process.platform;
   const command = options.command ?? ((file, args) => spawnSync(file, args, { encoding: 'utf8' }));
   const parent = mkdtempSync(path.join(options.parent ?? tmpdir(), 'kit-case-sensitive-'));
-  const directory = path.join(parent, 'directory');
-  mkdirSync(directory);
+  let directory = path.join(parent, 'directory');
+  let separateMountpoint = false;
   let attachAttempted = false;
   let outcome: { kind: 'value'; value: T } | { kind: 'error'; error: unknown };
   try {
+    if (platform === 'darwin') {
+      // TMPDIR can select image storage on a noowners volume. Disk Arbitration needs an owner-aware mountpoint;
+      // getconf discovers the native user temporary directory independently of that caller override (K1231).
+      const native = run('getconf', ['DARWIN_USER_TEMP_DIR'], command).trim();
+      if (!path.isAbsolute(native)) throw new Error('getconf DARWIN_USER_TEMP_DIR must report a nonempty absolute directory');
+      directory = mkdtempSync(path.join(native, 'kit-case-mount-'));
+      separateMountpoint = true;
+    } else {
+      mkdirSync(directory);
+    }
     // Creating a directory on Linux's supported CI filesystems is sufficient; verification catches an unusual case-folding mount.
     if (platform === 'win32') {
       // NTFS stores case sensitivity on a directory. fsutil is the Windows-native interface; unsupported filesystems fail here.
@@ -69,28 +80,32 @@ export function withCaseSensitiveDirectory<T>(key: string, action: (directory: s
     outcome = { kind: 'error', error };
   }
 
-  let cleanupFailure: Error | undefined;
+  const cleanupFailures: Error[] = [];
   let retainResources = false;
   if (attachAttempted) {
     try {
       run('hdiutil', ['detach', directory], command);
     } catch (error) {
       retainResources = true;
-      cleanupFailure = new Error(
-        `could not confirm detachment of ${directory} (${error instanceof Error ? error.message : String(error)}); retained the mountpoint and image at ${parent}. Fix: run hdiutil detach ${JSON.stringify(directory)}, then remove ${JSON.stringify(parent)}`,
+      cleanupFailures.push(new Error(
+        `could not confirm detachment of ${directory} (${error instanceof Error ? error.message : String(error)}); retained the mountpoint and image: mountpoint ${directory}; image storage ${parent}. Fix: run hdiutil detach ${JSON.stringify(directory)}, then remove ${JSON.stringify(directory)} and ${JSON.stringify(parent)}`,
         { cause: error },
-      );
+      ));
     }
   }
   if (!retainResources) {
-    try {
-      rmSync(parent, { recursive: true, force: true });
-    } catch (error) {
-      cleanupFailure = new Error(`could not remove temporary test resources at ${parent}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+    for (const resource of separateMountpoint ? [directory, parent] : [parent]) {
+      try {
+        rmSync(resource, { recursive: true, force: true });
+      } catch (error) {
+        cleanupFailures.push(new Error(`could not remove temporary test resources at ${resource}: ${error instanceof Error ? error.message : String(error)}`, { cause: error }));
+      }
     }
   }
-  if (outcome.kind === 'error' && cleanupFailure) throw new AggregateError([outcome.error, cleanupFailure], `${String(outcome.error)}; cleanup also failed: ${cleanupFailure.message}`);
+  const cleanupMessage = cleanupFailures.map(error => error.message).join('; ');
+  if (outcome.kind === 'error' && cleanupFailures.length > 0) throw new AggregateError([outcome.error, ...cleanupFailures], `${String(outcome.error)}; cleanup also failed: ${cleanupMessage}`);
   if (outcome.kind === 'error') throw outcome.error;
-  if (cleanupFailure) throw cleanupFailure;
+  if (cleanupFailures.length === 1) throw cleanupFailures[0];
+  if (cleanupFailures.length > 1) throw new AggregateError(cleanupFailures, cleanupMessage);
   return outcome.value;
 }

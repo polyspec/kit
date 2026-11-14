@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1231: Darwin case-sensitive tests keep the disk image in the caller's temporary storage and place only the empty mountpoint in the native user temporary directory discovered by `getconf DARWIN_USER_TEMP_DIR`. A mountpoint on a volume that ignores ownership can be refused even when the same image mounts at an owner-aware location. Successful detach permits cleanup of both resource paths; an uncertain detach retains and names both. The real case probe remains required. Five regressions cover placement, native discovery, failure reporting and cleanup order.
+
 ## 0.0.113
 
 - K1228 verification: the declared command passes 26 tests on the committed implementation. The complete expression and local-job owner files pass 31 tests; typecheck, duplication-check and lint-ts pass.
