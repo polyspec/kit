@@ -98,10 +98,6 @@
       "kind": "policy",
       "reason": "polyspec's checklists and trackers in Markdown tables; the table reading is markdown.mts"
     },
-    "scripts/kit/ci-job.mts": {
-      "kind": "policy",
-      "reason": "runs one job of a GitHub workflow of the checkout as its runner does, so that a check before a push is the CI job and not a copy of its commands"
-    },
     "scripts/kit/ci-passed.mts": {
       "kind": "policy",
       "reason": "the result of the last job of a polyspec CI workflow over the results of the other jobs"
@@ -109,6 +105,10 @@
     "scripts/kit/ci-targets.mts": {
       "kind": "policy",
       "reason": "runs make targets past failures and writes their report, polyspec's CI contract"
+    },
+    "scripts/kit/ci-job.mts": {
+      "kind": "policy",
+      "reason": "the rule that a check before a push runs the CI job itself, not a copy of its commands: it reads the workflow of the checkout and runs the steps of one job as CI runs them"
     },
     "scripts/kit/composer-vendor.mts": {
       "kind": "ecosystem",
@@ -417,6 +417,10 @@
     "scripts/kit/worktree-setup.mts": {
       "kind": "policy",
       "reason": "the rule of P10 and K348 that parallel work has its own worktree and branch, installed and checked there"
+    },
+    "scripts/kit/worktree-links.mts": {
+      "kind": "policy",
+      "reason": "the rule of K1226 that a worktree resolves its packages without an install: its node_modules links to the main checkout and its own workspace packages link into the worktree"
     },
     "scripts/kit/commit-names-check.mts": {
       "kind": "policy",
