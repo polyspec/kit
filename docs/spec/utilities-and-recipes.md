@@ -41,6 +41,26 @@ are printed with their inputs and are not executed, so the local run requires th
   their validated raw lexemes and preserves their original lexemes and ranges. Tokenization, syntax rejection, parsing
   and evaluation remain native. Remove this adapter when the pinned lexer passes the same repeated-escape regressions
   without normalization; correcting its already-decoded token value would decode the first pair twice.
+- The workflow input rules below are planned by K1233 and are not implemented yet.
+- Workflow inputs are bound before planning or running scripts (K1233). Repeated `--input name=value` arguments
+  split at the first `=`, preserve empty text and later `=` characters, and bind case-insensitively to declared names.
+  This CLI binding policy follows the expression context's case-insensitive lookup; duplicate arguments and declarations
+  that differ only by case are refused. Boolean arguments are exactly `true` or `false`; number arguments follow finite
+  JSON number syntax without whitespace; string arguments remain text. Defaults must already have their declared type.
+  Expression defaults are refused rather than treated as literal text, because the local runner does not supply their
+  native default-evaluation context. Input declarations without an explicit supported type are refused.
+- The selected `workflow_call` declaration supplies its documented implicit defaults: false, zero and empty text for
+  boolean, number and string. Required inputs without a declared default need an explicit value. A `workflow_dispatch`
+  declaration supports boolean, number, string, choice and environment inputs; choice values must belong to its options,
+  and environment values are text without querying GitHub. A dispatch input without a declared default needs an explicit
+  value even when optional, because this local runner does not establish the native omitted value. Unknown names, invalid
+  types, missing values and unsupported declarations fail before any script runs, including in `--plan`.
+- A sole input-capable event declaration is selected automatically, even when the workflow declares other events.
+  `--input-event workflow_call` or `--input-event workflow_dispatch` selects between both declarations; a job that reads
+  inputs while both remain unselected is refused. Selecting an absent declaration is refused. This selects local input
+  declarations and does not fabricate a GitHub event or enable `github.event` values. Typed workflow inputs reach the
+  workflow and job environment, job conditions, matrices, defaults, outputs and steps. Composite actions shadow them with
+  their own string inputs. Reusable caller jobs remain refused; run a job from the called workflow itself.
 - Each script receives fresh `GITHUB_OUTPUT`, `GITHUB_ENV`, `GITHUB_PATH` and `GITHUB_STEP_SUMMARY` files. Outputs belong to
   their step; environment changes and path entries reach subsequent steps. Output and environment files accept both
   `name=value` and delimited multiline values. A malformed file command fails its step; independent valid channels still

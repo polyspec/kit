@@ -1,5 +1,5 @@
 <!-- doc-id: spec-utilities-and-recipes -->
-<!-- source-sha256: 532794f9a4e477c06fe76ecdc7a32ccf7634d068d4540d71d182289b18fde46d -->
+<!-- source-sha256: 75ee18d1251b63705282d6e55866046768b95f23041a99c9fb902d38554c6869 -->
 # 유틸리티와 예제
 
 [English](utilities-and-recipes.md)
@@ -42,6 +42,26 @@ allow-remote 사례가 그 연쇄를 보여 준다.
   만들고 원래 lexeme과 range를 보존한다. Tokenization, syntax 거부, parsing, evaluation은 native로 유지한다.
   Pin한 lexer가 정규화 없이 같은 반복 escape 회귀 시험을 통과하면 adapter를 제거한다. 이미 해석한 token 값을
   고치면 첫 쌍을 두 번 해석하게 된다.
+- 아래 workflow input 규칙은 K1233의 계획이며 아직 구현하지 않았다.
+- Workflow input은 plan이나 script 실행 전에 결정한다(K1233). 반복하는 `--input name=value` 인자는 첫 `=`에서
+  나누고 빈 text와 뒤의 `=` 문자를 보존하며 선언한 이름에 대소문자를 구분하지 않고 연결한다. 이 CLI 연결 규칙은
+  expression context의 대소문자를 구분하지 않는 조회를 따른다. 중복 인자와 대소문자만 다른 선언은 거부한다.
+  Boolean 인자는 정확히 `true` 또는 `false`이고 number 인자는 공백 없는 유한 JSON number 문법을 따른다.
+  String 인자는 text로 유지하며 default는 이미 선언한 type이어야 한다. Expression default는 native default 평가
+  context를 이 로컬 runner가 제공하지 않으므로 literal text로 취급하지 않고 거부한다. 명시한 지원 type이 없는
+  input 선언도 거부한다.
+- 선택한 `workflow_call` 선언은 문서화된 암시적 default를 제공한다. Boolean은 false, number는 0, string은 빈
+  text다. 선언한 default가 없는 required input에는 명시한 값이 필요하다. `workflow_dispatch` 선언은 boolean,
+  number, string, choice, environment input을 지원한다. Choice 값은 options에 속해야 하고 environment 값은
+  GitHub에 조회하지 않는 text다. 선언한 default가 없는 dispatch input은 optional이어도 명시한 값이 필요하다.
+  이 로컬 runner는 native에서 생략한 값을 확정하지 않기 때문이다. 알 수 없는 이름, 잘못된 type, 누락한 값과
+  지원하지 않는 선언은 `--plan`을 포함해 script 실행 전에 실패한다.
+- Input을 받을 수 있는 event 선언이 하나면 다른 event를 함께 선언했어도 자동으로 선택한다.
+  `--input-event workflow_call` 또는 `--input-event workflow_dispatch`는 두 선언 중 하나를 선택한다. 두 선언을
+  선택하지 않은 상태에서 input을 읽는 job은 거부하고, 없는 선언을 선택해도 거부한다. 이는 로컬 input 선언의
+  선택이며 GitHub event를 만들거나 `github.event` 값을 제공하지 않는다. Typed workflow input은 workflow와 job
+  environment, job condition, matrix, default, output, step에 전달한다. Composite action은 자신의 string input으로
+  이를 가린다. Reusable caller job은 계속 거부하며 호출할 workflow 자체의 job을 실행해야 한다.
 - 각 script는 새로운 `GITHUB_OUTPUT`, `GITHUB_ENV`, `GITHUB_PATH`, `GITHUB_STEP_SUMMARY` 파일을 받는다. Output은 해당
   step에 속하며, environment 변경과 path 항목은 다음 step에 전달된다. Output과 environment 파일은 `name=value`와
   delimiter를 사용하는 multiline 값을 모두 받는다. 잘못된 file command는 해당 step을 실패시키지만, 다른 정상 채널의
