@@ -26,6 +26,30 @@ The allow-remote case shows the chain:
 
    An example shows one working way. A repository copies it, changes it, or ignores it.
 
+## Local workflow jobs (K1228)
+
+`ci-job.mts --workflow <file> --job <id>` runs the job's scripts and local composite actions in their declared order.
+`--matrix <key>=<value>` selects matrix combinations; `--plan` prints the plan without executing scripts. External actions
+are printed with their inputs and are not executed, so the local run requires the tools that those actions would install.
+
+- Expressions use GitHub's `@actions/expressions`, including native coercion, property filters and built-in functions.
+  The run supplies status functions and the supported values of `github`, `runner`, `matrix`, `env`, `steps` and composite
+  `inputs`. A context that the local run cannot supply is refused with its name before scripts run. External action
+  outputs, secrets and repository variables cannot be supplied by a local script run.
+- Each script receives fresh `GITHUB_OUTPUT`, `GITHUB_ENV`, `GITHUB_PATH` and `GITHUB_STEP_SUMMARY` files. Outputs belong to
+  their step; environment changes and path entries reach subsequent steps. Output and environment files accept both
+  `name=value` and delimited multiline values. A malformed file command fails its step; independent valid channels still
+  apply their changes so cleanup steps can use them.
+- A failed step skips subsequent conditions without a status function. Conditions with `failure()`, `always()` or
+  `!cancelled()` retain their native meaning; a tolerated failure keeps its failure outcome and success conclusion.
+  The job fails if an untolerated step failed, even when its remaining cleanup steps succeed.
+- Matrices apply their axes, exclusions, inclusions and fail-fast setting. A job that reads `needs.<job>.outputs` first
+  runs that dependency. Other dependency properties and outputs of matrix jobs are refused because a local run cannot
+  reproduce the outcome of a complete CI run or the matrix combination that finishes last.
+- The run owns its script processes and runner temporary directories. Interruption stops further step admission,
+  terminates and awaits the owned processes, and then removes their directories. A process must finish cleanup while its
+  runner directory still exists.
+
 ## Native event identity (K1091)
 
 A native event parser preserves the framework's complete test identity. For PHPUnit TeamCity messages,

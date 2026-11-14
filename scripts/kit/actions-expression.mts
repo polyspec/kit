@@ -125,8 +125,8 @@ export function callsStatus(node: Expr): boolean {
  */
 export type Reference = { path: string[]; dynamic: boolean };
 
-/** The references to contexts of an expression. */
-export function references(node: Expr): Reference[] {
+/** The references to contexts of an expression, resolving computed indices whose contexts and status are supplied. */
+export function references(node: Expr, contexts?: Record<string, Value>, status?: Status): Reference[] {
   const result: Reference[] = [];
   const chain = (each: Expr): Reference | undefined => {
     if (each instanceof ContextAccess) return { path: [each.name.lexeme.toLowerCase()], dynamic: false };
@@ -134,8 +134,11 @@ export function references(node: Expr): Reference[] {
       const base = chain(each.expr);
       if (!(each.index instanceof Star)) walk(each.index);
       if (base === undefined || base.dynamic) return base;
-      const key = each.index instanceof Literal ? fromData(each.index.literal) : undefined;
-      if (typeof key === 'string' || typeof key === 'number') return { path: [...base.path, String(key)], dynamic: false };
+      const known = contexts !== undefined && !(each.index instanceof Star)
+        && (status !== undefined || !callsStatus(each.index))
+        && references(each.index).every(reference => Object.keys(contexts).some(key => key.toLowerCase() === reference.path[0]));
+      const key = each.index instanceof Literal ? fromData(each.index.literal) : known ? evaluate(each.index, contexts, status) : undefined;
+      if (key === null || typeof key === 'string' || typeof key === 'number' || typeof key === 'boolean') return { path: [...base.path, toText(key)], dynamic: false };
       return { path: base.path, dynamic: true };
     }
     walk(each);

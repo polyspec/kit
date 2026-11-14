@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { ciJob, planJob } from '../../scripts/kit/ci-job.mts';
+import { signalGroup } from '../../scripts/kit/process-group.mts';
+import { filePublished } from './file-events.mts';
 
 // K1227: the run of one CI job runs the run steps of the job and of its local composite actions in their order.
 function fixture(workflow: string, action?: string): string {
@@ -15,6 +19,20 @@ function fixture(workflow: string, action?: string): string {
     writeFileSync(path.join(root, '.github/actions/bootstrap/action.yml'), action);
   }
   return root;
+}
+
+function stopWorker(pid: number): void {
+  signalGroup(pid, 'SIGKILL');
+  try { process.kill(pid, 'SIGKILL'); } catch (error) {
+    if (!(error instanceof Error && 'code' in error && error.code === 'ESRCH')) throw error;
+  }
+}
+
+function workerReport(file: string): { pid: number; temp: string } {
+  const value: unknown = JSON.parse(readFileSync(file, 'utf8'));
+  assert.ok(typeof value === 'object' && value !== null && 'pid' in value && typeof value.pid === 'number'
+    && 'temp' in value && typeof value.temp === 'string', 'the ready report names its worker and runner directory');
+  return { pid: value.pid, temp: value.temp };
 }
 
 const ACTION = `runs:
@@ -534,4 +552,266 @@ test('K1228: a missing matrix value is null and writes an empty text, as in CI',
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('K1228: interruption awaits owned command cleanup before removing runner files', { skip: process.platform === 'win32' && 'POSIX cooperative signals' }, async t => {
+  const root = fixture(`jobs:
+  j:
+    steps:
+      - run: exec "$WORKER_NODE" worker.cjs
+        env: { WORKER_NODE: ${JSON.stringify(process.execPath)} }
+      - run: touch later
+`);
+  const readyPath = path.join(root, 'ready.json');
+  const ready = filePublished(t, readyPath);
+  writeFileSync(path.join(root, 'worker.cjs'), `
+    const fs = require('node:fs');
+    const hold = fs.watch('.', () => {});
+    process.on('SIGTERM', () => {
+      fs.writeFileSync('cleanup.json', JSON.stringify({ tempExists: fs.existsSync(process.env.RUNNER_TEMP) }));
+      hold.close();
+    });
+    fs.writeFileSync('ready.json', JSON.stringify({ pid: process.pid, temp: process.env.RUNNER_TEMP }));
+  `);
+  const driver = `
+    import { ciJob } from ${JSON.stringify(new URL('../../scripts/kit/ci-job.mts', import.meta.url).href)};
+    process.exitCode = await ciJob({ root: ${JSON.stringify(root)}, workflow: '.github/workflows/ci.yml', job: 'j' });
+  `;
+  const child = spawn(process.execPath, ['--input-type=module', '-e', driver], { stdio: ['ignore', 'pipe', 'pipe'] });
+  let output = '';
+  for (const stream of [child.stdout, child.stderr]) stream.setEncoding('utf8').on('data', (chunk: string) => { output += chunk; });
+  const closed = once(child, 'close');
+  const exited = once(child, 'exit');
+  let complete = false;
+  try {
+    await Promise.race([ready, closed.then(result => assert.fail(`ci-job ended before its worker was ready: ${JSON.stringify(result)}\n${output}`))]);
+    const worker = workerReport(readyPath);
+    child.kill('SIGTERM');
+    assert.equal((await exited)[0], 143, output);
+    assert.deepEqual(JSON.parse(read(root, 'cleanup.json')), { tempExists: true }, output);
+    await closed;
+    assert.throws(() => process.kill(worker.pid, 0), { code: 'ESRCH' }, 'the worker is reaped before the owner exits');
+    assert.equal(existsSync(worker.temp), false, 'runner files are removed after cleanup');
+    assert.equal(existsSync(path.join(root, 'later')), false, 'interruption admits no later step');
+    complete = true;
+  } finally {
+    if (!complete) {
+      child.kill('SIGKILL');
+      if (existsSync(readyPath)) {
+        const worker = workerReport(readyPath);
+        // The original harness did not start a process group; stop either form after a failed assertion.
+        stopWorker(worker.pid);
+      }
+    }
+    await closed;
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('K1228: a step condition sees its evaluated environment', async () => {
+  const root = fixture(`jobs:
+  j:
+    steps:
+      - if: env.FLAG == 'yes'
+        env: { FLAG: yes }
+        run: echo selected > selected.log
+`);
+  try {
+    const { status, lines } = await run(root, 'j');
+    assert.equal(status, 0, lines.join('\n'));
+    assert.equal(read(root, 'selected.log'), 'selected\n');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('K1228: status functions in run and env use the current failure state', async () => {
+  const root = fixture(`jobs:
+  j:
+    steps:
+      - run: exit 4
+      - if: always()
+        env: { FAILED: '\${{ failure() }}' }
+        run: echo "$FAILED \${{ failure() }} \${{ success() }}" > state.log
+`);
+  try {
+    const { status, lines } = await run(root, 'j');
+    assert.equal(status, 1, lines.join('\n'));
+    assert.equal(read(root, 'state.log'), 'true true false\n');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('K1228: supported context properties and step names ignore casing', async () => {
+  const root = fixture(`jobs:
+  j:
+    steps:
+      - id: Prepare
+        run: echo 'VALUE=ready' >> "$GITHUB_OUTPUT"
+      - run: echo "\${{ Runner.OS }} \${{ GitHub.WORKSPACE }} \${{ STEPS.prepare.OUTPUTS.value }}" > casing.log
+`);
+  try {
+    const { status, lines } = await run(root, 'j');
+    assert.equal(status, 0, lines.join('\n'));
+    const os = process.platform === 'darwin' ? 'macOS' : process.platform === 'linux' ? 'Linux' : 'Windows';
+    assert.equal(read(root, 'casing.log'), `${os} ${root} ready\n`);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+  const external = fixture(`jobs:
+  j:
+    steps:
+      - id: Checkout
+        uses: actions/checkout@v6
+      - run: echo '\${{ steps.checkout.outputs.anything }}'
+`);
+  try {
+    assert.throws(() => planJob(external, '.github/workflows/ci.yml', 'j'), /external action actions\/checkout/);
+  } finally { rmSync(external, { recursive: true, force: true }); }
+});
+
+test('K1228: needs outputs resolve declared names without casing changes', async () => {
+  const root = fixture(`jobs:
+  Prepare:
+    outputs: { VALUE: '\${{ steps.emit.outputs.value }}' }
+    steps:
+      - id: emit
+        run: echo 'value=ready' >> "$GITHUB_OUTPUT"
+  j:
+    needs: Prepare
+    steps:
+      - run: echo '\${{ NEEDS.prepare.OUTPUTS.value }}' > needs-case.log
+`);
+  try {
+    const { status, lines } = await run(root, 'j');
+    assert.equal(status, 0, lines.join('\n'));
+    assert.equal(read(root, 'needs-case.log'), 'ready\n');
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('K1228: GITHUB_ENV blocks NODE_OPTIONS while preserving other file commands', async () => {
+  const root = fixture(`jobs:
+  j:
+    steps:
+      - run: |
+          echo 'NODE_OPTIONS=--trace-warnings' >> "$GITHUB_ENV"
+          echo 'ALLOWED=retained' >> "$GITHUB_ENV"
+          echo 'value=output' >> "$GITHUB_OUTPUT"
+        id: blocked
+      - if: always()
+        run: echo "\${{ env.NODE_OPTIONS }}|\${{ env.ALLOWED }}|\${{ steps.blocked.outputs.value }}" > blocked.log
+`);
+  try {
+    const { status, lines } = await run(root, 'j');
+    assert.equal(status, 1, lines.join('\n'));
+    assert.ok(lines.some(line => line.includes('NODE_OPTIONS') && line.includes('GITHUB_ENV')), lines.join('\n'));
+    assert.equal(read(root, 'blocked.log'), '|retained|output\n');
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('K1228: GITHUB_PATH preserves leading and trailing spaces of each entry', async () => {
+  const root = fixture(`jobs:
+  j:
+    steps:
+      - run: printf ' leading and trailing \\n' >> "$GITHUB_PATH"
+      - run: printf '[%s]' "\${PATH%%:*}" > path-spaces.log
+`);
+  try {
+    const { status, lines } = await run(root, 'j');
+    assert.equal(status, 0, lines.join('\n'));
+    assert.equal(read(root, 'path-spaces.log'), '[ leading and trailing ]');
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('K1228: planning refuses cycles of needed outputs by job name', () => {
+  const root = fixture(`jobs:
+  a:
+    needs: b
+    outputs: { value: '\${{ needs.b.outputs.value }}' }
+    steps: [{ run: true }]
+  b:
+    needs: a
+    outputs: { value: '\${{ needs.a.outputs.value }}' }
+    steps: [{ run: true }]
+`);
+  try {
+    assert.throws(() => planJob(root, '.github/workflows/ci.yml', 'a'), /job dependency cycle: a -> b -> a/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('K1228: planning refuses recursive local composite actions by path', () => {
+  const root = fixture(`jobs:
+  j:
+    steps: [{ uses: ./.github/actions/bootstrap }]
+`, `runs:
+  using: composite
+  steps: [{ uses: ./.github/actions/bootstrap }]
+`);
+  try {
+    assert.throws(() => planJob(root, '.github/workflows/ci.yml', 'j'), /composite action cycle: .github\/actions\/bootstrap -> .github\/actions\/bootstrap/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('K1228: a malformed output file does not discard other file commands', async () => {
+  const root = fixture(`jobs:
+  j:
+    steps:
+      - run: |
+          echo malformed >> "$GITHUB_OUTPUT"
+          echo 'VALUE=retained' >> "$GITHUB_ENV"
+          echo ' exact path ' >> "$GITHUB_PATH"
+          echo 'summary retained' >> "$GITHUB_STEP_SUMMARY"
+      - if: always()
+        run: printf '[%s][%s]' "\${{ env.VALUE }}" "\${PATH%%:*}" > isolated.log
+`);
+  try {
+    const { status, lines } = await run(root, 'j');
+    assert.equal(status, 1, lines.join('\n'));
+    assert.equal(read(root, 'isolated.log'), '[retained][ exact path ]');
+    assert.ok(lines.some(line => line.includes('summary retained')), lines.join('\n'));
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('K1228: computed matrix producers refuse external outputs and permit local outputs', async () => {
+  const workflow = (producer: string) => `jobs:
+  j:
+    strategy:
+      matrix: { producer: [${producer}] }
+    steps:
+      - id: Checkout
+        uses: actions/checkout@v6
+      - id: Local
+        run: echo 'value=ready' >> "$GITHUB_OUTPUT"
+      - run: echo '\${{ steps[matrix.producer].outputs.value }}' > computed.log
+      - env: { SNAPSHOT: '\${{ toJSON(steps) }}' }
+        run: printf '%s' "$SNAPSHOT" > snapshot.log
+`;
+  const external = fixture(workflow('Checkout'));
+  try {
+    assert.throws(() => planJob(external, '.github/workflows/ci.yml', 'j'), /external action actions\/checkout/);
+  } finally { rmSync(external, { recursive: true, force: true }); }
+  const local = fixture(workflow('Local'));
+  try {
+    const { status, lines } = await run(local, 'j');
+    assert.equal(status, 0, lines.join('\n'));
+    assert.equal(read(local, 'computed.log'), 'ready\n');
+    assert.match(read(local, 'snapshot.log'), /"Local"/);
+  } finally { rmSync(local, { recursive: true, force: true }); }
+});
+
+test('K1228: computed producers from step outputs are checked before their script runs', async () => {
+  const root = fixture(`jobs:
+  j:
+    steps:
+      - id: Checkout
+        uses: actions/checkout@v6
+      - id: choose
+        run: echo 'producer=Checkout' >> "$GITHUB_OUTPUT"
+      - run: echo '\${{ steps[steps.choose.outputs.producer].outputs.value }}' > forbidden.log
+`);
+  try {
+    const { status, lines } = await run(root, 'j');
+    assert.equal(status, 1, lines.join('\n'));
+    assert.ok(lines.some(line => line.includes('external action actions/checkout')), lines.join('\n'));
+    assert.equal(existsSync(path.join(root, 'forbidden.log')), false);
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });

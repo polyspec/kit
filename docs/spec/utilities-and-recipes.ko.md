@@ -1,5 +1,5 @@
 <!-- doc-id: spec-utilities-and-recipes -->
-<!-- source-sha256: 7963ee04548ef4a837fc1c8e199225a46a74ffed28ab2e7f8198e949b0f88593 -->
+<!-- source-sha256: c5aec6afba27061a0a000deae8ea34a3ded098f7f33a90211bbaead65b39cdcd -->
 # 유틸리티와 예제
 
 [English](utilities-and-recipes.md)
@@ -26,6 +26,29 @@ allow-remote 사례가 그 연쇄를 보여 준다.
    - 체크리스트 row를 Red부터 커밋까지 어떻게 진행하는가
 
    예제는 작동하는 방법 하나를 보여 준다. 저장소는 그것을 복사하거나, 바꾸거나, 무시한다.
+
+## 로컬 workflow job (K1228)
+
+`ci-job.mts --workflow <file> --job <id>`는 job의 script와 로컬 composite action을 선언된 순서로 실행한다.
+`--matrix <key>=<value>`는 matrix 조합을 선택하고, `--plan`은 script를 실행하지 않고 plan을 출력한다. 외부 action은
+입력과 함께 출력하고 실행하지 않으므로, 로컬 실행에는 해당 action이 설치할 도구가 필요하다.
+
+- Expression은 native coercion, property filter, built-in function을 포함하여 GitHub의 `@actions/expressions`를 사용한다.
+  실행은 status function과 지원하는 `github`, `runner`, `matrix`, `env`, `steps`, composite `inputs` 값을 제공한다.
+  로컬 실행이 제공할 수 없는 context는 script를 실행하기 전에 이름을 밝히고 거부한다. 외부 action의 output,
+  secret, 저장소 variable은 로컬 script 실행이 제공할 수 없다.
+- 각 script는 새로운 `GITHUB_OUTPUT`, `GITHUB_ENV`, `GITHUB_PATH`, `GITHUB_STEP_SUMMARY` 파일을 받는다. Output은 해당
+  step에 속하며, environment 변경과 path 항목은 다음 step에 전달된다. Output과 environment 파일은 `name=value`와
+  delimiter를 사용하는 multiline 값을 모두 받는다. 잘못된 file command는 해당 step을 실패시키지만, 다른 정상 채널의
+  변경은 적용하므로 cleanup step이 사용할 수 있다.
+- Step이 실패하면 status function이 없는 후속 condition은 건너뛴다. `failure()`, `always()`, `!cancelled()`를 사용하는
+  condition은 native 의미를 유지하며, 허용된 실패의 outcome은 failure이고 conclusion은 success다.
+  허용하지 않은 step 실패가 있으면 이후 cleanup step이 성공해도 job은 실패한다.
+- Matrix는 axes, exclusions, inclusions, fail-fast 설정을 적용한다. `needs.<job>.outputs`를 읽는 job은 먼저 해당
+  dependency를 실행한다. 다른 dependency 속성과 matrix job의 output은 로컬 실행이 전체 CI 실행의 결과나 마지막에
+  끝나는 matrix 조합을 재현할 수 없으므로 거부한다.
+- 실행은 script process와 runner 임시 디렉터리를 소유한다. 중단하면 새 step의 실행을 막고, 소유한 process를 종료하고
+  기다린 뒤 디렉터리를 지운다. Process는 runner 디렉터리가 존재하는 동안 cleanup을 마쳐야 한다.
 
 ## Native event identity (K1091)
 

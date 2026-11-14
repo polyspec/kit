@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3d8400f5bc2d259c6abbf08dc7546892a022e1a50777e3ae1bd36e86131c100c -->
+<!-- source-sha256: ce3c5b50dee1333c561d5857ef7bdd80232474eccba10d7dfcfec88d309babb6 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1228: 로컬 workflow job은 step의 environment를 평가한 뒤 condition을 평가하고, script expression에 현재 실패 상태를 사용한다. 중단된 script는 소유한 process가 끝난 뒤 runner 파일을 지운다. File-command 채널 하나가 실패해도 다른 채널의 정상 변경은 보존한다. 지원하는 context 조회는 대소문자를 구분하지 않고, computed reference는 외부 action output을 조용히 읽을 수 없으며, 재귀 job이나 composite plan은 cycle을 밝히고 실패한다. 로컬 job의 contract는 `docs/spec/utilities-and-recipes.md`에 기록한다.
 - K1229 검증: 선언한 회귀 시험은 commit된 구현에서 통과하고, concurrent-file, imported-helper, empty-file 선택은 세 시험을 통과한다. 전체 runner 파일은 65개 시험을 통과하고, 이 worktree에 PHPUnit이 설치되지 않아 PHPUnit 시험이 실패한다. 해당 CI job이 그 prerequisite를 설치한다.
 - K1229: node reporter는 imported helper가 등록한 case를 포함하여 native event의 entry file에 각 test case를 센다. 동시에 시작한 file이 case의 소유 file을 덮어써서 통과한 file을 비었다고 잘못 보고하던 문제를 고쳤다. event로 순서를 맞춘 두 file의 시험이 실패를 재현하며, helper 등록과 빈 file의 시험도 기존 검사를 유지한다.
 

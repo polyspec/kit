@@ -48,13 +48,13 @@
 // `GITHUB_ACTIONS`, since no service of GitHub serves the run. The run makes no download; the steps that download are the
 // install targets of the repository. `timeout-minutes` is not applied, since kit sets no time limit on a check. The `env:`
 // and `with:` of an external action are printed and not evaluated, since the action does not run. Status 0 when every step passed, 1 when a step failed or the job was refused, 2 for a usage error.
-import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { callsStatus, evaluateTemplate, parseExpression, parseTemplate, references, toText, truthy, type Reference, type Status, type Template, type Value } from './actions-expression.mts';
 import { isMain, repositoryRoot } from './paths.mts';
+import { failureOf, runCommand } from './run-command.mts';
 
 const USAGE = 'usage: node scripts/kit/ci-job.mts --workflow <file> --job <id> [--matrix <key>=<value>]... [--plan]';
 const WINDOWS = process.platform === 'win32';
@@ -109,8 +109,8 @@ function textOf(expression: Expression, contexts: Record<string, Value>, status?
   return toText(valueOf(expression, contexts, status));
 }
 
-function referencesOf(expression: Expression): Reference[] {
-  return expression.parts.flatMap(part => (typeof part === 'string' ? [] : references(part)));
+function referencesOf(expression: Expression, contexts?: Record<string, Value>, status?: Status): Reference[] {
+  return expression.parts.flatMap(part => (typeof part === 'string' ? [] : references(part, contexts, status)));
 }
 
 function parsed(make: () => Template, where: string, needsSuccess = false): Expression {
@@ -171,15 +171,16 @@ function check(expression: Expression, place: Place, where: string): void {
     }
     if (root === 'github') {
       const allowed = place.composite ? ['workspace', 'action_path'] : ['workspace'];
-      if (first === undefined || !allowed.includes(first)) refuse(`a value of a run of GitHub; the local run gives only github.${allowed.join(' and github.')}`);
+      if (first === undefined || !allowed.includes(first.toLowerCase())) refuse(`a value of a run of GitHub; the local run gives only github.${allowed.join(' and github.')}`);
     } else if (root === 'runner') {
-      if (first === undefined || !['os', 'arch', 'temp'].includes(first)) refuse('a value of a GitHub runner; the local run gives only runner.os, runner.arch and runner.temp');
+      if (first === undefined || !['os', 'arch', 'temp'].includes(first.toLowerCase())) refuse('a value of a GitHub runner; the local run gives only runner.os, runner.arch and runner.temp');
     } else if (root === 'needs') {
-      if (first === undefined || second !== 'outputs') refuse('the outcome of other jobs of the CI run, which a local run of one job does not have: only needs.<job>.outputs, which the run gets by running that job first');
-      if (!place.needs.includes(first)) refuse(`but the job needs no job ${first}`);
-      place.read.add(first);
+      if (first === undefined || second?.toLowerCase() !== 'outputs') refuse('the outcome of other jobs of the CI run, which a local run of one job does not have: only needs.<job>.outputs, which the run gets by running that job first');
+      const needed = place.needs.find(each => each.toLowerCase() === first.toLowerCase());
+      if (needed === undefined) refuse(`but the job needs no job ${first}`);
+      place.read.add(needed);
     } else if (root === 'steps' && first !== undefined) {
-      const uses = place.steps.get(first);
+      const uses = place.steps.get(first.toLowerCase());
       if (uses !== undefined) refuse(`the step ${first} of the external action ${uses}, which the local run does not run`);
     }
   }
@@ -193,6 +194,30 @@ export type PlannedStep =
     kind: 'composite'; label: string; id: string | undefined; condition: Expression; uses: string; with: Record<string, Expression>; env: Record<string, Expression>;
     continueOnError: Expression | undefined; path: string; inputs: Record<string, Expression>; outputs: Record<string, Expression>; steps: PlannedStep[];
   };
+
+/** The expressions evaluated in a step's caller scope; composite outputs belong to its inner scope. */
+function stepExpressions(step: PlannedStep): Expression[] {
+  if (step.kind === 'action') return [step.condition];
+  const common = [step.condition, ...Object.values(step.env), step.continueOnError];
+  const own = step.kind === 'run' ? [step.run, step.shell, step.directory] : [...Object.values(step.with), ...Object.values(step.inputs)];
+  return [...common, ...own].filter((item): item is Expression => item !== undefined);
+}
+
+/** Resolve computed producer names when their contexts are known, before an external output can become a silent null. */
+function checkExternalProducers(expressions: Expression[], steps: PlannedStep[], values: Record<string, Value>, where: string, status?: Status): void {
+  const external = steps.filter(step => step.kind === 'action' && step.id !== undefined);
+  if (external.length === 0) return;
+  for (const expression of expressions) {
+    for (const reference of referencesOf(expression, values, status)) {
+      const [root, producer] = reference.path;
+      if (root !== 'steps') continue;
+      const candidates = producer === undefined
+        ? reference.dynamic && status !== undefined ? external : []
+        : external.filter(step => step.id?.toLowerCase() === producer.toLowerCase());
+      if (candidates.length > 0) throw new Error(`${where}: ${expression.text} reads the step outputs of the external action ${candidates.map(step => step.kind === 'action' ? step.uses : '').join(', ')}, which the local run does not run`);
+    }
+  }
+}
 
 function expressions(value: unknown, place: Place, where: string): Record<string, Expression> {
   const result: Record<string, Expression> = {};
@@ -213,11 +238,11 @@ function optional(value: unknown, place: Place, where: string): Expression | und
 const STEP_ROOTS = ['github', 'needs', 'matrix', 'runner', 'env', 'steps'];
 const COMPOSITE_ROOTS = ['github', 'matrix', 'runner', 'env', 'steps', 'inputs'];
 
-function planSteps(root: string, list: Mapping[], place: Place, where: string): PlannedStep[] {
+function planSteps(root: string, list: Mapping[], place: Place, where: string, ancestors: readonly string[] = []): PlannedStep[] {
   for (const step of list) {
     const id = text(step.id, `${where} id`);
     const uses = text(step.uses, `${where} uses`);
-    if (id !== undefined) place.steps.set(id, uses !== undefined && !uses.startsWith('./') ? uses : undefined);
+    if (id !== undefined) place.steps.set(id.toLowerCase(), uses !== undefined && !uses.startsWith('./') ? uses : undefined);
   }
   return list.map((step, index) => {
     const name = text(step.name, `${where} step ${index + 1} name`);
@@ -239,6 +264,8 @@ function planSteps(root: string, list: Mapping[], place: Place, where: string): 
     }
     if (uses?.startsWith('./')) {
       const directory = path.join(root, uses);
+      const relative = path.relative(root, directory).split(path.sep).join('/');
+      if (ancestors.includes(relative)) throw new Error(`${label}: composite action cycle: ${[...ancestors, relative].join(' -> ')}`);
       const file = ['action.yml', 'action.yaml'].map(each => path.join(directory, each)).find(existsSync);
       if (file === undefined) throw new Error(`${label}: ${uses} has no action.yml`);
       const action = readYaml(file);
@@ -251,7 +278,7 @@ function planSteps(root: string, list: Mapping[], place: Place, where: string): 
         inputs[key] = template(fallback ?? null, `${uses} inputs ${key} default`);
         check(inputs[key], { ...inner, roots: ['github', 'matrix', 'runner', 'env'] }, `${uses} inputs ${key} default`);
       }
-      const steps = planSteps(root, stepList(runs.steps, `${uses} steps`), inner, `${label} > ${uses}`);
+      const steps = planSteps(root, stepList(runs.steps, `${uses} steps`), inner, `${label} > ${uses}`, [...ancestors, relative]);
       const outputs: Record<string, Expression> = {};
       for (const [key, output] of Object.entries(mapping(action.outputs, `${uses} outputs`))) {
         outputs[key] = template(mapping(output, `${uses} outputs ${key}`).value ?? '', `${uses} outputs ${key}`);
@@ -374,9 +401,16 @@ function jobContexts(root: string, needs: Record<string, Value>): Record<string,
  * combination.
  */
 export function planJob(root: string, workflow: string, job: string, select: Record<string, string> = {}): JobPlan {
+  return planJobGraph(root, workflow, job, select, []);
+}
+
+function planJobGraph(root: string, workflow: string, job: string, select: Record<string, string>, ancestors: readonly string[]): JobPlan {
   const document = readYaml(path.resolve(root, workflow));
   const jobs = mapping(document.jobs, `${workflow} jobs`);
-  if (!(job in jobs)) throw new Error(`${workflow} has no job ${job}; its jobs are ${Object.keys(jobs).join(', ') || 'none'}`);
+  const canonical = Object.keys(jobs).find(each => each.toLowerCase() === job.toLowerCase());
+  if (canonical === undefined) throw new Error(`${workflow} has no job ${job}; its jobs are ${Object.keys(jobs).join(', ') || 'none'}`);
+  job = canonical;
+  if (ancestors.includes(job)) throw new Error(`${workflow}: job dependency cycle: ${[...ancestors, job].join(' -> ')}`);
   const entry = mapping(jobs[job], `${workflow} job ${job}`);
   const where = `${workflow} job ${job}`;
   if (entry.uses !== undefined) throw new Error(`${workflow}: job ${job} calls the reusable workflow ${JSON.stringify(entry.uses)}; run its job by its own workflow`);
@@ -420,7 +454,7 @@ export function planJob(root: string, workflow: string, job: string, select: Rec
     outputs, steps,
   };
   for (const name of needs.filter(each => read.has(each))) {
-    const needed = planJob(root, workflow, name);
+    const needed = planJobGraph(root, workflow, name, {}, [...ancestors, job]);
     if (needed.matrix !== undefined) throw new Error(`${where} reads the outputs of job ${name}, which has a matrix: CI gives the outputs of the combination that ends last, which a local run cannot reproduce`);
     plan.needs.push(needed);
   }
@@ -429,9 +463,17 @@ export function planJob(root: string, workflow: string, job: string, select: Rec
     const chosen = all.filter(item => selected(item, select));
     if (chosen.length === 0) throw new Error(`${where}: no combination of its matrix has ${JSON.stringify(select)}; its combinations are ${all.map(item => JSON.stringify(item)).join(', ') || 'none'}`);
     plan.combinations = chosen;
+    for (const item of chosen) checkPlannedProducers(plan.steps, { matrix: item, ...jobContexts(root, {}) }, where);
     if (!WINDOWS) for (const item of chosen) refuseShells(plan.steps, item, root);
   }
   return plan;
+}
+
+function checkPlannedProducers(steps: PlannedStep[], values: Record<string, Value>, where: string): void {
+  for (const step of steps) {
+    checkExternalProducers(stepExpressions(step), steps, values, where);
+    if (step.kind === 'composite') checkPlannedProducers(step.steps, values, step.label);
+  }
 }
 
 /** The shells of the runner of this machine, as GitHub starts them: the command line of the script file `{0}`. */
@@ -462,6 +504,7 @@ type JobState = {
   scripts: number;
   passed: number;
   failed: number;
+  interrupted: () => number | undefined;
   print: (line: string) => void;
 };
 
@@ -516,25 +559,24 @@ function removeTemps(): void {
   temps.clear();
 }
 
-function spawnScript(argv: string[], options: { cwd: string; env: NodeJS.ProcessEnv }, label: string, print: (line: string) => void): Promise<number> {
-  return new Promise(done => {
-    const [command = '', ...args] = argv;
-    const child = spawn(command, args, { ...options, stdio: 'inherit' });
-    child.on('error', error => { print(`[ci-job] ${label}: ${error.message}`); done(127); });
-    child.on('close', (code, signal) => done(code ?? (signal ? 128 : 1)));
-  });
+async function spawnScript(argv: string[], options: { cwd: string; env: NodeJS.ProcessEnv }, label: string, print: (line: string) => void): Promise<number> {
+  const [command = '', ...args] = argv;
+  const result = await runCommand({ command, args, ...options });
+  const failure = failureOf(result);
+  if (failure !== undefined) print(`[ci-job] ${label}: ${failure}`);
+  return failure === undefined ? 0 : result.status || (result.signal ? 128 : 1);
 }
 
 /** Runs one run step and gives its outputs; its environment and folders go to the state. */
-async function runScript(step: Extract<PlannedStep, { kind: 'run' }>, state: JobState, values: Record<string, Value>, env: Record<string, string>, inComposite: boolean): Promise<{ status: number; outputs: Record<string, string> }> {
-  const shell = step.shell ? textOf(step.shell, values) : inComposite ? undefined : state.defaults.shell;
+async function runScript(step: Extract<PlannedStep, { kind: 'run' }>, state: JobState, values: Record<string, Value>, env: Record<string, string>, inComposite: boolean, expressionStatus: Status): Promise<{ status: number; outputs: Record<string, string> }> {
+  const shell = step.shell ? textOf(step.shell, values, expressionStatus) : inComposite ? undefined : state.defaults.shell;
   const argv = SHELLS[shell ?? ''];
   if (argv === undefined) {
     state.print(`[ci-job] refused: ${step.label}: shell ${shell ?? '(default)'} is not a shell that the local run gives on ${RUNNER_OS}`);
     return { status: 1, outputs: {} };
   }
-  const command = textOf(step.run, values);
-  const directory = step.directory ? textOf(step.directory, values) : inComposite ? undefined : state.defaults.directory;
+  const command = textOf(step.run, values, expressionStatus);
+  const directory = step.directory ? textOf(step.directory, values, expressionStatus) : inComposite ? undefined : state.defaults.directory;
   state.scripts += 1;
   const commands = path.join(state.runnerTemp, '_runner_file_commands');
   mkdirSync(commands, { recursive: true });
@@ -554,29 +596,42 @@ async function runScript(step: Extract<PlannedStep, { kind: 'run' }>, state: Job
   }, step.label, state.print);
   const read = (name: string) => readFileSync(files[name] ?? '', 'utf8');
   let outputs: Record<string, string> = {};
-  try {
-    outputs = Object.fromEntries(fileCommand(read('GITHUB_OUTPUT'), `${step.label}: GITHUB_OUTPUT`));
-    for (const [key, value] of fileCommand(read('GITHUB_ENV'), `${step.label}: GITHUB_ENV`)) state.env[key] = value;
-  } catch (error) {
-    state.print(`[ci-job] ${error instanceof Error ? error.message : String(error)}`);
-    return { status: status === 0 ? 1 : status, outputs };
+  let failedCommand = false;
+  const commandsOf = (name: string): [string, string][] => {
+    try { return fileCommand(read(name), `${step.label}: ${name}`); } catch (error) {
+      state.print(`[ci-job] ${error instanceof Error ? error.message : String(error)}`);
+      failedCommand = true;
+      return [];
+    }
+  };
+  outputs = Object.fromEntries(commandsOf('GITHUB_OUTPUT'));
+  for (const [key, value] of commandsOf('GITHUB_ENV')) {
+    if (key.toUpperCase() === 'NODE_OPTIONS') {
+      state.print(`[ci-job] ${step.label}: GITHUB_ENV cannot set ${key}, which the GitHub runner blocks`);
+      failedCommand = true;
+    } else state.env[key] = value;
   }
-  for (const folder of read('GITHUB_PATH').split(/\r?\n/).map(line => line.trim()).filter(Boolean)) {
+  for (const folder of read('GITHUB_PATH').split(/\r?\n/).filter(line => line !== '')) {
     state.path = [folder, ...state.path.filter(each => each !== folder)];
   }
   const summary = read('GITHUB_STEP_SUMMARY');
   if (summary.trim() !== '') state.print(`[ci-job] summary of ${step.label}:\n${summary.trimEnd()}`);
-  return { status, outputs };
+  return { status: failedCommand && status === 0 ? 1 : status, outputs };
 }
 
 /** Runs the steps of a scope in order, as the runner does, and marks the frame failed when a step fails. */
 async function runSteps(list: PlannedStep[], frame: Frame, state: JobState, inherited: Record<string, string>): Promise<void> {
   for (const step of list) {
+    if (state.interrupted() !== undefined) return;
     const status = { success: !frame.failed, failure: frame.failed, cancelled: false };
     let result: StepResult;
     try {
       const before = contexts(state, frame, inherited);
-      if (!truthy(valueOf(step.condition, before, status))) {
+      checkExternalProducers(step.kind === 'action' ? [] : Object.values(step.env), list, before, step.label, status);
+      const env = step.kind === 'action' ? inherited : { ...inherited, ...texts(step.env, before, status) };
+      const values = contexts(state, frame, env);
+      checkExternalProducers(stepExpressions(step), list, values, step.label, status);
+      if (!truthy(valueOf(step.condition, values, status))) {
         state.print(`[ci-job] skipped: ${step.label}: if: ${step.condition.text}`);
         if (step.id !== undefined) frame.steps[step.id] = { outputs: {}, outcome: 'skipped', conclusion: 'skipped' };
         continue;
@@ -585,24 +640,23 @@ async function runSteps(list: PlannedStep[], frame: Frame, state: JobState, inhe
         state.print(`[ci-job] not run on this machine: ${step.label}: ${step.uses} ${JSON.stringify(step.with)}`);
         continue;
       }
-      const env = { ...inherited, ...texts(step.env, before) };
-      const values = contexts(state, frame, env);
       let failed: boolean;
       let outputs: Record<string, string>;
       if (step.kind === 'run') {
-        const ran = await runScript(step, state, values, env, frame.actionPath !== undefined);
+        const ran = await runScript(step, state, values, env, frame.actionPath !== undefined, status);
         failed = ran.status !== 0;
         outputs = ran.outputs;
-        if (failed) state.print(`[ci-job] failed: ${step.label} exited with status ${ran.status}: ${textOf(step.run, values)}`);
+        if (failed) state.print(`[ci-job] failed: ${step.label} exited with status ${ran.status}: ${textOf(step.run, values, status)}`);
         else state.passed += 1;
       } else {
-        const given = texts(step.with, values);
+        const given = texts(step.with, values, status);
         const inputs = { ...given };
-        for (const [key, fallback] of Object.entries(step.inputs)) if (!(key in given)) inputs[key] = textOf(fallback, values);
+        for (const [key, fallback] of Object.entries(step.inputs)) if (!(key in given)) inputs[key] = textOf(fallback, values, status);
         const inner: Frame = { steps: {}, failed: false, inputs, actionPath: step.path };
         await runSteps(step.steps, inner, state, env);
         failed = inner.failed;
-        outputs = texts(step.outputs, contexts(state, inner, env));
+        checkExternalProducers(Object.values(step.outputs), step.steps, contexts(state, inner, env), step.label, { success: !inner.failed, failure: inner.failed, cancelled: false });
+        outputs = texts(step.outputs, contexts(state, inner, env), { success: !inner.failed, failure: inner.failed, cancelled: false });
       }
       const tolerated = failed && step.continueOnError !== undefined && truthy(valueOf(step.continueOnError, values, status));
       if (tolerated) state.print(`[ci-job] continued: ${step.label} failed, and its continue-on-error holds`);
@@ -621,11 +675,11 @@ async function runSteps(list: PlannedStep[], frame: Frame, state: JobState, inhe
 
 type JobResult = { status: number; result: 'success' | 'failure' | 'skipped'; outputs: Record<string, string>; runs: number; passed: number };
 
-async function runJob(plan: JobPlan, select: Record<string, string>, print: (line: string) => void): Promise<JobResult> {
+async function runJob(plan: JobPlan, select: Record<string, string>, print: (line: string) => void, interrupted: () => number | undefined): Promise<JobResult> {
   const needs: Record<string, Value> = {};
   for (const needed of plan.needs) {
     print(`[ci-job] ${plan.where} reads the outputs of job ${needed.job}, which runs first, as in CI`);
-    const done = await runJob(needed, {}, print);
+    const done = await runJob(needed, {}, print, interrupted);
     if (done.result !== 'success') {
       print(`[ci-job] skipped: ${plan.where}, since the job ${needed.job} that it needs ended with ${done.result}`);
       return { status: done.status, result: 'skipped', outputs: {}, runs: 0, passed: 0 };
@@ -653,6 +707,7 @@ async function runJob(plan: JobPlan, select: Record<string, string>, print: (lin
   let passed = 0;
   let runs = 0;
   for (const item of chosen) {
+    if (interrupted() !== undefined) break;
     const label = Object.keys(item).length > 0 ? `${plan.where} ${JSON.stringify(item)}` : plan.where;
     if (failed && failFast) {
       print(`[ci-job] cancelled by fail-fast: ${label}`);
@@ -665,7 +720,7 @@ async function runJob(plan: JobPlan, select: Record<string, string>, print: (lin
       const github = { workspace: plan.root };
       const workflowEnv = texts(plan.env.workflow, { github });
       const state: JobState = {
-        plan, runnerTemp, matrix: item, needs, env: {}, path: [], defaults: { shell: undefined, directory: undefined }, scripts: 0, passed: 0, failed: 0, print,
+        plan, runnerTemp, matrix: item, needs, env: {}, path: [], defaults: { shell: undefined, directory: undefined }, scripts: 0, passed: 0, failed: 0, print, interrupted,
       };
       state.env = { ...workflowEnv, ...texts(plan.env.job, { github, needs, matrix: item }) };
       const frame: Frame = { steps: {}, failed: false, inputs: undefined, actionPath: undefined };
@@ -675,7 +730,8 @@ async function runJob(plan: JobPlan, select: Record<string, string>, print: (lin
         directory: plan.defaults.directory && textOf(plan.defaults.directory, before),
       };
       await runSteps(plan.steps, frame, state, {});
-      outputs = texts(plan.outputs, contexts(state, frame, {}));
+      checkExternalProducers(Object.values(plan.outputs), plan.steps, contexts(state, frame, {}), plan.where, { success: !frame.failed, failure: frame.failed, cancelled: false });
+      outputs = texts(plan.outputs, contexts(state, frame, {}), { success: !frame.failed, failure: frame.failed, cancelled: false });
       passed += state.passed;
       runs += 1;
       if (frame.failed) {
@@ -699,19 +755,24 @@ export async function ciJob({ root, workflow, job, select = {}, print = (line: s
     print(`[ci-job] refused: ${error instanceof Error ? error.message : String(error)}`);
     return 1;
   }
-  const onSignal = (signal: NodeJS.Signals) => { removeTemps(); process.exit(signal === 'SIGINT' ? 130 : 143); };
+  let interruption: number | undefined;
+  // runCommand owns termination and awaits command close. Its interrupted exit reaches this hook only after cleanup;
+  // removing files in the signal handler would remove RUNNER_TEMP while the command is still using it.
+  const onSignal = (signal: NodeJS.Signals) => { interruption ??= signal === 'SIGINT' ? 130 : 143; };
   process.once('SIGINT', onSignal);
   process.once('SIGTERM', onSignal);
+  process.once('exit', removeTemps);
   try {
-    const done = await runJob(plan, select, print);
+    const done = await runJob(plan, select, print, () => interruption);
     print(`[ci-job] ${workflow} job ${job}: ${done.result}, ${done.runs} ${done.runs === 1 ? 'run' : 'runs'}, ${done.passed} steps passed`);
-    return done.status;
+    return interruption ?? done.status;
   } catch (error) {
     print(`[ci-job] refused: ${error instanceof Error ? error.message : String(error)}`);
     return 1;
   } finally {
     process.removeListener('SIGINT', onSignal);
     process.removeListener('SIGTERM', onSignal);
+    process.removeListener('exit', removeTemps);
     removeTemps();
   }
 }
