@@ -89,14 +89,16 @@ test('K1227: a reusable workflow, an expression, an unknown condition and a miss
   const root = fixture(WORKFLOW, ACTION);
   try {
     assert.throws(() => planJob(root, '.github/workflows/ci.yml', 'other'), /calls the reusable workflow/);
+    assert.equal(planJob(root, '.github/workflows/ci.yml', 'bindings').length, 1);
     assert.throws(() => planJob(root, '.github/workflows/ci.yml', 'none'), /has no job none; its jobs are bindings, other/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
   for (const [step, cause] of [
-    ['run: echo ${{ github.sha }}', /run holds a \$\{\{ \}\} expression/],
+    ['run: echo ${{ github.sha }}', /run holds the expression \$\{\{ github\.sha \}\}/],
     ['if: github.ref == \'refs/heads/main\'\n        run: true', /is not always\(\), success\(\) or !cancelled\(\)/],
     ['run: true\n        env: { A: "${{ secrets.X }}" }', /env A holds the expression/],
+    ['run: echo ${{ matrix.missing }}', /holds the expression \$\{\{ matrix\.missing \}\}/],
   ] as const) {
     const other = fixture(`jobs:\n  j:\n    steps:\n      - ${step}\n`);
     try {
@@ -104,5 +106,46 @@ test('K1227: a reusable workflow, an expression, an unknown condition and a miss
     } finally {
       rmSync(other, { recursive: true, force: true });
     }
+  }
+});
+
+const MATRIX = `jobs:
+  check:
+    strategy:
+      matrix:
+        include:
+          - { name: ts, targets: "a b" }
+          - { name: rust, targets: c }
+    steps:
+      - run: printf "\${{ matrix.name }}:\${{ matrix.targets }};" >> order.log
+      - run: test "\${{ runner.temp }}" = "$RUNNER_TEMP" && test -d "\${{ runner.temp }}"
+        working-directory: .
+  axes:
+    strategy:
+      matrix: { os: [x, y], php: ['8.4', '8.5'] }
+    steps:
+      - run: printf "\${{ matrix.os }}-\${{ matrix.php }};" >> axes.log
+  mixed:
+    strategy:
+      matrix: { os: [x], include: [{ os: x, extra: 1 }] }
+    steps:
+      - run: true
+`;
+
+test('K1227: a matrix job runs each combination of include or of the axes, or those that --matrix selects', async () => {
+  const root = fixture(MATRIX);
+  try {
+    const lines: string[] = [];
+    assert.equal(await ciJob({ root, workflow: '.github/workflows/ci.yml', job: 'check', print: line => lines.push(line) }), 0, lines.join('\n'));
+    assert.equal(readFileSync(path.join(root, 'order.log'), 'utf8'), 'ts:a b;rust:c;');
+    assert.ok(lines.at(-1)?.includes('2 runs, 4 steps passed'), lines.join('\n'));
+    assert.equal(await ciJob({ root, workflow: '.github/workflows/ci.yml', job: 'check', select: { name: 'rust' }, print: () => {} }), 0);
+    assert.equal(readFileSync(path.join(root, 'order.log'), 'utf8'), 'ts:a b;rust:c;rust:c;');
+    assert.equal(await ciJob({ root, workflow: '.github/workflows/ci.yml', job: 'axes', print: () => {} }), 0);
+    assert.equal(readFileSync(path.join(root, 'axes.log'), 'utf8'), 'x-8.4;x-8.5;y-8.4;y-8.5;');
+    assert.throws(() => planJob(root, '.github/workflows/ci.yml', 'check', { name: 'go' }), /no combination of its matrix has \{"name":"go"\}; its combinations are/);
+    assert.throws(() => planJob(root, '.github/workflows/ci.yml', 'mixed'), /both axes and include/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });
