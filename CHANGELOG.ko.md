@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4e82b8eaeb111e342a7b359fd0c4e73a670598ccbd9ae758d6035da6d86a74c9 -->
+<!-- source-sha256: d4153d18a829446cc93c924d1fcf5881543639d9c6a2b6223c200e1dc97ff17b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -8,7 +8,7 @@
 
 ## 0.0.113
 
-- K1227: `scripts/kit/ci-job.mts`는 checkout의 GitHub workflow에서 job 하나의 step을 CI가 실행하는 대로, matrix의 각 조합 또는 `--matrix <key>=<value>`가 고른 조합마다 `${{ matrix.<key> }}`와 `${{ runner.temp }}`에 값을 넣어 실행하고, 로컬 composite action의 step은 그 자리에서 실행하며, 실행하지 않는 외부 action은 이름을 출력한다. 그래서 push 전 검사는 명령의 사본이 아니라 CI job 자체다. 처음 실패한 step에서 멈추고, CI처럼 실행할 수 없는 것, 즉 reusable workflow job, `${{ }}` 표현식, `always()`·`success()`·`!cancelled()`가 아닌 `if:`는 이름을 대고 거부한다. 시험 `tests/kit/ci-job.test.mts`가 순서, 멈춤, 각 거부를 확인한다.
+- K1227: `scripts/kit/ci-job.mts`는 checkout의 GitHub workflow에서 job 하나의 step을 CI가 실행하는 대로, matrix의 각 조합 또는 `--matrix <key>=<value>`가 고른 조합마다 `${{ matrix.<key> }}`와 `${{ runner.temp }}`에 값을 넣어 실행하고, 로컬 composite action의 step은 그 자리에서 실행하며, 실행하지 않는 외부 action은 이름을 출력한다. 그래서 push 전 검사는 명령의 사본이 아니라 CI job 자체다. 처음 실패한 step에서 멈추고, CI처럼 실행할 수 없는 것, 즉 reusable workflow job, `${{ }}` 표현식, `always()`·`success()`·`!cancelled()`와 matrix 값과 리터럴의 비교(`==`, `!=`, `contains(fromJSON(...), matrix.<key>)`)를 `&&`로 이은 것이 아닌 `if:`는(이런 조건은 조합마다 판단한다) 이름을 대고 거부한다. 시험 `tests/kit/ci-job.test.mts`가 순서, 멈춤, 각 거부를 확인한다.
 
 - K1226: `scripts/kit/worktree-links.mts`가 worktree의 node_modules를 link로 만듭니다. main checkout의 node_modules 각 entry는 그 entry로 link되고, worktree 자신의 workspace manifest가 선언하는 package는 worktree 안으로 link됩니다. 이제 worktree는 package를 resolve하려고 install할 필요가 없습니다.
 

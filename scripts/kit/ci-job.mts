@@ -18,7 +18,9 @@
 // matches fails the run with the combinations that exist. In `run:`, `env:` and `working-directory`, `${{ matrix.<key> }}`
 // is the value of the combination and `${{ runner.temp }}` is `RUNNER_TEMP`. Refused by name, because the run could not
 // give them the meaning that CI gives: a job that calls a reusable workflow, any other `${{ }}` expression in those places,
-// and a step whose `if:` is not one of `always()`, `success()` and `!cancelled()`. `RUNNER_TEMP` is a directory that the
+// and an `if:` other than a conjunction (`&&`) of `always()`, `success()`, `!cancelled()`, `matrix.<key> == '<text>'` or `!=`,
+// and `contains(fromJSON('<list>'), matrix.<key>)`, which the run decides for the combination; a step whose condition does not
+// hold is named and not run. `RUNNER_TEMP` is a directory that the
 // run makes under the temporary directory of the system (`TMPDIR`) for each combination and removes at its end, also
 // on SIGINT and SIGTERM. The run makes no download; the steps that download are the install targets of the repository.
 // Status 0 when every step passed, 1 when a step failed or was refused, 2 for a usage error.
@@ -84,11 +86,41 @@ function textMap(map: unknown, combination: Combination, where: string): Record<
   return result;
 }
 
-function condition(step: Mapping, where: string): void {
+/**
+ * The value of one term of a condition: a status function, which holds while no earlier step failed, since the run stops at
+ * the first failing step; `matrix.<key> == '<text>'` or `!=`; or `contains(fromJSON('<list>'), matrix.<key>)`, whose list holds
+ * texts or numbers. Undefined for any other term.
+ */
+function term(text: string, combination: Combination): boolean | undefined {
+  if (RUN_CONDITIONS.has(text)) return true;
+  const compared = /^matrix\.([A-Za-z0-9_-]+)\s*(==|!=)\s*'([^']*)'$/.exec(text);
+  if (compared) {
+    const [, key = '', operator, literal] = compared;
+    if (!(key in combination)) return undefined;
+    return (combination[key] === literal) === (operator === '==');
+  }
+  const contained = /^contains\(\s*fromJSON\(\s*'([^']*)'\s*\)\s*,\s*matrix\.([A-Za-z0-9_-]+)\s*\)$/.exec(text);
+  if (contained) {
+    const [, list = '', key = ''] = contained;
+    if (!(key in combination)) return undefined;
+    const values: unknown = JSON.parse(list);
+    if (!Array.isArray(values)) return undefined;
+    return values.some(value => (typeof value === 'string' || typeof value === 'number') && String(value) === combination[key]);
+  }
+  return undefined;
+}
+
+/**
+ * Whether the step runs: true without `if:`; otherwise the value of its condition, a conjunction (`&&`) of the terms of
+ * `term`. Any other condition throws with `where`, since the run could not decide it as CI does.
+ */
+function condition(step: Mapping, combination: Combination, where: string): boolean {
   const when = text(step.if, `${where} if`);
-  if (when === undefined) return;
+  if (when === undefined) return true;
   const bare = when.replace(/^\$\{\{\s*/, '').replace(/\s*\}\}$/, '').trim();
-  if (!RUN_CONDITIONS.has(bare)) throw new Error(`${where}: if: ${when} is not always(), success() or !cancelled(), so the local run cannot decide it as CI does`);
+  const values = bare.split('&&').map(part => term(part.trim(), combination));
+  if (values.some(value => value === undefined)) throw new Error(`${where}: if: ${when} is not a condition that the local run decides as CI does: always(), success(), !cancelled(), matrix.<key> == or != '<text>', contains(fromJSON('<list>'), matrix.<key>), joined by &&`);
+  return values.every(Boolean);
 }
 
 function readYaml(file: string): Mapping {
@@ -102,7 +134,10 @@ function planSteps(root: string, list: Mapping[], env: Record<string, string>, c
   list.forEach((step, index) => {
     const name = text(step.name, `${where} step ${index + 1} name`);
     const label = `${where} step ${index + 1}${name ? ` (${name})` : ''}`;
-    condition(step, label);
+    if (!condition(step, combination, label)) {
+      planned.push({ kind: 'skip', label, uses: `if: ${String(step.if)}`, with: {} });
+      return;
+    }
     const stepEnv = { ...env, ...textMap(step.env, combination, label) };
     const run = text(step.run, `${label} run`);
     const uses = text(step.uses, `${label} uses`);

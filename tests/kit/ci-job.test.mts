@@ -96,7 +96,7 @@ test('K1227: a reusable workflow, an expression, an unknown condition and a miss
   }
   for (const [step, cause] of [
     ['run: echo ${{ github.sha }}', /run holds the expression \$\{\{ github\.sha \}\}/],
-    ['if: github.ref == \'refs/heads/main\'\n        run: true', /is not always\(\), success\(\) or !cancelled\(\)/],
+    ['if: github.ref == \'refs/heads/main\'\n        run: true', /is not a condition that the local run decides as CI does/],
     ['run: true\n        env: { A: "${{ secrets.X }}" }', /env A holds the expression/],
     ['run: echo ${{ matrix.missing }}', /holds the expression \$\{\{ matrix\.missing \}\}/],
   ] as const) {
@@ -145,6 +145,27 @@ test('K1227: a matrix job runs each combination of include or of the axes, or th
     assert.equal(readFileSync(path.join(root, 'axes.log'), 'utf8'), 'x-8.4;x-8.5;y-8.4;y-8.5;');
     assert.throws(() => planJob(root, '.github/workflows/ci.yml', 'check', { name: 'go' }), /no combination of its matrix has \{"name":"go"\}; its combinations are/);
     assert.throws(() => planJob(root, '.github/workflows/ci.yml', 'mixed'), /both axes and include/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+const CONDITIONS = `jobs:
+  shards:
+    strategy:
+      matrix: { shard: [1, 2, 3], runner: [linux, windows] }
+    steps:
+      - if: \${{ contains(fromJSON('[1,3]'), matrix.shard) && matrix.runner != 'windows' }}
+        run: printf "\${{ matrix.shard }}-\${{ matrix.runner }};" >> picked.log
+`;
+
+test('K1227: a condition of matrix values and literals is decided as CI decides it', async () => {
+  const root = fixture(CONDITIONS);
+  try {
+    const lines: string[] = [];
+    assert.equal(await ciJob({ root, workflow: '.github/workflows/ci.yml', job: 'shards', print: line => lines.push(line) }), 0, lines.join('\n'));
+    assert.equal(readFileSync(path.join(root, 'picked.log'), 'utf8'), '1-linux;3-linux;');
+    assert.ok(lines.some(line => line.includes('not run on this machine') && line.includes('if: ')), lines.join('\n'));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
