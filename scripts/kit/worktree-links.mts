@@ -20,8 +20,9 @@ function mainCheckout(worktree: string): string {
 
 /** The packages that the workspace manifests of `worktree` declare: each workspace pattern names one folder or `dir/*`, one level deep. */
 function ownPackages(worktree: string): Map<string, string> {
-  const manifest = JSON.parse(readFileSync(path.join(worktree, 'package.json'), 'utf8')) as { workspaces?: unknown };
-  const patterns = Array.isArray(manifest.workspaces) ? manifest.workspaces : [];
+  const manifest: unknown = JSON.parse(readFileSync(path.join(worktree, 'package.json'), 'utf8'));
+  const workspaces: unknown = typeof manifest === 'object' && manifest !== null && 'workspaces' in manifest ? manifest.workspaces : undefined;
+  const patterns: unknown[] = Array.isArray(workspaces) ? workspaces : [];
   const folders: string[] = [];
   for (const pattern of patterns) {
     if (typeof pattern !== 'string') throw new Error(`workspace ${JSON.stringify(pattern)} of ${worktree}/package.json is not a string`);
@@ -39,9 +40,10 @@ function ownPackages(worktree: string): Map<string, string> {
   }
   const packages = new Map<string, string>();
   for (const folder of folders) {
-    const named = JSON.parse(readFileSync(path.join(folder, 'package.json'), 'utf8')) as { name?: unknown };
-    if (typeof named.name !== 'string' || named.name === '') throw new Error(`${folder}/package.json names no package`);
-    packages.set(named.name, folder);
+    const named: unknown = JSON.parse(readFileSync(path.join(folder, 'package.json'), 'utf8'));
+    const name: unknown = typeof named === 'object' && named !== null && 'name' in named ? named.name : undefined;
+    if (typeof name !== 'string' || name === '') throw new Error(`${folder}/package.json names no package`);
+    packages.set(name, folder);
   }
   return packages;
 }
@@ -97,7 +99,7 @@ export function linkNodeModules(worktree: string): string {
       symlinkSync(from, path.join(target, entry));
     }
   }
-  for (const [name, folder] of [...own.entries()].sort()) {
+  for (const [name, folder] of [...own.entries()].sort(([left], [right]) => left.localeCompare(right))) {
     const link = path.join(target, name);
     mkdirSync(path.dirname(link), { recursive: true });
     rmSync(link, { force: true });

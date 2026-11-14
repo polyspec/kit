@@ -15,7 +15,7 @@ import { existsSync, lstatSync, readFileSync, realpathSync, rmSync } from 'node:
 import path from 'node:path';
 import { isMain, repositoryRoot } from './paths.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
-import { SHIMS, toolCommand } from './mise-tools.mts';
+import { toolCommand } from './mise-tools.mts';
 import { present } from './present.mts';
 import { cleanupAfter } from './process.mts';
 
