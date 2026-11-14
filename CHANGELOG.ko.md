@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ebe46851520bc90c9553de470a31ed6033aff668b52059f7e7d0948a70b311e1 -->
+<!-- source-sha256: ca047830de0724cdd0a7512bd3fb961f14ddf603089532cebac3780e9ffb340a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1226: `scripts/kit/worktree-links.mts`가 worktree의 node_modules를 link로 만듭니다. main checkout의 node_modules 각 entry는 그 entry로 link되고, worktree 자신의 workspace manifest가 선언하는 package는 worktree 안으로 link됩니다. 이제 worktree는 package를 resolve하려고 install할 필요가 없습니다.
 
 - K1224: 체크아웃 Python의 venv가 아닌 기존 디렉터리의 거부 메시지가 실행되는 해결 방법을 제시합니다. 디렉터리가 있는 동안에는 다시 만들 수 없으므로 해결 방법이 `remove it with rm -rf <dir>, then run make python-venv DIR=<dir>`가 되었습니다. pyvenv.cfg가 없는 디렉터리와 다른 Python의 venv에 적용됩니다(`scripts/kit/python-venv.mts`). 테스트 `tests/kit/python-venv.test.mts`가 두 단계를 모두 확인합니다.
 

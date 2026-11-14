@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1226: `scripts/kit/worktree-links.mts` makes the node_modules of a worktree as links: each entry of the node_modules of its main checkout links to that entry, and each package that the worktree's own workspace manifests declare links into the worktree. A worktree no longer needs an install to resolve its packages.
+
 - K1224: the refusal of an existing directory that is not a venv of the checkout Python names a remedy that runs. The directory cannot be remade while it exists, so the remedy is now `remove it with rm -rf <dir>, then run make python-venv DIR=<dir>`, for a directory without pyvenv.cfg and for a venv of another Python (`scripts/kit/python-venv.mts`). The test `tests/kit/python-venv.test.mts` asserts both steps.
 
 ## 0.0.112
