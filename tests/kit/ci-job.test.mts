@@ -566,6 +566,7 @@ test('K1228-1: a true step condition with repeated escaped quotes runs its scrip
   try {
     const { status, lines } = await run(root, 'j');
     assert.equal(status, 0, lines.join('\n'));
+    assert.ok(!lines.some(line => line.startsWith('[ci-job] skipped:')), lines.join('\n'));
     assert.equal(read(root, 'condition.log'), 'passed', lines.join('\n'));
   } finally {
     rmSync(root, { recursive: true, force: true });

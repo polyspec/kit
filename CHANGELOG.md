@@ -5,6 +5,16 @@
 
 ## Unreleased
 
+- K1228-1 verification: the declared command passes seven tests on the committed implementation with Node 26.12.0,
+  with zero failures or skips.
+
+- K1228-1: Workflow expressions decode every doubled single quote once. The adapter derives STRING token values from
+  their validated raw lexemes and keeps their lexemes and ranges; native tokenization, syntax errors, parsing and
+  evaluation are retained. Before, the pinned lexer decoded only the first pair, changing repeated escapes in literals
+  and format arguments and skipping a true step condition. Seven focused regressions reproduce those failures.
+  On Node 26.12.0 with npm 12.2.0, the focused runner changes from seven failures to seven passes; the complete owner
+  files pass 38 tests, with no skips. Typecheck, duplication-check, lint-ts and docs-check pass.
+
 - K1231 verification: the declared command passes five regressions on the committed implementation. The complete owning runtime-targets file passes 30 tests with no skip; typecheck, duplication-check, lint-ts and docs-check pass. Native smoke and the separate K1231-1 action/signal lifetime proof remain pending.
 
 - K1231: Darwin case-sensitive tests keep the disk image in the caller's temporary storage and place only the empty mountpoint in the native user temporary directory discovered by `getconf DARWIN_USER_TEMP_DIR`. A mountpoint on a volume that ignores ownership can be refused even when the same image mounts at an owner-aware location. Successful detach permits cleanup of both resource paths; an uncertain detach retains and names both. The real case probe remains required. Five regressions cover placement, native discovery, failure reporting and cleanup order.

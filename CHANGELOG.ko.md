@@ -1,10 +1,19 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 95b34221af2dd6e4210ee95ab9d856edc003280084f3d8b00643df1d379384c0 -->
+<!-- source-sha256: a2763220406d010a01e61214f3e649971b94b7a5311d7cdb297abd3bee9b4d24 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1228-1 검증: 선언한 명령은 Node 26.12.0에서 commit된 구현의 시험 일곱 개를 실패나 skip 없이 통과한다.
+
+- K1228-1: Workflow expression은 모든 겹친 작은따옴표를 한 번씩 해석한다. Adapter는 검증한 raw lexeme에서 STRING
+  token 값을 만들고 lexeme과 range를 보존하며 native tokenization, syntax 오류, parsing, evaluation을 유지한다.
+  이전에는 pin한 lexer가 첫 쌍만 해석해 literal과 format 인자의 반복 escape를 바꾸고 참인 step condition을
+  건너뛰었다. 집중 회귀 시험 일곱 개가 이 실패를 재현한다.
+  Node 26.12.0과 npm 12.2.0에서 집중 runner는 실패 일곱 개에서 통과 일곱 개로 바뀌며, 전체 owner 파일의 시험
+  38개가 skip 없이 통과한다. Typecheck, duplication-check, lint-ts, docs-check가 통과한다.
 
 - K1231 검증: 선언된 command가 commit된 구현에서 회귀 시험 5개를 통과한다. 전체 owner인 runtime-targets file은 skip 없이 시험 30개를 통과하며 typecheck, duplication-check, lint-ts, docs-check도 통과한다. Native smoke와 별도 K1231-1 action/signal lifetime 증명은 아직 남아 있다.
 
