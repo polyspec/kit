@@ -554,6 +554,24 @@ test('K1228: a missing matrix value is null and writes an empty text, as in CI',
   }
 });
 
+test('K1228-1: a true step condition with repeated escaped quotes runs its script', async () => {
+  const root = fixture(`jobs:
+  j:
+    env:
+      TEXT: "it's 'fine'"
+    steps:
+      - if: env.TEXT == 'it''s ''fine'''
+        run: printf passed > condition.log
+`);
+  try {
+    const { status, lines } = await run(root, 'j');
+    assert.equal(status, 0, lines.join('\n'));
+    assert.equal(read(root, 'condition.log'), 'passed', lines.join('\n'));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('K1228: interruption awaits owned command cleanup before removing runner files', { skip: process.platform === 'win32' && 'POSIX cooperative signals' }, async t => {
   const root = fixture(`jobs:
   j:

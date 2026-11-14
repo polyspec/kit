@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { Literal } from '@actions/expressions/ast';
+import { Lexer } from '@actions/expressions';
 import { callsStatus, evaluate, evaluateTemplate, parseExpression, parseTemplate, references, toText, truthy, type Value } from '../../scripts/kit/actions-expression.mts';
 
 // K1228: the expressions of GitHub Actions evaluate as the runner evaluates them, through @actions/expressions with the
@@ -13,6 +15,30 @@ const CONTEXTS: Record<string, Value> = {
 function value(source: string, status = { success: true, failure: false, cancelled: false }): Value {
   return evaluate(parseExpression(source), CONTEXTS, status);
 }
+
+for (const [label, source, expected] of [
+  ['multiple escaped quotes', "'it''s ''fine'''", "it's 'fine'"],
+  ['a literal of quotes alone', "''''''", "''"],
+  ['a format string', "format('it''s {0}, ''fine''', 'ok')", "it's ok, 'fine'"],
+  ['a format argument', "format('{0}', 'it''s ''fine''')", "it's 'fine'"],
+  ['adjacent literal quotes', "format('''''{0}''''', 'ok')", "''ok''"],
+] as const) {
+  test(`K1228-1: ${label} decode every escaped single quote once`, () => {
+    assert.equal(value(source), expected);
+  });
+}
+
+test('K1228-1: raw lexemes, source ranges and native syntax rejection are preserved', () => {
+  const source = "  'it''s ''fine'''";
+  const native = new Lexer(source).lex().tokens[0];
+  const parsed = parseExpression(source);
+  assert.ok(parsed instanceof Literal);
+  assert.equal(parsed.token.lexeme, native?.lexeme);
+  assert.deepEqual(parsed.token.range, native?.range);
+  assert.throws(() => parseExpression("'it''s ''fine''"), /Unexpected symbol/);
+  assert.throws(() => parseExpression('"fine"'), /Unexpected symbol/);
+  assert.equal(evaluateTemplate(parseTemplate("prefix ${{ 'it''s ''fine''' }} suffix"), CONTEXTS), "prefix it's 'fine' suffix");
+});
 
 test('K1228: literals, property access and the filter', () => {
   assert.equal(value("'it''s'"), "it's");

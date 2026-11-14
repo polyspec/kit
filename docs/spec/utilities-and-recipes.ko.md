@@ -1,5 +1,5 @@
 <!-- doc-id: spec-utilities-and-recipes -->
-<!-- source-sha256: c5aec6afba27061a0a000deae8ea34a3ded098f7f33a90211bbaead65b39cdcd -->
+<!-- source-sha256: cda0e78f00d88cb13056af31a5e777ec2d3461ddcc6b7f67d2c25817e23fdf0a -->
 # 유틸리티와 예제
 
 [English](utilities-and-recipes.md)
@@ -37,6 +37,11 @@ allow-remote 사례가 그 연쇄를 보여 준다.
   실행은 status function과 지원하는 `github`, `runner`, `matrix`, `env`, `steps`, composite `inputs` 값을 제공한다.
   로컬 실행이 제공할 수 없는 context는 script를 실행하기 전에 이름을 밝히고 거부한다. 외부 action의 output,
   secret, 저장소 variable은 로컬 script 실행이 제공할 수 없다.
+- 따옴표로 감싼 expression literal은 `format`과 step condition에 쓰인 literal을 포함해 모든 겹친 작은따옴표를
+  한 번씩 해석한다(K1228-1). Pin한 lexer는 첫 쌍만 해석하므로 adapter는 검증한 raw lexeme에서 STRING token 값을
+  만들고 원래 lexeme과 range를 보존한다. Tokenization, syntax 거부, parsing, evaluation은 native로 유지한다.
+  Pin한 lexer가 정규화 없이 같은 반복 escape 회귀 시험을 통과하면 adapter를 제거한다. 이미 해석한 token 값을
+  고치면 첫 쌍을 두 번 해석하게 된다.
 - 각 script는 새로운 `GITHUB_OUTPUT`, `GITHUB_ENV`, `GITHUB_PATH`, `GITHUB_STEP_SUMMARY` 파일을 받는다. Output은 해당
   step에 속하며, environment 변경과 path 항목은 다음 step에 전달된다. Output과 environment 파일은 `name=value`와
   delimiter를 사용하는 multiline 값을 모두 받는다. 잘못된 file command는 해당 step을 실패시키지만, 다른 정상 채널의

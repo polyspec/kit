@@ -36,6 +36,11 @@ are printed with their inputs and are not executed, so the local run requires th
   The run supplies status functions and the supported values of `github`, `runner`, `matrix`, `env`, `steps` and composite
   `inputs`. A context that the local run cannot supply is refused with its name before scripts run. External action
   outputs, secrets and repository variables cannot be supplied by a local script run.
+- A quoted expression literal decodes every doubled single quote once, including literals used in `format` and step
+  conditions (K1228-1). The pinned lexer decodes only the first pair, so the adapter derives STRING token values from
+  their validated raw lexemes and preserves their original lexemes and ranges. Tokenization, syntax rejection, parsing
+  and evaluation remain native. Remove this adapter when the pinned lexer passes the same repeated-escape regressions
+  without normalization; correcting its already-decoded token value would decode the first pair twice.
 - Each script receives fresh `GITHUB_OUTPUT`, `GITHUB_ENV`, `GITHUB_PATH` and `GITHUB_STEP_SUMMARY` files. Outputs belong to
   their step; environment changes and path entries reach subsequent steps. Output and environment files accept both
   `name=value` and delimited multiline values. A malformed file command fails its step; independent valid channels still
