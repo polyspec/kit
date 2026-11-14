@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4bb57ac8f776ccfb23e15e7c4f9e469436e42947ac4ddb9d282be645d2b698c1 -->
+<!-- source-sha256: 3d8400f5bc2d259c6abbf08dc7546892a022e1a50777e3ae1bd36e86131c100c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1229 검증: 선언한 회귀 시험은 commit된 구현에서 통과하고, concurrent-file, imported-helper, empty-file 선택은 세 시험을 통과한다. 전체 runner 파일은 65개 시험을 통과하고, 이 worktree에 PHPUnit이 설치되지 않아 PHPUnit 시험이 실패한다. 해당 CI job이 그 prerequisite를 설치한다.
 - K1229: node reporter는 imported helper가 등록한 case를 포함하여 native event의 entry file에 각 test case를 센다. 동시에 시작한 file이 case의 소유 file을 덮어써서 통과한 file을 비었다고 잘못 보고하던 문제를 고쳤다. event로 순서를 맞춘 두 file의 시험이 실패를 재현하며, helper 등록과 빈 file의 시험도 기존 검사를 유지한다.
 
 ## 0.0.113

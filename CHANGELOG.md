@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K1229 verification: the declared regression passes on the committed implementation; the concurrent-file, imported-helper and empty-file selections pass three tests. The full runner file passes 65 tests and fails the PHPUnit case because this worktree has no installed PHPUnit; that prerequisite is installed by its CI job.
 - K1229: The node reporter counts each test case against the entry file in the native event, including cases registered by imported helpers. Concurrent file starts no longer overwrite case ownership and falsely report a passing file as empty. An event-coordinated two-file test reproduces the failure; the helper-registration and empty-file tests retain their checks.
 
 ## 0.0.113
