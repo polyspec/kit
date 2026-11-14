@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K1232 verification: The declared selection passes seven cases on the committed implementation with Node 26.12.0. The complete installer owner files pass fourteen cases; typecheck, lint-ts, duplication-check and docs-check pass.
 - K1232: Installer command tests await owned command close instead of killing the owner after twenty seconds. A withheld archive response and an injected clock reproduce the premature kill without orphaning the downloader; the successful retry and exhausted retry cases observe downloader settlement, helper close, publication and cleanup. Proxy connections and servers close before fixture removal. Native helper tests retain cooperative termination and escalation checks without an independent ten-second deadline and preserve their fixture if cleanup fails.
 
 ## 0.0.113

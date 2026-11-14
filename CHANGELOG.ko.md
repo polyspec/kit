@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3af09fd4f526b349b2f189fe63c5f771da121c21b2c9fdcfcebb1caa1edac327 -->
+<!-- source-sha256: 289e115590f6d9f5996a54a79c24999c5e55d01d073692fdd21efe28ac1cf8e6 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1232 검증: 커밋한 구현에서 Node 26.12.0으로 선언한 selection의 일곱 case를 통과했다. Installer owner 파일 전체의 열네 case와 typecheck, lint-ts, duplication-check, docs-check를 통과했다.
 - K1232: Installer command test는 20초 뒤 owner를 죽이는 대신 소유 command의 close를 기다린다. Archive response를 보류하고 test clock을 주입하여 downloader를 고아 process로 남기지 않고 조기 종료 요청을 재현한다. Retry가 성공하거나 소진되는 두 경우 모두 downloader settlement, helper close, publication, cleanup을 관찰한다. Fixture를 지우기 전에 proxy connection과 server를 닫는다. Native helper test는 별도의 10초 deadline 없이 협력 종료와 escalation 검사를 유지하며, cleanup에 실패하면 fixture를 보존한다.
 
 ## 0.0.113
