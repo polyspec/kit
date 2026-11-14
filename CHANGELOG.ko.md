@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 2dbe5b25175bf2ada8719c5c729dfcdb5cb957e1cb25af532f0c6c24c3aed5d5 -->
+<!-- source-sha256: 08f2ed09dfa8470c579ee78b5cc1a4b630e75ae175accbec78092d1854f34cea -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1231-1 검증: Node 26.12.0에서 commit된 통합 구현의 선언된 선택은 시험 18개를 통과한다. 배치와 수명 선택은 23개, 전체 shared-signal과 runtime owner 파일은 skip 없이 51개 시험을 통과한다. Typecheck, lint-ts, duplication-check, docs-check가 통과한다. Native Darwin의 정확한 `make case-sensitive-runner-smoke`는 시험 하나를 통과하고 0으로 종료한다. Image는 detach되고 소유한 두 resource 경로는 제거되며 호출자 임시 디렉터리는 비어 있다.
 
 - K1228-1 검증: 선언한 명령은 Node 26.12.0에서 commit된 구현의 시험 일곱 개를 실패나 skip 없이 통과한다.
 - K1228-1: Workflow expression은 모든 겹친 작은따옴표를 한 번씩 해석한다. Adapter는 검증한 raw lexeme에서 STRING

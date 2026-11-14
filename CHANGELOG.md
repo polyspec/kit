@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1231-1 verification: the declared selection passes 18 tests on the committed integrated implementation with Node 26.12.0. The placement and lifetime selection passes 23 tests, and the complete shared-signal and runtime owner files pass 51 tests without skips. Typecheck, lint-ts, duplication-check and docs-check pass. The exact native Darwin `make case-sensitive-runner-smoke` passes one test and exits 0; the image is detached, both owned resource paths are removed, and the caller temporary directory is empty.
+
 - K1228-1 verification: the declared command passes seven tests on the committed implementation with Node 26.12.0,
   with zero failures or skips.
 - K1228-1: Workflow expressions decode every doubled single quote once. The adapter derives STRING token values from
