@@ -97,6 +97,7 @@
     ]
   },
   "dependencies": {
+    "@actions/expressions": "0.3.61",
     "@mdit-vue/shared": "3.0.2",
     "@microsoft/api-extractor": "7.60.0",
     "@types/cross-spawn": "6.0.6",

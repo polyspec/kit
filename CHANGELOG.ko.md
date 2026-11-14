@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d4153d18a829446cc93c924d1fcf5881543639d9c6a2b6223c200e1dc97ff17b -->
+<!-- source-sha256: 99af23a8a40590aecdc5877fb79f58777387685ba8874e569f017c549f68eb97 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -7,6 +7,8 @@
 ## Unreleased
 
 ## 0.0.113
+
+- K1228: `scripts/kit/ci-job.mts`는 GitHub Actions의 expression을 GitHub의 expression package인 `@actions/expressions` 0.3.61로 평가하며, kit는 이제 이 package에 의존한다(`scripts/kit/actions-expression.mts`). literal, property access, GitHub의 coercion을 따르는 연산자, 함수 contains, startsWith, endsWith, format, join, toJSON, fromJSON, case와 실행의 status 함수를 context `matrix`, `runner`, `env`, `steps`, composite action의 `inputs`, `github.workspace`, `needs.<job>.outputs` 위에서 평가한다. 각 step은 `GITHUB_OUTPUT`, `GITHUB_ENV`, `GITHUB_PATH`, `GITHUB_STEP_SUMMARY` 파일을 받고, 그 값은 이후 step에 전달된다. step이 실패하면 이후의 일반 step은 건너뛰고 `failure()`, `always()`, `!cancelled()`의 step은 실행하며, 실행은 그 뒤 status 1로 끝난다. `continue-on-error`, `defaults.run`, `fail-fast`, matrix의 `include`와 `exclude`는 GitHub를 따른다. 필요한 job의 outputs를 읽는 job은 그 job 다음에 실행하고, 다른 job의 결과, secret, variable, `github`나 `runner`의 다른 값, 외부 action의 outputs를 읽는 job은 이름을 대고 거부한다. `--plan`은 step과 조합을 실행하지 않고 출력한다. 이전에는 kit가 consumer에게 주는 CI pipeline의 job shared와 runtime을 거부했는데, 이 job들은 step의 outputs를 `if:`와 `run:`에서 읽고 matrix를 shared의 outputs에서 가져온다. 시험 `tests/kit/actions-expression.test.mts`와 `tests/kit/ci-job.test.mts`가 각 부분을 확인하며, 변경 전에는 `tests/kit/actions-expression.test.mts`가 load되지 않았고 `tests/kit/ci-job.test.mts`의 14개 case 중 13개가 실패했다. `@actions/expressions` 0.3.61의 lexer는 quote로 감싼 text에서 첫 `''`만 quote로 바꾸므로, 실행은 `${{ }}` 주위의 text를 직접 잇고 자신의 text를 그 lexer에 넘기지 않는다. 없는 matrix 값은 이제 CI처럼 빈 text이며, 전에는 거부되었다.
 
 - K1227: `scripts/kit/ci-job.mts`는 checkout의 GitHub workflow에서 job 하나의 step을 CI가 실행하는 대로, matrix의 각 조합 또는 `--matrix <key>=<value>`가 고른 조합마다 `${{ matrix.<key> }}`와 `${{ runner.temp }}`에 값을 넣어 실행하고, 로컬 composite action의 step은 그 자리에서 실행하며, 실행하지 않는 외부 action은 이름을 출력한다. 그래서 push 전 검사는 명령의 사본이 아니라 CI job 자체다. 처음 실패한 step에서 멈추고, CI처럼 실행할 수 없는 것, 즉 reusable workflow job, `${{ }}` 표현식, `always()`·`success()`·`!cancelled()`와 matrix 값과 리터럴의 비교(`==`, `!=`, `contains(fromJSON(...), matrix.<key>)`)를 `&&`로 이은 것이 아닌 `if:`는(이런 조건은 조합마다 판단한다) 이름을 대고 거부한다. 시험 `tests/kit/ci-job.test.mts`가 순서, 멈춤, 각 거부를 확인한다.
 

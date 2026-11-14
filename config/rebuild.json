@@ -2,6 +2,10 @@
   "schema": 1,
   "comment": "The class of each tool of kit (S1, K74): ecosystem names the tool it uses, replaced the library and its item, record the rebuild record, policy the reason no ecosystem tool applies.",
   "tools": {
+    "scripts/kit/actions-expression.mts": {
+      "kind": "ecosystem",
+      "tool": "@actions/expressions, the expression package of GitHub Actions, whose Lexer, Parser and Evaluator parse and evaluate the expressions of a workflow; the module gives it the contexts and the status functions of the local run of a job (ci-job.mts)"
+    },
     "scripts/kit/bootstrap/bootstrap.mts": {
       "kind": "record",
       "record": "docs/rebuild/toolchain.md"
@@ -93,6 +97,10 @@
     "scripts/kit/checklist.mts": {
       "kind": "policy",
       "reason": "polyspec's checklists and trackers in Markdown tables; the table reading is markdown.mts"
+    },
+    "scripts/kit/ci-job.mts": {
+      "kind": "policy",
+      "reason": "runs one job of a GitHub workflow of the checkout as its runner does, so that a check before a push is the CI job and not a copy of its commands"
     },
     "scripts/kit/ci-passed.mts": {
       "kind": "policy",
