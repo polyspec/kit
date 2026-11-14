@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1227: `scripts/kit/ci-job.mts` runs the steps of one job of a GitHub workflow of the checkout as CI runs them, the steps of its local composite actions in their place, and names each external action that it does not run, so a check before a push is the CI job and not a copy of its commands. It stops at the first failing step and refuses by name what it cannot run as CI does: a reusable workflow job, a `${{ }}` expression and an `if:` other than `always()`, `success()` and `!cancelled()`. The test `tests/kit/ci-job.test.mts` covers the order, the stop and each refusal.
+
 - K1226: `scripts/kit/worktree-links.mts` makes the node_modules of a worktree as links: each entry of the node_modules of its main checkout links to that entry, and each package that the worktree's own workspace manifests declare links into the worktree. A worktree no longer needs an install to resolve its packages.
 
 - K1224: the refusal of an existing directory that is not a venv of the checkout Python names a remedy that runs. The directory cannot be remade while it exists, so the remedy is now `remove it with rm -rf <dir>, then run make python-venv DIR=<dir>`, for a directory without pyvenv.cfg and for a venv of another Python (`scripts/kit/python-venv.mts`). The test `tests/kit/python-venv.test.mts` asserts both steps.

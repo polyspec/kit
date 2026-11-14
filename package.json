@@ -20,6 +20,7 @@
     "./install-vscode": "./scripts/kit/install-vscode.mts",
     "./check-commits": "./scripts/kit/check-commits.mts",
     "./ci-targets": "./scripts/kit/ci-targets.mts",
+    "./ci-job": "./scripts/kit/ci-job.mts",
     "./config/api-extractor.kit.json": "./config/api-extractor.kit.json",
     "./ruff.toml": "./ruff.toml",
     "./phpcs.xml.dist": "./phpcs.xml.dist",
