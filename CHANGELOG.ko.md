@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a99877238b25263e412449fada08230e28847fa52112c9658db185e874f77261 -->
+<!-- source-sha256: 992f12b0b029e0239ac403c6dba06eb3eeaeeb7ebf6a396ebe15794a19a814ee -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1228-1 검증: 선언한 명령은 Node 26.12.0에서 commit된 구현의 시험 일곱 개를 실패나 skip 없이 통과한다.
 
 - K1228-1: Workflow expression은 모든 겹친 작은따옴표를 한 번씩 해석한다. Adapter는 검증한 raw lexeme에서 STRING
   token 값을 만들고 lexeme과 range를 보존하며 native tokenization, syntax 오류, parsing, evaluation을 유지한다.
