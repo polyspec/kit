@@ -1,17 +1,17 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0ab2698784ab594fe7a7f4c1b5f04585d7a2f84bb68c437ae891d93eb9d4df5a -->
+<!-- source-sha256: 7b437a9ef93a633cbc759bba416df793480cc3683c4df26622abfb91aec1d975 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+## 0.0.113
+
 - K1228 검증: 선언한 명령은 commit된 구현에서 26개 시험을 통과한다. Expression과 local-job 소유 파일 전체는 31개 시험을 통과하고, typecheck, duplication-check, lint-ts도 통과한다.
 - K1228: 로컬 workflow job은 step의 environment를 평가한 뒤 condition을 평가하고, script expression에 현재 실패 상태를 사용한다. 중단된 script는 소유한 process가 끝난 뒤 runner 파일을 지운다. File-command 채널 하나가 실패해도 다른 채널의 정상 변경은 보존한다. 지원하는 context 조회는 대소문자를 구분하지 않고, computed reference는 외부 action output을 조용히 읽을 수 없으며, 재귀 job이나 composite plan은 cycle을 밝히고 실패한다. 로컬 job의 contract는 `docs/spec/utilities-and-recipes.md`에 기록한다.
 - K1229 검증: 선언한 회귀 시험은 commit된 구현에서 통과하고, concurrent-file, imported-helper, empty-file 선택은 세 시험을 통과한다. 전체 runner 파일은 65개 시험을 통과하고, 이 worktree에 PHPUnit이 설치되지 않아 PHPUnit 시험이 실패한다. 해당 CI job이 그 prerequisite를 설치한다.
 - K1229: node reporter는 imported helper가 등록한 case를 포함하여 native event의 entry file에 각 test case를 센다. 동시에 시작한 file이 case의 소유 file을 덮어써서 통과한 file을 비었다고 잘못 보고하던 문제를 고쳤다. event로 순서를 맞춘 두 file의 시험이 실패를 재현하며, helper 등록과 빈 file의 시험도 기존 검사를 유지한다.
-
-## 0.0.113
 
 - K1228: `scripts/kit/ci-job.mts`는 GitHub Actions의 expression을 GitHub의 expression package인 `@actions/expressions` 0.3.61로 평가하며, kit는 이제 이 package에 의존한다(`scripts/kit/actions-expression.mts`). literal, property access, GitHub의 coercion을 따르는 연산자, 함수 contains, startsWith, endsWith, format, join, toJSON, fromJSON, case와 실행의 status 함수를 context `matrix`, `runner`, `env`, `steps`, composite action의 `inputs`, `github.workspace`, `needs.<job>.outputs` 위에서 평가한다. 각 step은 `GITHUB_OUTPUT`, `GITHUB_ENV`, `GITHUB_PATH`, `GITHUB_STEP_SUMMARY` 파일을 받고, 그 값은 이후 step에 전달된다. step이 실패하면 이후의 일반 step은 건너뛰고 `failure()`, `always()`, `!cancelled()`의 step은 실행하며, 실행은 그 뒤 status 1로 끝난다. `continue-on-error`, `defaults.run`, `fail-fast`, matrix의 `include`와 `exclude`는 GitHub를 따른다. 필요한 job의 outputs를 읽는 job은 그 job 다음에 실행하고, 다른 job의 결과, secret, variable, `github`나 `runner`의 다른 값, 외부 action의 outputs를 읽는 job은 이름을 대고 거부한다. `--plan`은 step과 조합을 실행하지 않고 출력한다. 이전에는 kit가 consumer에게 주는 CI pipeline의 job shared와 runtime을 거부했는데, 이 job들은 step의 outputs를 `if:`와 `run:`에서 읽고 matrix를 shared의 outputs에서 가져온다. 시험 `tests/kit/actions-expression.test.mts`와 `tests/kit/ci-job.test.mts`가 각 부분을 확인하며, 변경 전에는 `tests/kit/actions-expression.test.mts`가 load되지 않았고 `tests/kit/ci-job.test.mts`의 14개 case 중 13개가 실패했다. `@actions/expressions` 0.3.61의 lexer는 quote로 감싼 text에서 첫 `''`만 quote로 바꾸므로, 실행은 `${{ }}` 주위의 text를 직접 잇고 자신의 text를 그 lexer에 넘기지 않는다. 없는 matrix 값은 이제 CI처럼 빈 text이며, 전에는 거부되었다.
 
