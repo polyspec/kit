@@ -1,5 +1,5 @@
 <!-- doc-id: spec-utilities-and-recipes -->
-<!-- source-sha256: cda0e78f00d88cb13056af31a5e777ec2d3461ddcc6b7f67d2c25817e23fdf0a -->
+<!-- source-sha256: 3d04af11c007e095ac6efb958b2bff4b74392eb84c6847de972393c96ebe6e65 -->
 # 유틸리티와 예제
 
 [English](utilities-and-recipes.md)
@@ -54,6 +54,19 @@ allow-remote 사례가 그 연쇄를 보여 준다.
   끝나는 matrix 조합을 재현할 수 없으므로 거부한다.
 - 실행은 script process와 runner 임시 디렉터리를 소유한다. 중단하면 새 step의 실행을 막고, 소유한 process를 종료하고
   기다린 뒤 디렉터리를 지운다. Process는 runner 디렉터리가 존재하는 동안 cleanup을 마쳐야 한다.
+
+## Installer command 검증 (K1232)
+
+Installer command test는 로컬 service의 archive 요청, downloader의 settled result, 소유 helper의 close,
+installer의 close를 관찰한다. 전체 경과 시간의 deadline은 성공을 판정하지 않는다. Native process 시작이 download
+retry보다 오래 걸릴 수 있기 때문이다. Download library가 request limit을 소유하고, 소유 process cleanup은 선언한
+termination grace를 유지한다. 첫 archive response를 보류하는 동안 주입한 test clock을 진행해도 installer를 죽이거나
+result를 바꾸면 안 된다. Test는 response를 풀어 중단된 요청과 성공한 retry를 관찰한 뒤 publication과 process
+cleanup을 검증한다.
+
+Fixture는 소유 command가 닫힐 때까지 유지한다. Assertion이 실패해도 test는 proxy의 upgraded connection을 닫고,
+server의 close를 기다린 뒤 관련 파일을 지운다. Download 속도와 별개로 native lifecycle test가 helper의 협력 종료와
+escalation을 검증한다. Test는 이 lifecycle에 두 번째 deadline을 추가하지 않는다.
 
 ## Native event identity (K1091)
 

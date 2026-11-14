@@ -5,13 +5,17 @@ import { once } from 'node:events';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { signalGroup } from '../../scripts/kit/process-group.mts';
+import { stopGroup, watchRoot } from '../../scripts/kit/process-group.mts';
 import { tree as directory } from '../kit/tree.mts';
 
 for (const cooperative of [true, false]) {
   for (const failed of [false, true]) {
-    test(`K1044: settled ${failed ? 'failed' : 'successful'} download ${cooperative ? 'cleans up cooperatively' : 'receives termination before escalation'}`, { timeout: 10_000 }, async t => {
-      const root = directory(t);
+    test(`K1044 K1232: settled ${failed ? 'failed' : 'successful'} download ${cooperative ? 'cleans up cooperatively' : 'receives termination before escalation'}`, async t => {
+      let resourcesClosed = false;
+      const root = directory({ after: cleanup => t.after(() => {
+        assert.ok(resourcesClosed, `fixture retained because owned processes did not finish cleanup: ${root}`);
+        cleanup();
+      }) });
       const helper = path.join(root, 'download.cjs');
       const pidPath = path.join(root, 'pid');
       const termPath = path.join(root, 'termination-request');
@@ -43,24 +47,28 @@ for (const cooperative of [true, false]) {
         catch (error) { outcome = { error: error.message }; }
         console.log(JSON.stringify({ outcome, close }));
       `;
-      const child = spawn(process.execPath, ['--input-type=module', '-e', driver], { stdio: ['ignore', 'pipe', 'pipe'] });
+      const since = Date.now();
+      const child = spawn(process.execPath, ['--input-type=module', '-e', driver], { detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+      const spawned = watchRoot(child, since);
+      const closed = once(child, 'close');
       let complete = false;
-      t.after(() => {
-        if (complete) return;
-        child.kill('SIGKILL');
-        if (existsSync(pidPath)) signalGroup(Number(readFileSync(pidPath, 'utf8')), 'SIGKILL');
-      });
       let stdout = '', stderr = '';
       child.stdout.setEncoding('utf8').on('data', (chunk: string) => { stdout += chunk; });
       child.stderr.setEncoding('utf8').on('data', (chunk: string) => { stderr += chunk; });
-      const closed: unknown[] = await once(child, 'close');
-      assert.equal(closed[0], 0, stderr);
-      assert.equal(closed[1], null, stderr);
-      assert.equal(existsSync(termPath), true, 'settlement requested cooperative termination');
-      const report: unknown = JSON.parse(stdout);
-      assert.deepEqual(report, { outcome: settled, close: { closed: true, status: cooperative ? 0 : null, signal: cooperative ? null : 'SIGKILL' } });
-      assert.throws(() => process.kill(Number(readFileSync(pidPath, 'utf8')), 0), { code: 'ESRCH' });
-      complete = true;
+      try {
+        const result: unknown[] = await closed;
+        assert.equal(result[0], 0, stderr);
+        assert.equal(result[1], null, stderr);
+        assert.equal(existsSync(termPath), true, 'settlement requested cooperative termination');
+        const report: unknown = JSON.parse(stdout);
+        assert.deepEqual(report, { outcome: settled, close: { closed: true, status: cooperative ? 0 : null, signal: cooperative ? null : 'SIGKILL' } });
+        assert.throws(() => process.kill(Number(readFileSync(pidPath, 'utf8')), 0), { code: 'ESRCH' });
+        complete = true;
+      } finally {
+        if (child.pid !== undefined) await stopGroup(child.pid, closed, 1000, undefined, spawned);
+        if (!complete && existsSync(pidPath)) await stopGroup(Number(readFileSync(pidPath, 'utf8')), Promise.resolve(), 1000);
+        resourcesClosed = true;
+      }
     });
   }
 }

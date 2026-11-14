@@ -55,6 +55,19 @@ are printed with their inputs and are not executed, so the local run requires th
   terminates and awaits the owned processes, and then removes their directories. A process must finish cleanup while its
   runner directory still exists.
 
+## Installer command verification (K1232)
+
+Installer command tests observe the local service's archive attempts, the downloader's settled result, its owned helper
+close and the installer close. A total elapsed-time deadline does not decide success: native process startup can take
+longer than a download retry. The download library owns its request limits, and owned process cleanup retains its declared
+termination grace. An injected test clock may advance while the first archive response is withheld; this must neither kill
+the installer nor replace its result. Tests release that response, observe the aborted attempt and successful retry, and
+then verify publication and process cleanup.
+
+Fixtures remain available until the owned commands close. A test closes its proxy's upgraded connections and awaits server
+close before removing their files, including when an assertion fails. Cooperative helper termination and escalation are
+verified by native lifecycle tests independently of download speed; no test adds a second deadline to that lifecycle.
+
 ## Native event identity (K1091)
 
 A native event parser preserves the framework's complete test identity. For PHPUnit TeamCity messages,

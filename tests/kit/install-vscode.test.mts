@@ -4,22 +4,41 @@
 // download of @vscode/test-electron is replaced by a function that writes its layout, so no test reaches the network; the
 // tests of the command run @vscode/test-electron against a stub of update.code.visualstudio.com behind a local proxy (K173).
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { ChildProcess, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer as createHttpServer } from 'node:http';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
 import { tmpdir } from 'node:os';
+import { Server as NetServer } from 'node:net';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
+import type { Duplex } from 'node:stream';
 import { installVSCode, installedExecutable, vscodeCopy } from '../../scripts/kit/install-vscode.mts';
 import type { Download } from '../../scripts/kit/install-vscode.mts';
+import { runCommand as runOwnedCommand } from '../../scripts/kit/run-command.mts';
+
+const ownedResources = new WeakMap<TestContext, (() => Promise<void>)[]>();
+
+async function awaitCleanup(work: Promise<void>[], message: string): Promise<void> {
+  const failures: unknown[] = [];
+  for (const result of await Promise.allSettled(work)) {
+    if (result.status === 'rejected') {
+      const reason: unknown = result.reason;
+      failures.push(reason);
+    }
+  }
+  if (failures.length > 0) throw new AggregateError(failures, message);
+}
 
 const directory = (t: TestContext) => {
   const created = mkdtempSync(path.join(tmpdir(), 'kit-install-vscode-'));
-  t.after(() => rmSync(created, { recursive: true, force: true }));
+  t.after(async () => {
+    await awaitCleanup((ownedResources.get(t) ?? []).map(close => close()), `fixture retained because resource cleanup failed: ${created}`);
+    rmSync(created, { recursive: true, force: true });
+  });
   return created;
 };
 
@@ -138,10 +157,14 @@ const archive = (dir: string): Buffer => {
 };
 
 /** Starts the stub and its proxy; returns the URL of the proxy, the certificate and the count of archive requests. */
-const stubUpdateService = async (t: TestContext, dir: string, aborted: (attempt: number) => boolean) => {
+const stubUpdateService = async (t: TestContext, dir: string, aborted: (attempt: number) => boolean, holdFirst = false) => {
   const { key, cert } = certificate(dir);
   const body = archive(dir);
   const served = { archives: 0 };
+  const stages: string[] = [];
+  const requested = Promise.withResolvers<void>();
+  const released = Promise.withResolvers<void>();
+  const connections = new Map<Duplex, Promise<void>>();
   const service = createHttpsServer({ key: readFileSync(key), cert: readFileSync(cert) }, (request: IncomingMessage, response: ServerResponse) => {
     const url = new URL(request.url ?? '/', `https://${HOST}`);
     if (url.pathname === '/api/releases/stable') {
@@ -150,69 +173,175 @@ const stubUpdateService = async (t: TestContext, dir: string, aborted: (attempt:
       response.writeHead(302, { location: `https://${HOST}/archive/vscode.tar.gz` }).end();
     } else if (url.pathname === '/archive/vscode.tar.gz') {
       served.archives += 1;
-      response.writeHead(200, { 'content-length': body.length, 'content-disposition': 'attachment; filename=vscode.tar.gz' });
-      if (aborted(served.archives)) response.write(body.subarray(0, body.length >> 1), () => response.socket?.destroy());
-      else response.end(body);
+      const attempt = served.archives;
+      stages.push(`archive:${attempt}:requested`);
+      const respond = () => {
+        response.writeHead(200, { 'content-length': body.length, 'content-disposition': 'attachment; filename=vscode.tar.gz' });
+        if (aborted(attempt)) response.write(body.subarray(0, body.length >> 1), () => {
+          stages.push(`archive:${attempt}:aborted`);
+          response.socket?.destroy();
+        });
+        else response.end(body, () => { stages.push(`archive:${attempt}:delivered`); });
+      };
+      if (holdFirst && attempt === 1) {
+        requested.resolve();
+        void released.promise.then(respond);
+      } else respond();
     } else {
       response.writeHead(404).end();
     }
   });
   const proxy = createHttpServer();
   proxy.on('connect', (_request: IncomingMessage, socket, head: Buffer) => {
+    connections.set(socket, new Promise(resolve => socket.once('close', () => { connections.delete(socket); resolve(); })));
     socket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
     if (head.length > 0) socket.unshift(head);
     service.emit('connection', socket);
   });
-  proxy.listen(0, '127.0.0.1');
-  await once(proxy, 'listening');
-  t.after(() => {
-    proxy.closeAllConnections();
-    proxy.close();
-    service.close();
+  const closeServer = (server: typeof proxy | typeof service) => new Promise<void>((resolve, reject) => {
+    server.close(error => {
+      // Setup can fail before listen; an already-closed owned server also has no listener left to stop.
+      if (error && !('code' in error && error.code === 'ERR_SERVER_NOT_RUNNING')) reject(error);
+      else resolve();
+    });
   });
+  let closing: Promise<void> | undefined;
+  const close = () => closing ??= (async () => {
+    const socketCloses = [...connections.values()];
+    for (const socket of connections.keys()) socket.destroy();
+    proxy.closeAllConnections();
+    await awaitCleanup([closeServer(proxy), closeServer(service), ...socketCloses], `local proxy cleanup failed: ${dir}`);
+  })();
+  const resources = ownedResources.get(t) ?? [];
+  resources.push(close);
+  ownedResources.set(t, resources);
+  try {
+    // Both listeners and every upgraded connection are owned before either asynchronous listen can fail.
+    service.listen(0, '127.0.0.1');
+    await once(service, 'listening');
+    proxy.listen(0, '127.0.0.1');
+    await once(proxy, 'listening');
+  } catch (error) {
+    try { await close(); } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], `local proxy setup and cleanup failed: ${dir}`, { cause: cleanupError });
+    }
+    throw error;
+  }
   const address = proxy.address();
   assert.ok(address !== null && typeof address === 'object', 'the proxy listens on no port');
-  return { proxy: `http://127.0.0.1:${address.port}`, cert, served };
+  return { proxy: `http://127.0.0.1:${address.port}`, cert, served, stages, requested: requested.promise, release: () => released.resolve(), close };
 };
 
-/** Runs the command against the stub; fails when it has not exited after `seconds`. */
-const runCommand = async (extension: string, tools: string, proxy: string, cert: string, seconds = 20) => {
-  const child = spawn(process.execPath, [path.resolve('scripts/kit/install-vscode.mts'), extension, tools], {
+/** Observe the production command's actual downloader settlement and close without replacing its download. */
+function observeInstaller(extension: string): string {
+  const file = path.join(extension, 'observe-installer.mjs');
+  writeFileSync(file, `
+    import { syncBuiltinESMExports } from 'node:module';
+    const cp = process.getBuiltinModule('node:child_process');
+    const originalFork = cp.fork;
+    cp.fork = (...args) => {
+      const child = originalFork(...args);
+      child.on('message', message => {
+        if (message && (typeof message.executable === 'string' || typeof message.error === 'string'))
+          process.stdout.write('[installer-observation] settled\\n');
+      });
+      child.once('close', () => process.stdout.write('[installer-observation] helper-closed\\n'));
+      return child;
+    };
+    syncBuiltinESMExports();
+  `);
+  return file;
+}
+
+/** Runs the real command to owned close; native retry and cleanup behavior decides its result. */
+const runCommand = async (extension: string, tools: string, proxy: string, cert: string) => {
+  const result = await runOwnedCommand({
+    command: process.execPath,
+    args: ['--import', observeInstaller(extension), path.resolve('scripts/kit/install-vscode.mts'), extension, tools],
     env: { ...process.env, npm_config_https_proxy: proxy, npm_config_proxy: '', NODE_EXTRA_CA_CERTS: cert },
-    stdio: ['ignore', 'pipe', 'pipe'],
+    stdout: 'pipe', stderr: 'pipe',
   });
-  let output = '';
-  child.stdout.on('data', (chunk: Buffer) => (output += chunk.toString()));
-  child.stderr.on('data', (chunk: Buffer) => (output += chunk.toString()));
-  const timer = setTimeout(() => child.kill('SIGKILL'), seconds * 1000);
-  const { code, signal } = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => child.on('exit', (code, signal) => resolve({ code, signal })));
-  clearTimeout(timer);
-  assert.notEqual(signal, 'SIGKILL', `the install did not exit within ${seconds}s:\n${output}`);
-  return { code, output };
+  const output = result.stdout + result.stderr;
+  assert.equal(result.error, undefined, output);
+  assert.equal(result.signal, null, output);
+  assert.equal(result.stopped, undefined, output);
+  return { code: result.status, output };
 };
 
 /** The processes of the machine whose command line names `dir`, such as a tar that extracts into it. */
 const processesIn = (dir: string): string[] =>
   spawnSync('ps', ['-A', '-o', 'pid=,args='], { encoding: 'utf8' }).stdout.split('\n').filter((line) => line.includes(dir));
 
-test('the command exits with the copy when a download attempt is aborted and a retry succeeds, and leaves no process', async (t) => {
+test('K1232: an injected clock cannot replace retry settlement and owned close', async (t) => {
   const { extension, tools } = setup(t);
-  const { proxy, cert, served } = await stubUpdateService(t, directory(t), (attempt) => attempt === 1);
-  const { code, output } = await runCommand(extension, tools, proxy, cert);
-  assert.equal(code, 0, output);
-  assert.equal(served.archives, 2);
-  const { directory: copy } = vscodeCopy(extension, tools);
-  assert.ok(existsSync(path.join(copy, 'product.json')), output);
-  assert.deepEqual(readdirSync(tools), [path.basename(copy)]);
-  assert.deepEqual(processesIn(tools), []);
+  const service = await stubUpdateService(t, directory(t), (attempt) => attempt === 1, true);
+  const forcedOwners: number[] = [];
+  t.mock.method(ChildProcess.prototype, 'kill', function (this: ChildProcess): boolean {
+    // Record an owner-termination request without delivering it: the Red must not orphan the real downloader.
+    if (this.pid !== undefined) forcedOwners.push(this.pid);
+    return true;
+  });
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const result = runCommand(extension, tools, service.proxy, service.cert);
+  try {
+    await Promise.race([service.requested, result.then(({ code, output }) => assert.fail(`installer ended before requesting its archive (${code}):\n${output}`))]);
+    t.mock.timers.tick(86_400_000);
+    t.mock.timers.reset();
+    service.release();
+    const { code, output } = await result;
+    assert.equal(code, 0, output);
+    assert.deepEqual(forcedOwners, [], 'advancing the injected clock must not kill the installer owner');
+    assert.deepEqual(service.stages, ['archive:1:requested', 'archive:1:aborted', 'archive:2:requested', 'archive:2:delivered']);
+    assert.equal(service.served.archives, 2);
+    assert.match(output, /\[installer-observation\] settled[\s\S]*\[installer-observation\] helper-closed/);
+    const { directory: copy } = vscodeCopy(extension, tools);
+    assert.ok(existsSync(path.join(copy, 'product.json')), output);
+    assert.deepEqual(readdirSync(tools), [path.basename(copy)]);
+    assert.deepEqual(processesIn(tools), []);
+  } finally {
+    t.mock.timers.reset();
+    service.release();
+    await Promise.allSettled([result]);
+    await service.close();
+  }
 });
 
-test('the command fails with the error when every download attempt is aborted, and leaves no process', async (t) => {
+test('K1232: exhausted archive retries preserve their error and owned close', async (t) => {
   const { extension, tools } = setup(t);
-  const { proxy, cert } = await stubUpdateService(t, directory(t), () => true);
-  const { code, output } = await runCommand(extension, tools, proxy, cert);
-  assert.notEqual(code, 0, output);
-  assert.match(output, /Failed to download and unzip VS Code 1\.138\.0/);
-  assert.deepEqual(readdirSync(tools), []);
-  assert.deepEqual(processesIn(tools), []);
+  const service = await stubUpdateService(t, directory(t), () => true);
+  try {
+    const { code, output } = await runCommand(extension, tools, service.proxy, service.cert);
+    assert.notEqual(code, 0, output);
+    assert.match(output, /Failed to download and unzip VS Code 1\.138\.0/);
+    assert.match(output, /\[installer-observation\] settled[\s\S]*\[installer-observation\] helper-closed/);
+    assert.ok(service.stages.filter(stage => stage.endsWith(':aborted')).length > 1, 'each retry reaches the local archive service');
+    assert.deepEqual(readdirSync(tools), []);
+    assert.deepEqual(processesIn(tools), []);
+  } finally { await service.close(); }
+});
+
+test('K1232: a partial proxy setup failure closes the already-started service', async t => {
+  const listeners: NetServer[] = [];
+  const originalListen: unknown = Reflect.get(NetServer.prototype, 'listen');
+  assert.ok(typeof originalListen === 'function');
+  const failure = new Error('injected proxy listen failure');
+  t.mock.method(NetServer.prototype, 'listen', function (this: NetServer, ...args: unknown[]): NetServer {
+    listeners.push(this);
+    if (listeners.length !== 2) {
+      Reflect.apply(originalListen, this, args);
+      return this;
+    }
+    queueMicrotask(() => this.emit('error', failure));
+    return this;
+  });
+  try {
+    await assert.rejects(stubUpdateService(t, directory(t), () => false), error => error === failure);
+    assert.equal(listeners.length, 2);
+    assert.ok(listeners.every(server => !server.listening), 'setup must close the service before rejecting');
+  } finally {
+    // The Red also owns the listener that the old setup failed to close.
+    await Promise.all(listeners.filter(server => server.listening).map(server => new Promise<void>((resolve, reject) => {
+      server.close(error => error ? reject(error) : resolve());
+    })));
+  }
 });

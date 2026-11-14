@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1232: Installer command tests await owned command close instead of killing the owner after twenty seconds. A withheld archive response and an injected clock reproduce the premature kill without orphaning the downloader; the successful retry and exhausted retry cases observe downloader settlement, helper close, publication and cleanup. Proxy connections and servers close before fixture removal. Native helper tests retain cooperative termination and escalation checks without an independent ten-second deadline and preserve their fixture if cleanup fails.
+
 ## 0.0.113
 
 - K1228 verification: the declared command passes 26 tests on the committed implementation. The complete expression and local-job owner files pass 31 tests; typecheck, duplication-check and lint-ts pass.
