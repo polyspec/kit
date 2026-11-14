@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { createServer, type Socket } from 'node:net';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
@@ -137,6 +138,46 @@ test('a node file whose cases a helper module registers counts them for the file
   assert.equal(result.status, 0, output(result));
   assert.match(result.stdout, /✔ node --test: 2 passed, 0 failed, 0 skipped/);
   assert.match(result.stdout, /✔ tests\/testcase\.mjs › adds/);
+});
+
+test('K1229: concurrent files retain ownership of cases registered by a helper module', async (t) => {
+  const root = checkout(t, {
+    'tests/testcase.mjs': `${SPEC}import { connect } from 'node:net';
+export function caseTest(name) {
+  test(name, () => new Promise((resolve, reject) => {
+    const socket = connect(Number(process.env.CASE_GATE), '127.0.0.1');
+    socket.once('error', reject);
+    socket.once('end', resolve);
+    socket.resume();
+  }));
+}
+`,
+    'tests/a.test.mjs': "import { caseTest } from './testcase.mjs';\ncaseTest('first');\n",
+    'tests/b.test.mjs': "import { caseTest } from './testcase.mjs';\ncaseTest('second');\n",
+  });
+  // Neither file finishes until both cases start: the file dequeue events must overlap without racing timers.
+  const sockets = new Set<Socket>();
+  const server = createServer(socket => {
+    sockets.add(socket);
+    if (sockets.size === 2) for (const each of sockets) each.end();
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => {
+    for (const socket of sockets) socket.destroy();
+    return new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+  });
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  const child = spawn(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--', '--test-concurrency=2', 'tests/a.test.mjs', 'tests/b.test.mjs'], {
+    cwd: root, env: { ...OUTSIDE, CASE_GATE: String(address.port) }, stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let text = '';
+  child.stdout.on('data', chunk => { text += String(chunk); });
+  child.stderr.on('data', chunk => { text += String(chunk); });
+  const status = await new Promise<number | null>((resolve, reject) => { child.once('error', reject); child.once('close', resolve); });
+  assert.equal(status, 0, text);
+  assert.match(text, /✔ node --test: 2 passed, 0 failed, 0 skipped/);
+  assert.doesNotMatch(text, /the file ran no test case/);
 });
 
 // The top-level await never settles: node ends the process with no live handle and fails the file for the unsettled await.

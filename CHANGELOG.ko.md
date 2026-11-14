@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 99af23a8a40590aecdc5877fb79f58777387685ba8874e569f017c549f68eb97 -->
+<!-- source-sha256: 4bb57ac8f776ccfb23e15e7c4f9e469436e42947ac4ddb9d282be645d2b698c1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1229: node reporter는 imported helper가 등록한 case를 포함하여 native event의 entry file에 각 test case를 센다. 동시에 시작한 file이 case의 소유 file을 덮어써서 통과한 file을 비었다고 잘못 보고하던 문제를 고쳤다. event로 순서를 맞춘 두 file의 시험이 실패를 재현하며, helper 등록과 빈 file의 시험도 기존 검사를 유지한다.
 
 ## 0.0.113
 
