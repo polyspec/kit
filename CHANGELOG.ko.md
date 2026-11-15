@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a38dd106cde51d0fba90c17938e7458bc7601509d027d17faff1667b14550701 -->
+<!-- source-sha256: 6d2bd4471219484c74851035d86a8c0425101b9292d98ccd23993750867bd752 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1251: workflow job의 로컬 runner를 제거했다. `ci-job.mts`, 그 expression, environment, 거부 module, 그 test, `workflow-env-smoke` target, export `./ci-job`, dependency `@actions/expressions`가 사라졌다. 모든 CI job이 recipe 하나이므로(K1250) 로컬 실행은 recipe를 부르고 runner 흉내가 필요 없다. K1227, K1228, K1228-1, K1228-2, K1228-3, K1233을 철회했다.
+
+- K1250: kit의 모든 workflow와 예시 workflow의 모든 job은 recipe 하나를 실행한다. run step은 make 변수만 받는 `make ci-<job>` 하나다. pipeline은 `make ci-plan`, `ci-shared`, `ci-runtime RUNTIME=<runtime>`, `ci-required`를 실행하며 이들은 job의 도구와 target을 config/ci.json에서 읽는다. release job은 `make ci-release`를, bootstrap action은 `make bootstrap`을, kit 자신의 job은 `make ci-checks`, `ci-kit-tests`, `ci-source-tests`, `ci-bootstrap`, `ci-kit`을 실행한다. recipe는 먼저 설치하고 실패에서 멈추며, 모든 검사를 끝까지 실행하고 정리한다. `tests/kit/ci-workflow-jobs.test.mts`는 규칙을 어기는 job을 실패시킨다.
 
 - K1238: source validation은 선언 provider의 native Go workspace main module에 version replacement를 요구하지 않고 다른 native source는 거절한다.
 

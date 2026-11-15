@@ -2,18 +2,6 @@
   "schema": 1,
   "comment": "The class of each tool of kit (S1, K74): ecosystem names the tool it uses, replaced the library and its item, record the rebuild record, policy the reason no ecosystem tool applies.",
   "tools": {
-    "scripts/kit/workflow-refusal.mts": {
-      "kind": "policy",
-      "reason": "a local workflow capability refusal cannot establish native job evidence through step tolerance; native execution failures remain separate, and no ecosystem command classifies this local runner boundary"
-    },
-    "scripts/kit/environment.mts": {
-      "kind": "policy",
-      "reason": "the native workflow environment key-comparison policy: process records and the expression context share platform-specific first-spelling/last-value merges; no ecosystem command merges these local job scopes"
-    },
-    "scripts/kit/actions-expression.mts": {
-      "kind": "ecosystem",
-      "tool": "@actions/expressions, the expression package of GitHub Actions, whose Lexer, Parser and Evaluator parse and evaluate the expressions of a workflow; the module gives it the contexts and the status functions of the local run of a job (ci-job.mts)"
-    },
     "scripts/kit/bootstrap/bootstrap.mts": {
       "kind": "record",
       "record": "docs/rebuild/toolchain.md"
@@ -113,10 +101,6 @@
     "scripts/kit/ci-targets.mts": {
       "kind": "policy",
       "reason": "runs make targets past failures and writes their report, polyspec's CI contract"
-    },
-    "scripts/kit/ci-job.mts": {
-      "kind": "policy",
-      "reason": "the rule that a check before a push runs the CI job itself, not a copy of its commands: it reads the workflow of the checkout and runs the steps of one job as CI runs them"
     },
     "scripts/kit/composer-vendor.mts": {
       "kind": "ecosystem",

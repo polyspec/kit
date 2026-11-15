@@ -43,10 +43,9 @@ public. A repository pins that asset's URL with its integrity. A published tag i
 
 kit ships the release workflow `workflows/release.yml` as an example; a repository that wants it copies it to
 `.github/workflows/release.yml` and owns the copy (K1052). The workflow sets up the PHP of `.php-version` when
-the repository declares one, runs `make release-tag` on `main`, checks out the tag and installs the kit and the packages of the
+the repository declares one, and runs its one recipe `make ci-release` (K1250), which runs `make release-tag` on `main`, checks out the tag and installs the kit and the packages of the
 tag, then runs `make release-prepare` (the preparation that the repository's release declares with a
-`release-prepare::` rule of its Makefile, none by default), `make release-tools` (the tools that config/release.json needs; a make entry adds none), `make release-tools-path` (which
-puts `var/tools/bin` and the shims of mise on the PATH of the following steps and the environment of mise in theirs, so they run on the installed tools), `make release-publish` (the release as a draft, whose id it records in `<tag>.json` of the folder that `RELEASE_RECORDS` names, `var/release` in kit.mk; K1115)
+`release-prepare::` rule of its Makefile, none by default), `make release-tools` (the tools that config/release.json needs; a make entry adds none), `make release-assets`, `make release-publish` (the release as a draft, whose id it records in `<tag>.json` of the folder that `RELEASE_RECORDS` names, `var/release` in kit.mk; K1115)
 and `make release-undraft TAG=<tag>`, which makes the release public. undraft reads the
 draft by that id, never by its tag in the list of releases, which shows a new draft only after a while. A failed step leaves the release a
 draft and fails the run.

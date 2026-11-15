@@ -169,18 +169,21 @@ kit-gates-runtime-go: lint-go ## Run the Go gate
 kit-gates-runtime-rust: lint-rust ## Run the Rust gate
 kit-gates-runtime-php-ext: lint-php-ext test-php-ext ## Run the PHP extension gates
 
-.PHONY: kit-ci-plan kit-ci-setup kit-ci-context-prepare kit-ci-context-cleanup
-kit-ci-plan: ## Validate config/ci.json and write the runtime, tool and target plan to GITHUB_OUTPUT for the CI pipeline
+.PHONY: ci-plan ci-shared ci-runtime ci-required
+# Each job of the CI pipeline (workflows/ci-pipeline.yml) is one of these recipes, which CI and a local run call alike (K1250): the
+# job reads its tools and targets from config/ci.json, installs first and stops at a failure, then runs every check to its end
+# and cleans up its context.
+ci-plan: ## Validate config/ci.json and write the fan-out of the CI pipeline (runtimes, runner, has_runtimes, shared_php) to GITHUB_OUTPUT, or print the plan
 	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --plan
 
-kit-ci-setup: ## Run the locked setup targets declared by config/ci.json; GROUP=shared|runtime, RUNTIME=<runtime>
-	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --setup $(GROUP) $(RUNTIME)
+ci-shared: ## The shared job of the CI pipeline: its tools and setup of config/ci.json, then kit-gates-static and targets.shared through ci-targets inside its context
+	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --job shared
 
-kit-ci-context-prepare: ## Run the optional repository context preparation target for GROUP and RUNTIME
-	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --context-prepare $(GROUP) $(RUNTIME)
+ci-runtime: ## The runtime job of the CI pipeline for RUNTIME=<runtime>: its tools and setup, then kit-gates-runtime-<runtime> and targets.runtimes.<runtime> through ci-targets inside its context
+	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --job runtime $(RUNTIME)
 
-kit-ci-context-cleanup: ## Run the optional repository context cleanup target for GROUP and RUNTIME
-	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --context-cleanup $(GROUP) $(RUNTIME)
+ci-required: ## The required job of the CI pipeline: fail unless every job of RESULTS, the JSON of toJSON(needs), succeeded; the runtime job is not judged when config/ci.json declares no runtime
+	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --required
 
 .PHONY: suppression-check
 suppression-check: ## Fail on a tracked suppression of a lint finding (eslint-disable, oxlint-disable, noqa, @phpstan-ignore, phpcs:ignore, nolint, allow) that states no reason in the form of its tool (P8, K334); offline
@@ -293,7 +296,27 @@ ci-passed: ## Fail unless every job of RESULTS, the JSON of toJSON(needs), has t
 # The steps of a release (scripts/kit/release.mts, config/release.json). release-tag tags the commit of the successful CI run RUN
 # with vX.Y.Z, X.Y.Z the newest section of the change log of that commit, and the Go module tags (K911, K924); TAG is that tag
 # vX.Y.Z, which release-tag appends to GITHUB_ENV with VERSION. The release workflow runs the steps in this order.
-.PHONY: release-prepare release-tools release-tag release-assets release-candidate-assets release-publish release-undraft release-coverage
+.PHONY: release-prepare release-tools release-tag release-assets release-candidate-assets release-publish release-undraft release-coverage ci-release
+
+# The release job of workflows/release.yml is this one recipe (K1250), which a local run calls as the workflow does, with RUN
+# and GH_TOKEN in the environment. release-tag writes TAG into an environment file of this run; a workflow_run of CI
+# (GITHUB_EVENT_NAME) tags with AUTO. With a tag to release, the job checks it out, bootstraps the tagged commit with its own kit
+# and packages, and runs the release steps of that commit in order, each stopping the job at its failure; the recipes put the
+# tools of var/tools on PATH themselves, so no step exports them.
+RELEASE_ENV := var/release/run.env
+ci-release: ## The release job: Info-ZIP, release-tag of RUN, then on the tagged commit bootstrap, release-prepare, release-tools, release-assets, release-publish and release-undraft; reads the run with gh
+	@command -v zip >/dev/null || { echo 'Info-ZIP is required for Composer release archives; install the zip package on the Ubuntu runner' >&2; exit 1; }
+	@mkdir -p $(dir $(RELEASE_ENV)) && : > $(RELEASE_ENV)
+	$(MAKE) --no-print-directory release-tag GITHUB_ENV=$(CURDIR)/$(RELEASE_ENV) $(if $(filter workflow_run,$(GITHUB_EVENT_NAME)),AUTO=1)
+	@tag="$$(sed -n 's/^TAG=//p' $(RELEASE_ENV) | tail -n 1)"; \
+	if [ -z "$$tag" ]; then echo "[ci-release] release-tag tagged nothing to release"; exit 0; fi; \
+	git checkout --quiet "$$tag" && \
+	$(MAKE) --no-print-directory bootstrap && \
+	$(MAKE) --no-print-directory release-prepare && \
+	$(MAKE) --no-print-directory release-tools && \
+	$(MAKE) --no-print-directory release-assets && \
+	$(MAKE) --no-print-directory release-publish && \
+	$(MAKE) --no-print-directory release-undraft TAG="$$tag"
 
 # kit's own release names its main ref, its asset folder and the folder of its release records, which the release tools take
 # from the caller and never fix (K1102, K1115).
@@ -324,7 +347,7 @@ release-tools-path: ## Append var/tools/bin and the shims of mise to GITHUB_PATH
 
 release-tag: ## Create and push the annotated tag vX.Y.Z, X.Y.Z the newest section of the change log, and the tag <directory>/vX.Y.Z of every Go module at the commit of the successful CI run RUN of ci.yml on main, or pass for a tag there already, and append TAG and VERSION to GITHUB_ENV when it is set (K269, K911, K924); with AUTO, as the workflow_run of a green CI starts it, only the version commit of the top version releases, a commit whose top version is tagged elsewhere passes with nothing to release, and any other fails naming the version commit (K987); reads the run with gh
 	@test -n "$$RUN" || { echo "release-tag: RUN is required, for example make release-tag RUN=123"; exit 1; }
-	RELEASE_MAIN="$(RELEASE_MAIN)" $(NODE) $(KIT)/release-run.$(KIT_EXT) tag "$$RUN"$(if $(AUTO), --auto)
+	$(if $(GITHUB_ENV),GITHUB_ENV="$(GITHUB_ENV)") RELEASE_MAIN="$(RELEASE_MAIN)" $(NODE) $(KIT)/release-run.$(KIT_EXT) tag "$$RUN"$(if $(AUTO), --auto)
 
 release-assets: ## Build the archive of every package of TAG, and packages.json of its Composer packages (K871), into RELEASE_ASSETS (K1102); ONLINE, since uv build installs the build-system.requires of a wheel package
 	@test -n "$$TAG" || { echo "release-assets: TAG is required, for example make release-assets TAG=v0.0.1"; exit 1; }

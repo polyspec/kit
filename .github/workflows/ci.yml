@@ -9,114 +9,27 @@ on:
 permissions:
   contents: read
 
+# Each job has one run step, `make ci-<job>` with make variables only, and a local run of the job is the same call (K1250): the
+# recipe in the Makefile installs first and stops at a failure, then runs every check of the job to its end. The other steps
+# provision the runner.
 jobs:
   checks:
     runs-on: ubuntu-24.04
     steps:
       # actions/checkout v7.0.1.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      # actions/setup-node v7.1.0: the Node.js of mise.toml starts the bootstrap, which installs that release into var/tools with
-      # mise (K171); every later step runs the node of var/tools, and npm ci installs the packages with the pinned npm.
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
-        with:
-          node-version-file: mise.toml
-          package-manager-cache: false
       # shivammathur/setup-php 2.40.0: the PHP of .php-version, which the Composer projects of kit (config/phpunit,
       # config/php-lint) require; the runner's own PHP is older.
       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
         with:
           php-version-file: .php-version
           tools: none
-      # The bootstrap order of a repository (K71-2): the mise, node and npm of mise.toml first, then the packages of package-lock.json
-      # with it, then the other tools.
-      - name: install npm
-        run: make install-tools TOOLS=npm
-      # The npm of mise.toml installs TypeScript and the Node types from package-lock.json.
-      - name: install packages
-        run: make install-packages
-      # install-tools installs the tools of mise.toml at the digests of mise.lock with the mise of the bootstrap (Go, Python,
-      # uv, ruff, alint, golangci-lint, deadcode, vulture, Composer), then the Composer projects, into
-      # var/tools; kit.mk puts their shims first on PATH in every recipe, so the tests run those tools, not the runner image's.
-      - name: install tools
-        run: make install-tools
-      # The Composer packages of the PHP symbol extractor, whose autoloader the PHPStan of lint-php reads (K248-4).
-      - name: install php symbol packages
-        run: make kit-install-symbols-php
-      # Every check below runs after an earlier one failed (`!cancelled()`), so one run shows every failure (K251).
-      # tsc checks the types of the tools and tests (tsconfig.json, K71-1).
-      - name: typecheck
-        if: ${{ !cancelled() }}
-        run: make typecheck
-      # alint, which install-tools installs from mise.toml, checks the folder layout (S5) against config/layout.yml (K76).
-      - name: layout check
-        if: ${{ !cancelled() }}
-        run: make layout-check
-      # jscpd, which npm ci installs, fails while a piece of code exists twice outside config/duplication.json (K126, K248-3).
-      - name: duplication check
-        if: ${{ !cancelled() }}
-        run: make duplication-check
-      # kit lints itself with the TypeScript lint that its consumers get (K142): oxlint type-aware with .oxlintrc.json and
-      # knip with knip.json, over scripts/kit and the tests.
-      - name: lint
-        if: ${{ !cancelled() }}
-        run: make lint-ts
-      # No catch without a statement (K537): oxlint no-empty passes a catch that holds only a comment; kit runs its own check (K1050).
-      - name: catch check
-        if: ${{ !cancelled() }}
-        run: var/tools/bin/node scripts/kit/catch-check.mts
-      # The PHP lint of every repository (S2): phpcs and PHPStan over the PHP of the checkout, the extractor of the symbols.
-      - name: php lint
-        if: ${{ !cancelled() }}
-        run: make lint-php
-      # The PHP extension of the repository (S10); kit has none, which both targets state and pass.
-      - name: php extension lint
-        if: ${{ !cancelled() }}
-        run: make lint-php-ext
-      - name: php extension tests
-        if: ${{ !cancelled() }}
-        run: make test-php-ext
-      # The Python and Go lints of every repository: ruff and vulture, golangci-lint and deadcode, over the symbol extractors.
-      - name: python lint
-        if: ${{ !cancelled() }}
-        run: make lint-python
-      - name: go lint
-        if: ${{ !cancelled() }}
-        run: make lint-go
-      # The Rust lint of every repository: cargo clippy in each Cargo workspace; a repository without one passes.
-      - name: rust lint
-        if: ${{ !cancelled() }}
-        run: make lint-rust
-      - name: docs check
-        if: ${{ !cancelled() }}
-        run: make docs-check
-      # Every tool of scripts/kit has its class in config/rebuild.json (S1), and every tracked path an owner rule in
-      # config/owner-checks.json (K182).
-      - name: rebuild check
-        if: ${{ !cancelled() }}
-        run: make rebuild-check
-      - name: owner validate
-        if: ${{ !cancelled() }}
-        run: make owner-validate
-      # Every rule of PRINCIPLES.md and AGENTS.md names a check that this workflow, a Git hook or the Claude Code hook runs
-      # (K248).
-      - name: rules check
-        if: ${{ !cancelled() }}
-        run: make rules-check
-      # Every suppression of a lint finding states the need of the code in the form of its tool (P8, K334).
-      - name: suppression check
-        if: ${{ !cancelled() }}
-        run: make suppression-check
-      # The comments, identifiers, messages and test names of the code are English (K252).
-      - name: language check
-        if: ${{ !cancelled() }}
-        run: make language-check
-      # Every package file classified in config/release.json (K183). Each make target of config/owner-checks.json runs in a
-      # step here, or its ciExempt entry gives the reason it cannot.
-      - name: release coverage
-        if: ${{ !cancelled() }}
-        run: make release-coverage
+      # The Node.js of mise.toml and make bootstrap: the mise, node and npm of mise.toml, then the packages of package-lock.json
+      # (K71-2, K992).
+      - uses: ./.github/actions/kit-bootstrap
+      - run: make ci-checks
 
-  kit_tests:
+  kit-tests:
     name: kit tests (${{ matrix.shard }})
     strategy:
       fail-fast: false
@@ -127,54 +40,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
-      # actions/setup-node v7.1.0: the Node.js of mise.toml starts the bootstrap, which installs that release into var/tools with
-      # mise (K171); every later step runs the node of var/tools, and npm ci installs the packages with the pinned npm.
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
-        with:
-          node-version-file: mise.toml
-          package-manager-cache: false
       # These shards run Composer or the PHP extension fixture and need the declared PHP runtime.
       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
         if: ${{ contains(fromJSON('[1,3,4,5,7]'), matrix.shard) }}
         with:
           php-version-file: .php-version
           tools: none
-      # The bootstrap order of a repository (K71-2): the mise, node and npm of mise.toml first, then the packages of package-lock.json
-      # with it, then the other tools.
-      - name: install npm
-        run: make install-tools TOOLS=npm
-      # The npm of mise.toml installs TypeScript and the Node types from package-lock.json.
-      - name: install packages
-        run: make install-packages
-      # These shards exercise Composer-backed fixtures or require their selected runtimes; shard 3 runs the PHPUnit of the deadline
-      # extension test (K1174), and shard 5 also runs PHP extension tests.
-      - name: install shard 1 tools
-        if: ${{ matrix.shard == 1 && !cancelled() }}
-        run: make install-tools TOOLS="php composer"
-      - name: install shard 3 tools
-        if: ${{ matrix.shard == 3 && !cancelled() }}
-        run: make install-tools TOOLS="php composer phpunit"
-      - name: install shard 4 tools
-        if: ${{ matrix.shard == 4 && !cancelled() }}
-        run: make install-tools TOOLS="php composer python go"
-      - name: install PHP extension test tools
-        if: ${{ matrix.shard == 5 && !cancelled() }}
-        run: make install-tools TOOLS="php composer phpunit"
-      # Temporary consumer fixtures resolve their parser from Kit's own source installation.
-      - name: install PHP parser for consumer fixtures
-        if: ${{ matrix.shard == 5 && !cancelled() }}
-        run: make kit-install-symbols-php
-      - name: install shard 7 tools
-        if: ${{ matrix.shard == 7 && !cancelled() }}
-        run: make install-tools TOOLS="php composer"
-      - name: install Rust test toolchain
-        if: ${{ matrix.shard == 6 && !cancelled() }}
-        run: make install-tools TOOLS=rust
-      - name: kit tests
-        if: ${{ !cancelled() }}
-        run: make kit-test-shard SHARD=${{ matrix.shard }}
+      - uses: ./.github/actions/kit-bootstrap
+      - run: make ci-kit-tests SHARD=${{ matrix.shard }}
 
-  source_tests:
+  source-tests:
     name: source tests (${{ matrix.group }})
     strategy:
       fail-fast: false
@@ -185,153 +60,39 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
-      # actions/setup-node v7.1.0: the Node.js of mise.toml starts the bootstrap, which installs that release into var/tools with
-      # mise (K171); every later step runs the node of var/tools, and npm ci installs the packages with the pinned npm.
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
-        with:
-          node-version-file: mise.toml
-          package-manager-cache: false
       # PHP source groups run PHP, Composer projects or PHPUnit; common-3 also exercises fresh PHP checkouts.
       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
         if: ${{ contains(fromJSON('["php","common-1","common-2","common-3"]'), matrix.group) }}
         with:
           php-version-file: .php-version
           tools: none
-      # The bootstrap order of a repository (K71-2): the mise, node and npm of mise.toml first, then the packages of package-lock.json
-      # with it, then the other tools.
-      - name: install npm
-        run: make install-tools TOOLS=npm
-      # The npm of mise.toml installs TypeScript and the Node types from package-lock.json.
-      - name: install packages
-        run: make install-packages
-      # Each source group installs only the declared tools its files exercise.
-      - name: install PHP source tools
-        if: ${{ matrix.group == 'php' && !cancelled() }}
-        run: make install-tools TOOLS="php composer phpcs phpstan phpunit"
-      - name: install PHP extension source tools
-        if: ${{ matrix.group == 'php-ext' && !cancelled() }}
-        run: make install-tools TOOLS="php phpunit"
-      - name: install Rust source tools
-        if: ${{ matrix.group == 'rust' && !cancelled() }}
-        run: make install-tools TOOLS=rust
-      - name: install Go source tools
-        if: ${{ matrix.group == 'go' && !cancelled() }}
-        run: make install-tools TOOLS="go golangciLint deadcode govulncheck"
-      - name: install Python source tools
-        if: ${{ matrix.group == 'python' && !cancelled() }}
-        run: make install-tools TOOLS="python uv ruff vulture"
-      - name: install common tool-record tools
-        if: ${{ matrix.group == 'common-1' && !cancelled() }}
-        run: make install-tools TOOLS="go php composer"
-      - name: install common-2 tools
-        if: ${{ matrix.group == 'common-2' && !cancelled() }}
-        run: make install-tools TOOLS="go python uv php phpunit rust"
-      - name: install common runtime tools
-        if: ${{ matrix.group == 'common-3' && !cancelled() }}
-        run: make install-tools TOOLS="python alint"
-      - name: install PHP symbol packages
-        if: ${{ matrix.group == 'php' && !cancelled() }}
-        run: make kit-install-symbols-php
-      - name: source tests
-        if: ${{ !cancelled() }}
-        run: make source-test-group GROUP=${{ matrix.group }}
+      - uses: ./.github/actions/kit-bootstrap
+      - run: make ci-source-tests GROUP=${{ matrix.group }}
 
   # The platform bootstrap smoke (K730) on Ubuntu x64, macOS arm64 and Windows x64, in the same run as the suite, so the run
-  # that a release takes by its id covers it (K912).
+  # that a release takes by its id covers it (K912). The bootstrap itself is under test, so the job sets up only the Node.js
+  # that starts it; make runs in Bash on every platform, Git Bash on Windows.
   bootstrap:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - runner: ubuntu-24.04
-            shell: bash
-          - runner: macos-15
-            shell: bash
-          - runner: windows-2025
-            shell: pwsh
+        runner: [ubuntu-24.04, macos-15, windows-2025]
     runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: 26.12.0
           package-manager-cache: false
-      - name: install pinned mise, Node.js and npm
-        run: node scripts/kit/bootstrap/bootstrap.mts
-      - name: verify bootstrap is idempotent
-        run: node scripts/kit/bootstrap/verify-idempotent.mts
-      - name: install pinned Kit dependencies
-        if: matrix.runner != 'windows-2025'
-        shell: bash
-        run: var/tools/bin/npm ci --ignore-scripts
-      - name: install pinned Kit dependencies on Windows
-        if: matrix.runner == 'windows-2025'
-        shell: pwsh
-        run: |
-          & .\var\tools\bin\npm.cmd ci --ignore-scripts
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: verify Git Bash Make uses pinned Node.js on Windows
-        if: matrix.runner == 'windows-2025'
-        shell: bash
-        run: make --no-print-directory owner-validate
-      - name: smoke the standard runner with a case-sensitive test directory
-        run: make case-sensitive-runner-smoke
-      - name: verify native workflow environment semantics
-        if: ${{ !cancelled() && runner.os != 'Linux' }}
-        run: make workflow-env-smoke
-      - name: install pinned Go and Rust toolchains
-        run: node scripts/kit/install-tools.mts go rust
-      # K830: a hung process test fails this step by its limit instead of holding the job until the limit of GitHub.
-      - name: verify common process ownership and native wrappers
-        timeout-minutes: 10
-        run: node --test tests/kit/process.test.mts tests/kit/process-group.test.mts
-      - name: verify native POSIX defunct groups on macOS
-        if: ${{ !cancelled() && runner.os == 'macOS' }}
-        run: node --test tests/source/process-group-posix.test.mts
-      # K919: the runner reads the result line of a real Go benchmark on each platform, whose pipes split it differently.
-      # K923: the go shim of mise reaches mise only by the PATH of kit.mk, so Git Bash make runs the test.
-      - name: verify the Go benchmark result line
-        timeout-minutes: 10
-        shell: bash
-        run: make --no-print-directory source-test-group GROUP=go SOURCE_TEST_FILES_go=tests/source/go-bench-output-real.test.mts
-      - name: verify native wrappers and selected toolchains
-        if: matrix.runner != 'windows-2025'
-        shell: bash
-        run: |
-          test "$(var/tools/bin/mise --version | cut -d' ' -f1)" = 2026.10.10
-          test "$(var/tools/bin/node --version)" = v26.12.0
-          test "$(var/tools/bin/npm --version)" = 12.2.0
-          go_binary="$(var/tools/bin/mise which go)"
-          test "$("$go_binary" version | cut -d' ' -f3)" = go1.27.3
-          test "$(rustc --version | cut -d' ' -f2)" = 1.99.0
-          test "$(cargo --version | cut -d' ' -f2)" = 1.99.0
-      - name: run a mise shim through Git Bash Make on Windows
-        if: matrix.runner == 'windows-2025'
-        shell: bash
-        run: |
-          printf 'include Makefile\nmise-shim-smoke:\n\t$(KIT_TOOLS)/mise/shims/go version\n' | make --no-print-directory -f - mise-shim-smoke | grep 'go1\.27\.3 windows/'
-      - name: verify native Windows wrappers and Go
-        if: matrix.runner == 'windows-2025'
-        shell: pwsh
-        run: |
-          $mise = (& .\var\tools\bin\mise.cmd --version).Trim()
-          if ($LASTEXITCODE -ne 0 -or $mise -notmatch '^2026\.10\.10 ') { throw "Unexpected mise output: $mise" }
-          $node = (& .\var\tools\bin\node.cmd --version).Trim()
-          if ($LASTEXITCODE -ne 0 -or $node -ne 'v26.12.0') { throw "Unexpected Node.js output: $node" }
-          $npm = (& .\var\tools\bin\npm.cmd --version).Trim()
-          if ($LASTEXITCODE -ne 0 -or $npm -ne '12.2.0') { throw "Unexpected npm output: $npm" }
-          $goBinary = (& .\var\tools\bin\mise.cmd which go).Trim()
-          $go = (& $goBinary version).Trim()
-          if ($LASTEXITCODE -ne 0 -or $go -notmatch 'go1\.27\.3 windows/') { throw "Unexpected Go output: $go" }
-          $rustc = (& rustc --version).Trim()
-          if ($LASTEXITCODE -ne 0 -or $rustc -notmatch '^rustc 1\.99\.0 ') { throw "Unexpected rustc output: $rustc" }
-          $cargo = (& cargo --version).Trim()
-          if ($LASTEXITCODE -ne 0 -or $cargo -notmatch '^cargo 1\.99\.0 ') { throw "Unexpected cargo output: $cargo" }
+      - run: make ci-bootstrap
 
   kit:
     name: kit
     if: ${{ always() }}
-    needs: [checks, kit_tests, source_tests, bootstrap]
+    needs: [checks, kit-tests, source-tests, bootstrap]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -339,7 +100,4 @@ jobs:
         with:
           node-version-file: mise.toml
           package-manager-cache: false
-      - name: summarize required CI jobs
-        env:
-          RESULTS: ${{ toJSON(needs) }}
-        run: make ci-passed NODE=node FAIL_SKIPPED=1
+      - run: make ci-kit NODE=node RESULTS='${{ toJSON(needs) }}'

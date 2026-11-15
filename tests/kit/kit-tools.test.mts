@@ -42,12 +42,12 @@ test('a clean consumer can parse its first npm bootstrap before Node exists, and
   const discovery = workflow.slice(planningStart, planningEnd);
   // K992, K1029: planning bootstraps Node, npm and locked packages before it plans.
   const uses = discovery.indexOf('uses: ./.github/actions/kit-bootstrap');
-  const plan = discovery.indexOf('run: make kit-ci-plan');
+  const plan = discovery.indexOf('run: make ci-plan');
   assert.ok(uses >= 0 && plan > uses, 'the workflow bootstraps with the action of kit, then plans');
   const action = readFileSync(path.join(KIT, '../../actions/kit-bootstrap/action.yml'), 'utf8');
-  const npm = action.indexOf('run: make install-tools TOOLS=npm');
-  const packages = action.indexOf('run: make install-packages');
-  assert.ok(action.indexOf('node-version-file: mise.toml') >= 0 && npm > 0 && packages > npm, 'the action installs Node, npm, then the locked packages');
+  // K1250: the action sets up Node.js and runs make bootstrap, which installs npm and then the locked packages.
+  const bootstrapCall = action.indexOf('run: make bootstrap');
+  assert.ok(action.indexOf('node-version-file: mise.toml') >= 0 && bootstrapCall > action.indexOf('node-version-file: mise.toml'), 'the action installs Node, then runs make bootstrap');
   assert.doesNotMatch(discovery, /NODE=|KIT_NODE/, 'discovery uses the installed Kit Node, with no alternate Node bypass');
   for (const name of ['shared', 'runtime']) {
     const job = workflow.split(`\n  ${name}:\n`)[1]?.split(/\n  [a-z][a-z-]*:\n/)[0];

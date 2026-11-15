@@ -55,7 +55,7 @@ KIT_TEST_FILES_5 := \
 	tests/kit/release-wheel.test.mts tests/kit/retained-branches.test.mts tests/kit/sandbox-repository.test.mts \
 	tests/kit/schema.test.mts tests/kit/schema-validate.test.mts tests/kit/test-build-first.test.mts tests/kit/twin-merge.test.mts
 KIT_TEST_FILES_6 := \
-	tests/kit/actions-expression.test.mts tests/kit/catch-check.test.mts tests/kit/ci-job.test.mts tests/kit/ci-setup.test.mts tests/kit/commits.test.mts \
+	tests/kit/catch-check.test.mts tests/kit/ci-setup.test.mts tests/kit/ci-workflow-jobs.test.mts tests/kit/commits.test.mts \
 	tests/kit/documents.test.mts tests/kit/gates-workflow.test.mts \
 	tests/kit/generated-files.test.mts tests/kit/git.test.mts tests/kit/kit-sync.test.mts \
 	tests/kit/linked-sources.test.mts tests/kit/lint-rust.test.mts tests/kit/lint-steps.test.mts tests/kit/lint-ts.test.mts \
@@ -73,7 +73,7 @@ SOURCE_TEST_FILES_go := tests/source/go-bench-output-real.test.mts tests/source/
 SOURCE_TEST_FILES_python := tests/source/lint-python-real.test.mts tests/source/python-real.test.mts tests/source/python-venv-real.test.mts tests/source/uv-link-real.test.mts tests/source/wheel-metadata-real.test.mts
 SOURCE_TEST_FILES_common-1 := tests/source/package.test.mts tests/source/npm-audit-online-real.test.mts tests/source/tool-records-real.test.mts tests/source/ci-workflow.test.mts
 SOURCE_TEST_FILES_common-2 := tests/source/consumer-layout.test.mts
-SOURCE_TEST_FILES_common-3 := tests/source/workflow-env-real.test.mts tests/source/process-group-posix.test.mts tests/source/install-vscode-posix.test.mts tests/source/checklist-real.test.mts tests/source/checkout.test.mts tests/source/fresh-checkout.test.mts tests/source/layout-real.test.mts tests/source/mise-env-real.test.mts tests/source/mise-trust-real.test.mts tests/source/npm-locked-link-real.test.mts tests/source/npm-source-link-real.test.mts tests/source/release-workflow.test.mts tests/source/tracked-var.test.mts
+SOURCE_TEST_FILES_common-3 := tests/source/process-group-posix.test.mts tests/source/install-vscode-posix.test.mts tests/source/checklist-real.test.mts tests/source/checkout.test.mts tests/source/fresh-checkout.test.mts tests/source/layout-real.test.mts tests/source/mise-env-real.test.mts tests/source/mise-trust-real.test.mts tests/source/npm-locked-link-real.test.mts tests/source/npm-source-link-real.test.mts tests/source/release-workflow.test.mts tests/source/tracked-var.test.mts
 
 # The packages of package-lock.json with the npm of var/tools, the step after make install-tools TOOLS=npm; the release
 # workflow that kit runs for itself calls it.
@@ -114,9 +114,108 @@ source-test-group: ## Run one declared source-test group; CI supplies GROUP=ts|p
 	@test -n "$(SOURCE_TEST_FILES_$(GROUP))" || { echo "source-test-group: GROUP=$(GROUP) has no declared test files" >&2; exit 2; }
 	$(NODE) scripts/kit/run-tests.mts node -- --test-concurrency=1 $(SOURCE_TEST_FILES_$(GROUP))
 
-.PHONY: workflow-env-smoke
-workflow-env-smoke: ## Verify native workflow expression and child environment casing, last writes and PATH; offline
-	$(NODE) scripts/kit/run-tests.mts node -- --test-concurrency=1 tests/source/workflow-env-real.test.mts
+.PHONY: ci-checks ci-kit-tests ci-source-tests ci-bootstrap ci-kit catch-check
+# The jobs of kit's own CI (.github/workflows/ci.yml), one recipe each, which CI and a local run call alike (K1250): the installs
+# first, each stopping the job at its failure, then every check of the job to its end (make -k), so one run names every failure.
+# A job installs only the tools that its tests exercise.
+CI_CHECKS := typecheck layout-check duplication-check lint-ts catch-check lint-php lint-php-ext test-php-ext lint-python lint-go lint-rust docs-check rebuild-check owner-validate rules-check suppression-check language-check release-coverage
+KIT_TEST_TOOLS_1 := php composer
+KIT_TEST_TOOLS_3 := php composer phpunit
+KIT_TEST_TOOLS_4 := php composer python go
+KIT_TEST_TOOLS_5 := php composer phpunit
+KIT_TEST_TOOLS_6 := rust
+KIT_TEST_TOOLS_7 := php composer
+# Shard 5 runs temporary consumer fixtures, which resolve the PHP parser from the source installation of kit.
+KIT_TEST_SYMBOLS := 5
+SOURCE_TEST_TOOLS_php := php composer phpcs phpstan phpunit
+SOURCE_TEST_TOOLS_rust := rust
+SOURCE_TEST_TOOLS_go := go golangciLint deadcode govulncheck
+SOURCE_TEST_TOOLS_python := python uv ruff vulture
+SOURCE_TEST_TOOLS_common-1 := go php composer
+SOURCE_TEST_TOOLS_common-2 := go python uv php phpunit rust
+SOURCE_TEST_TOOLS_common-3 := python alint
+SOURCE_TEST_SYMBOLS := php
+
+ci-checks: ## The checks job of kit's CI: every tool of mise.toml and the PHP symbol packages, then every check of CI_CHECKS to its end; ONLINE for the installs
+	$(MAKE) --no-print-directory install-tools
+	$(MAKE) --no-print-directory kit-install-symbols-php
+	$(MAKE) --no-print-directory -k $(CI_CHECKS)
+
+ci-kit-tests: ## The kit tests job of kit's CI for SHARD=1..7: the tools of the shard, then its tests; ONLINE for the installs
+	@case " $(KIT_TEST_SHARDS) " in *" $(SHARD) "*) ;; *) echo "ci-kit-tests: unknown or empty SHARD='$(SHARD)'; choose one of $(KIT_TEST_SHARDS)" >&2; exit 2;; esac
+	$(if $(KIT_TEST_TOOLS_$(SHARD)),$(MAKE) --no-print-directory install-tools TOOLS="$(KIT_TEST_TOOLS_$(SHARD))")
+	$(if $(filter $(SHARD),$(KIT_TEST_SYMBOLS)),$(MAKE) --no-print-directory kit-install-symbols-php)
+	$(MAKE) --no-print-directory kit-test-shard SHARD=$(SHARD)
+
+ci-source-tests: ## The source tests job of kit's CI for GROUP=<group> of SOURCE_TEST_GROUPS: the tools of the group, then its tests; ONLINE for the installs
+	@case " $(SOURCE_TEST_GROUPS) " in *" $(GROUP) "*) ;; *) echo "ci-source-tests: unknown or empty GROUP='$(GROUP)'; choose one of $(SOURCE_TEST_GROUPS)" >&2; exit 2;; esac
+	$(if $(SOURCE_TEST_TOOLS_$(GROUP)),$(MAKE) --no-print-directory install-tools TOOLS="$(SOURCE_TEST_TOOLS_$(GROUP))")
+	$(if $(filter $(GROUP),$(SOURCE_TEST_SYMBOLS)),$(MAKE) --no-print-directory kit-install-symbols-php)
+	$(MAKE) --no-print-directory source-test-group GROUP=$(GROUP)
+
+# The platform bootstrap smoke (K730): the bootstrap of a fresh checkout with the Node.js of the machine, its idempotence and the
+# pinned Go and Rust, then the smoke checks of the platform. Linux source CI owns the POSIX defunct-group check on Linux and the
+# macOS job owns it on macOS (K1041); Windows checks its native batch wrappers in PowerShell, since Git Bash cannot run a .cmd
+# wrapper as a command (K820).
+ifeq ($(OS),Windows_NT)
+CI_BOOTSTRAP_PLATFORM := windows
+else
+CI_BOOTSTRAP_PLATFORM := $(if $(filter Darwin,$(shell uname -s)),macos,linux)
+endif
+CI_BOOTSTRAP_CHECKS := case-sensitive-runner-smoke bootstrap-process-smoke bootstrap-go-bench-smoke
+CI_BOOTSTRAP_CHECKS_linux := $(CI_BOOTSTRAP_CHECKS) bootstrap-versions-check
+CI_BOOTSTRAP_CHECKS_macos := $(CI_BOOTSTRAP_CHECKS) bootstrap-posix-smoke bootstrap-versions-check
+CI_BOOTSTRAP_CHECKS_windows := owner-validate $(CI_BOOTSTRAP_CHECKS) bootstrap-windows-shim-smoke bootstrap-windows-versions-check
+ci-bootstrap: ## The platform bootstrap job of kit's CI: make bootstrap, its idempotence, the pinned Go and Rust, then the smoke checks of the platform to their end; ONLINE for the installs
+	$(MAKE) --no-print-directory bootstrap
+	$(BOOTSTRAP_NODE) scripts/kit/bootstrap/verify-idempotent.mts
+	$(MAKE) --no-print-directory install-tools TOOLS="go rust"
+	$(MAKE) --no-print-directory -k $(CI_BOOTSTRAP_CHECKS_$(CI_BOOTSTRAP_PLATFORM))
+
+.PHONY: bootstrap-process-smoke bootstrap-posix-smoke bootstrap-go-bench-smoke bootstrap-versions-check bootstrap-windows-shim-smoke bootstrap-windows-versions-check
+bootstrap-process-smoke: ## Run the common process ownership and native wrapper tests on this platform; offline
+	$(NODE) --test tests/kit/process.test.mts tests/kit/process-group.test.mts
+bootstrap-posix-smoke: ## Run the native POSIX defunct-group test on this platform; offline
+	$(NODE) --test tests/source/process-group-posix.test.mts
+# K919: the runner reads the result line of a real Go benchmark on each platform, whose pipes split it differently. K923: the go
+# shim of mise reaches mise only by the PATH of kit.mk, so make runs the test.
+bootstrap-go-bench-smoke: ## Read the result line of a real Go benchmark on this platform; offline after make install-tools TOOLS=go
+	$(NODE) scripts/kit/run-tests.mts node -- --test-concurrency=1 tests/source/go-bench-output-real.test.mts
+bootstrap-versions-check: ## Check that the POSIX wrappers of var/tools and the selected toolchains run the pinned releases; offline
+	test "$$(var/tools/bin/mise --version | cut -d' ' -f1)" = 2026.10.10
+	test "$$(var/tools/bin/node --version)" = v26.12.0
+	test "$$(var/tools/bin/npm --version)" = 12.2.0
+	go_binary="$$(var/tools/bin/mise which go)" && test "$$("$$go_binary" version | cut -d' ' -f3)" = go1.27.3
+	test "$$(rustc --version | cut -d' ' -f2)" = 1.99.0
+	test "$$(cargo --version | cut -d' ' -f2)" = 1.99.0
+bootstrap-windows-shim-smoke: ## Run a mise shim through Git Bash make on Windows; offline
+	$(KIT_TOOLS)/mise/shims/go version | grep 'go1\.27\.3 windows/'
+# The script reaches PowerShell through the environment, unexpanded, since make would expand its dollar signs.
+define WINDOWS_VERSIONS_CHECK
+$mise = (& .\var\tools\bin\mise.cmd --version).Trim()
+if ($LASTEXITCODE -ne 0 -or $mise -notmatch '^2026\.10\.10 ') { throw "Unexpected mise output: $mise" }
+$node = (& .\var\tools\bin\node.cmd --version).Trim()
+if ($LASTEXITCODE -ne 0 -or $node -ne 'v26.12.0') { throw "Unexpected Node.js output: $node" }
+$npm = (& .\var\tools\bin\npm.cmd --version).Trim()
+if ($LASTEXITCODE -ne 0 -or $npm -ne '12.2.0') { throw "Unexpected npm output: $npm" }
+$goBinary = (& .\var\tools\bin\mise.cmd which go).Trim()
+$go = (& $goBinary version).Trim()
+if ($LASTEXITCODE -ne 0 -or $go -notmatch 'go1\.27\.3 windows/') { throw "Unexpected Go output: $go" }
+$rustc = (& rustc --version).Trim()
+if ($LASTEXITCODE -ne 0 -or $rustc -notmatch '^rustc 1\.99\.0 ') { throw "Unexpected rustc output: $rustc" }
+$cargo = (& cargo --version).Trim()
+if ($LASTEXITCODE -ne 0 -or $cargo -notmatch '^cargo 1\.99\.0 ') { throw "Unexpected cargo output: $cargo" }
+endef
+bootstrap-windows-versions-check: export KIT_WINDOWS_VERSIONS_CHECK = $(value WINDOWS_VERSIONS_CHECK)
+bootstrap-windows-versions-check: ## Check in PowerShell that the native batch wrappers of var/tools and the selected toolchains run the pinned releases on Windows; offline
+	pwsh -NoProfile -NonInteractive -Command "$$KIT_WINDOWS_VERSIONS_CHECK"
+
+# The required job of kit's CI judges the results of the other jobs, which only a CI run has.
+ci-kit: ## The required job of kit's CI: fail unless every job of RESULTS, the JSON of toJSON(needs), succeeded, a skipped one included (K1111)
+	$(MAKE) --no-print-directory ci-passed FAIL_SKIPPED=1
+
+catch-check: ## Fail on a catch without a statement (K537, K1050); offline
+	$(NODE) scripts/kit/catch-check.mts
 
 .PHONY: case-sensitive-runner-smoke
 # The smoke of kit's own CI (K1121): the standard Node runner in a temporary verified case-sensitive directory, with kit's own smoke file.
@@ -143,6 +242,13 @@ kit-build: ## Build the package @polyspec/kit into dist/ through dist.next/ and 
 
 typecheck: ## Check the types of the tools and tests of kit with tsc (tsconfig.json); offline after npm ci
 	$(CURDIR)/node_modules/.bin/tsc -p tsconfig.json
+
+.PHONY: bootstrap
+# The first make of a fresh checkout of kit, locally and in CI, where the kit-bootstrap action runs it after setting up Node.js
+# (K1250). kit runs its own sources, so unlike a repository (docs/examples/bootstrap.mk) it installs no kit package first.
+bootstrap: ## Install the mise, node and npm of mise.toml, then the packages of package-lock.json with that npm; ONLINE
+	$(MAKE) --no-print-directory install-tools TOOLS=npm
+	$(MAKE) --no-print-directory install-packages
 
 .PHONY: install install-kit kit-install
 # install runs the bootstrap of kit as its first prerequisite; a repository adds its install steps as later prerequisites

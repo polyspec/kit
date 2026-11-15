@@ -9,19 +9,23 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { known } from '../kit/known.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const lines = readFileSync(path.join(ROOT, 'workflows/release.yml'), 'utf8').split('\n');
 
 /**
- * The `run:` commands of the steps in the order the workflow runs them, each with its line number; a step that runs the bootstrap
- * action of kit (K992) stands for the make commands of the action, at its own line.
+ * The commands of the release job in the order it runs them (K1250): the bootstrap action stands for its make commands, and the
+ * one run step, make ci-release, for the commands of its recipe in scripts/kit/kit.mk, each numbered by its position.
  */
-const runs = lines.flatMap((line, index) => {
-  if (BOOTSTRAP_USES.test(line)) return bootstrapActionCommands().map(command => ({ command, line: index + 1 }));
-  const command = /^\s+run: (.+)$/.exec(line)?.[1];
-  return command === undefined ? [] : [{ command, line: index + 1 }];
-});
+const recipe = known(/^ci-release:.*\n((?:\t.*\n)+)/m.exec(readFileSync(path.join(ROOT, 'scripts/kit/kit.mk'), 'utf8'))?.[1], 'the recipe of ci-release')
+  .replace(/\\\n\t/g, ' ').split('\n').flatMap(line => line.split(/ && | ; |; /)).map(part => part.trim().replace(/^@/, ''))
+  .map(part => part.replace(/^(?:GITHUB_ENV=\S+ )?\$\(MAKE\) --no-print-directory /, 'make ')).filter(Boolean);
+const runs = lines.flatMap(line => {
+  if (BOOTSTRAP_USES.test(line)) return bootstrapActionCommands();
+  const command = /^\s+(?:- )?run: (.+)$/.exec(line)?.[1];
+  return command === undefined ? [] : command === 'make ci-release' ? recipe : [command];
+}).map((command, index) => ({ command, line: index + 1 }));
 const step = (command: string, pattern: RegExp) => {
   const found = runs.find(run => pattern.test(run.command));
   assert.ok(found, `the workflow runs ${command}`);
@@ -46,15 +50,15 @@ test('K911, K924: a dispatch with a CI run alone starts the release, which tags 
   assert.doesNotMatch(text, /inputs\.version|^ {6}version:$/m, 'the version is the section of the change log, not an input');
   assert.doesNotMatch(text, /^ {2}push:|tags: \[|inputs\.tag|release-verify|release-go-tags/m);
   assert.match(text, /^permissions:\n {2}contents: write\n {2}actions: read\n/m);
-  assert.doesNotMatch(text, /^ {6}(?:TAG|VERSION):/m, 'release-tag writes TAG and VERSION to GITHUB_ENV');
+  assert.doesNotMatch(text, /^ {6}(?:TAG|VERSION):/m, 'release-tag writes TAG and VERSION into the environment file of the run');
   const tag = step('make release-tag', /^make release-tag /);
-  const checkout = step('git checkout of the tag', /^git checkout --quiet "\$TAG"$/);
+  const checkout = step('git checkout of the tag', /^git checkout --quiet "\$\$tag"$/);
   assert.ok(tag.line < checkout.line && checkout.line < step('make release-prepare', /^make release-prepare$/).line, 'release-tag, then the checkout of the tag, then the release of that commit');
 });
 
 test('the release workflow creates the release as a draft and makes it public last', () => {
   const publish = step('make release-publish', /^make release-publish$/);
-  const undraft = step('make release-undraft', /^make release-undraft TAG="\$TAG"$/);
+  const undraft = step('make release-undraft', /^make release-undraft TAG="\$\$tag"$/);
   assert.ok(publish.line < undraft.line, `release-undraft (line ${undraft.line}) runs after release-publish (line ${publish.line})`);
   const last = runs.at(-1);
   assert.ok(last, 'the workflow runs no step');
@@ -65,10 +69,9 @@ test('no step of the release workflow continues past a failure', () => {
   assert.ok(!lines.some(line => /continue-on-error/.test(line)), 'a failed step fails the run');
 });
 
-test('the release workflow puts the installed tools on PATH right after release-tools', () => {
-  const tools = runs.findIndex(run => /^make release-tools$/.test(run.command));
-  assert.notEqual(tools, -1, 'the workflow runs make release-tools');
-  assert.equal(runs[tools + 1]?.command, 'make release-tools-path', 'release-tools-path is the next run after release-tools');
+test('the release job is the one recipe ci-release, so a local run is the same call (K1250)', () => {
+  assert.deepEqual(lines.filter(line => /^\s+(?:- )?run: /.test(line)).map(line => line.trim().replace(/^- /, '')), ['run: make ci-release']);
+  assert.ok(!runs.some(run => run.command.includes('release-tools-path')), 'the recipes put the tools on PATH themselves');
 });
 
 test('the release workflow sets up the PHP of .php-version without a coverage driver, before release-tools', () => {
@@ -79,15 +82,15 @@ test('the release workflow sets up the PHP of .php-version without a coverage dr
   assert.match(body, /if: \$\{\{ hashFiles\('\.php-version'\) != '' \}\}/);
   assert.match(body, /php-version-file: \.php-version/);
   assert.match(body, /coverage: none/);
-  assert.ok(uses + 1 < step('make release-tools', /^make release-tools$/).line, 'PHP is set up before release-tools');
+  assert.ok(uses < lines.findIndex(line => /run: make ci-release$/.test(line)), 'PHP is set up before the release job, whose recipe runs release-tools');
 });
 
 test('the release workflow bootstraps the package, checks the configuration, then prepares the release of the repository, before release-tools (K71-2, K132, K193)', () => {
   // The release runs no gate of its own: release-tag refuses a commit whose CI run did not pass (K193, K755).
-  const install = step('make install-tools TOOLS=npm', /^make install-tools TOOLS=npm$/);
-  assert.ok(step('the Composer archive preflight', /^command -v zip /).line < install.line, 'archive capability is checked before installation');
-  // The kit of main tags (K269, K911); the packages of the tagged commit are installed again before its release.
-  assert.deepEqual(runs.filter(run => run.command.startsWith('make ')).slice(0, 7).map(run => run.command), ['make install-tools TOOLS=npm', 'make install-packages', "make release-tag ${{ github.event_name == 'workflow_run' && 'AUTO=1' || '' }}", 'make install-tools TOOLS=npm', 'make install-packages', 'make release-prepare', 'make release-tools']);
+  const tag = step('make release-tag', /^make release-tag /);
+  assert.ok(step('the Composer archive preflight', /^command -v zip /).line < tag.line, 'archive capability is checked before the release');
+  // The kit of main tags (K269, K911); the tagged commit is bootstrapped again before its release.
+  assert.deepEqual(runs.filter(run => run.command.startsWith('make ')).slice(0, 5).map(run => run.command), ['make bootstrap', 'make release-tag $(if $(filter workflow_run,$(GITHUB_EVENT_NAME)),AUTO=1)', 'make bootstrap', 'make release-prepare', 'make release-tools']);
 });
 
 test('kit releases itself with the workflow it vendors: .github/workflows/release.yml is workflows/release.yml', () => {
@@ -110,10 +113,8 @@ test('K987: a green push or dispatch run of ci starts the release of its head_sh
   assert.match(text, /^ {4}if: \$\{\{ github\.event_name == 'workflow_dispatch' \|\| \(github\.event\.workflow_run\.conclusion == 'success' && \(github\.event\.workflow_run\.event == 'push' \|\| github\.event\.workflow_run\.event == 'workflow_dispatch'\)\) \}\}$/m);
   assert.match(text, /^ {6}RUN: \$\{\{ inputs\.run \|\| github\.event\.workflow_run\.id \}\}$/m);
   assert.match(text, /fetch-depth: 0\n {10}ref: \$\{\{ github\.event\.workflow_run\.head_sha \}\}\n/, 'the checkout is the head_sha of the run');
-  const tag = step('make release-tag', /^make release-tag \$\{\{ github\.event_name == 'workflow_run' && 'AUTO=1' \|\| '' \}\}$/);
-  const after = lines.slice(tag.line).filter(line => /^ {6}- (?:name|uses):/.test(line));
-  assert.ok(after.length > 0);
-  lines.slice(tag.line).forEach((line, index) => {
-    if (/^ {6}- (?:name|uses):/.test(line)) assert.equal(lines[tag.line + index + 1], "        if: ${{ env.TAG != '' }}", `${line.trim()} runs only for a TAG`);
-  });
+  const tag = step('make release-tag', /^make release-tag \$\(if \$\(filter workflow_run,\$\(GITHUB_EVENT_NAME\)\),AUTO=1\)$/);
+  const checkout = step('git checkout of the tag', /git checkout --quiet "\$\$tag"$/);
+  assert.ok(tag.line < checkout.line, 'the steps after release-tag run only for the tag it wrote');
+  assert.match(recipe.join('\n'), /if \[ -z "\$\$tag" \]\nthen echo .*\nexit 0\nfi/, 'without a tag the job releases nothing and passes');
 });

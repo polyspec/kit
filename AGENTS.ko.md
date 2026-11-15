@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: ed664933f7a6251770df27135d883b5ff5406feb1c02223ab2ce0fa63b6bb571 -->
+<!-- source-sha256: a6f944a6f072b140224e0bbe2beed8db5f5def343024fb78cc3a83ed1314fa7d -->
 # 개발
 
 [English](AGENTS.md)
@@ -28,8 +28,11 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 - Own: VS Code 다운로드 결과를 보존한 채 소유 helper group에 종료를 요청한다. installer는 child close와 cleanup을 기다리며 1초 유예 뒤에만 강제 종료한다. native POSIX 수명 증거는 Linux source CI group에서 실행한다.
   Enforced by: `tests/source/install-vscode-posix.test.mts`, `tests/source/ci-workflow.test.mts`
 
-- Refines S12: `workflows/ci-pipeline.yml`은 검사 실행과 별도로 job 데이터를 계획합니다. Shared·runtime 검사는 계획 출력에만 의존하고 자신의 checkout과 setup으로 독립적으로 실행합니다. Shared 검사 실패가 독립 결과를 막지 않습니다. 마지막 required job은 계획·shared 검사·선택된 모든 job을 판정하며 선택된 job이 건너뛰어도 실패합니다.
+- Refines S12: `workflows/ci-pipeline.yml`은 검사 실행과 별도로 fan-out을 계획합니다. Shared·runtime 검사는 계획 출력에만 의존하고 자신의 checkout과 setup으로 독립적으로 실행합니다. Shared 검사 실패가 독립 결과를 막지 않습니다. 마지막 required job은 계획·shared 검사·선택된 모든 job을 판정하며 선택된 job이 건너뛰어도 실패합니다.
   Enforced by: `tests/kit/gates-workflow.test.mts`
+
+- Own: `.github/workflows/ci.yml`과 `workflows/ci-pipeline.yml`의 모든 job은 `run:` step 하나를 가지며, 그것은 make 변수만 받는 `make ci-<job>`입니다. Matrix 값은 `NAME=${{ matrix.key }}`로, 다른 job을 판정하는 job은 `RESULTS='${{ toJSON(needs) }}'`로 넘깁니다. 다른 step은 모두 `uses:` step이며 `if:`는 `uses:` step에만 있습니다. Recipe는 먼저 설치하고 실패에서 멈추며, 모든 검사를 끝까지 실행하고 항상 정리하며, job의 값을 추적하는 설정에서 읽습니다. YAML step과 expression에 담긴 job은 runner를 흉내 내야만 CI 밖에서 실행되지만, recipe는 CI와 로컬에서 같은 방식으로 실행되기 때문입니다(`docs/spec/utilities-and-recipes.md`, K1250).
+  Enforced by: `tests/kit/ci-workflow-jobs.test.mts`
 
 - Own: Kit 변경 요청은 GitHub issue에서 추적합니다. 각 issue에 구현 진행 상황, 검증 근거와 release 상태를 기록하고,
   명시된 acceptance 조건을 충족한 뒤에만 닫습니다.

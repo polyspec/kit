@@ -15,7 +15,7 @@ them and then owns; kit writes no file of a repository (K1052). kit depends on n
 | Lint | `lint-python.mts`, `lint-php.mts`, `lint-rust.mts`, `lint-go.mts`, `lint-ts.mts`, with the copied configuration (docs/operations/tool-inventory.md, Lint configuration) and the ruff, vulture, golangci-lint and deadcode of `mise.toml` and the PHP lint of `install-php-lint.mts` | `lint-python`, `lint-php`, `lint-rust`, `lint-go`, `lint-ts` |
 | Hooks and checklists | `git-hooks.mts` (the listed hooks of the repository and the merge drivers), `generated-files.mts`, `holder-lock.mts`, `checklist.mts` | `hooks`, `hooks-check` |
 | Documents and commits | `check-documents.mts`, `documents-stamp.mts`, `check-commits.mts`, `owner-check.mts` | `docs-check`, `documents-stamp`, `owner-check`, `owner-validate` |
-| Tests and CI | `run-tests.mts`, `ci-targets.mts`, `ci-job.mts`, `ci-passed.mts`, `target-report.mts` | `ci-targets`, `ci-summary`, `ci-passed` |
+| Tests and CI | `run-tests.mts`, `ci-setup.mts`, `ci-targets.mts`, `ci-passed.mts`, `target-report.mts` | `ci-plan`, `ci-shared`, `ci-runtime`, `ci-required`, `ci-targets`, `ci-summary`, `ci-passed` |
 | Release | `release.mts` | `release-tag`, `release-tools`, `release-assets`, `release-publish`, `release-undraft`, `release-coverage` |
 
 `docs/operations/tool-inventory.md` records which implementations each tool replaced and which behaviors it took or dropped.

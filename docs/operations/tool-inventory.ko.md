@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: a20aa6c7889d474886747471e42b509bcab7928816f1520abecbc736a124768d -->
+<!-- source-sha256: bedc2217e2ae3bd75f88c873323b37c622cea79a874f569160c0c743e68ed9ea -->
 
 # 도구 목록
 
@@ -808,11 +808,13 @@ S10 PHP extension의 stub은 library의 class와 함수를 같은 이름과 sign
   PHPUnit을 사용하므로 Kit의 private PHPUnit 선언은 필요하지 않습니다. PHP setup 목록을 직접 지정하는 소비 저장소는 root와 package를 포함해 필요한 Composer project를
   모두 나열해야 합니다.
   마지막 job `required`(ubuntu-24.04)는
-  파이프라인의 모든 job을 needs로 하고, plan이 선택한 job이 성공하지 않으면(skip된 경우 포함, K950) 실패합니다. plan이 고르지 않은 job은 skip되며 결과가 아닙니다.
+  파이프라인의 모든 job을 needs로 하고 needs의 JSON으로 make ci-required를 실행하며, 그것은 plan이 선택한 job이 성공하지 않으면(skip된 경우 포함, K950) 실패합니다. plan이 고르지 않은 job은 skip되며 결과가 아닙니다.
   kit-ci-verify-gates는 없습니다.
   선택 항목인 `targets` map은 각 job에서 저장소 자신의 check target을 이름합니다. `shared`는 shared job에서 `kit-gates-static` 뒤에,
-  Pipeline은 계획과 검사를 분리합니다. 작은 `plan` job은 고정된 package를 bootstrap하고 kit-ci-plan을 실행하며
-  job 선언을 게시하지만 검사나 runtime setup을 실행하지 않습니다. Shared 검사·runtime job은
+  Pipeline은 계획과 검사를 분리합니다. 작은 `plan` job은 고정된 package를 bootstrap하고 make ci-plan을 실행하며
+  runtime job의 fan-out, 그 runner, shared job이 PHP를 준비하는지를 게시하지만 검사나 runtime setup을 실행하지 않습니다. 다른
+  job은 각각 recipe 하나, make ci-shared 또는 make ci-runtime RUNTIME=<runtime>을 실행하며, 그 recipe는 job의 도구와 target을
+  config/ci.json에서 읽습니다. 그래서 job의 로컬 실행은 같은 호출입니다(K1250). Shared 검사·runtime job은
   계획 출력에만 의존하여 runner 여유가 있을 때 독립적으로 시작합니다. Shared 검사의 artifact를 주고받지 않으므로
   shared 검사 실패가 독립 결과를 막지 않습니다. 마지막 required job은 계획·shared 검사·선택된 모든 runtime
   job을 항상 판정하며 선택된 job이 건너뛰거나 취소되어도 실패합니다. 이 제어 의존성을 제거해도 GitHub의 runner
