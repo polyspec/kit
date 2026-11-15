@@ -71,6 +71,8 @@ test('the CI pipeline partitions every kit-gates target across shared and runtim
   const released = new Set([
     ...[...`${read('.github/workflows/release.yml')}${read(BOOTSTRAP_ACTION)}`.matchAll(/run: make ([a-z0-9-]+)/g)].map(match => match[1] ?? ''),
     ...[...read('docs/examples/bootstrap.mk').matchAll(/^\t\$\(MAKE\) --no-print-directory ([a-z0-9-]+)/gm)].map(match => match[1] ?? ''),
+    // The release job runs make ci-release, whose recipe runs the release targets.
+    ...[...(/^ci-release:.*\n((?:\t.*\n)+)/m.exec(read('scripts/kit/kit.mk'))?.[1] ?? '').matchAll(/\$\(MAKE\) --no-print-directory ([a-z0-9-]+)/g)].map(match => match[1] ?? ''),
   ]);
   for (const target of named) assert.ok(gates.has(target ?? '') || released.has(target ?? ''), `kit-gates or release.yml runs make ${target}`);
 });

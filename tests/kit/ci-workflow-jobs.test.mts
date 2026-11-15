@@ -1,8 +1,8 @@
 // K1250: every job of a CI workflow of kit runs one recipe. A job has exactly one run step, `make ci-<job>` with make variables
 // only, a matrix value as `NAME=${{ matrix.key }}`, and the job that judges the other jobs may pass `'${{ toJSON(needs) }}'`; every
 // other step is a `uses:` step, and only those carry an `if:`. So the order, the conditions and the values of a job live in its
-// recipe, and a local run of the job is the same make call. The workflows are kit's own CI and the pipeline that kit ships as an
-// example; the release workflow is a procedure of its own and is not checked here.
+// recipe, and a local run of the job is the same make call. The workflows are every workflow of kit and every example workflow
+// that kit ships.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -15,7 +15,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 /** The CI workflows of kit, each with the job that judges the results of the others. */
 const WORKFLOWS = [
   { file: '.github/workflows/ci.yml', judge: 'kit' },
+  { file: '.github/workflows/release.yml', judge: '' },
   { file: 'workflows/ci-pipeline.yml', judge: 'required' },
+  { file: 'workflows/release.yml', judge: '' },
 ] as const;
 const STEP_KEYS_OF_RUN = new Set(['run', 'name', 'id', 'shell']);
 const WORD = /^[A-Za-z0-9_.\/-]+$/;
@@ -57,7 +59,7 @@ export function jobFindings(workflow: unknown, judge: string): string[] {
   return findings;
 }
 
-test('K1250: every job of the CI workflows of kit runs one make ci-<job> step, and every other step is a uses step', () => {
+test('K1250: every job of the workflows of kit runs one make ci-<job> step, and every other step is a uses step', () => {
   const make = makeDatabase(ROOT);
   for (const { file, judge } of WORKFLOWS) {
     const workflow = parse(readFileSync(path.join(ROOT, file), 'utf8')) as { jobs: Record<string, unknown> };

@@ -296,7 +296,27 @@ ci-passed: ## Fail unless every job of RESULTS, the JSON of toJSON(needs), has t
 # The steps of a release (scripts/kit/release.mts, config/release.json). release-tag tags the commit of the successful CI run RUN
 # with vX.Y.Z, X.Y.Z the newest section of the change log of that commit, and the Go module tags (K911, K924); TAG is that tag
 # vX.Y.Z, which release-tag appends to GITHUB_ENV with VERSION. The release workflow runs the steps in this order.
-.PHONY: release-prepare release-tools release-tag release-assets release-candidate-assets release-publish release-undraft release-coverage
+.PHONY: release-prepare release-tools release-tag release-assets release-candidate-assets release-publish release-undraft release-coverage ci-release
+
+# The release job of workflows/release.yml is this one recipe (K1250), which a local run calls as the workflow does, with RUN
+# and GH_TOKEN in the environment. release-tag writes TAG into an environment file of this run; a workflow_run of CI
+# (GITHUB_EVENT_NAME) tags with AUTO. With a tag to release, the job checks it out, bootstraps the tagged commit with its own kit
+# and packages, and runs the release steps of that commit in order, each stopping the job at its failure; the recipes put the
+# tools of var/tools on PATH themselves, so no step exports them.
+RELEASE_ENV := var/release/run.env
+ci-release: ## The release job: Info-ZIP, release-tag of RUN, then on the tagged commit bootstrap, release-prepare, release-tools, release-assets, release-publish and release-undraft; reads the run with gh
+	@command -v zip >/dev/null || { echo 'Info-ZIP is required for Composer release archives; install the zip package on the Ubuntu runner' >&2; exit 1; }
+	@mkdir -p $(dir $(RELEASE_ENV)) && : > $(RELEASE_ENV)
+	GITHUB_ENV=$(CURDIR)/$(RELEASE_ENV) $(MAKE) --no-print-directory release-tag $(if $(filter workflow_run,$(GITHUB_EVENT_NAME)),AUTO=1)
+	@tag="$$(sed -n 's/^TAG=//p' $(RELEASE_ENV) | tail -n 1)"; \
+	if [ -z "$$tag" ]; then echo "[ci-release] release-tag tagged nothing to release"; exit 0; fi; \
+	git checkout --quiet "$$tag" && \
+	$(MAKE) --no-print-directory bootstrap && \
+	$(MAKE) --no-print-directory release-prepare && \
+	$(MAKE) --no-print-directory release-tools && \
+	$(MAKE) --no-print-directory release-assets && \
+	$(MAKE) --no-print-directory release-publish && \
+	$(MAKE) --no-print-directory release-undraft TAG="$$tag"
 
 # kit's own release names its main ref, its asset folder and the folder of its release records, which the release tools take
 # from the caller and never fix (K1102, K1115).
