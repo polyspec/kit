@@ -112,7 +112,7 @@ function consumerOf(directory: string, project = false): Consumer {
 /** The work of one run. */
 type Run = { found: Map<string, Provider>; check: boolean; print: Print; failed: boolean; env: NodeJS.ProcessEnv; declared: Set<string> };
 
-/** Prints a state line: `state` (linked, NOT linked, STALE, own) of `ecosystem` and the text. */
+/** Prints a state line: `state` (linked, retained, NOT linked, STALE, own) of `ecosystem` and the text. */
 const line = (work: Run, state: string, ecosystem: string, text: string) => work.print(`  ${state.padEnd(10)} ${ecosystem.padEnd(8)} ${text}`);
 
 /**
@@ -522,7 +522,18 @@ function linkPackageFolders(work: Run, consumer: Consumer, ecosystems: readonly 
       if (findings.length > 0) work.failed = true;
       continue;
     }
-    for (const item of folders) line(work, 'linked', item.ecosystem, `${item.name} -> ${item.target}`);
+    for (const item of folders) {
+      if (item.manager === undefined) {
+        line(work, 'linked', item.ecosystem, `${item.name} -> ${item.target}`);
+        continue;
+      }
+      // K1234: a retained native installation can come from a different source than the provider.
+      const installed = item.ecosystem === 'python' ? item.target : item.folder;
+      const target = real(installed);
+      const linked = item.ecosystem === 'python' || lstatSync(item.folder).isSymbolicLink();
+      const location = target === undefined ? `at ${installed} (native source unresolved)` : `${linked ? '->' : 'at'} ${target}`;
+      line(work, 'retained', item.ecosystem, `${item.name} ${location}`);
+    }
   }
 }
 

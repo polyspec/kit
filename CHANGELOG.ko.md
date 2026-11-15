@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 61cafa1a26d061d1e1105fa681a238ba669febd7f498b78931646d4f01822073 -->
+<!-- source-sha256: 34a6330e3968a888a7e5d9b01b8f87fef34f94a14b60302b4af403ef4a83dc9d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1234: native local-path installation을 retained로 보고한다. npm과 Composer link는 실제 해석한 target을, mirror는 installed location을, Python editable 항목은 native source를 적으며 provider path를 native target으로 보고하지 않는다. 회귀 2개는 link inode와 installed metadata 보존도 확인하고, owner가 선택한 12개 파일의 215개 경우가 모두 통과한다.
 
 - K1230: link-check는 명시한 npm, Composer, uv local source를 native installed link 또는 source record와 비교한다. Python editable distribution의 native loader와 metadata를 보존하고 정상 link reconciliation으로 더는 선언에 속하지 않는 package link를 제거한다. 회귀 5개와 offline packed-consumer를 포함해 owner가 선택한 14개 파일의 228개 경우를 검증했다. Dependency 선택은 native package manager에 맡긴다.
 

@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1234: Native local-path installations are reported as retained. npm and Composer links show their actual resolved target, mirrors show their installed location, and Python editable entries show their native source. Provider paths are no longer reported as native targets. Two regressions preserve link inodes and installed metadata; all 215 cases in the 12 owner-selected files pass.
+
 - K1230: link-check compares explicit npm, Composer and uv local sources with native installed links or source records. Python editable distributions keep their native loader and metadata, and normal link reconciliation removes superseded package links. Five regressions pass; the 14 owner-selected files cover 228 passing cases, including the offline packed-consumer case. Dependency selection remains with the native package manager.
 
 - K1233 verification: the declared command passes 23 tests on the committed implementation. After the normal merge of

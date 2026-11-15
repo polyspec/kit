@@ -1661,3 +1661,31 @@ test('refreshLinked names the failure of the build in its message, not only in i
   assert.throws(() => refreshLinked(provider, ['src/index.ts'], () => {}), (error: unknown) => error instanceof Error
     && error.message.startsWith('main moved, but the build of . failed') && error.message.includes('the first compiler error'));
 });
+
+for (const mirror of [false, true]) {
+  test(`K1234 reports retained native sources and preserves ${mirror ? 'a Composer mirror' : 'native links'}`, (t) => {
+    const { root, provider, consumer, env } = declared(t, ['../prov']);
+    const { npm, composer, targets } = managerLinks(root, consumer);
+    if (mirror) {
+      rmSync(composer);
+      mkdirSync(composer);
+      copyFileSync(path.join(root, 'local/y/composer.json'), path.join(composer, 'composer.json'));
+    }
+    const metadata = path.join(consumer, 'var/contracts/vendor/composer/installed.json');
+    const recorded = readFileSync(metadata, 'utf8');
+    const before = { npm: linkState(npm), composer: mirror ? lstatSync(composer).ino : linkState(composer) };
+    const result = command(consumer, env, LINK, 'link');
+    assert.equal(result.status, 0, result.text);
+    const npmLine = result.text.split('\n').find(line => /^\s+retained\s+npm\s+@polyspec\/x /.test(line));
+    const composerLine = result.text.split('\n').find(line => /^\s+retained\s+composer\s+polyspec\/y /.test(line));
+    assert.ok(npmLine?.endsWith(` -> ${targets[0]}`), result.text);
+    assert.ok(composerLine?.endsWith(mirror ? ` at ${composer}` : ` -> ${targets[1]}`), result.text);
+    assert.ok(!npmLine?.includes(path.join(provider, 'packages/ts')), result.text);
+    assert.ok(!composerLine?.includes(path.join(provider, 'packages/php')), result.text);
+    assert.deepEqual(linkState(npm), before.npm);
+    assert.deepEqual(mirror ? lstatSync(composer).ino : linkState(composer), before.composer);
+    assert.equal(readFileSync(metadata, 'utf8'), recorded);
+    assert.equal(realpathSync(npm), targets[0]);
+    assert.equal(realpathSync(composer), mirror ? composer : targets[1]);
+  });
+}
