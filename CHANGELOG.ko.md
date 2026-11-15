@@ -1,10 +1,16 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d90ba10f18c0a1f03cfb9ccb3eaa68f8e655a8476db33e06c10d473a6a37b9ad -->
+<!-- source-sha256: b727504721d50c681f4c8d62ddbdd978711164e2957a9dfe4e608a1730edb271 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1228-3: Runtime에서 계산한 external-action output과 미지원 dynamic shell은 직접 또는 composite continue-on-error를
+  포함해 무조건 로컬 workflow를 거부한다. 공유 typed 거부는 environment capability 처리도 같은 경계에 두고 실제
+  native 종료와 file-validation 실패의 허용 의미는 유지한다. 지원 shell은 own key로 확인하므로 constructor 같은
+  상속 이름은 script 실행 전에 거부한다. 거부는 이후 user script를 멈추고 runner cleanup을 유지하며 expression과
+  일반 dictionary 동작은 native로 남는다.
 
 - K1228-2 검증: commit된 구현에서 선언한 선택은 시험 21개를, native Mac workflow-env-smoke target은 시험 한 개를
   실패나 skip 없이 통과한다. Smoke는 child에만 ambient Path alias를 제공해도 상속한 모든 PATH-case 이름과 값을

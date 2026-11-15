@@ -1,5 +1,5 @@
 <!-- doc-id: spec-utilities-and-recipes -->
-<!-- source-sha256: 1911daeb3845504c51bf996b74a6d801ef7deed531a735468afb15abbb85f254 -->
+<!-- source-sha256: 94904ac625c454a2e2d480db4cbdaffbc03802ef5c8db13cc9e29fb85a0a875f -->
 # 유틸리티와 예제
 
 [English](utilities-and-recipes.md)
@@ -37,7 +37,7 @@ allow-remote 사례가 그 연쇄를 보여 준다.
   실행은 status function과 지원하는 `github`, `runner`, `matrix`, `env`, `steps`, workflow 또는 composite `inputs` 값을 제공한다.
   로컬 실행이 제공할 수 없는 context는 script를 실행하기 전에 이름을 밝히고 거부한다. 외부 action의 output,
   secret, 저장소 variable은 로컬 script 실행이 제공할 수 없다.
-- 계획 중인 runtime 거부 수정(K1228-3): external action output의 계산한 조회와 동적으로 선택한 미지원 shell은
+- Runtime capability 거부(K1228-3): external action output의 계산한 조회와 동적으로 선택한 미지원 shell은
   재현한 native step 실패가 아닌 로컬 capability 거부다. 로컬 job은 status 1로 끝나며 직접 또는 모든 composite
   caller의 continue-on-error를 넘어서 이후 user script를 실행하지 않는다. 결과를 반환하기 전에 소유한 process와
   runner directory cleanup을 마친다. 공유 typed 로컬 거부는 native error-cause wrapper를 거친 environment

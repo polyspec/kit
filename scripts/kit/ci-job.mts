@@ -55,7 +55,8 @@ import { parse as parseYaml } from 'yaml';
 import { callsStatus, evaluateTemplate, parseExpression, parseTemplate, references, toText, truthy, type Reference, type Status, type Template, type Value } from './actions-expression.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { failureOf, runCommand } from './run-command.mts';
-import { checkEnvironmentName, EnvironmentRefusal, environmentRefusal, environmentValue, mergeEnvironment } from './environment.mts';
+import { checkEnvironmentName, EnvironmentRefusal, environmentValue, mergeEnvironment } from './environment.mts';
+import { LocalWorkflowRefusal, localWorkflowRefusal } from './workflow-refusal.mts';
 
 const USAGE = 'usage: node scripts/kit/ci-job.mts --workflow <file> --job <id> [--matrix <key>=<value>]... [--input <name>=<value>]... [--input-event <workflow_call|workflow_dispatch>] [--plan]';
 const WINDOWS = process.platform === 'win32';
@@ -315,7 +316,7 @@ function checkExternalProducers(expressions: Expression[], steps: PlannedStep[],
       const candidates = producer === undefined
         ? reference.dynamic && status !== undefined ? external : []
         : external.filter(step => step.id?.toLowerCase() === producer.toLowerCase());
-      if (candidates.length > 0) throw new Error(`${where}: ${expression.text} reads the step outputs of the external action ${candidates.map(step => step.kind === 'action' ? step.uses : '').join(', ')}, which the local run does not run`);
+      if (candidates.length > 0) throw new LocalWorkflowRefusal(`${where}: ${expression.text} reads the step outputs of the external action ${candidates.map(step => step.kind === 'action' ? step.uses : '').join(', ')}, which the local run does not run`);
     }
   }
 }
@@ -333,7 +334,7 @@ function checkEnvironmentKeys(value: unknown, where: string): void {
   for (const key of Object.keys(mapping(value, where))) {
     try { checkEnvironmentName(key); }
     catch (error) {
-      const refusal = environmentRefusal(error);
+      const refusal = localWorkflowRefusal(error);
       if (refusal !== undefined) throw new EnvironmentRefusal(`${where}: ${refusal.message}`, { cause: error });
       throw new Error(`${where}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
     }
@@ -616,7 +617,7 @@ function refuseShells(list: PlannedStep[], combination: Combination, root: strin
     if (step.kind !== 'run' || step.shell === undefined || !decidable(step.shell, ['matrix', 'github']) || !decidable(step.condition, ['matrix', 'runner', 'github'])) continue;
     const contexts = { matrix: combination, runner: { os: RUNNER_OS, arch: RUNNER_ARCH }, github: { workspace: root } };
     const shell = textOf(step.shell, contexts);
-    if (!(shell in SHELLS) && truthy(valueOf(step.condition, contexts))) throw new Error(`${step.label}: shell ${shell} is not a shell that the local run gives on ${RUNNER_OS} (${Object.keys(SHELLS).filter(Boolean).join(', ')})`);
+    if (!Object.hasOwn(SHELLS, shell) && truthy(valueOf(step.condition, contexts))) throw new LocalWorkflowRefusal(`${step.label}: shell ${shell} is not a shell that the local run gives on ${RUNNER_OS} (${Object.keys(SHELLS).filter(Boolean).join(', ')})`);
   }
 }
 
@@ -698,11 +699,8 @@ async function spawnScript(argv: string[], options: { cwd: string; env: NodeJS.P
 /** Runs one run step and gives its outputs; its environment and folders go to the state. */
 async function runScript(step: Extract<PlannedStep, { kind: 'run' }>, state: JobState, values: Record<string, Value>, env: Record<string, string>, inComposite: boolean, expressionStatus: Status): Promise<{ status: number; outputs: Record<string, string> }> {
   const shell = step.shell ? textOf(step.shell, values, expressionStatus) : inComposite ? undefined : state.defaults.shell;
-  const argv = SHELLS[shell ?? ''];
-  if (argv === undefined) {
-    state.print(`[ci-job] refused: ${step.label}: shell ${shell ?? '(default)'} is not a shell that the local run gives on ${RUNNER_OS}`);
-    return { status: 1, outputs: {} };
-  }
+  const argv = Object.hasOwn(SHELLS, shell ?? '') ? SHELLS[shell ?? ''] : undefined;
+  if (argv === undefined) throw new LocalWorkflowRefusal(`${step.label}: shell ${shell ?? '(default)'} is not a shell that the local run gives on ${RUNNER_OS}`);
   const command = textOf(step.run, values, expressionStatus);
   const directory = step.directory ? textOf(step.directory, values, expressionStatus) : inComposite ? undefined : state.defaults.directory;
   state.scripts += 1;
@@ -740,7 +738,7 @@ async function runScript(step: Extract<PlannedStep, { kind: 'run' }>, state: Job
     } else {
       try { state.env = mergeEnvironment([state.env, Object.fromEntries([[key, value]])]); }
       catch (error) {
-        const refusal = environmentRefusal(error);
+        const refusal = localWorkflowRefusal(error);
         if (refusal !== undefined) environmentRefusals.push(new EnvironmentRefusal(`${step.label}: ${refusal.message}`, { cause: error }));
         else {
           state.print(`[ci-job] ${step.label}: ${error instanceof Error ? error.message : String(error)}`);
@@ -808,7 +806,7 @@ async function runSteps(list: PlannedStep[], frame: Frame, state: JobState, inhe
       if (tolerated) state.print(`[ci-job] continued: ${step.label} failed, and its continue-on-error holds`);
       result = { outputs, outcome: failed ? 'failure' : 'success', conclusion: failed && !tolerated ? 'failure' : 'success' };
     } catch (error) {
-      const refusal = environmentRefusal(error);
+      const refusal = localWorkflowRefusal(error);
       if (refusal !== undefined) throw refusal;
       state.print(`[ci-job] failed: ${step.label}: ${error instanceof Error ? error.message : String(error)}`);
       result = { outputs: {}, outcome: 'failure', conclusion: 'failure' };

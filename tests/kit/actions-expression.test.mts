@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Literal } from '@actions/expressions/ast';
-import { EnvironmentRefusal, environmentRefusal, environmentValue, mergeEnvironment } from '../../scripts/kit/environment.mts';
+import { EnvironmentRefusal, environmentValue, mergeEnvironment } from '../../scripts/kit/environment.mts';
+import { LocalWorkflowRefusal, localWorkflowRefusal } from '../../scripts/kit/workflow-refusal.mts';
 import { Lexer } from '@actions/expressions';
 import { callsStatus, evaluate, evaluateTemplate, parseExpression, parseTemplate, references, toText, truthy, type Value } from '../../scripts/kit/actions-expression.mts';
 
@@ -205,14 +206,26 @@ test('K1228-2: native POSIX environment names preserve Unicode while all platfor
 
 test('K1228-2: native error wrappers preserve typed capability refusal without converting ordinary errors', () => {
   const refused = new EnvironmentRefusal('unsupported environment');
-  assert.equal(environmentRefusal(refused), refused);
+  assert.equal(localWorkflowRefusal(refused), refused);
   const wrapped = new Error('native index wrapper', { cause: refused });
-  const restored = environmentRefusal(wrapped);
-  assert.ok(restored instanceof EnvironmentRefusal);
+  const restored = localWorkflowRefusal(wrapped);
+  assert.ok(restored instanceof LocalWorkflowRefusal);
   assert.equal(restored.message, 'native index wrapper');
   assert.equal(restored.cause, wrapped);
-  assert.equal(environmentRefusal(new Error('ordinary native command failure')), undefined);
+  assert.equal(localWorkflowRefusal(new Error('ordinary native command failure')), undefined);
   const cycle = new Error('ordinary cyclic cause');
   cycle.cause = cycle;
-  assert.equal(environmentRefusal(cycle), undefined);
+  assert.equal(localWorkflowRefusal(cycle), undefined);
+});
+
+
+test('K1228-3: only typed local refusals cross the hard capability boundary', () => {
+  const ordinary = new Error('refused: unsupported shell');
+  ordinary.name = 'LocalWorkflowRefusal';
+  assert.equal(localWorkflowRefusal(ordinary), undefined, 'a native error is not reclassified by its name or message');
+  const local = new LocalWorkflowRefusal('computed external output is unavailable');
+  assert.equal(localWorkflowRefusal(local), local);
+  const environment = new EnvironmentRefusal('environment capability is unavailable');
+  assert.ok(environment instanceof LocalWorkflowRefusal);
+  assert.equal(localWorkflowRefusal(environment), environment);
 });

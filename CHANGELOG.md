@@ -5,6 +5,12 @@
 
 ## Unreleased
 
+- K1228-3: Runtime computed external-action outputs and unsupported dynamic shells are unconditional local workflow
+  refusals, including through direct or composite continue-on-error. A shared typed refusal keeps environment capability
+  handling at the same boundary while preserving ordinary native exit and file-validation tolerance. Supported shells
+  use own-key membership, so inherited names such as constructor are refused before script admission. Refusals stop
+  later user scripts and retain runner cleanup; expression and general dictionary behavior remain native.
+
 - K1228-2 verification: on the committed implementation, the declared selection passes 21 tests and the native Mac
   workflow-env-smoke target passes one test, with no failures or skips. The smoke also passes with a child-only ambient
   Path alias while checking every inherited PATH-case name and value. Typecheck, duplication, lint, owner validation,

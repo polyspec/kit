@@ -1,23 +1,11 @@
 // Workflow environment records: POSIX keys are distinct; supported Windows ASCII names retain first spelling and last value.
+import { LocalWorkflowRefusal } from './workflow-refusal.mts';
+
 export type EnvironmentEntry<T> = { key: string; value: T };
 const CASE_SENSITIVE = process.platform !== 'win32';
 
-/** A local environment capability refusal is never an ordinary, tolerable native command failure. */
-export class EnvironmentRefusal extends Error { override name = 'EnvironmentRefusal'; }
-
-/** Native evaluation can wrap an index error with its cause; restore only a typed environment refusal. */
-export function environmentRefusal(error: unknown): EnvironmentRefusal | undefined {
-  let current = error;
-  const seen = new Set<unknown>();
-  while (current instanceof Error && !seen.has(current)) {
-    if (current instanceof EnvironmentRefusal) return current === error ? current
-      : new EnvironmentRefusal(error instanceof Error ? error.message : current.message, { cause: error });
-    seen.add(current);
-    current = current.cause;
-  }
-  return undefined;
-}
-
+/** Environment capability refusals share the local job refusal boundary. */
+export class EnvironmentRefusal extends LocalWorkflowRefusal { override name = 'EnvironmentRefusal'; }
 
 export function environmentKey(key: string, caseSensitive = CASE_SENSITIVE): string {
   if (!caseSensitive && Array.from(key).some(character => character.charCodeAt(0) > 0x7f)) {

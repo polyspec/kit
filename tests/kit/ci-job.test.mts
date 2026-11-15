@@ -1301,3 +1301,82 @@ test('K1228-2: real native file-command failures retain continue-on-error behavi
     assert.equal(readFileSync(path.join(root, 'later.log'), 'utf8'), 'continued');
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+
+for (const capability of ['external-output', 'custom-shell', 'constructor-shell'] as const) {
+  for (const composite of [false, true]) {
+    test(`K1228-3: runtime ${capability} is an unconditional ${composite ? 'composite' : 'direct'} local refusal`, async () => {
+      const selectedShell = capability === 'constructor-shell' ? 'constructor' : 'custom-shell --flag {0}';
+      const shell = capability === 'external-output' ? 'bash' : `\${{ steps.Pick.outputs.shell }}`;
+      const payload = capability === 'external-output'
+        ? `printf '%s' '\${{ steps[steps.Pick.outputs.producer].outputs.ref }}' > forbidden.log`
+        : 'printf wrong > forbidden.log';
+      const steps = `- id: Pick
+  shell: bash
+  run: |
+    echo 'producer=External' >> "$GITHUB_OUTPUT"
+    echo 'shell=${selectedShell}' >> "$GITHUB_OUTPUT"
+    printf '%s' "$RUNNER_TEMP" > runner-temp.txt
+- id: External
+  uses: actions/checkout@v6
+- shell: ${shell}
+${composite ? '' : '  continue-on-error: true\n'}  run: ${payload}
+- if: always()
+  shell: bash
+  run: printf wrong > scope-later.log
+`;
+      const caller = composite ? `      - uses: ./.github/actions/bootstrap
+        continue-on-error: true
+` : steps.split('\n').filter(Boolean).map(line => `      ${line}`).join('\n') + '\n';
+      const root = fixture(`jobs:
+  j:
+    steps:
+${caller}      - if: always()
+        shell: bash
+        run: printf wrong > caller-later.log
+`, composite ? `runs:
+  using: composite
+  steps:
+${steps.split('\n').filter(Boolean).map(line => `    ${line}`).join('\n')}
+` : undefined);
+      try {
+        assert.ok(planJob(root, '.github/workflows/ci.yml', 'j').steps.length > 0);
+        const result = await run(root, 'j');
+        assert.equal(result.status, 1, result.lines.join('\n'));
+        assert.match(result.lines.join('\n'), /\[ci-job\] refused:/);
+        assert.match(result.lines.join('\n'), capability === 'external-output' ? /external action actions\/checkout/ : /shell (custom-shell|constructor)/);
+        for (const file of ['forbidden.log', 'scope-later.log', 'caller-later.log']) assert.equal(existsSync(path.join(root, file)), false, result.lines.join('\n'));
+        assert.equal(existsSync(readFileSync(path.join(root, 'runner-temp.txt'), 'utf8')), false, 'refusal cleanup removes the owned runner directory');
+      } finally { rmSync(root, { recursive: true, force: true }); }
+    });
+  }
+}
+
+for (const composite of [false, true]) {
+  test(`K1228-3: ordinary native exit keeps ${composite ? 'outer composite' : 'direct'} continue-on-error semantics`, async () => {
+    const root = fixture(composite ? `jobs:
+  j:
+    steps:
+      - uses: ./.github/actions/bootstrap
+        continue-on-error: true
+      - run: printf continued > after.log
+` : `jobs:
+  j:
+    steps:
+      - continue-on-error: true
+        run: exit 7
+      - run: printf continued > after.log
+`, composite ? `runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: exit 7
+` : undefined);
+    try {
+      const result = await run(root, 'j');
+      assert.equal(result.status, 0, result.lines.join('\n'));
+      assert.match(result.lines.join('\n'), /continue-on-error holds/);
+      assert.equal(readFileSync(path.join(root, 'after.log'), 'utf8'), 'continued');
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+}
