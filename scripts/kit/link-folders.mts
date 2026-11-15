@@ -13,6 +13,7 @@
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync, unlinkSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { readToml } from './toml.mts';
 import { errorCode } from './process.mts';
@@ -25,7 +26,7 @@ export interface ProvidedFolder {
   name: string;
   folder: string;
   target: string;
-  /** K1187: the package manager made this folder as a link from a local path of the consumer's own manifest; link leaves it. */
+  /** K1187, K1230: native local-path link or Python editable distribution; link leaves its folders and metadata. */
   manager?: true;
 }
 
@@ -267,20 +268,19 @@ export function providedFolders(project: string, provided: Iterable<Provider>, {
     } else if (provider.ecosystem === 'composer') {
       const folder = path.join(vendorDirectory(project, vendorDir), provider.name);
       if (present(folder)) found.push({ ecosystem: 'composer', name: provider.name, folder, target: provider.folder, ...(managerLink(folder) ? { manager: true as const } : {}) });
-    } else if (provider.ecosystem === 'python' && hatchSources(provider.folder).length > 0) {
-      for (const site of sites) {
-        for (const { from, to } of hatchSources(provider.folder)) {
-          const folder = path.join(site, to);
-          if (present(folder) || distributionInstalled(site, provider.name)) found.push({ ecosystem: 'python', name: `${provider.name} ${to}`, folder, target: path.join(provider.folder, from) });
-        }
-      }
     } else if (provider.ecosystem === 'python') {
       const source = existsSync(path.join(provider.folder, 'src')) ? path.join(provider.folder, 'src') : provider.folder;
-      const packages = pythonPackages(source);
       for (const site of sites) {
-        for (const relative of packages) {
-          const folder = path.join(site, relative);
-          if (present(folder) || distributionInstalled(site, provider.name)) found.push({ ecosystem: 'python', name: `${provider.name} ${relative}`, folder, target: path.join(source, relative) });
+        const editable = editableDistribution(site, provider.name);
+        if (editable !== undefined) {
+          found.push({ ecosystem: 'python', name: provider.name, ...editable, manager: true });
+          continue;
+        }
+        const mapped = hatchSources(provider.folder);
+        const packages = mapped.length > 0 ? mapped : pythonPackages(source).map(relative => ({ from: path.relative(provider.folder, path.join(source, relative)), to: relative }));
+        for (const { from, to } of packages) {
+          const folder = path.join(site, to);
+          if (present(folder) || distributionInstalled(site, provider.name)) found.push({ ecosystem: 'python', name: `${provider.name} ${to}`, folder, target: path.join(provider.folder, from) });
         }
       }
     }
@@ -296,6 +296,17 @@ export function providedFolders(project: string, provided: Iterable<Provider>, {
 function distributionInstalled(site: string, name: string): boolean {
   const normal = name.toLowerCase().replace(/[-_.]+/g, '_');
   return readdirSync(site).some(entry => entry.endsWith('.dist-info') && entry.slice(0, entry.indexOf('-')).toLowerCase().replace(/[-_.]+/g, '_') === normal);
+}
+
+/** K1230: uv owns an editable distribution's loader; retain its installed record instead of creating shadowing package links. */
+function editableDistribution(site: string, name: string): { folder: string; target: string } | undefined {
+  const entry = readdirSync(site).find(folder => folder.endsWith('.dist-info') && normalizeName(folder.slice(0, folder.indexOf('-'))) === normalizeName(name));
+  if (entry === undefined) return undefined;
+  const folder = path.join(site, entry);
+  const record = path.join(folder, 'direct_url.json');
+  if (!existsSync(record)) return undefined;
+  const direct = readJsonObject(record);
+  return isJsonObject(direct.dir_info) && direct.dir_info.editable === true && typeof direct.url === 'string' && direct.url.startsWith('file:') ? { folder, target: fileURLToPath(direct.url) } : undefined;
 }
 
 /**
@@ -321,7 +332,7 @@ const tableOf = (value: unknown, key: string): Record<string, unknown> => {
  * K1213: the local paths by which the manifest of `project` names the package `provider`, resolved against the project: the url of each
  * Composer path repository, an npm dependency `file:<path>` of that name, and the path of the uv source of that name.
  */
-function manifestPaths(project: string, provider: Provider): string[] {
+function manifestPaths(project: string, provider: Pick<Provider, 'ecosystem' | 'name'>): string[] {
   if (provider.ecosystem === 'go') return [];
   const file = path.join(project, MANIFEST[provider.ecosystem]);
   if (!existsSync(file)) return [];
@@ -539,4 +550,57 @@ export function providerDependencyFindings(root: string, folders: readonly Provi
       return [`npm ${name}: ${path.relative(root, resolved)}, which the linked ${item.name} loads, is ${lstatSync(resolved).isSymbolicLink() ? `a link to ${realpathSync(resolved)}` : 'a copy'}, not a link to ${target}; fix: make link in the checkout of ${item.name}`];
     });
   });
+}
+
+/** K1230: compare explicit local declarations with native installed records, without resolving or changing a dependency. */
+export function nativeLocalSourceFindings(project: string, env: NodeJS.ProcessEnv, environment: () => string | undefined): string[] {
+  const findings: string[] = [];
+  const compare = (ecosystem: string, name: string, declared: string, installed: string | undefined) => {
+    if (installed !== undefined && sameFolder(declared, installed)) return;
+    findings.push(`${ecosystem} ${name}: declared local source ${declared}; installed source ${installed ?? 'is missing'}; fix: run the native locked install for this project`);
+  };
+  const npm = path.join(project, MANIFEST.npm);
+  if (existsSync(npm)) {
+    const manifest = readJsonObject(npm);
+    for (const section of ['dependencies', 'devDependencies', 'optionalDependencies']) {
+      for (const [name, spec] of Object.entries(tableOf(manifest, section))) {
+        if (typeof spec !== 'string' || !spec.startsWith('file:')) continue;
+        const folder = path.join(project, 'node_modules', name);
+        if (managerLink(folder)?.ecosystem !== 'npm') continue;
+        compare('npm', name, path.resolve(project, spec.slice(5)), existsSync(folder) ? realpathSync(folder) : undefined);
+      }
+    }
+  }
+  const composer = path.join(project, MANIFEST.composer);
+  if (existsSync(composer)) {
+    const record = path.join(vendorDirectory(project, composerVendorDir(project, env)), 'composer/installed.json');
+    if (existsSync(record)) for (const entry of installedEntries(record)) {
+      if (typeof entry.name !== 'string' || !isJsonObject(entry.dist) || entry.dist.type !== 'path') continue;
+      const name = entry.name;
+      // Match package identities from explicit repository folders; Composer still owns wildcard repositories and selection.
+      const declared = manifestPaths(project, { ecosystem: 'composer', name }).filter(folder => declaredName(folder, 'composer') === name);
+      const [wanted] = declared;
+      if (declared.length !== 1 || wanted === undefined) continue;
+      const folder = path.join(vendorDirectory(project, composerVendorDir(project, env)), name);
+      // A native mirrored path install has a copy: its dist.url, rather than that copy's location, records its source.
+      const source = !existsSync(folder) ? undefined : lstatSync(folder).isSymbolicLink() ? realpathSync(folder) : typeof entry.dist.url === 'string' ? path.resolve(project, entry.dist.url) : undefined;
+      compare('composer', name, wanted, source);
+    }
+  }
+  const python = path.join(project, MANIFEST.python);
+  if (existsSync(python)) {
+    const sources = tableOf(tableOf(tableOf(readToml(readFileSync(python, 'utf8'), python), 'tool'), 'uv'), 'sources');
+    const paths = Object.entries(sources).filter((entry): entry is [string, Record<string, unknown> & { path: string }] => isJsonObject(entry[1]) && typeof entry[1].path === 'string');
+    if (paths.length > 0) for (const site of sitePackages(project, environment())) {
+      for (const folder of readdirSync(site).filter(name => name.endsWith('.dist-info'))) {
+        const name = normalizeName(folder.slice(0, folder.indexOf('-')));
+        const source = paths.find(([declared]) => normalizeName(declared) === name)?.[1];
+        if (source === undefined) continue;
+        const record = path.join(site, folder, 'direct_url.json');
+        const url = existsSync(record) ? readJsonObject(record).url : undefined;
+        compare('python', name, path.resolve(project, source.path), typeof url === 'string' && url.startsWith('file:') ? fileURLToPath(url) : undefined);
+      }
+    }
+  }
+  return [...new Set(findings)];
 }

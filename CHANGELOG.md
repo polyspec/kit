@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1230: link-check compares explicit npm, Composer and uv local sources with native installed links or source records. Python editable distributions keep their native loader and metadata, and normal link reconciliation removes superseded package links. Five regressions pass; the 14 owner-selected files cover 228 passing cases, including the offline packed-consumer case. Dependency selection remains with the native package manager.
+
 - K1233 verification: the declared command passes 23 tests on the committed implementation. After the normal merge of
   the current runner and fixture cleanup, the complete local-job owner passes 50 tests and typecheck and docs-check pass.
   Before integration, the combined expression and local-job owners pass 61 tests; duplication-check and lint-ts pass.

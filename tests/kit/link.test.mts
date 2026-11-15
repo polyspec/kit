@@ -400,6 +400,11 @@ function managerLinks(root: string, consumer: string) {
     'local/x/package.json': JSON.stringify({ name: '@polyspec/x', version: '0.0.1' }),
     'local/y/composer.json': JSON.stringify({ name: 'polyspec/y', autoload: { 'psr-4': { 'Y\\': 'src/' } } }),
   });
+  // K1230: the fixture declares the local source that its native installed record and link use.
+  for (const [file, change] of [['package.json', { dependencies: { '@polyspec/x': 'file:../local/x' } }], ['composer.json', { repositories: [{ type: 'path', url: '../local/y' }] }]] as const) {
+    const target = path.join(consumer, file);
+    writeFileSync(target, JSON.stringify({ ...readJsonObject(target), ...change }));
+  }
   const npm = path.join(consumer, 'node_modules/@polyspec/x');
   const composer = path.join(consumer, 'var/contracts/vendor/polyspec/y');
   for (const [folder, target] of [[npm, path.join(root, 'local/x')], [composer, path.join(root, 'local/y')]] as const) {

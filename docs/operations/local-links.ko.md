@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 3f8a722d749838f991e299745d84ce7969c8900a222a221ba2bf7ba9a4bb16a9 -->
+<!-- source-sha256: a6b55d1e1e7ab9e54bb98ba6a6a64832a25b9babbd7e78f6581d493dda933dca -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -18,6 +18,9 @@
 - 개발 중 각 polyspec 패키지의 설치 폴더(node_modules, vendor, site-packages)는 checkout으로 가는 평범한 디렉터리 심링크 하나입니다. 패키지 매니저의 링크 단계(npm link, Composer path repository, pip/uv editable)는 쓰지 않습니다(PRINCIPLES S11).
 - kit은 설치 누락과 복사본을 보고합니다. 제약을 우회하거나 버전을 만들거나 설치 metadata를 수기로 맞추지 않습니다.
 - 소비자 자신의 manifest가 로컬 경로로 선언해 package manager가 직접 링크로 만든 설치 폴더(package-lock 항목에 `"link": true`가 있는 npm `file:` 의존성, path repository에서 설치된 Composer 패키지)는 package manager의 결과입니다. link는 이 폴더를 바꾸거나 지우지 않고, link-check는 이 폴더가 그 패키지 이름을 manifest에 적은 디렉터리로 풀리면 받아들입니다(K1187).
+
+K1230은 모호하지 않게 명시한 local source path와 native installed source도 비교한다. npm file dependency는 installed link, Composer path package는 installed link 또는 native mirrored install의 dist.url record, uv path source는 설치된 PEP 610 direct_url.json을 읽는다. Filesystem link를 해석한 path가 다르면 두 path와 native locked install remedy를 보고하며, 설치하거나 dependency graph를 resolve하지 않는다. Composer wildcard 또는 같은 이름의 여러 path repository와 uv conditional source list의 선택은 package manager에 맡기며 이 검사는 resolve하지 않는다.
+
 
 ## 설치와 검증의 경계
 
@@ -89,3 +92,5 @@ Source 개발 계약은 배포된 dependency와 같은 version의 source 수정,
 ## 종료
 
 consumer는 정상 package manager를 통해 배포 dependency를 채택하고 바뀐 manifest와 lock을 commit합니다. 로컬 source 개발은 독립적으로 계속할 수 있으며 release 채택에 모든 checkout의 동시 unlink가 필요하지 않습니다.
+
+K1230은 native Python editable distribution을 PEP 610 record에 따라 package manager 소유로 보존한다. .links가 같은 distribution의 다른 checkout을 제공해도 link와 uv-install은 editable loader 위에 package folder를 만들지 않는다. 정상 link reconciliation은 선언에 더는 속하지 않는 generated package link를 제거하며 native loader, installed record와 source folder를 보존한다. Source 선택과 loader 생성은 uv에 맡기며, link-check는 명시한 local path와 기록된 installed source를 비교한다.
