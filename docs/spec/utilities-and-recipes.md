@@ -36,18 +36,28 @@ are printed with their inputs and are not executed, so the local run requires th
   The run supplies status functions and the supported values of `github`, `runner`, `matrix`, `env`, `steps` and workflow or composite
   `inputs`. A context that the local run cannot supply is refused with its name before scripts run. External action
   outputs, secrets and repository variables cannot be supplied by a local script run.
-- Planned environment correction (K1228-2): `env` keys are case-sensitive on POSIX and case-insensitive on Windows.
+- Environment key semantics (K1228-2): `env` keys are case-sensitive on POSIX and supported ASCII keys are case-insensitive on Windows.
   Environment merges retain the first key spelling and take the last assigned value under that comparison. The same
   merge applies to workflow, job, composite and step environments, environment-file writes and the actual spawned
   environment, including inherited process values and PATH lookup. Other expression contexts keep native case folding.
   A context-only Dictionary subclass uses a standard Map through the native public add/get/values/pairs API; parsing,
   evaluation, coercion, status functions and general dictionaries remain native. Conditions, serialization and computed
   external-output guards use the environment of the actual scope, without changing caller or sibling scopes.
+- Windows local environment names are ASCII-only until a pinned native comparer supplies OrdinalIgnoreCase faithfully.
+  Non-ASCII names, including names used for lookup, are refused by name before use; Unicode values remain supported on
+  every platform and POSIX Unicode names remain distinct. JavaScript lowercasing is not OrdinalIgnoreCase: native invariant
+  uppercasing merges micro sign µ and Greek capital mu Μ, while lowercasing keeps their keys distinct. JavaScript full
+  uppercasing is not a substitute either. This boundary follows the [native comparison rule](https://learn.microsoft.com/en-us/dotnet/standard/base-types/best-practices-strings).
+  Remove it only when the pinned native comparer provides that rule and actual Windows Unicode-name regressions pass.
 - The exact environment key `__proto__` is refused by name before scripts run when declared, and before publication when
   an environment file writes it. The pinned native JSON replacer assigns properties to a plain object and silently drops
   that key through its prototype setter. Safe record construction preserves the key until this refusal; it never silently
-  deletes it. An invalid file entry fails its step while independent valid file-command channels still apply. Remove this
-  boundary after the pinned native serializer preserves the key in the same environment serialization regressions.
+  deletes it. An unsupported local environment name is a capability refusal, not a native step failure: it ends the job
+  with status 1, cannot be tolerated by direct or composite `continue-on-error`, and admits no later user script, even one
+  with `always()`. Valid independent file-command channels are processed before the refusal propagates; owned process and
+  directory cleanup still finishes. Native file-command failures such as blocked NODE_OPTIONS or malformed syntax retain
+  their normal step-failure and continue-on-error semantics. Remove this boundary after the pinned native serializer
+  preserves the key in the same environment serialization regressions.
 - Environment source evidence is the runner's [platform comparer](https://github.com/actions/runner/blob/8cfa1049f86781d141056082d73802d56cd2b433/src/Runner.Common/Util/VarUtil.cs),
   [step context selection](https://github.com/actions/runner/blob/8cfa1049f86781d141056082d73802d56cd2b433/src/Runner.Worker/StepsRunner.cs)
   and [case-insensitive setter](https://github.com/actions/runner/blob/8cfa1049f86781d141056082d73802d56cd2b433/src/Sdk/DTPipelines/Pipelines/ContextData/DictionaryContextData.cs).

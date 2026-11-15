@@ -5,6 +5,16 @@
 
 ## Unreleased
 
+- K1228-2: Environment expressions retain distinct POSIX key casing. An environment-only public Dictionary adapter
+  preserves lookup, filters and serialization while other contexts keep native case folding. Shared environment merges
+  retain first spelling and last values for supported Windows ASCII names, including actual child variables and PATH. The exact
+  unsupported native JSON key is refused visibly before use, with independent file-command channels preserved.
+  Environment capability refusals bypass direct and composite continue-on-error and stop later user scripts while owned
+  cleanup finishes; native file-command failures retain their normal tolerance semantics.
+  Windows non-ASCII names are refused rather than approximating OrdinalIgnoreCase; Unicode values and POSIX Unicode
+  names remain supported. Native environment smoke runs in Linux source CI and macOS/Windows bootstrap. Local Mac proof and pure Windows-policy
+  tests are distinct; native Windows process evidence awaits its actual CI run.
+
 - K1233 verification: the declared command passes 23 tests on the committed implementation. After the normal merge of
   the current runner and fixture cleanup, the complete local-job owner passes 50 tests and typecheck and docs-check pass.
   Before integration, the combined expression and local-job owners pass 61 tests; duplication-check and lint-ts pass.

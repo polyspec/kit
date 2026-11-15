@@ -1120,3 +1120,184 @@ jobs:
     assert.match(event.stderr, /usage:/);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+
+// K1228-2: these owner cases execute on the native POSIX shell; cross-platform process evidence belongs to source smoke.
+test('K1228-2: POSIX workflow, job and step environments retain distinct key casing', async () => {
+  const root = fixture(`env: { MODE: workflow-upper, mode: workflow-lower }
+jobs:
+  j:
+    env: { MODE: job-upper }
+    steps:
+      - env: { mode: step-lower }
+        if: env.MODE == 'job-upper' && env.mode == 'step-lower'
+        run: printf '%s' '\${{ toJSON(env) }}' > env.json
+      - run: printf '%s' '\${{ env.MODE }}:\${{ env.mode }}' > after.log
+`);
+  try {
+    const result = await run(root, 'j');
+    assert.equal(result.status, 0, result.lines.join('\n'));
+    assert.ok(existsSync(path.join(root, 'env.json')), result.lines.join('\n'));
+    assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'env.json'), 'utf8')), { MODE: 'job-upper', mode: 'step-lower' });
+    assert.equal(readFileSync(path.join(root, 'after.log'), 'utf8'), 'job-upper:workflow-lower');
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('K1228-2: composite environment scopes preserve caller casing without leaking an inner override', async () => {
+  const root = fixture(`env: { MODE: global-upper, mode: global-lower }
+jobs:
+  j:
+    steps:
+      - uses: ./.github/actions/bootstrap
+        env: { mode: caller-lower }
+      - run: printf '%s' '\${{ env.MODE }}:\${{ env.mode }}' > after.log
+`, `runs:
+  using: composite
+  steps:
+    - shell: bash
+      env: { MODE: inner-upper }
+      if: env.MODE == 'inner-upper' && env.mode == 'caller-lower'
+      run: printf '%s' '\${{ env.MODE }}:\${{ env.mode }}' > inner.log
+`);
+  try {
+    const result = await run(root, 'j');
+    assert.equal(result.status, 0, result.lines.join('\n'));
+    assert.ok(existsSync(path.join(root, 'inner.log')), result.lines.join('\n'));
+    assert.equal(readFileSync(path.join(root, 'inner.log'), 'utf8'), 'inner-upper:caller-lower');
+    assert.equal(readFileSync(path.join(root, 'after.log'), 'utf8'), 'global-upper:global-lower');
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('K1228-2: environment-file writes preserve case-distinct keys for later conditions', async () => {
+  const root = fixture(`env: { MODE: original }
+jobs:
+  j:
+    steps:
+      - run: printf 'mode=written\\n' >> "$GITHUB_ENV"
+      - if: env.MODE == 'original' && env.mode == 'written'
+        run: printf '%s' '\${{ toJSON(env) }}' > env.json
+`);
+  try {
+    const result = await run(root, 'j');
+    assert.equal(result.status, 0, result.lines.join('\n'));
+    assert.ok(existsSync(path.join(root, 'env.json')), result.lines.join('\n'));
+    assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'env.json'), 'utf8')), { MODE: 'original', mode: 'written' });
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+for (const [upper, lower, expected] of [['external', 'local', 0], ['local', 'external', 1]] as const) {
+  test(`K1228-2: computed producer ${lower} keeps the POSIX environment scope`, async () => {
+    const root = fixture(`env: { PRODUCER: ${upper}, producer: ${lower} }
+jobs:
+  j:
+    steps:
+      - id: local
+        run: echo 'value=owned' >> "$GITHUB_OUTPUT"
+      - id: external
+        uses: actions/checkout@v6
+      - run: printf '%s' '\${{ steps[env.producer].outputs.value }}' > value.log
+`);
+    try {
+      const result = await run(root, 'j');
+      assert.equal(result.status, expected, result.lines.join('\n'));
+      if (expected === 0) assert.equal(readFileSync(path.join(root, 'value.log'), 'utf8'), 'owned');
+      else {
+        assert.match(result.lines.join('\n'), /external action actions\/checkout/);
+        assert.equal(existsSync(path.join(root, 'value.log')), false);
+      }
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+}
+
+for (const declaration of ['env: { __proto__: owned }\njobs:\n  j:\n    steps: [{ run: true }]', 'jobs:\n  j:\n    env: { __proto__: owned }\n    steps: [{ run: true }]', 'jobs:\n  j:\n    steps:\n      - run: printf wrong > ran.log\n      - env: { __proto__: owned }\n        run: true', 'jobs:\n  j:\n    steps:\n      - uses: actions/checkout@v6\n        env: { __proto__: owned }\n      - run: printf wrong > ran.log']) {
+  test('K1228-2: a declared unsupported native JSON key is refused before any script', async () => {
+    const root = fixture(declaration);
+    try {
+      assert.throws(() => planJob(root, '.github/workflows/ci.yml', 'j'), /environment key __proto__.*native JSON/);
+      const result = await run(root, 'j');
+      assert.equal(result.status, 1, result.lines.join('\n'));
+      assert.equal(existsSync(path.join(root, 'ran.log')), false);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+}
+
+test('K1228-2: an unsupported environment-file key processes independent channels then stops later scripts', async () => {
+  const root = fixture(`jobs:
+  j:
+    steps:
+      - run: |
+          printf '__proto__=owned\\nGOOD=kept\\n' >> "$GITHUB_ENV"
+          printf 'independent-summary' >> "$GITHUB_STEP_SUMMARY"
+      - if: always()
+        run: printf '%s' "$GOOD" > cleanup.log
+`);
+  try {
+    const result = await run(root, 'j');
+    assert.equal(result.status, 1, result.lines.join('\n'));
+    assert.match(result.lines.join('\n'), /environment key __proto__.*native JSON/);
+    assert.match(result.lines.join('\n'), /independent-summary/);
+    assert.equal(existsSync(path.join(root, 'cleanup.log')), false, result.lines.join('\n'));
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+
+for (const composite of [false, true]) {
+  test(`K1228-2: ${composite ? 'outer composite' : 'direct step'} continue-on-error cannot tolerate an environment capability refusal`, async () => {
+    const failing = `printf '%s' "$RUNNER_TEMP" > runner-temp.txt
+          printf '__proto__=unsupported\\nGOOD=kept\\n' >> "$GITHUB_ENV"
+          printf independent-summary >> "$GITHUB_STEP_SUMMARY"`;
+    const root = fixture(composite ? `jobs:
+  j:
+    steps:
+      - uses: ./.github/actions/bootstrap
+        continue-on-error: true
+      - if: always()
+        run: printf wrong > later.log
+` : `jobs:
+  j:
+    steps:
+      - continue-on-error: true
+        run: |
+          ${failing}
+      - if: always()
+        run: printf wrong > later.log
+`, composite ? `runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        ${failing.split('\n').join('\n        ')}
+    - shell: bash
+      if: always()
+      run: printf wrong > inner-later.log
+` : undefined);
+    try {
+      const result = await run(root, 'j');
+      assert.equal(result.status, 1, result.lines.join('\n'));
+      assert.match(result.lines.join('\n'), /refused:.*environment key __proto__/);
+      assert.match(result.lines.join('\n'), /independent-summary/);
+      assert.equal(existsSync(path.join(root, 'later.log')), false, result.lines.join('\n'));
+      assert.equal(existsSync(path.join(root, 'inner-later.log')), false, result.lines.join('\n'));
+      assert.equal(existsSync(readFileSync(path.join(root, 'runner-temp.txt'), 'utf8')), false, 'runner resources close after a refusal');
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+}
+
+test('K1228-2: real native file-command failures retain continue-on-error behavior', async () => {
+  const root = fixture(`jobs:
+  j:
+    steps:
+      - continue-on-error: true
+        run: |
+          printf 'NODE_OPTIONS=--invalid\\n' >> "$GITHUB_ENV"
+          printf 'malformed-native-command\\n' >> "$GITHUB_OUTPUT"
+      - run: printf continued > later.log
+`);
+  try {
+    const result = await run(root, 'j');
+    assert.equal(result.status, 0, result.lines.join('\n'));
+    assert.match(result.lines.join('\n'), /GITHUB_ENV cannot set NODE_OPTIONS/);
+    assert.match(result.lines.join('\n'), /GITHUB_OUTPUT/);
+    assert.equal(readFileSync(path.join(root, 'later.log'), 'utf8'), 'continued');
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});

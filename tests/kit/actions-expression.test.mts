@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Literal } from '@actions/expressions/ast';
+import { EnvironmentRefusal, environmentRefusal, environmentValue, mergeEnvironment } from '../../scripts/kit/environment.mts';
 import { Lexer } from '@actions/expressions';
 import { callsStatus, evaluate, evaluateTemplate, parseExpression, parseTemplate, references, toText, truthy, type Value } from '../../scripts/kit/actions-expression.mts';
 
@@ -132,4 +133,86 @@ test('K1228: a text with ${{ }} is one expression as GitHub reads it, and refere
     { path: ['github'], dynamic: true },
     { path: ['steps', 'x', 'outputs', 'y'], dynamic: false },
   ]);
+});
+
+
+test('K1228-2: native environment lookup, filters and serialization preserve the platform key comparison', () => {
+  const contexts: Record<string, Value> = { env: { MODE: 'upper', mode: 'lower', constructor: 'owned' }, matrix: { MODE: 'upper', mode: 'lower' } };
+  const run = (source: string) => evaluate(parseExpression(source), contexts);
+  const windows = process.platform === 'win32';
+  assert.equal(run('env.MODE'), windows ? 'lower' : 'upper');
+  assert.equal(run('ENV.mode'), 'lower');
+  assert.equal(run('env.constructor'), 'owned');
+  assert.equal(run('env.Missing'), null);
+  assert.deepEqual(run('env.*'), windows ? ['lower', 'owned'] : ['upper', 'lower', 'owned']);
+  const serialized = run('toJSON(env)');
+  assert.ok(typeof serialized === 'string');
+  assert.deepEqual(JSON.parse(serialized), windows ? { MODE: 'lower', constructor: 'owned' } : { MODE: 'upper', mode: 'lower', constructor: 'owned' });
+  assert.equal(run('MATRIX.mode'), 'upper', 'non-environment contexts keep the native Dictionary lookup');
+});
+
+test('K1228-2: computed references use the environment key comparison', () => {
+  const contexts: Record<string, Value> = { env: { PRODUCER: 'external', producer: 'local' } };
+  const refs = references(parseExpression('steps[env.producer].outputs.value'), contexts);
+  assert.ok(refs.some(reference => reference.path.join('.') === 'steps.local.outputs.value'), JSON.stringify(refs));
+  assert.equal(evaluate(parseExpression('env.PRODUCER'), contexts), process.platform === 'win32' ? 'local' : 'external');
+});
+
+test('K1228-2: an unsupported native JSON environment key fails by name instead of disappearing', () => {
+  const env = Object.fromEntries([['__proto__', 'owned']]);
+  assert.throws(() => evaluate(parseExpression('toJSON(env)'), { env }), /environment key __proto__.*native JSON/);
+});
+
+
+test('K1228-2: Windows merge policy keeps first spelling and last values without claiming native process proof', () => {
+  const parent = { Path: 'parent', CaseKey: 'workflow', __PROTO__: 'safe' };
+  const job = { PATH: 'job', casekey: 'job' };
+  const step = { pAtH: 'step', CASEKEY: 'step' };
+  const insensitive = mergeEnvironment([parent, job, step], false);
+  assert.deepEqual(insensitive, { Path: 'step', CaseKey: 'step', __PROTO__: 'safe' });
+  assert.equal(environmentValue(insensitive, 'PATH', false), 'step');
+  assert.equal(environmentValue(insensitive, 'casekey', false), 'step');
+  const sensitive = mergeEnvironment([parent, job, step], true);
+  assert.deepEqual(sensitive, { ...parent, ...job, ...step });
+  assert.equal(environmentValue(sensitive, 'PATH', true), 'job');
+  assert.equal(environmentValue(sensitive, 'path', true), undefined);
+  assert.deepEqual(parent, { Path: 'parent', CaseKey: 'workflow', __PROTO__: 'safe' });
+  assert.throws(() => mergeEnvironment([Object.fromEntries([['__proto__', 'lost']])], false), /environment key __proto__.*native JSON/);
+});
+
+
+test('K1228-2: Windows policy refuses Unicode names instead of approximating OrdinalIgnoreCase', () => {
+  // OrdinalIgnoreCase uppercases µ to Μ; JavaScript lowercasing would keep those lookup keys distinct.
+  for (const name of ['µ', 'Μ', 'Σ', 'ς']) {
+    assert.throws(() => mergeEnvironment([Object.fromEntries([[name, 'Unicode value']])], false), /Windows environment name.*non-ASCII/);
+    assert.throws(() => environmentValue({ MODE: 'value' }, name, false), /Windows environment name.*non-ASCII/);
+  }
+  assert.deepEqual(mergeEnvironment([{ MODE: 'µΜΣς値' }, { mode: 'آخر' }], false), { MODE: 'آخر' });
+  assert.deepEqual(mergeEnvironment([{ 'µ': 'micro', 'Μ': 'mu', 'Σ': 'sigma', 'ς': 'final' }], true), { 'µ': 'micro', 'Μ': 'mu', 'Σ': 'sigma', 'ς': 'final' });
+});
+
+test('K1228-2: native POSIX environment names preserve Unicode while all platforms preserve Unicode values', () => {
+  const contexts: Record<string, Value> = { env: { 'µ': 'micro', 'Μ': 'mu', VALUE: 'µΜΣς値' } };
+  if (process.platform === 'win32') assert.throws(() => evaluate(parseExpression('env.VALUE'), contexts), /Windows environment name.*non-ASCII/);
+  else {
+    assert.equal(evaluate(parseExpression("env['µ']"), contexts), 'micro');
+    assert.equal(evaluate(parseExpression("env['Μ']"), contexts), 'mu');
+    assert.equal(evaluate(parseExpression('env.VALUE'), contexts), 'µΜΣς値');
+  }
+  assert.equal(evaluate(parseExpression('env.VALUE'), { env: { VALUE: 'µΜΣς値' } }), 'µΜΣς値');
+});
+
+
+test('K1228-2: native error wrappers preserve typed capability refusal without converting ordinary errors', () => {
+  const refused = new EnvironmentRefusal('unsupported environment');
+  assert.equal(environmentRefusal(refused), refused);
+  const wrapped = new Error('native index wrapper', { cause: refused });
+  const restored = environmentRefusal(wrapped);
+  assert.ok(restored instanceof EnvironmentRefusal);
+  assert.equal(restored.message, 'native index wrapper');
+  assert.equal(restored.cause, wrapped);
+  assert.equal(environmentRefusal(new Error('ordinary native command failure')), undefined);
+  const cycle = new Error('ordinary cyclic cause');
+  cycle.cause = cycle;
+  assert.equal(environmentRefusal(cycle), undefined);
 });

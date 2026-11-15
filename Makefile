@@ -73,7 +73,7 @@ SOURCE_TEST_FILES_go := tests/source/go-bench-output-real.test.mts tests/source/
 SOURCE_TEST_FILES_python := tests/source/lint-python-real.test.mts tests/source/python-real.test.mts tests/source/python-venv-real.test.mts tests/source/uv-link-real.test.mts tests/source/wheel-metadata-real.test.mts
 SOURCE_TEST_FILES_common-1 := tests/source/package.test.mts tests/source/npm-audit-online-real.test.mts tests/source/tool-records-real.test.mts tests/source/ci-workflow.test.mts
 SOURCE_TEST_FILES_common-2 := tests/source/consumer-layout.test.mts
-SOURCE_TEST_FILES_common-3 := tests/source/process-group-posix.test.mts tests/source/install-vscode-posix.test.mts tests/source/checklist-real.test.mts tests/source/checkout.test.mts tests/source/fresh-checkout.test.mts tests/source/layout-real.test.mts tests/source/mise-env-real.test.mts tests/source/mise-trust-real.test.mts tests/source/npm-locked-link-real.test.mts tests/source/npm-source-link-real.test.mts tests/source/release-workflow.test.mts tests/source/tracked-var.test.mts
+SOURCE_TEST_FILES_common-3 := tests/source/workflow-env-real.test.mts tests/source/process-group-posix.test.mts tests/source/install-vscode-posix.test.mts tests/source/checklist-real.test.mts tests/source/checkout.test.mts tests/source/fresh-checkout.test.mts tests/source/layout-real.test.mts tests/source/mise-env-real.test.mts tests/source/mise-trust-real.test.mts tests/source/npm-locked-link-real.test.mts tests/source/npm-source-link-real.test.mts tests/source/release-workflow.test.mts tests/source/tracked-var.test.mts
 
 # The packages of package-lock.json with the npm of var/tools, the step after make install-tools TOOLS=npm; the release
 # workflow that kit runs for itself calls it.
@@ -113,6 +113,10 @@ source-test-group: ## Run one declared source-test group; CI supplies GROUP=ts|p
 	@case " $(SOURCE_TEST_GROUPS) " in *" $(GROUP) "*) ;; *) echo "source-test-group: unknown or empty GROUP='$(GROUP)'; choose one of $(SOURCE_TEST_GROUPS)" >&2; exit 2;; esac
 	@test -n "$(SOURCE_TEST_FILES_$(GROUP))" || { echo "source-test-group: GROUP=$(GROUP) has no declared test files" >&2; exit 2; }
 	$(NODE) scripts/kit/run-tests.mts node -- --test-concurrency=1 $(SOURCE_TEST_FILES_$(GROUP))
+
+.PHONY: workflow-env-smoke
+workflow-env-smoke: ## Verify native workflow expression and child environment casing, last writes and PATH; offline
+	$(NODE) scripts/kit/run-tests.mts node -- --test-concurrency=1 tests/source/workflow-env-real.test.mts
 
 .PHONY: case-sensitive-runner-smoke
 # The smoke of kit's own CI (K1121): the standard Node runner in a temporary verified case-sensitive directory, with kit's own smoke file.

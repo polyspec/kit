@@ -2,6 +2,10 @@
   "schema": 1,
   "comment": "The class of each tool of kit (S1, K74): ecosystem names the tool it uses, replaced the library and its item, record the rebuild record, policy the reason no ecosystem tool applies.",
   "tools": {
+    "scripts/kit/environment.mts": {
+      "kind": "policy",
+      "reason": "the native workflow environment key-comparison policy: process records and the expression context share platform-specific first-spelling/last-value merges; no ecosystem command merges these local job scopes"
+    },
     "scripts/kit/actions-expression.mts": {
       "kind": "ecosystem",
       "tool": "@actions/expressions, the expression package of GitHub Actions, whose Lexer, Parser and Evaluator parse and evaluate the expressions of a workflow; the module gives it the contexts and the status functions of the local run of a job (ci-job.mts)"

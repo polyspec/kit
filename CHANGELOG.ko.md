@@ -1,10 +1,20 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6addef96f43d8fb383327a073bd963bc1cc149380d8579b4e61465567ffe8017 -->
+<!-- source-sha256: 60fccdb8ed811c836f1fed430c6020f61d540c7db9a52f4d72e242f5959778b4 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1228-2: Environment expression은 POSIX key의 대소문자를 구분한다. Environment 전용 public Dictionary adapter는
+  조회, filter와 serialization을 보존하고 다른 context는 native case folding을 유지한다. 공유 environment merge는
+  Windows의 지원하는 ASCII 이름에서 실제 child variable과 PATH를 포함해 첫 표기와 마지막 값을 유지한다. 지원하지 않는 정확한 native
+  JSON key는 사용 전에 드러나게 거부하고 독립된 file-command channel은 보존한다. Environment capability 거부는
+  직접 또는 composite continue-on-error를 넘어서 이후 user script를 멈추고 소유 자원 cleanup을 마친다. Native
+  file-command 실패는 원래 허용 의미를 유지한다. Windows non-ASCII 이름은
+  OrdinalIgnoreCase를 근사하는 대신 거부하며 Unicode 값과 POSIX Unicode 이름은 계속 지원한다. Native environment smoke는 Linux
+  source CI와 macOS/Windows bootstrap에서 실행한다. 로컬 Mac 증거와 순수 Windows-policy 시험은 서로 다르며 native
+  Windows process 증거는 실제 CI 실행을 기다린다.
 
 - K1233 검증: 선언한 command는 commit된 구현에서 시험 23개를 통과한다. 현재 runner와 fixture cleanup을 정상
   merge한 뒤 전체 local-job owner는 시험 50개를 통과하고 typecheck와 docs-check도 통과한다. 통합 전 expression과
