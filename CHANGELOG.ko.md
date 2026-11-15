@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+## 0.0.113
+
 - K1251: workflow job의 로컬 runner를 제거했다. `ci-job.mts`, 그 expression, environment, 거부 module, 그 test, `workflow-env-smoke` target, export `./ci-job`, dependency `@actions/expressions`가 사라졌다. 모든 CI job이 recipe 하나이므로(K1250) 로컬 실행은 recipe를 부르고 runner 흉내가 필요 없다. K1227, K1228, K1228-1, K1228-2, K1228-3, K1233을 철회했다.
 
 - K1250: kit의 모든 workflow와 예시 workflow의 모든 job은 recipe 하나를 실행한다. run step은 make 변수만 받는 `make ci-<job>` 하나다. pipeline은 `make ci-plan`, `ci-shared`, `ci-runtime RUNTIME=<runtime>`, `ci-required`를 실행하며 이들은 job의 도구와 target을 config/ci.json에서 읽는다. release job은 `make ci-release`를, bootstrap action은 `make bootstrap`을, kit 자신의 job은 `make ci-checks`, `ci-kit-tests`, `ci-source-tests`, `ci-bootstrap`, `ci-kit`을 실행한다. recipe는 먼저 설치하고 실패에서 멈추며, 모든 검사를 끝까지 실행하고 정리한다. `tests/kit/ci-workflow-jobs.test.mts`는 규칙을 어기는 job을 실패시킨다.
@@ -14,7 +16,6 @@
 
 - K1237: worktree workspace executable link는 npm이 선택한 name과 external executable entry를 보존하면서 worktree source를 사용한다.
 
-## 0.0.113
 
 - K1236 검증: commit된 candidate note 통합에서 make docs-check가 통과한다. candidate 준비를 완료했으며 CI, archive와 공개 검증은 별도로 남아 있다.
 
