@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1216 verification: The annotated v0.0.111 release is public at its tagged commit. The declared docs-check command passes on the committed tree with Node 26.12.0; the release task is complete.
+
 - K1235 verification: the exact declared unit passes on the committed implementation with Node 26.12.0; the focused reporter/progress owners pass four tests without skips. Typecheck, lint-ts, duplication-check and docs-check pass. Heartbeat observation age remains distinct from the native 1400ms result, and interval cadence and close behavior are preserved.
 
 - K1235: Progress heartbeats report waiting for test events, each last-reported active case and elapsed time since its start was observed. A reported start without a received result did not prove live execution: native completion events can arrive after later synchronous work. The timer cadence, native durations, counts, selection, timeouts and cleanup are unchanged. A deterministic observation-clock regression preserves the native 1400ms result and interval cleanup.

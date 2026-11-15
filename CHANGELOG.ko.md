@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 81ff8cb3ca475133d1fc465041fd93c090d5e385b01f848eb5a8d1b96d14a3bd -->
+<!-- source-sha256: 94cc970df46edf82957d3dcb590b56daeb480410cb6152d0862c5416a966e16c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1216 verification: annotated v0.0.111 release가 tag의 commit에서 공개됐다. 선언한 docs-check 명령이 Node 26.12.0으로 committed tree에서 통과하여 release task를 완료했다.
 
 - K1235 검증: Node 26.12.0에서 commit된 구현의 선언된 unit이 통과하며 집중 reporter/progress owner 시험 네 개가 skip 없이 통과한다. Typecheck, lint-ts, duplication-check, docs-check가 통과한다. Heartbeat의 관측 경과 시간은 native 1400ms 결과와 구분하고 interval 주기와 close 동작을 보존한다.
 
