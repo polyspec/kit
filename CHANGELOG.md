@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1254: The rules check reaches the targets that a call of `ci-setup.mjs` runs: `--job shared` reaches `kit-gates-static` and the setup and targets of the shared job of `config/ci.json`, and `--job runtime <runtime>` reaches `kit-gates-runtime-<runtime>` and the setup and targets of that runtime, or of each runtime of the plan when the runtime is a variable. Before, every such target was reported as reached by no CI workflow or Git hook.
+
 ## 0.0.113
 
 - K1253: The release job passes TAG and VERSION to each release step after the checkout of the tag; release-assets of 0.0.113 stopped with "TAG is required" because the recipe ci-release called the steps without it.

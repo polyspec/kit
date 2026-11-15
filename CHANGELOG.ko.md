@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 1c0dd444f332fcdcaa2cb1d354615e7eae6ba747f29823de55c7d7839b06dd2c -->
+<!-- source-sha256: b59f990d8a5ed21d99a2d2b1fb25efb88e854eff0e5fa792b1121b261aae59d4 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1254: rules check는 `ci-setup.mjs` 호출이 실행하는 target에 도달한다. `--job shared`는 `kit-gates-static`과 `config/ci.json`의 shared job의 setup과 target에 도달하고, `--job runtime <runtime>`은 `kit-gates-runtime-<runtime>`과 그 runtime의 setup과 target에, runtime이 변수이면 plan의 runtime 각각에 도달한다. 이전에는 그런 target이 모두 어떤 CI workflow나 Git hook도 도달하지 않는다고 보고되었다.
 
 ## 0.0.113
 

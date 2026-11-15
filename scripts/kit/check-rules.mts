@@ -18,6 +18,7 @@ import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { lineBlocks } from './markdown.mts';
 import { makeDatabase, suiteTargets, type MakeDatabase } from './owner-check.mts';
+import { ciJobTargets, RUNTIMES } from './ci-setup.mts';
 import { commandParts, expandMake, makeArguments } from './recipe-tools.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { CONFIG, loadConfig, readChecklist, statesOf, trackersOf, workingPlanFiles } from './checklist.mts';
@@ -216,6 +217,18 @@ export function reached(root: string, make: MakeDatabase): { targets: Set<string
     if (path.basename(command) !== 'make') {
       // A command that runs a file of the repository hands it its arguments, and the file runs the targets that they name, as the
       // check runner of orm runs make on each target of its arguments (K941-2). A command that runs no file runs no target (K941-1).
+      // ci-setup of kit runs the targets of its CI job that config/ci.json declares and the gate of kit (K1250), so a call of it
+      // reaches them: `--job shared` the shared job, `--job runtime <runtime>` that runtime, or each runtime of the plan when the
+      // runtime is no literal runtime, such as an expression of the workflow (K1254).
+      const setup = [command, ...args].findIndex(word => /^ci-setup\.(mjs|mts|js)$/.test(path.basename(word)));
+      if (setup >= 0) {
+        const [mode, group, runtime] = [command, ...args].slice(setup + 1);
+        if (mode === '--job' && (group === 'shared' || group === 'runtime') && existsSync(path.join(root, 'config/ci.json'))) {
+          const literal = group === 'runtime' && (RUNTIMES as readonly string[]).includes(runtime ?? '') ? runtime : undefined;
+          for (const target of ciJobTargets(root, group, literal)) queue.push({ target, variables: new Map(variables) });
+          return;
+        }
+      }
       const isFile = (word: string) => existsSync(path.resolve(root, word)) && statSync(path.resolve(root, word)).isFile();
       if (![command, ...args].some(isFile)) return;
       for (const word of args) if (make.targets.has(word)) queue.push({ target: word, variables: new Map(variables) });

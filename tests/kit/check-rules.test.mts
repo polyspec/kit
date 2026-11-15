@@ -361,3 +361,19 @@ test('no Enforced by line of PRINCIPLES.md names a path under tests/ or scripts/
   assert.deepEqual(lines.filter(line => /(?:^|[\s,(])(?:tests|scripts)\/\S/.test(line)), []);
 });
 
+
+// K1254: ci-setup of kit runs the gate of kit and the setup and targets of its CI job that config/ci.json declares (K1250), so a
+// recipe that calls it reaches them: `--job shared` the shared job, `--job runtime $(RUNTIME)` each runtime of the plan when the
+// runtime is an expression of the workflow, and a literal runtime only that runtime.
+test('a recipe that calls ci-setup reaches the gate of kit and the setup and targets of its job of config/ci.json (K1254)', (t) => {
+  const names = ['own-docs', 'setup-go', 'test-go', 'lint-go', 'lint-rust', 'test-rust', 'shared-extra'];
+  const agents = rules(...names.map(name => `- Own: ${name}.\n  Enforced by: \`make ${name}\``));
+  const config = JSON.stringify({ schema: 1, runtimes: ['go', 'rust'], setup: { shared: [], runtimes: { go: ['setup-go'], rust: ['deps-rust'] } }, targets: { shared: ['shared-extra'], runtimes: { go: ['test-go'], rust: ['test-rust'] } } });
+  const makefile = `KIT := node_modules/@polyspec/kit/dist\nci-shared:\n\t$(NODE) $(KIT)/ci-setup.mjs --job shared\nci-runtime:\n\t$(NODE) $(KIT)/ci-setup.mjs --job runtime $(RUNTIME)\nkit-gates-static: own-docs\nkit-gates-runtime-go: lint-go\nkit-gates-runtime-rust: lint-rust\ndeps-rust:\n\t@echo deps\n${names.map(name => `${name}:\n\t@echo ${name}\n`).join('')}`;
+  const workflow = (runtime: string) => `name: ci\non: push\njobs:\n  shared:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: make ci-shared\n  runtime:\n    runs-on: ubuntu-24.04\n    strategy:\n      matrix:\n        runtime: ${runtime}\n    steps:\n      - run: make ci-runtime RUNTIME=\${{ matrix.runtime }}\n`;
+  const all = checkRules(tree(t, { Makefile: makefile, 'config/ci.json': config, '.github/workflows/ci.yml': workflow('${{ fromJson(needs.plan.outputs.runtimes) }}'), 'AGENTS.md': agents, 'AGENTS.ko.md': agents }), ['AGENTS.md']).findings;
+  assert.deepEqual(all, []);
+  const go = checkRules(tree(t, { Makefile: makefile, 'config/ci.json': config, '.github/workflows/ci.yml': workflow('[go]'), 'AGENTS.md': agents, 'AGENTS.ko.md': agents }), ['AGENTS.md']).findings;
+  assert.equal(go.length, 2, go.join('\n'));
+  assert.ok(go.every(finding => /make (lint|test)-rust runs at no point/.test(finding)), go.join('\n'));
+});

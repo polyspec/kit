@@ -149,6 +149,20 @@ export function ciSetupInvocations(root: string, group: SetupGroup, runtime?: st
   return invocations(root, group, runtime);
 }
 
+/**
+ * The make targets that the CI job of `group` runs in `root`: its setup, the preparation and cleanup of its context, the gate of
+ * kit and the targets of config/ci.json, as runCIJob runs them; for the runtime group each runtime of the plan unless `runtime`
+ * names one. The rules check reads the reach of a call of ci-setup from it (K1254).
+ */
+export function ciJobTargets(root: string, group: SetupGroup, runtime?: string): string[] {
+  const result = plan(root);
+  const { config } = readAndValidate(root);
+  const context = (scope: CIJob) => { const found = config.contexts?.[scope]; return found === undefined ? [] : [found.prepare, found.cleanup]; };
+  if (group === 'shared') return [...invocations(root, 'shared').map(({ target }) => target), ...context('shared'), 'kit-gates-static', ...result.sharedTargets];
+  return result.runtimes.flatMap(({ runtime: name, targets }) => (name === 'none' || (runtime !== undefined && name !== runtime) ? [] : [
+    ...invocations(root, 'runtime', name).map(({ target }) => target), ...context(name), `kit-gates-runtime-${name}`, ...targets]));
+}
+
 function writePlan(root: string): void {
   const result = plan(root);
   const output = process.env.GITHUB_OUTPUT;
