@@ -127,6 +127,15 @@ Fixtures remain available until the owned commands close. A test closes its prox
 close before removing their files, including when an assertion fails. Cooperative helper termination and escalation are
 verified by native lifecycle tests independently of download speed; no test adds a second deadline to that lifecycle.
 
+## Progress event observations (K1235)
+
+A progress heartbeat reports waiting for test events. Each named case was last reported active, and its heartbeat age is
+elapsed time since the start event was observed by the reporter. It does not claim that the case is currently executing or
+that this age is its native execution duration. Native events can be buffered while later synchronous work runs.
+
+The heartbeat cadence, run elapsed prefix, native result durations, counts, selection, tool timeouts and process cleanup
+remain unchanged. Closing a progress run still clears its interval; observation waiting introduces no deadline.
+
 ## Case-sensitive test directories (K1231)
 
 A test that needs case-distinct names receives a directory whose filesystem passes the actual two-name probe before the

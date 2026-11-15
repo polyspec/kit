@@ -29,7 +29,7 @@ import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSy
 import path from 'node:path';
 import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { projectEnvironment, uvLink } from './uv-install.mts';
-import { composerRecordFindings, composerVendorDir, decideProviders, environmentLinks, folderFindings, hasPythonPackages, linkFolders, managerLink, managerLinkFindings, type ProvidedFolder, providedFolders, providerDependencyFindings } from './link-folders.mts';
+import { composerRecordFindings, composerVendorDir, decideProviders, environmentLinks, folderFindings, hasPythonPackages, linkFolders, managerLink, managerLinkFindings, nativeLocalSourceFindings, type ProvidedFolder, providedFolders, providerDependencyFindings } from './link-folders.mts';
 import { assertIgnored, declaredCheckouts, type Ecosystem, EXCLUDED, goModule, type GoRequirement, LINKS_FILE, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, soleProvider, type Tool, trackedManifests, workTreeOf } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
 import { toolCommand } from './mise-tools.mts';
@@ -481,6 +481,12 @@ export function autoloadRecordFindings(directory: string, found: Map<string, Pro
   const work: Run = { found, check: true, print: () => {}, failed: false, env, declared: new Set() };
   const ecosystems: FolderEcosystem[] = ['composer'];
   return [...new Set(linkedProjects(consumer, ecosystems).flatMap(item => composerRecordFindings(consumer.top, [...projectFolders(work, consumer, item, ecosystems), ...ownerFolders(work, consumer, item, ecosystems)])))];
+}
+
+/** K1230: native installed local sources of each selected project, independent of .links providers. */
+export function nativeSourceFindings(directory: string, env: NodeJS.ProcessEnv, project = false): string[] {
+  const consumer = consumerOf(directory, project);
+  return linkedProjects(consumer, ['npm', 'composer', 'python']).flatMap(item => nativeLocalSourceFindings(item, env, () => environmentOf(consumer.top, item, env)));
 }
 
 /** The vendor folder that the composer.json of `project` names in config.vendor-dir, read from the file, else vendor. */

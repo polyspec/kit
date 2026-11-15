@@ -1,10 +1,16 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d41f5b8b59b4f5228fc940be0630680f5a5f0de72062dde87e34cc412b7d75b4 -->
+<!-- source-sha256: c6456e63fa8b2041ddf2b362206e1ecf32f0ed3b9fc0aab1c0a2f15cfda1afe8 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1235 검증: Node 26.12.0에서 commit된 구현의 선언된 unit이 통과하며 집중 reporter/progress owner 시험 네 개가 skip 없이 통과한다. Typecheck, lint-ts, duplication-check, docs-check가 통과한다. Heartbeat의 관측 경과 시간은 native 1400ms 결과와 구분하고 interval 주기와 close 동작을 보존한다.
+
+- K1235: Progress heartbeat는 test event를 기다리는 상태와 마지막으로 active라고 보고된 각 case, 시작을 관측한 뒤 흐른 시간을 보고한다. 시작을 보고받고 아직 결과를 받지 못한 상태는 현재 실행 중이라는 근거가 아니었다. Native 완료 event는 이후 동기 작업 뒤에 도착할 수 있다. Timer 주기, native 시간, count, 선택, timeout, cleanup은 바꾸지 않았다. 결정적인 관측 clock 회귀 시험이 native 1400ms 결과와 interval 해제를 보존한다.
+
+- K1230: link-check는 명시한 npm, Composer, uv local source를 native installed link 또는 source record와 비교한다. Python editable distribution의 native loader와 metadata를 보존하고 정상 link reconciliation으로 더는 선언에 속하지 않는 package link를 제거한다. 회귀 5개와 offline packed-consumer를 포함해 owner가 선택한 14개 파일의 228개 경우를 검증했다. Dependency 선택은 native package manager에 맡긴다.
 
 - K1228-3 검증: 정확히 선언한 command는 commit된 구현에서 direct/composite capability 사례 여섯 개, native-exit
   허용 control 두 개와 typed 거부의 출처를 포함해 시험 아홉 개를 통과한다. 관련 owner file 네 개 전체는 실패나

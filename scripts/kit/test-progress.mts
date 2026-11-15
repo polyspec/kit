@@ -1,4 +1,4 @@
-// Test progress: one line when a test starts, a line while it keeps running, and one line when it passes, fails or is skipped,
+// Test progress: observed starts and results, with heartbeat lines while a reported case awaits its completion events,
 // each stamped with the elapsed time of the run. Every test runner prints through this module, so all suites read the same
 // way. It sets no time limit: a test runs until its tool ends it (K1175).
 import { writeFileSync } from 'node:fs';
@@ -17,7 +17,7 @@ export type Progress = ReturnType<typeof createProgress>;
 /**
  * @param {object} options
  * @param {(text: string) => void} options.write receives complete lines
- * @param {number} [options.heartbeatMs] interval of the still-running lines
+ * @param {number} [options.heartbeatMs] interval of lines that describe waiting for test events
  * @param {() => number} [options.now]
  * @param {string} [options.resultFile] receives the counts of the run as JSON when it ends
  */
@@ -28,7 +28,7 @@ export function createProgress({ write, heartbeatMs = 5000, now = () => Date.now
   resultFile?: string | undefined;
 }) {
   const started = now();
-  // The start of each running test.
+  // When each pending case's start event was observed; this does not establish live execution.
   const running = new Map<string, number>();
   const counts = { passed: 0, failed: 0, skipped: 0 };
   // Each test with its outcome and elapsed time, in the order they ended.
@@ -40,7 +40,7 @@ export function createProgress({ write, heartbeatMs = 5000, now = () => Date.now
   const skipped: string[] = [];
   const line = (text: string): unknown => write(`[${compactSeconds(now() - started).padStart(8)}] ${text}\n`);
   const timer = setInterval(() => {
-    for (const [id, began] of running) line(`… ${id} still running (${compactSeconds(now() - began)})`);
+    for (const [id, began] of running) line(`… waiting for test events; ${id} was last reported active (${compactSeconds(now() - began)} since its start was observed)`);
   }, heartbeatMs);
   timer.unref?.();
   // A group (a test file or a package) prints its lines but is not counted as a test.
@@ -94,7 +94,7 @@ export function createProgress({ write, heartbeatMs = 5000, now = () => Date.now
     },
     /**
      * End the run and return `{ passed, failed, skipped, ran, ok, cases }`, with `notRun` when a test did not run; `cases` holds
-     * `{ id, status, elapsedMs }` of each test, `status` being `pass`, `fail` or `skip`. Tests still running are failures. A failed
+     * `{ id, status, elapsedMs }` of each test, `status` being `pass`, `fail` or `skip`. Tests without an observed result are failures. A failed
      * group, a test that did not run, a nonzero `exitCode` of the tool, or a run in which no test passed or failed fails the run even
      * when no test failed: a run that only skipped checked nothing. The summary is `N passed, N failed, N skipped`, followed by
      * `, N not run` only when a test did not run, so the sum of the counts is the number of tests that the tool counted (K1214). The summary of a nonzero `exitCode` states that status and no guess at its cause, which the lines of

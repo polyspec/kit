@@ -3,11 +3,15 @@
 // that answers `vendor` to `config vendor-dir`.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import test, { type TestContext } from 'node:test';
 import { initRepository } from './sandbox-repository.mts';
+import { link } from '../../scripts/kit/link.mts';
+import { uvLink } from '../../scripts/kit/uv-install.mts';
+import { linkFolders, providedFolders } from '../../scripts/kit/link-folders.mts';
 import { linkCheck, linkFindings } from '../../scripts/kit/link-check.mts';
 import { put, tree } from './tree.mts';
 
@@ -265,4 +269,99 @@ test('with no link declaration, an own Python package installed editable is no f
   const declared: string[] = [];
   assert.equal(linkCheck(own, false, text => declared.push(text), env).ok, false, declared.join('\n'));
   assert.ok(declared.some(line => line.includes('polyspec-own') && line.includes('is missing; fix: make link')), declared.join('\n'));
+});
+
+// K1230: native records identify installed sources; kit only compares them with explicit local declarations.
+for (const ecosystem of ['npm', 'composer', 'python'] as const) {
+  test(`K1230 reports a native ${ecosystem} source from another checkout and accepts its declared checkout`, (t) => {
+    const packageName = ecosystem === 'npm' ? '@sample/package' : 'sample/package';
+    const manifest = ecosystem === 'npm' ? 'package.json' : ecosystem === 'composer' ? 'composer.json' : 'pyproject.toml';
+    const content = ecosystem === 'python' ? '[project]\nname = "sample-package"\nversion = "1.0"\n' : JSON.stringify({ name: packageName });
+    const root = tree(t, { '.gitignore': 'node_modules/\nvendor/\n.venv/\n', [`wanted/${manifest}`]: content, [`other/${manifest}`]: content });
+    const target = path.join(root, 'wanted');
+    const other = path.join(root, 'other');
+    if (ecosystem === 'npm') {
+      put(root, { 'package.json': JSON.stringify({ name: 'consumer', dependencies: { [packageName]: 'file:wanted' } }), 'package-lock.json': JSON.stringify({ lockfileVersion: 3, packages: { ['node_modules/' + packageName]: { link: true, resolved: 'wanted' } } }) });
+    } else if (ecosystem === 'composer') {
+      put(root, { 'composer.json': JSON.stringify({ name: 'consumer/app', require: { 'sample/package': '*' }, repositories: [{ type: 'path', url: 'wanted' }] }), 'vendor/composer/installed.json': JSON.stringify({ packages: [{ name: 'sample/package', dist: { type: 'path', url: 'wanted' } }] }) });
+    } else {
+      put(root, { 'pyproject.toml': '[project]\nname = "consumer"\nversion = "1.0"\ndependencies = ["sample-package"]\n[tool.uv.sources]\nsample-package = { path = "wanted", editable = true }\n' });
+    }
+    const folder = path.join(root, ecosystem === 'npm' ? 'node_modules/' + packageName : 'vendor/sample/package');
+    const direct = '.venv/lib/python3.14/site-packages/sample_package-1.0.dist-info/direct_url.json';
+    const install = (source: string) => {
+      if (ecosystem === 'python') put(root, { [direct]: JSON.stringify({ url: pathToFileURL(source).href, dir_info: { editable: true } }) });
+      else { mkdirSync(path.dirname(folder), { recursive: true }); rmSync(folder, { force: true }); symlinkSync(source, folder); }
+    };
+    commitAll(root, 'consumer');
+    put(root, { 'stub-uv': '#!/bin/sh\nprintf "%s\\n" "' + root + '"\n' });
+    chmodSync(path.join(root, 'stub-uv'), 0o755);
+    const findings = () => linkFindings(root, { ...process.env, UV: path.join(root, 'stub-uv'), UV_PROJECT_ENVIRONMENT: '.venv' }, root, true).filter(line => line.includes('installed source'));
+    install(other);
+    assert.equal(findings().length, 1, 'another checkout with the same package name must fail');
+    assert.match(findings()[0] ?? '', /declared.*wanted.*installed source.*other/);
+    install(target);
+    assert.deepEqual(findings(), []);
+    if (ecosystem === 'composer') {
+      rmSync(folder);
+      mkdirSync(folder);
+      assert.deepEqual(findings(), [], 'a native mirrored path install uses its installed dist.url');
+      put(root, { 'vendor/composer/installed.json': JSON.stringify({ packages: [{ name: 'sample/package', dist: { type: 'path', url: 'other' } }] }) });
+      assert.equal(findings().length, 1, 'a mirrored install from another declared source must fail');
+    } else if (ecosystem === 'python') {
+      put(root, { [direct]: JSON.stringify({ url: 'https://example.invalid/package.whl' }) });
+      assert.equal(findings().length, 1, 'a release record cannot stand for a local source');
+    } else {
+      const alias = path.join(root, 'alias');
+      symlinkSync(target, alias);
+      install(alias);
+      assert.deepEqual(findings(), [], 'filesystem aliases of the declared source are the same source');
+    }
+  });
+}
+
+test('K1230 preserves uv editable namespace sources when .links provides another checkout', (t) => {
+  const root = tree(t, {
+    'pyproject.toml': '[project]\nname="consumer"\nversion="1.0"\n[tool.uv.sources]\nsample-package={path="wanted",editable=true}\n',
+    'wanted/pyproject.toml': '[project]\nname="sample-package"\nversion="1.0"\n[tool.hatch.build.targets.wheel]\npackages=["src/sample"]\n',
+    'wanted/src/sample/contracts/__init__.py': '',
+    'wanted/src/sample/model/__init__.py': '',
+    'other/pyproject.toml': '[project]\nname="sample-package"\nversion="1.0"\n[tool.hatch.build.targets.wheel]\npackages=["src/sample"]\n',
+    'other/src/sample/contracts/__init__.py': '',
+    'other/src/sample/model/__init__.py': '',
+  });
+  const site = path.join(root, '.venv/lib/python3.14/site-packages');
+  put(root, { '.venv/lib/python3.14/site-packages/sample_package-1.0.dist-info/direct_url.json': JSON.stringify({ url: pathToFileURL(path.join(root, 'wanted')).href, dir_info: { editable: true } }), '.venv/lib/python3.14/site-packages/_sample.pth': path.join(root, 'wanted/src') + '\n' });
+  const provider = { ecosystem: 'python' as const, name: 'sample-package', folder: path.join(root, 'other'), checkout: root, repository: 'fixture' };
+  const folders = providedFolders(root, [provider], { environment: '.venv' });
+  assert.deepEqual(linkFolders(folders), [], 'native editable sources belong to uv, even when the provider source differs');
+  assert.equal(existsSync(path.join(site, 'sample')), false, 'no physical namespace can shadow the editable import path');
+  put(root, { '.venv/pyvenv.cfg': 'home = fixture\n', 'stub-uv': '#!/bin/sh\nprintf "%s\\n" "' + root + '"\n' });
+  chmodSync(path.join(root, 'stub-uv'), 0o755);
+  uvLink({ directory: root, providers: [provider], uv: path.join(root, 'stub-uv'), env: { ...process.env, UV_PROJECT_ENVIRONMENT: '.venv' } });
+  assert.equal(existsSync(path.join(site, 'sample')), false, 'the uv install/link flow preserves its native editable result');
+});
+
+test('K1230 link removes superseded package links while retaining the native editable loader and source', (t) => {
+  const root = tree(t, {
+    '.gitignore': '.venv/\n.links\n', '.links': '',
+    'pyproject.toml': '[project]\nname="sample-package"\nversion="1.0"\ndependencies=["polyspec-dependency"]\n',
+    'src/sample/contracts/__init__.py': 'value = 7\n',
+    'src/sample/model/__init__.py': 'value = 9\n',
+  });
+  commitAll(root, 'editable source');
+  const site = path.join(root, '.venv/lib/python3.14/site-packages');
+  const loader = path.join(root, 'src') + '\n';
+  put(root, { '.venv/lib/python3.14/site-packages/_sample.pth': loader, '.venv/lib/python3.14/site-packages/sample_package-1.0.dist-info/direct_url.json': JSON.stringify({ url: pathToFileURL(root).href, dir_info: { editable: true } }) });
+  mkdirSync(path.join(site, 'sample'), { recursive: true });
+  for (const name of ['contracts', 'model']) symlinkSync(path.join(root, 'src/sample', name), path.join(site, 'sample', name));
+  put(root, { 'stub-uv': '#!/bin/sh\nprintf "%s\\n" "' + root + '"\n', '.venv/pyvenv.cfg': 'fixture\n', '.venv/lib/python3.14/site-packages/polyspec_dependency-1.0.dist-info/METADATA': 'Name: polyspec-dependency\nVersion: 1.0\n' });
+  chmodSync(path.join(root, 'stub-uv'), 0o755);
+  const env = { ...process.env, UV: path.join(root, 'stub-uv'), UV_PROJECT_ENVIRONMENT: '.venv' };
+  assert.equal(linkCheck(root, true, () => {}, env).ok, false);
+  link({ checkouts: [], directories: [root], check: false, project: true, runtime: 'python', own: true, print: () => {}, env });
+  assert.equal(linkCheck(root, true, () => {}, env).ok, true);
+  assert.equal(readFileSync(path.join(site, '_sample.pth'), 'utf8'), loader);
+  assert.equal(readFileSync(path.join(root, 'src/sample/contracts/__init__.py'), 'utf8'), 'value = 7\n');
+  assert.equal(readFileSync(path.join(root, 'src/sample/model/__init__.py'), 'utf8'), 'value = 9\n');
 });

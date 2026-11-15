@@ -13,7 +13,7 @@
 // What a manifest names, a path or a version, and whether Git ignores the declaration are the repository's own and are not judged (K1108). A finding names the ecosystem and the package or the file.
 //
 //   node link-check.mts [--project <dir>]
-import { autoloadRecordFindings, declaredUnlinked, link } from './link.mts';
+import { autoloadRecordFindings, declaredUnlinked, link, nativeSourceFindings } from './link.mts';
 import { declaredCheckouts, LINKS_FILE, providers, workTreeOf } from './link-providers.mts';
 import { isMain } from './paths.mts';
 
@@ -25,7 +25,7 @@ export function linkFindings(root: string, env: NodeJS.ProcessEnv = process.env,
   const checkouts = declaredCheckouts(root);
   const provided = providers(checkouts ?? [], undefined, root, root);
   // Whether Git ignores the declaration is the repository's own .gitignore, which kit does not judge (K1108).
-  return [...declaredUnlinked(directory, provided, env, project), ...autoloadRecordFindings(directory, provided, env, project)].sort();
+  return [...declaredUnlinked(directory, provided, env, project), ...autoloadRecordFindings(directory, provided, env, project), ...nativeSourceFindings(directory, env, project)].sort();
 }
 
 /**
