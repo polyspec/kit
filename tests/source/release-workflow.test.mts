@@ -90,7 +90,7 @@ test('the release workflow bootstraps the package, checks the configuration, the
   const tag = step('make release-tag', /^make release-tag /);
   assert.ok(step('the Composer archive preflight', /^command -v zip /).line < tag.line, 'archive capability is checked before the release');
   // The kit of main tags (K269, K911); the tagged commit is bootstrapped again before its release.
-  assert.deepEqual(runs.filter(run => run.command.startsWith('make ')).slice(0, 5).map(run => run.command), ['make bootstrap', 'make release-tag $(if $(filter workflow_run,$(GITHUB_EVENT_NAME)),AUTO=1)', 'make bootstrap', 'make release-prepare', 'make release-tools']);
+  assert.deepEqual(runs.filter(run => run.command.startsWith('make ')).slice(0, 5).map(run => run.command), ['make bootstrap', 'make release-tag GITHUB_ENV=$(CURDIR)/$(RELEASE_ENV) $(if $(filter workflow_run,$(GITHUB_EVENT_NAME)),AUTO=1)', 'make bootstrap', 'make release-prepare', 'make release-tools']);
 });
 
 test('kit releases itself with the workflow it vendors: .github/workflows/release.yml is workflows/release.yml', () => {
@@ -113,7 +113,7 @@ test('K987: a green push or dispatch run of ci starts the release of its head_sh
   assert.match(text, /^ {4}if: \$\{\{ github\.event_name == 'workflow_dispatch' \|\| \(github\.event\.workflow_run\.conclusion == 'success' && \(github\.event\.workflow_run\.event == 'push' \|\| github\.event\.workflow_run\.event == 'workflow_dispatch'\)\) \}\}$/m);
   assert.match(text, /^ {6}RUN: \$\{\{ inputs\.run \|\| github\.event\.workflow_run\.id \}\}$/m);
   assert.match(text, /fetch-depth: 0\n {10}ref: \$\{\{ github\.event\.workflow_run\.head_sha \}\}\n/, 'the checkout is the head_sha of the run');
-  const tag = step('make release-tag', /^make release-tag \$\(if \$\(filter workflow_run,\$\(GITHUB_EVENT_NAME\)\),AUTO=1\)$/);
+  const tag = step('make release-tag', /^make release-tag GITHUB_ENV=\$\(CURDIR\)\/\$\(RELEASE_ENV\) \$\(if \$\(filter workflow_run,\$\(GITHUB_EVENT_NAME\)\),AUTO=1\)$/);
   const checkout = step('git checkout of the tag', /git checkout --quiet "\$\$tag"$/);
   assert.ok(tag.line < checkout.line, 'the steps after release-tag run only for the tag it wrote');
   assert.match(recipe.join('\n'), /if \[ -z "\$\$tag" \]\nthen echo .*\nexit 0\nfi/, 'without a tag the job releases nothing and passes');
