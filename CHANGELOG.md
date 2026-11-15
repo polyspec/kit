@@ -5,6 +5,11 @@
 
 ## Unreleased
 
+- K1233 verification: the declared command passes 23 tests on the committed implementation. After the normal merge of
+  the current runner and fixture cleanup, the complete local-job owner passes 50 tests and typecheck and docs-check pass.
+  Before integration, the combined expression and local-job owners pass 61 tests; duplication-check and lint-ts pass.
+  All test selections have zero failures or skips and use Node 26.12.0 with npm 12.2.0.
+
 - K1231-1 verification: the declared selection passes 18 tests on the committed integrated implementation with Node 26.12.0. The placement and lifetime selection passes 23 tests, and the complete shared-signal and runtime owner files pass 51 tests without skips. Typecheck, lint-ts, duplication-check and docs-check pass. The exact native Darwin `make case-sensitive-runner-smoke` passes one test and exits 0; the image is detached, both owned resource paths are removed, and the caller temporary directory is empty.
 
 - K1231-1: Command resource scopes await asynchronous actions and cleanup before normal or interrupted completion. Interrupted execution closes normal command admission while cleanup commands remain owned until their phase finishes. The runtime runner retains its case directory and result records through native child close, preserves inherited stdin, and nests private reporter files under an explicit report parent without including those files in the input digest. Event-driven lifetime, provisioning, interruption and report ownership regressions pass.

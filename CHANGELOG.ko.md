@@ -1,10 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 108217b5ab3350b806f2f78a5723bfc247fb3e270436fbd396cf230ea0a431e3 -->
+<!-- source-sha256: 6addef96f43d8fb383327a073bd963bc1cc149380d8579b4e61465567ffe8017 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1233 검증: 선언한 command는 commit된 구현에서 시험 23개를 통과한다. 현재 runner와 fixture cleanup을 정상
+  merge한 뒤 전체 local-job owner는 시험 50개를 통과하고 typecheck와 docs-check도 통과한다. 통합 전 expression과
+  local-job owner를 합친 시험 61개, duplication-check와 lint-ts가 통과한다. 모든 시험 선택은 실패나 skip이 없으며
+  Node 26.12.0과 npm 12.2.0을 사용한다.
 
 - K1231-1 검증: Node 26.12.0에서 commit된 통합 구현의 선언된 선택은 시험 18개를 통과한다. 배치와 수명 선택은 23개, 전체 shared-signal과 runtime owner 파일은 skip 없이 51개 시험을 통과한다. Typecheck, lint-ts, duplication-check, docs-check가 통과한다. Native Darwin의 정확한 `make case-sensitive-runner-smoke`는 시험 하나를 통과하고 0으로 종료한다. Image는 detach되고 소유한 두 resource 경로는 제거되며 호출자 임시 디렉터리는 비어 있다.
 
