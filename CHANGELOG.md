@@ -7,6 +7,8 @@
 
 ## 0.0.113
 
+- K1236 verification: make docs-check passes on the committed candidate-note fold. Candidate preparation is complete; CI, archive and publication verification remain separate.
+
 - K1236: Candidate preparation preserves the existing untagged version and older release history while folding complete notes into that version. Document verification remains separate from CI, archive and publication evidence.
 
 - K1234: Native local-path installations are reported as retained. npm and Composer links show their actual resolved target, mirrors show their installed location, and Python editable entries show their native source. Provider paths are no longer reported as native targets. Two regressions preserve link inodes and installed metadata; all 215 cases in the 12 owner-selected files pass.

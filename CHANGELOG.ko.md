@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ba3b32c0e3296cc2a0caac5769216a13db58a3142997282f9314b84dffcc2158 -->
+<!-- source-sha256: 5a876145a36b8938d63b771df4ab17c2f69c74f8fd21f8ae2140f665f80c6b51 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -7,6 +7,8 @@
 ## Unreleased
 
 ## 0.0.113
+
+- K1236 검증: commit된 candidate note 통합에서 make docs-check가 통과한다. candidate 준비를 완료했으며 CI, archive와 공개 검증은 별도로 남아 있다.
 
 - K1236: candidate 준비는 기존의 tag 없는 version과 이전 release 이력을 보존하고 note 전체를 해당 version에 합친다. 문서 검증은 CI, archive와 공개 검증 증거를 대신하지 않는다.
 
