@@ -1,5 +1,5 @@
 <!-- doc-id: spec-utilities-and-recipes -->
-<!-- source-sha256: cb1db6b70fdd6668df9f74f15f1c730664ceeaa489afe79dbcc46784dac05450 -->
+<!-- source-sha256: 812d74ed6c1e689e486af38f94b766d3cd817c4250453e898b9d041bcd59706d -->
 # 유틸리티와 예제
 
 [English](utilities-and-recipes.md)
@@ -91,6 +91,15 @@ cleanup을 검증한다.
 Fixture는 소유 command가 닫힐 때까지 유지한다. Assertion이 실패해도 test는 proxy의 upgraded connection을 닫고,
 server의 close를 기다린 뒤 관련 파일을 지운다. Download 속도와 별개로 native lifecycle test가 helper의 협력 종료와
 escalation을 검증한다. Test는 이 lifecycle에 두 번째 deadline을 추가하지 않는다.
+
+## Progress event 관측 (K1235)
+
+Progress heartbeat는 test event를 기다리는 상태를 보고한다. 이름을 적은 각 case는 마지막으로 active라고
+보고되었으며 heartbeat의 경과 시간은 reporter가 시작 event를 관측한 뒤 흐른 시간이다. Case가 현재 실행 중이거나
+이 시간이 native 실행 시간이라고 단정하지 않는다. 이후 동기 작업이 실행되는 동안 native event가 buffer에 남을 수 있다.
+
+Heartbeat 주기, run의 경과 시간 prefix, native 결과 시간, count, 선택, tool timeout, process cleanup은 바꾸지 않는다.
+Progress run을 닫으면 계속 interval을 해제하며 관측 대기에 deadline을 추가하지 않는다.
 
 ## Case-sensitive test directory (K1231)
 

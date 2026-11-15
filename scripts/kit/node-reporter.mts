@@ -1,6 +1,6 @@
 // node:test reporter printing through the shared progress lines. node --test keeps its own limits, such as --test-timeout,
-// which the caller passes; this reporter shows every test starting, still running and ending. A file that reports no test case
-// fails, and so does a run in which no test ran.
+// which the caller passes; this reporter shows observed test starts and results. Heartbeats describe waiting for test events.
+// A file that reports no test case fails, and so does a run in which no test ran.
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { inspect } from 'node:util';

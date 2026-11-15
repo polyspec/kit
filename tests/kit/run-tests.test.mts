@@ -289,6 +289,30 @@ function recorder() {
   return { lines, counts };
 }
 
+test('K1235: heartbeat age describes observed events and preserves delayed native results and timer cleanup', (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] });
+  let observed = 10_000;
+  const lines: string[] = [];
+  const progress = createProgress({ write: text => lines.push(text), heartbeatMs: 5000, now: () => observed, resultFile: '' });
+  progress.start('buffered case');
+  observed += 340_500;
+  t.mock.timers.tick(4999);
+  const beforeHeartbeat = lines.length;
+  t.mock.timers.tick(1);
+  const heartbeat = lines.at(-1);
+  // A later-delivered native completion still reports its own duration, not the reporter's observation age.
+  progress.pass('buffered case', 1400);
+  const result = progress.close('suite');
+  const closedLines = lines.length;
+  observed += 5000;
+  t.mock.timers.tick(5000);
+
+  assert.equal(beforeHeartbeat, 1, 'the heartbeat keeps the caller-selected interval');
+  assert.equal(heartbeat, '[  340.5s] … waiting for test events; buffered case was last reported active (340.5s since its start was observed)\n');
+  assert.deepEqual(result, { passed: 1, failed: 0, skipped: 0, ran: 1, ok: true, cases: [{ id: 'buffered case', status: 'pass', elapsedMs: 1400 }] });
+  assert.equal(lines.length, closedLines, 'close clears the heartbeat interval');
+});
+
 test('the progress closes a run as failed when a test failed, a group failed, the tool failed, or nothing ran', (t) => {
   const { lines, counts } = recorder();
   const file = path.join(mkdtempSync(path.join(tmpdir(), 'kit-progress-')), 'result.json');
