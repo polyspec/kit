@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1221 verification: The original declared owner command passes 111 tests on committed tree 9a38f356117f5528c605ec8352aeb088b1953fe2 with Node 26.12.0 and PHP 8.4.27, without failures or skips. This records the removal proof; no implementation changed.
+
 - K1223 verification: The original declared owner command passes 28 tests on committed tree 6fe794842528609284c88bffb3e10bf3a6825405 with Node 26.12.0 and PHP 8.4.27, without failures or skips. This records the removal proof; no implementation changed.
 
 - K1220 verification: The corrected declared release and schema owner command passes 63 tests on committed tree 9a38f356117f5528c605ec8352aeb088b1953fe2 with Node 26.12.0 and PHP 8.4.27, without failures or skips. The acceptance and deleted-file correction was committed before verification; no implementation changed.
