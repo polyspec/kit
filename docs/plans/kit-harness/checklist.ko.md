@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 96f3ba252805a1e79edaf93eb9e126a08507dc60f38dd11f7f96a9d6cb2dd010 -->
+<!-- source-sha256: 9420ca7c5253e51f7732603a5233065d96db1b9ab2ecb5279547d5e8669e2c5a -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -365,3 +365,4 @@
 | K1233 | 로컬 workflow job은 계획이나 실행 전에 선언한 typed workflow input을 workflow-call 기본값과 명시한 값으로 결정하고, 누락되거나 모호하거나 잘못된 input은 script 실행 전에 거부한다. | scripts/kit/ci-job.mts; tests/kit/ci-job.test.mts; docs/spec/utilities-and-recipes.md(.ko); CHANGELOG.md(.ko) | `node scripts/kit/run-tests.mts node -- --test-concurrency=1 --test-name-pattern=K1233 tests/kit/ci-job.test.mts` | [o] |
 | K1234 | native local-path installation의 실제 source와 보존 상태를 보고한다. 원인: providedFolders는 npm과 Composer manager-owned 항목의 target에 provider folder를 두고 linkFolders는 이를 보존하지만, linkPackageFolders가 모두 target으로 linked됐다고 출력해 보존된 integration source를 main provider로 잘못 보고한다. 수락: fixture에서 provider와 native installed source를 서로 다른 path로 두고 native source와 metadata 보존을 검증하며, 보존 상태 로그가 사용하지 않은 provider target 대신 실제 native source 또는 installation location을 적는지 확인한다. | scripts/kit/link.mts; scripts/kit/link-folders.mts; tests/kit/link.test.mts; docs/operations/local-links.md(.ko); CHANGELOG.md(.ko) | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1234 tests/kit/link.test.mts` | [o] |
 | K1235 | Test progress heartbeat는 native event를 기다리는 상태와 관측한 시작의 경과 시간을 설명한다. 실제 case 실행 중이라고 단정하지 않고 native 결과, count, timer 주기, 선택, timeout, cleanup을 바꾸지 않는다. | scripts/kit/test-progress.mts; scripts/kit/node-reporter.mts; tests/kit/run-tests.test.mts; docs/spec/utilities-and-recipes.md(.ko); CHANGELOG.md(.ko) | `node scripts/kit/run-tests.mts node -- --test-concurrency=1 --test-name-pattern=K1235 tests/kit/run-tests.test.mts` | [o] |
+| K1236 | 기존 version과 이전 release 이력을 보존하면서 paired release note 전체와 비어 있는 Unreleased를 갖춘 candidate를 commit한다. 문서 검증 후 준비를 완료하며 CI, archive와 공개 검증은 별도로 남긴다. | CHANGELOG.md(.ko); docs/operations/release.md(.ko); docs/plans/kit-harness/checklist.md(.ko) | `make docs-check` | [ ] |
