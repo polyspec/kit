@@ -1,5 +1,5 @@
 <!-- doc-id: spec-utilities-and-recipes -->
-<!-- source-sha256: 812d74ed6c1e689e486af38f94b766d3cd817c4250453e898b9d041bcd59706d -->
+<!-- source-sha256: 6ceeeea35a784fa7554b50aa9858fa1dd61856b0ef42d81f8ece780f5cf50ce5 -->
 # 유틸리티와 예제
 
 [English](utilities-and-recipes.md)
@@ -37,6 +37,39 @@ allow-remote 사례가 그 연쇄를 보여 준다.
   실행은 status function과 지원하는 `github`, `runner`, `matrix`, `env`, `steps`, workflow 또는 composite `inputs` 값을 제공한다.
   로컬 실행이 제공할 수 없는 context는 script를 실행하기 전에 이름을 밝히고 거부한다. 외부 action의 output,
   secret, 저장소 variable은 로컬 script 실행이 제공할 수 없다.
+- Runtime capability 거부(K1228-3): external action output의 계산한 조회와 동적으로 선택한 미지원 shell은
+  재현한 native step 실패가 아닌 로컬 capability 거부다. 로컬 job은 status 1로 끝나며 직접 또는 모든 composite
+  caller의 continue-on-error를 넘어서 이후 user script를 실행하지 않는다. 결과를 반환하기 전에 소유한 process와
+  runner directory cleanup을 마친다. 공유 typed 로컬 거부는 native error-cause wrapper를 거친 environment
+  capability 거부도 전달한다. 단지 "refused"라고 적힌 message가 일반 Error를 이 type으로 바꾸지는 않는다.
+  실제 native command 종료와 file-validation 실패는 원래 실패와 허용 의미를 유지한다. Expression engine이나
+  일반 dictionary 동작을 교체하지 않는다.
+- Environment key 규칙(K1228-2): `env` key는 POSIX에서 대소문자를 구분하고 Windows의 지원하는 ASCII key에서는 구분하지 않는다.
+  Environment merge는 해당 비교에서 첫 key 표기를 유지하고 마지막에 할당한 값을 사용한다. 같은 merge를 workflow,
+  job, composite, step environment, environment-file 쓰기와 상속한 process 값 및 PATH 조회를 포함한 실제 spawn
+  environment에 적용한다. 다른 expression context는 native case folding을 유지한다. Context 전용 Dictionary
+  subclass는 native public add/get/values/pairs API와 표준 Map을 사용한다. Parsing, evaluation, coercion,
+  status function과 일반 dictionary는 native로 유지한다. Condition, serialization과 계산한 외부 output guard는
+  caller나 sibling scope를 바꾸지 않고 실제 scope의 environment를 사용한다.
+- Windows 로컬 environment 이름은 pin한 native comparer가 OrdinalIgnoreCase를 정확히 제공할 때까지 ASCII만
+  지원한다. 조회에 쓰는 이름을 포함해 non-ASCII 이름은 사용 전에 이름을 밝히고 거부한다. Unicode 값은 모든
+  platform에서 지원하고 POSIX Unicode 이름은 서로 구분한다. JavaScript 소문자 변환은 OrdinalIgnoreCase가 아니다.
+  Native invariant 대문자 변환은 micro sign µ와 Greek capital mu Μ를 합치지만 소문자 변환은 두 key를 구분한다.
+  JavaScript full 대문자 변환도 대체 수단이 아니다. 이 제한은 [native 비교 규칙](https://learn.microsoft.com/en-us/dotnet/standard/base-types/best-practices-strings)을 따른다.
+  Pin한 native comparer가 해당 규칙을 제공하고 실제 Windows Unicode-name 회귀 시험을 통과하면 제한을 제거한다.
+- 정확히 `__proto__`인 environment key는 선언한 경우 script 실행 전에, environment file이 쓴 경우 게시 전에
+  이름을 밝히고 거부한다. Pin한 native JSON replacer가 plain object에 property를 할당하면서 prototype setter를
+  통해 해당 key를 조용히 버리기 때문이다. 안전한 record 생성은 이 거부까지 key를 보존하며 조용히 삭제하지 않는다.
+  지원하지 않는 로컬 environment 이름은 native step 실패가 아닌 capability 거부다. Job은 status 1로 끝나며
+  직접 또는 composite `continue-on-error`로 허용할 수 없고 `always()`를 포함한 이후 user script도 실행하지 않는다.
+  거부를 전달하기 전에 독립된 정상 file-command channel을 처리하고 소유한 process와 directory cleanup은 마친다.
+  차단한 NODE_OPTIONS나 잘못된 문법처럼 native file-command 실패는 원래 step 실패와 continue-on-error 의미를
+  유지한다. Pin한 native serializer가 같은 environment serialization 회귀 시험에서 key를 보존하면 제한을 제거한다.
+- Environment의 근거는 runner의 [platform comparer](https://github.com/actions/runner/blob/8cfa1049f86781d141056082d73802d56cd2b433/src/Runner.Common/Util/VarUtil.cs),
+  [step context 선택](https://github.com/actions/runner/blob/8cfa1049f86781d141056082d73802d56cd2b433/src/Runner.Worker/StepsRunner.cs)과
+  [대소문자를 구분하지 않는 setter](https://github.com/actions/runner/blob/8cfa1049f86781d141056082d73802d56cd2b433/src/Sdk/DTPipelines/Pipelines/ContextData/DictionaryContextData.cs)다.
+  Linux source CI는 native environment smoke를 소유하고 macOS와 Windows bootstrap은 실제 platform에서 같은 target을
+  실행한다. Mac에서 Windows merge algorithm을 실행한 결과는 policy unit test이며 native Windows process 증거가 아니다.
 - 따옴표로 감싼 expression literal은 `format`과 step condition에 쓰인 literal을 포함해 모든 겹친 작은따옴표를
   한 번씩 해석한다(K1228-1). Pin한 lexer는 첫 쌍만 해석하므로 adapter는 검증한 raw lexeme에서 STRING token 값을
   만들고 원래 lexeme과 range를 보존한다. Tokenization, syntax 거부, parsing, evaluation은 native로 유지한다.

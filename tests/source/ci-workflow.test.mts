@@ -245,3 +245,14 @@ test('K1041: POSIX source coverage runs in Linux source CI and macOS bootstrap w
   assert.equal(posix.length, 1, 'one macOS bootstrap step owns its POSIX source case');
   assert.ok(posix[0]?.includes("if: ${{ !cancelled() && runner.os == 'macOS' }}"), 'Linux source CI owns Linux execution, macOS owns its bootstrap execution, Windows retains its own native process contract');
 });
+
+
+test('K1228-2: native workflow environment smoke has Linux source and macOS/Windows bootstrap owners', () => {
+  const make = readFileSync(path.join(ROOT, 'Makefile'), 'utf8');
+  assert.match(make, /^SOURCE_TEST_FILES_common-3 :=.*tests\/source\/workflow-env-real\.test\.mts/m);
+  const steps = jobText('bootstrap').split(/(?=^      - name:)/m);
+  const native = steps.filter(step => step.includes('run: make workflow-env-smoke'));
+  assert.equal(native.length, 1, 'one bootstrap step owns native macOS and Windows environment proof');
+  assert.ok(native[0]?.includes("if: ${{ !cancelled() && runner.os != 'Linux' }}"));
+  assert.match(make, /^workflow-env-smoke:.*\n\t.*run-tests.*tests\/source\/workflow-env-real\.test\.mts/m);
+});

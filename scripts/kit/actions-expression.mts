@@ -10,6 +10,7 @@ import { TokenType } from '@actions/expressions/lexer';
 import { Binary, ContextAccess, FunctionCall, Grouping, IndexAccess, Literal, Logical, Star, Unary } from '@actions/expressions/ast';
 import type { FunctionDefinition } from '@actions/expressions/funcs/info';
 import { truthy as dataTruthy } from '@actions/expressions/result';
+import { environmentKey, setEnvironmentEntry, type EnvironmentEntry } from './environment.mts';
 
 /** A value of an expression as plain data: what a context holds and what an expression gives. */
 export type Value = null | boolean | number | string | Value[] | { [key: string]: Value };
@@ -73,6 +74,27 @@ export function evaluateTemplate(template: Template, contexts: Record<string, Va
   return template.parts.map(part => (typeof part === 'string' ? part : toText(evaluate(part, contexts, status)))).join('');
 }
 
+/** Only env uses the runner's platform-specific dictionary; every operation still uses the public native protocol. */
+class EnvironmentDictionary extends data.Dictionary {
+  private readonly environment = new Map<string, EnvironmentEntry<data.ExpressionData>>();
+
+  constructor(pairs: { key: string; value: data.ExpressionData }[]) {
+    super();
+    for (const { key, value } of pairs) this.add(key, value);
+  }
+
+  override add(key: string, value: data.ExpressionData): void { setEnvironmentEntry(this.environment, key, value); }
+  override get(key: string): data.ExpressionData | undefined { return this.environment.get(environmentKey(key))?.value; }
+  override values(): data.ExpressionData[] { return [...this.environment.values()].map(pair => pair.value); }
+  override pairs(): { key: string; value: data.ExpressionData }[] { return [...this.environment.values()].map(({ key, value }) => ({ key, value })); }
+}
+
+function contextData(name: string, value: Value): data.ExpressionData {
+  return name.toLowerCase() === 'env' && value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? new EnvironmentDictionary(Object.entries(value).map(([key, item]) => ({ key, value: toData(item) })))
+    : toData(value);
+}
+
 function toData(value: Value): data.ExpressionData {
   if (value === null) return new data.Null();
   if (typeof value === 'boolean') return new data.BooleanData(value);
@@ -95,7 +117,7 @@ export function evaluate(node: Expr, contexts: Record<string, Value>, status: St
     success: status.success && !status.cancelled, failure: status.failure && !status.cancelled, always: true, cancelled: status.cancelled,
   };
   const functions = new Map<string, FunctionDefinition>(STATUS_INFO.map(info => [info.name, { ...info, call: () => new data.BooleanData(results[info.name] ?? false) }]));
-  const context = new data.Dictionary(...Object.entries(contexts).map(([key, item]) => ({ key, value: toData(item) })));
+  const context = new data.Dictionary(...Object.entries(contexts).map(([key, item]) => ({ key, value: contextData(key, item) })));
   return fromData(new Evaluator(node, context, functions).evaluate());
 }
 

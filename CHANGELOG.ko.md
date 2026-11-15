@@ -1,10 +1,38 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 229f64dc4f31de43dc3f59a2ce2b1e2631a9590b0716406b46dbf3c3ed44aab3 -->
+<!-- source-sha256: 18d3854d017c40a07127cff0d62c93b73be853cdebc92bf96f1e0ca44b079a4f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1234: native local-path installation을 retained로 보고한다. npm과 Composer link는 실제 해석한 target을, mirror는 installed location을, Python editable 항목은 native source를 적으며 provider path를 native target으로 보고하지 않는다. 회귀 2개는 link inode와 installed metadata 보존도 확인하고, owner가 선택한 12개 파일의 215개 경우가 모두 통과한다.
+
+- K1228-3 검증: 정확히 선언한 command는 commit된 구현에서 direct/composite capability 사례 여섯 개, native-exit
+  허용 control 두 개와 typed 거부의 출처를 포함해 시험 아홉 개를 통과한다. 관련 owner file 네 개 전체는 실패나
+  skip 없이 시험 112개를 통과한다. Typecheck, duplication, lint, owner 검증, rebuild 분류와 문서 검사가 통과한다.
+  Environment native smoke는 실제 Mac 실행이며 Windows 증거가 아니다.
+
+- K1228-3: Runtime에서 계산한 external-action output과 미지원 dynamic shell은 직접 또는 composite continue-on-error를
+  포함해 무조건 로컬 workflow를 거부한다. 공유 typed 거부는 environment capability 처리도 같은 경계에 두고 실제
+  native 종료와 file-validation 실패의 허용 의미는 유지한다. 지원 shell은 own key로 확인하므로 constructor 같은
+  상속 이름은 script 실행 전에 거부한다. 거부는 이후 user script를 멈추고 runner cleanup을 유지하며 expression과
+  일반 dictionary 동작은 native로 남는다.
+
+- K1228-2 검증: commit된 구현에서 선언한 선택은 시험 21개를, native Mac workflow-env-smoke target은 시험 한 개를
+  실패나 skip 없이 통과한다. Smoke는 child에만 ambient Path alias를 제공해도 상속한 모든 PATH-case 이름과 값을
+  검사하며 통과한다. Typecheck, duplication, lint, owner 검증, rebuild 분류와 문서 검사가 통과한다. Native Windows
+  process 증거는 Windows bootstrap CI가 소유한다.
+
+- K1228-2: Environment expression은 POSIX key의 대소문자를 구분한다. Environment 전용 public Dictionary adapter는
+  조회, filter와 serialization을 보존하고 다른 context는 native case folding을 유지한다. 공유 environment merge는
+  Windows의 지원하는 ASCII 이름에서 실제 child variable과 PATH를 포함해 첫 표기와 마지막 값을 유지한다. 지원하지 않는 정확한 native
+  JSON key는 사용 전에 드러나게 거부하고 독립된 file-command channel은 보존한다. Environment capability 거부는
+  직접 또는 composite continue-on-error를 넘어서 이후 user script를 멈추고 소유 자원 cleanup을 마친다. Native
+  file-command 실패는 원래 허용 의미를 유지한다. Windows non-ASCII 이름은
+  OrdinalIgnoreCase를 근사하는 대신 거부하며 Unicode 값과 POSIX Unicode 이름은 계속 지원한다. Native environment smoke는 Linux
+  source CI와 macOS/Windows bootstrap에서 실행한다. 로컬 Mac 증거와 순수 Windows-policy 시험은 서로 다르며 native
+  Windows process 증거는 실제 CI 실행을 기다린다.
 
 - K1222 verification: 원래 선언한 owner 명령이 committed tree 9a38f356117f5528c605ec8352aeb088b1953fe2에서 Node 26.12.0과 PHP 8.4.27로 58개 시험을 실패나 skip 없이 통과했다. 제거 검증을 기록하며 구현 변경은 없다.
 

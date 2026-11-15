@@ -5,6 +5,34 @@
 
 ## Unreleased
 
+- K1234: Native local-path installations are reported as retained. npm and Composer links show their actual resolved target, mirrors show their installed location, and Python editable entries show their native source. Provider paths are no longer reported as native targets. Two regressions preserve link inodes and installed metadata; all 215 cases in the 12 owner-selected files pass.
+
+- K1228-3 verification: the exact declared command passes nine tests on the committed implementation, including six
+  direct/composite capability cases, two native-exit tolerance controls and typed-refusal provenance. The complete four
+  related owner files pass 112 tests without failures or skips. Typecheck, duplication, lint, owner validation, rebuild
+  classification and document checks pass; the environment native smoke remains a real Mac run, not Windows evidence.
+
+- K1228-3: Runtime computed external-action outputs and unsupported dynamic shells are unconditional local workflow
+  refusals, including through direct or composite continue-on-error. A shared typed refusal keeps environment capability
+  handling at the same boundary while preserving ordinary native exit and file-validation tolerance. Supported shells
+  use own-key membership, so inherited names such as constructor are refused before script admission. Refusals stop
+  later user scripts and retain runner cleanup; expression and general dictionary behavior remain native.
+
+- K1228-2 verification: on the committed implementation, the declared selection passes 21 tests and the native Mac
+  workflow-env-smoke target passes one test, with no failures or skips. The smoke also passes with a child-only ambient
+  Path alias while checking every inherited PATH-case name and value. Typecheck, duplication, lint, owner validation,
+  rebuild classification and document checks pass. Native Windows process evidence remains owned by Windows bootstrap CI.
+
+- K1228-2: Environment expressions retain distinct POSIX key casing. An environment-only public Dictionary adapter
+  preserves lookup, filters and serialization while other contexts keep native case folding. Shared environment merges
+  retain first spelling and last values for supported Windows ASCII names, including actual child variables and PATH. The exact
+  unsupported native JSON key is refused visibly before use, with independent file-command channels preserved.
+  Environment capability refusals bypass direct and composite continue-on-error and stop later user scripts while owned
+  cleanup finishes; native file-command failures retain their normal tolerance semantics.
+  Windows non-ASCII names are refused rather than approximating OrdinalIgnoreCase; Unicode values and POSIX Unicode
+  names remain supported. Native environment smoke runs in Linux source CI and macOS/Windows bootstrap. Local Mac proof and pure Windows-policy
+  tests are distinct; native Windows process evidence awaits its actual CI run.
+
 - K1222 verification: The original declared owner command passes 58 tests on committed tree 9a38f356117f5528c605ec8352aeb088b1953fe2 with Node 26.12.0 and PHP 8.4.27, without failures or skips. This records the removal proof; no implementation changed.
 
 - K1221 verification: The original declared owner command passes 111 tests on committed tree 9a38f356117f5528c605ec8352aeb088b1953fe2 with Node 26.12.0 and PHP 8.4.27, without failures or skips. This records the removal proof; no implementation changed.

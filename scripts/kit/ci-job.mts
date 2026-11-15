@@ -55,6 +55,8 @@ import { parse as parseYaml } from 'yaml';
 import { callsStatus, evaluateTemplate, parseExpression, parseTemplate, references, toText, truthy, type Reference, type Status, type Template, type Value } from './actions-expression.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { failureOf, runCommand } from './run-command.mts';
+import { checkEnvironmentName, EnvironmentRefusal, environmentValue, mergeEnvironment } from './environment.mts';
+import { LocalWorkflowRefusal, localWorkflowRefusal } from './workflow-refusal.mts';
 
 const USAGE = 'usage: node scripts/kit/ci-job.mts --workflow <file> --job <id> [--matrix <key>=<value>]... [--input <name>=<value>]... [--input-event <workflow_call|workflow_dispatch>] [--plan]';
 const WINDOWS = process.platform === 'win32';
@@ -314,7 +316,7 @@ function checkExternalProducers(expressions: Expression[], steps: PlannedStep[],
       const candidates = producer === undefined
         ? reference.dynamic && status !== undefined ? external : []
         : external.filter(step => step.id?.toLowerCase() === producer.toLowerCase());
-      if (candidates.length > 0) throw new Error(`${where}: ${expression.text} reads the step outputs of the external action ${candidates.map(step => step.kind === 'action' ? step.uses : '').join(', ')}, which the local run does not run`);
+      if (candidates.length > 0) throw new LocalWorkflowRefusal(`${where}: ${expression.text} reads the step outputs of the external action ${candidates.map(step => step.kind === 'action' ? step.uses : '').join(', ')}, which the local run does not run`);
     }
   }
 }
@@ -326,6 +328,22 @@ function expressions(value: unknown, place: Place, where: string): Record<string
     check(result[key], place, `${where} ${key}`);
   }
   return result;
+}
+
+function checkEnvironmentKeys(value: unknown, where: string): void {
+  for (const key of Object.keys(mapping(value, where))) {
+    try { checkEnvironmentName(key); }
+    catch (error) {
+      const refusal = localWorkflowRefusal(error);
+      if (refusal !== undefined) throw new EnvironmentRefusal(`${where}: ${refusal.message}`, { cause: error });
+      throw new Error(`${where}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+    }
+  }
+}
+
+function environmentExpressions(value: unknown, place: Place, where: string): Record<string, Expression> {
+  checkEnvironmentKeys(value, where);
+  return expressions(value, place, where);
 }
 
 function optional(value: unknown, place: Place, where: string): Expression | undefined {
@@ -353,8 +371,11 @@ function planSteps(root: string, list: Mapping[], place: Place, where: string, a
     // A plain scalar of YAML, such as `run: true`, is the text that it reads as, as GitHub reads a scalar of a text field.
     const run = typeof step.run === 'boolean' || typeof step.run === 'number' ? String(step.run) : text(step.run, `${label} run`);
     const uses = text(step.uses, `${label} uses`);
-    if (uses !== undefined && run === undefined && !uses.startsWith('./')) return { kind: 'action', label, id, condition: when, uses, with: mapping(step.with, `${label} with`) };
-    const env = expressions(step.env, place, `${label}: env`);
+    if (uses !== undefined && run === undefined && !uses.startsWith('./')) {
+      checkEnvironmentKeys(step.env, `${label}: env`);
+      return { kind: 'action', label, id, condition: when, uses, with: mapping(step.with, `${label} with`) };
+    }
+    const env = environmentExpressions(step.env, place, `${label}: env`);
     const continueOnError = optional(step['continue-on-error'], place, `${label}: continue-on-error`);
     if (run !== undefined) {
       if (place.composite && step.shell === undefined) throw new Error(`${label}: a run step of a composite action needs shell, as GitHub requires`);
@@ -523,8 +544,8 @@ function planJobGraph(root: string, workflow: string, job: string, select: Recor
   const needs = needsOf(entry, where);
   const read = new Set<string>();
   const at = (roots: string[]): Place => ({ roots: bound.values === undefined ? roots : [...roots, 'inputs'], inputsCause: bound.cause, needs, steps: new Map(), composite: false, read });
-  const workflowEnv = expressions(document.env, at(['github']), `${workflow}: env`);
-  const jobEnv = expressions(entry.env, at(['github', 'needs', 'matrix']), `${where}: env`);
+  const workflowEnv = environmentExpressions(document.env, at(['github']), `${workflow}: env`);
+  const jobEnv = environmentExpressions(entry.env, at(['github', 'needs', 'matrix']), `${where}: env`);
   const jobCondition = entry.if === undefined ? undefined : condition(entry.if, where);
   if (jobCondition) check(jobCondition, at(['github', 'needs']), `${where}: if`);
   const strategy = mapping(entry.strategy, `${where} strategy`);
@@ -596,7 +617,7 @@ function refuseShells(list: PlannedStep[], combination: Combination, root: strin
     if (step.kind !== 'run' || step.shell === undefined || !decidable(step.shell, ['matrix', 'github']) || !decidable(step.condition, ['matrix', 'runner', 'github'])) continue;
     const contexts = { matrix: combination, runner: { os: RUNNER_OS, arch: RUNNER_ARCH }, github: { workspace: root } };
     const shell = textOf(step.shell, contexts);
-    if (!(shell in SHELLS) && truthy(valueOf(step.condition, contexts))) throw new Error(`${step.label}: shell ${shell} is not a shell that the local run gives on ${RUNNER_OS} (${Object.keys(SHELLS).filter(Boolean).join(', ')})`);
+    if (!Object.hasOwn(SHELLS, shell) && truthy(valueOf(step.condition, contexts))) throw new LocalWorkflowRefusal(`${step.label}: shell ${shell} is not a shell that the local run gives on ${RUNNER_OS} (${Object.keys(SHELLS).filter(Boolean).join(', ')})`);
   }
 }
 
@@ -626,7 +647,7 @@ function contexts(state: JobState, frame: Frame, env: Record<string, string>): R
   if (frame.actionPath !== undefined) github.action_path = frame.actionPath;
   const result: Record<string, Value> = {
     github, needs: state.needs, matrix: state.matrix, runner: { os: RUNNER_OS, arch: RUNNER_ARCH, temp: state.runnerTemp },
-    env: { ...state.env, ...env }, steps: frame.steps,
+    env: mergeEnvironment([state.env, env]), steps: frame.steps,
   };
   if (frame.inputs !== undefined) result.inputs = frame.inputs;
   return result;
@@ -678,11 +699,8 @@ async function spawnScript(argv: string[], options: { cwd: string; env: NodeJS.P
 /** Runs one run step and gives its outputs; its environment and folders go to the state. */
 async function runScript(step: Extract<PlannedStep, { kind: 'run' }>, state: JobState, values: Record<string, Value>, env: Record<string, string>, inComposite: boolean, expressionStatus: Status): Promise<{ status: number; outputs: Record<string, string> }> {
   const shell = step.shell ? textOf(step.shell, values, expressionStatus) : inComposite ? undefined : state.defaults.shell;
-  const argv = SHELLS[shell ?? ''];
-  if (argv === undefined) {
-    state.print(`[ci-job] refused: ${step.label}: shell ${shell ?? '(default)'} is not a shell that the local run gives on ${RUNNER_OS}`);
-    return { status: 1, outputs: {} };
-  }
+  const argv = Object.hasOwn(SHELLS, shell ?? '') ? SHELLS[shell ?? ''] : undefined;
+  if (argv === undefined) throw new LocalWorkflowRefusal(`${step.label}: shell ${shell ?? '(default)'} is not a shell that the local run gives on ${RUNNER_OS}`);
   const command = textOf(step.run, values, expressionStatus);
   const directory = step.directory ? textOf(step.directory, values, expressionStatus) : inComposite ? undefined : state.defaults.directory;
   state.scripts += 1;
@@ -693,18 +711,18 @@ async function runScript(step: Extract<PlannedStep, { kind: 'run' }>, state: Job
   const script = path.join(state.runnerTemp, `${state.scripts}.${argv[0] === 'pwsh' ? 'ps1' : 'sh'}`);
   writeFileSync(script, `${command}\n`);
   state.print(`[ci-job] ${step.label}: ${command}`);
-  const own = { ...state.env, ...env };
+  const own = mergeEnvironment<string | undefined>([
+    process.env, state.env, env, files,
+    { CI: 'true', CI_JOB_LOCAL: '1', GITHUB_WORKSPACE: state.plan.root, RUNNER_TEMP: state.runnerTemp, RUNNER_OS, RUNNER_ARCH },
+  ]);
   const status = await spawnScript(argv.map(arg => arg.replace('{0}', script)), {
     cwd: path.resolve(state.plan.root, directory ?? '.'),
-    env: {
-      ...process.env, ...own, ...files, CI: 'true', CI_JOB_LOCAL: '1', GITHUB_WORKSPACE: state.plan.root,
-      RUNNER_TEMP: state.runnerTemp, RUNNER_OS, RUNNER_ARCH,
-      PATH: [...state.path, own.PATH ?? process.env.PATH ?? ''].join(path.delimiter),
-    },
+    env: mergeEnvironment([own, { PATH: [...state.path, environmentValue(own, 'PATH') ?? ''].join(path.delimiter) }]),
   }, step.label, state.print);
   const read = (name: string) => readFileSync(files[name] ?? '', 'utf8');
   let outputs: Record<string, string> = {};
   let failedCommand = false;
+  const environmentRefusals: EnvironmentRefusal[] = [];
   const commandsOf = (name: string): [string, string][] => {
     try { return fileCommand(read(name), `${step.label}: ${name}`); } catch (error) {
       state.print(`[ci-job] ${error instanceof Error ? error.message : String(error)}`);
@@ -717,13 +735,31 @@ async function runScript(step: Extract<PlannedStep, { kind: 'run' }>, state: Job
     if (key.toUpperCase() === 'NODE_OPTIONS') {
       state.print(`[ci-job] ${step.label}: GITHUB_ENV cannot set ${key}, which the GitHub runner blocks`);
       failedCommand = true;
-    } else state.env[key] = value;
+    } else {
+      try { state.env = mergeEnvironment([state.env, Object.fromEntries([[key, value]])]); }
+      catch (error) {
+        const refusal = localWorkflowRefusal(error);
+        if (refusal !== undefined) environmentRefusals.push(new EnvironmentRefusal(`${step.label}: ${refusal.message}`, { cause: error }));
+        else {
+          state.print(`[ci-job] ${step.label}: ${error instanceof Error ? error.message : String(error)}`);
+          failedCommand = true;
+        }
+      }
+    }
   }
-  for (const folder of read('GITHUB_PATH').split(/\r?\n/).filter(line => line !== '')) {
-    state.path = [folder, ...state.path.filter(each => each !== folder)];
+  const followingErrors: unknown[] = [];
+  try {
+    for (const folder of read('GITHUB_PATH').split(/\r?\n/).filter(line => line !== '')) {
+      state.path = [folder, ...state.path.filter(each => each !== folder)];
+    }
+    const summary = read('GITHUB_STEP_SUMMARY');
+    if (summary.trim() !== '') state.print(`[ci-job] summary of ${step.label}:\n${summary.trimEnd()}`);
+  } catch (error) { followingErrors.push(error); }
+  if (environmentRefusals.length > 0) {
+    const errors = [...environmentRefusals, ...followingErrors];
+    throw new EnvironmentRefusal(errors.map(error => error instanceof Error ? error.message : String(error)).join('; '), { cause: new AggregateError(errors, 'environment file capability refusal') });
   }
-  const summary = read('GITHUB_STEP_SUMMARY');
-  if (summary.trim() !== '') state.print(`[ci-job] summary of ${step.label}:\n${summary.trimEnd()}`);
+  if (followingErrors.length > 0) throw followingErrors[0];
   return { status: failedCommand && status === 0 ? 1 : status, outputs };
 }
 
@@ -736,7 +772,7 @@ async function runSteps(list: PlannedStep[], frame: Frame, state: JobState, inhe
     try {
       const before = contexts(state, frame, inherited);
       checkExternalProducers(step.kind === 'action' ? [] : Object.values(step.env), list, before, step.label, status);
-      const env = step.kind === 'action' ? inherited : { ...inherited, ...texts(step.env, before, status) };
+      const env = step.kind === 'action' ? inherited : mergeEnvironment([inherited, texts(step.env, before, status)]);
       const values = contexts(state, frame, env);
       checkExternalProducers(stepExpressions(step), list, values, step.label, status);
       if (!truthy(valueOf(step.condition, values, status))) {
@@ -770,6 +806,8 @@ async function runSteps(list: PlannedStep[], frame: Frame, state: JobState, inhe
       if (tolerated) state.print(`[ci-job] continued: ${step.label} failed, and its continue-on-error holds`);
       result = { outputs, outcome: failed ? 'failure' : 'success', conclusion: failed && !tolerated ? 'failure' : 'success' };
     } catch (error) {
+      const refusal = localWorkflowRefusal(error);
+      if (refusal !== undefined) throw refusal;
       state.print(`[ci-job] failed: ${step.label}: ${error instanceof Error ? error.message : String(error)}`);
       result = { outputs: {}, outcome: 'failure', conclusion: 'failure' };
     }
@@ -830,7 +868,7 @@ async function runJob(plan: JobPlan, select: Record<string, string>, print: (lin
       const state: JobState = {
         plan, runnerTemp, matrix: item, needs, env: {}, path: [], defaults: { shell: undefined, directory: undefined }, scripts: 0, passed: 0, failed: 0, print, interrupted,
       };
-      state.env = { ...workflowEnv, ...texts(plan.env.job, { github, needs, matrix: item, ...(plan.inputs === undefined ? {} : { inputs: plan.inputs }) }) };
+      state.env = mergeEnvironment([workflowEnv, texts(plan.env.job, { github, needs, matrix: item, ...(plan.inputs === undefined ? {} : { inputs: plan.inputs }) })]);
       const frame: Frame = { steps: {}, failed: false, inputs: plan.inputs, actionPath: undefined };
       const before = contexts(state, frame, {});
       state.defaults = {
