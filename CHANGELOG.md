@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1218 verification: The original declared link-folders and pack-manifest command passes six tests on the committed tree with Node 26.12.0, without failures or skips. The private module export remains absent.
+
 - K1217 verification: The original declared link owner command passes 82 tests on the committed tree with Node 26.12.0 and PHP 8.4.27, without failures or skips. The removed packages command remains absent.
 
 - K1216 verification: The annotated v0.0.111 release is public at its tagged commit. The declared docs-check command passes on the committed tree with Node 26.12.0; the release task is complete.

@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d795ad0236ff1da882ca9e359bae8e9e9ebeebde6a8e98643312b32fd1e1de7f -->
+<!-- source-sha256: 22dbdf64073c8995d65fec9b761fbbc08827dfa3b02c585fa5880227ce3c7e22 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1218 verification: 원래 선언한 link-folders와 pack-manifest 명령이 Node 26.12.0의 committed tree에서 여섯 시험을 실패나 skip 없이 통과했다. private module export는 없다.
 
 - K1217 verification: 원래 선언한 link owner 명령이 Node 26.12.0과 PHP 8.4.27의 committed tree에서 82개 시험을 실패나 skip 없이 통과했다. 제거한 packages 명령은 없다.
 
