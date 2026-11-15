@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: f7fb0d2837ef7647a2370f21cabea090e18179013515fc7ce8e24471beb63fd2 -->
+<!-- source-sha256: 3696422856b8dfb6042fd17013be2c4dfcea1f3869a53b472b250afcee5a6e62 -->
 # 릴리스
 
 [English](release.md)
@@ -16,6 +16,8 @@ Kit의 native npm prepack은 source export와 hook bin을 build된 dist path로 
 공개 module subpath에는 기존 tool module과 함께 `glob`, `land`, `checklist`, `php-extension`이 있습니다. Source checkout에서는 각 경로가 `scripts/kit/<name>.mts`로 해석되고, packed consumer에서는 같은 subpath가 `dist/<name>.mjs`로 해석됩니다. Packed-consumer 검사는 설치한 archive에서 각 공개 subpath를 import하고 export 이름을 source module과 비교합니다.
 
 후속 변경은 앞선 release의 검증 증거를 무효화하지 않습니다. 현재 version은 자기 CI가 통과하면 완료하고 다음 version을 올려 별도로 검증합니다. 로컬 main commit이 자동으로 원격 release에 포함되는 것은 아니므로 원격 candidate와 해당 CI를 확인합니다. 구현 완료와 소유 검사 통과는 공개를 뜻하지 않으며 release 공개 후에만 release checklist 항목을 완료합니다.
+
+tag가 없는 최상위 version은 version 변경 없이 다시 준비할 수 있습니다. 후속 Unreleased 항목을 기존 절에 합치고 Unreleased를 비우며 이전 release 절을 보존합니다. 이후 CI가 성공한 commit은 그 절이 비어 있으면 tag가 없는 최상위 version을 release할 수 있습니다(K988, K990). 문서 검사는 note의 일관성을 검증하며 CI 성공, archive 유효성이나 공개를 검증하지 않습니다.
 
 릴리스는 세 단계로 준비하고 진행합니다. (1) commit `chore(release): Release X.Y.Z`가 모든 release manifest와 lock의 버전을 정하고
 `CHANGELOG.md(.ko)`의 Unreleased 절을 `## X.Y.Z`로 바꿉니다. packing 전에 버전을 commit합니다. native packer가 version 파일을

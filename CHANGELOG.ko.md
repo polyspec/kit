@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 18d3854d017c40a07127cff0d62c93b73be853cdebc92bf96f1e0ca44b079a4f -->
+<!-- source-sha256: 74c41b36035b08cfd58eec8ce4d23306b1bc9a2561034d7785fade2b53a71acc -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1236: candidate 준비는 기존의 tag 없는 version과 이전 release 이력을 보존하고 note 전체를 해당 version에 합친다. 문서 검증은 CI, archive와 공개 검증 증거를 대신하지 않는다.
 
 - K1234: native local-path installation을 retained로 보고한다. npm과 Composer link는 실제 해석한 target을, mirror는 installed location을, Python editable 항목은 native source를 적으며 provider path를 native target으로 보고하지 않는다. 회귀 2개는 link inode와 installed metadata 보존도 확인하고, owner가 선택한 12개 파일의 215개 경우가 모두 통과한다.
 

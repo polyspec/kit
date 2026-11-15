@@ -16,6 +16,8 @@ The public module subpaths include `glob`, `land`, `checklist` and `php-extensio
 
 Later changes do not invalidate an earlier release's evidence. Finish the current version from its own successful CI, then bump the next version and validate it separately. A local main commit is not automatically part of a remote release: check the remote candidate and its CI. Implementation completion and owning tests do not mean publication; update a release checklist item only after the release is public.
 
+An untagged top version may be prepared again without changing that version: fold subsequent Unreleased entries into its existing section, keep Unreleased empty, and preserve older release sections. A later successful CI commit with that empty section can release the untagged top version (K988, K990). Document checks establish note consistency; they do not establish CI success, archive validity or publication.
+
 A release is prepared and cut in three steps. (1) A commit `chore(release): Release X.Y.Z` sets the version in every release
 manifest and lock, and turns the Unreleased section of `CHANGELOG.md(.ko)` into `## X.Y.Z`. Commit the version before packing:
 the native packers may run package lifecycle scripts that restore version files from `HEAD`. Build all tagless candidate archives
