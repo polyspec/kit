@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: b4b2aebd164a2864d3df2244e83980c969cccdcf1c52bae7aa461af69092768d -->
+<!-- source-sha256: bb4176e97290abf414299aafb33816d1cc6e265f21898290de6d0daa335c1ce4 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -368,3 +368,4 @@
 | K1236 | 기존 version과 이전 release 이력을 보존하면서 paired release note 전체와 비어 있는 Unreleased를 갖춘 candidate를 commit한다. 문서 검증 후 준비를 완료하며 CI, archive와 공개 검증은 별도로 남긴다. | CHANGELOG.md(.ko); docs/operations/release.md(.ko); docs/plans/kit-harness/checklist.md(.ko) | `make docs-check` | [o] |
 | K1237 | native npm bin 선택을 보존하면서 workspace executable이 worktree를 읽게 한다. Cause: K1226이 .bin 전체를 main에 연결해 workspace CLI가 main source를 실행한다. Acceptance: 고정 fixture가 worktree CLI를 실행하고 external bin과 main link를 보존하며 설치나 dependency resolution 없이 준비를 반복한다. | scripts/kit/worktree-links.mts; tests/kit/worktree-links.test.mts; docs/operations/local-links.md(.ko); CHANGELOG.md(.ko) | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1237 tests/kit/worktree-links.test.mts` | [o] |
 | K1238 | native module metadata가 선택한 Go workspace provider에는 중복 version replacement를 요구하지 않는다. Cause: go list가 Main true와 선언 provider directory를 반환해도 검사가 K1212 version replace를 요구한다. Acceptance: 고정 native workspace metadata는 정확한 source를 통과시키고 다른 source는 거절하며 resolver나 version comparison 또는 강제 replace를 추가하지 않는다. | scripts/kit/link.mts; tests/kit/link.test.mts; tests/source/link-go-real.test.mts; docs/operations/local-links.md(.ko); CHANGELOG.md(.ko) | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1238 tests/kit/link.test.mts tests/source/link-go-real.test.mts` | [o] |
+| K1239 | worktree의 정확한 shared npm installation entry를 검증하고 보존한다. Cause: K1226은 native main entry를 연결하지만 link-check가 undeclared external link로 거절하고 link가 제거하며 새 worktree에는 main provider declaration도 없다. Acceptance: 준비는 명시 declaration을 덮어쓰지 않고 없는 worktree declaration을 main에서 초기화한다. 고정 worktree 검사는 정확한 installed main entry를 통과시키고 보존하며 임의 external target과 main을 가리키는 own package 및 잘못된 provider source는 거절한다. | scripts/kit/worktree-links.mts; scripts/kit/link.mts; tests/kit/worktree-links.test.mts; docs/operations/local-links.md(.ko); CHANGELOG.md(.ko) | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K1239 tests/kit/worktree-links.test.mts` | [ ] |
