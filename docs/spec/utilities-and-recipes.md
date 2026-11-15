@@ -36,6 +36,23 @@ are printed with their inputs and are not executed, so the local run requires th
   The run supplies status functions and the supported values of `github`, `runner`, `matrix`, `env`, `steps` and workflow or composite
   `inputs`. A context that the local run cannot supply is refused with its name before scripts run. External action
   outputs, secrets and repository variables cannot be supplied by a local script run.
+- Planned environment correction (K1228-2): `env` keys are case-sensitive on POSIX and case-insensitive on Windows.
+  Environment merges retain the first key spelling and take the last assigned value under that comparison. The same
+  merge applies to workflow, job, composite and step environments, environment-file writes and the actual spawned
+  environment, including inherited process values and PATH lookup. Other expression contexts keep native case folding.
+  A context-only Dictionary subclass uses a standard Map through the native public add/get/values/pairs API; parsing,
+  evaluation, coercion, status functions and general dictionaries remain native. Conditions, serialization and computed
+  external-output guards use the environment of the actual scope, without changing caller or sibling scopes.
+- The exact environment key `__proto__` is refused by name before scripts run when declared, and before publication when
+  an environment file writes it. The pinned native JSON replacer assigns properties to a plain object and silently drops
+  that key through its prototype setter. Safe record construction preserves the key until this refusal; it never silently
+  deletes it. An invalid file entry fails its step while independent valid file-command channels still apply. Remove this
+  boundary after the pinned native serializer preserves the key in the same environment serialization regressions.
+- Environment source evidence is the runner's [platform comparer](https://github.com/actions/runner/blob/8cfa1049f86781d141056082d73802d56cd2b433/src/Runner.Common/Util/VarUtil.cs),
+  [step context selection](https://github.com/actions/runner/blob/8cfa1049f86781d141056082d73802d56cd2b433/src/Runner.Worker/StepsRunner.cs)
+  and [case-insensitive setter](https://github.com/actions/runner/blob/8cfa1049f86781d141056082d73802d56cd2b433/src/Sdk/DTPipelines/Pipelines/ContextData/DictionaryContextData.cs).
+  Linux source CI owns the native environment smoke; macOS and Windows bootstrap run the same target on their actual
+  platform. A Mac run of the Windows merge algorithm is a policy unit test, not native Windows process evidence.
 - A quoted expression literal decodes every doubled single quote once, including literals used in `format` and step
   conditions (K1228-1). The pinned lexer decodes only the first pair, so the adapter derives STRING token values from
   their validated raw lexemes and preserves their original lexemes and ranges. Tokenization, syntax rejection, parsing
