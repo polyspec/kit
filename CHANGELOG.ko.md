@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 798707e7ed46a850dfb9b940764fef1eca37532ef177375dacc56df88fefb7bc -->
+<!-- source-sha256: 81ff8cb3ca475133d1fc465041fd93c090d5e385b01f848eb5a8d1b96d14a3bd -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1235 검증: Node 26.12.0에서 commit된 구현의 선언된 unit이 통과하며 집중 reporter/progress owner 시험 네 개가 skip 없이 통과한다. Typecheck, lint-ts, duplication-check, docs-check가 통과한다. Heartbeat의 관측 경과 시간은 native 1400ms 결과와 구분하고 interval 주기와 close 동작을 보존한다.
 
 - K1235: Progress heartbeat는 test event를 기다리는 상태와 마지막으로 active라고 보고된 각 case, 시작을 관측한 뒤 흐른 시간을 보고한다. 시작을 보고받고 아직 결과를 받지 못한 상태는 현재 실행 중이라는 근거가 아니었다. Native 완료 event는 이후 동기 작업 뒤에 도착할 수 있다. Timer 주기, native 시간, count, 선택, timeout, cleanup은 바꾸지 않았다. 결정적인 관측 clock 회귀 시험이 native 1400ms 결과와 interval 해제를 보존한다.
 
