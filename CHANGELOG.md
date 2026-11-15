@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+## 0.0.113
+
 - K1236: Candidate preparation preserves the existing untagged version and older release history while folding complete notes into that version. Document verification remains separate from CI, archive and publication evidence.
 
 - K1234: Native local-path installations are reported as retained. npm and Composer links show their actual resolved target, mirrors show their installed location, and Python editable entries show their native source. Provider paths are no longer reported as native targets. Two regressions preserve link inodes and installed metadata; all 215 cases in the 12 owner-selected files pass.
@@ -89,7 +91,6 @@
 
 - K1231: Darwin case-sensitive tests keep the disk image in the caller's temporary storage and place only the empty mountpoint in the native user temporary directory discovered by `getconf DARWIN_USER_TEMP_DIR`. A mountpoint on a volume that ignores ownership can be refused even when the same image mounts at an owner-aware location. Successful detach permits cleanup of both resource paths; an uncertain detach retains and names both. The real case probe remains required. Five regressions cover placement, native discovery, failure reporting and cleanup order.
 
-## 0.0.113
 
 - K1228 verification: the declared command passes 26 tests on the committed implementation. The complete expression and local-job owner files pass 31 tests; typecheck, duplication-check and lint-ts pass.
 - K1228: Local workflow jobs evaluate conditions after the step environment and use the current failure state in script expressions. Interrupted scripts await their owned processes before removing runner files. File-command channels retain independent valid changes when another channel fails. Supported context lookup respects case, computed references cannot silently read external action outputs, and recursive job or composite plans fail with their cycle. The local-job contract is recorded in `docs/spec/utilities-and-recipes.md`.

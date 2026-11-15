@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 74c41b36035b08cfd58eec8ce4d23306b1bc9a2561034d7785fade2b53a71acc -->
+<!-- source-sha256: ba3b32c0e3296cc2a0caac5769216a13db58a3142997282f9314b84dffcc2158 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.113
 
 - K1236: candidate 준비는 기존의 tag 없는 version과 이전 release 이력을 보존하고 note 전체를 해당 version에 합친다. 문서 검증은 CI, archive와 공개 검증 증거를 대신하지 않는다.
 
@@ -89,7 +91,6 @@
 
 - K1231: Darwin case-sensitive test는 disk image를 caller의 임시 저장소에 두고 빈 mountpoint만 `getconf DARWIN_USER_TEMP_DIR`로 찾은 native 사용자 임시 directory에 둔다. 소유권을 무시하는 volume의 mountpoint는 같은 image가 owner-aware 위치에 mount되어도 거부될 수 있다. Detach가 성공하면 두 resource path를 정리하고, detach를 확인하지 못하면 둘 다 보존하고 이름을 밝힌다. 실제 case probe는 계속 필수다. 회귀 시험 5개가 배치, native discovery, 실패 보고, cleanup 순서를 확인한다.
 
-## 0.0.113
 
 - K1228 검증: 선언한 명령은 commit된 구현에서 26개 시험을 통과한다. Expression과 local-job 소유 파일 전체는 31개 시험을 통과하고, typecheck, duplication-check, lint-ts도 통과한다.
 - K1228: 로컬 workflow job은 step의 environment를 평가한 뒤 condition을 평가하고, script expression에 현재 실패 상태를 사용한다. 중단된 script는 소유한 process가 끝난 뒤 runner 파일을 지운다. File-command 채널 하나가 실패해도 다른 채널의 정상 변경은 보존한다. 지원하는 context 조회는 대소문자를 구분하지 않고, computed reference는 외부 action output을 조용히 읽을 수 없으며, 재귀 job이나 composite plan은 cycle을 밝히고 실패한다. 로컬 job의 contract는 `docs/spec/utilities-and-recipes.md`에 기록한다.
