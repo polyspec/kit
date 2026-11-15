@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 76ae42dbeda765b4e3db5ede33f2cdd50af8cd872fa85301e1cf04c3d1abc4d2 -->
+<!-- source-sha256: a4a280c96d8a2a459afddb9b2400b344b5837b87d3ae7d6b7a615270f9364bb9 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1223 verification: 원래 선언한 owner 명령이 committed tree 6fe794842528609284c88bffb3e10bf3a6825405에서 Node 26.12.0과 PHP 8.4.27로 28개 시험을 실패나 skip 없이 통과했다. 제거 검증을 기록하며 구현 변경은 없다.
 
 - K1220 verification: 정정한 선언의 release와 schema owner 명령이 committed tree 9a38f356117f5528c605ec8352aeb088b1953fe2에서 Node 26.12.0과 PHP 8.4.27로 63개 시험을 실패나 skip 없이 통과했다. 수락 조건과 삭제된 파일 정정은 검증 전에 commit했으며 구현 변경은 없다.
 
