@@ -1,5 +1,5 @@
 <!-- doc-id: spec-utilities-and-recipes -->
-<!-- source-sha256: 3064124b6f14c07872e1fe550f5d5e5cf83f508defb91744981f0bb2126a041f -->
+<!-- source-sha256: cb1db6b70fdd6668df9f74f15f1c730664ceeaa489afe79dbcc46784dac05450 -->
 # 유틸리티와 예제
 
 [English](utilities-and-recipes.md)
@@ -79,6 +79,19 @@ allow-remote 사례가 그 연쇄를 보여 준다.
 - 실행은 script process와 runner 임시 디렉터리를 소유한다. 중단하면 새 step의 실행을 막고, 소유한 process를 종료하고
   기다린 뒤 디렉터리를 지운다. Process는 runner 디렉터리가 존재하는 동안 cleanup을 마쳐야 한다.
 
+## Installer command 검증 (K1232)
+
+Installer command test는 로컬 service의 archive 요청, downloader의 settled result, 소유 helper의 close,
+installer의 close를 관찰한다. 전체 경과 시간의 deadline은 성공을 판정하지 않는다. Native process 시작이 download
+retry보다 오래 걸릴 수 있기 때문이다. Download library가 request limit을 소유하고, 소유 process cleanup은 선언한
+termination grace를 유지한다. 첫 archive response를 보류하는 동안 주입한 test clock을 진행해도 installer를 죽이거나
+result를 바꾸면 안 된다. Test는 response를 풀어 중단된 요청과 성공한 retry를 관찰한 뒤 publication과 process
+cleanup을 검증한다.
+
+Fixture는 소유 command가 닫힐 때까지 유지한다. Assertion이 실패해도 test는 proxy의 upgraded connection을 닫고,
+server의 close를 기다린 뒤 관련 파일을 지운다. Download 속도와 별개로 native lifecycle test가 helper의 협력 종료와
+escalation을 검증한다. Test는 이 lifecycle에 두 번째 deadline을 추가하지 않는다.
+
 ## Case-sensitive test directory (K1231)
 
 이름의 대소문자 구분이 필요한 test는 실행 전에 실제 두 이름 probe를 통과한 filesystem의 directory를 받는다.
@@ -92,8 +105,25 @@ Detach가 실패하거나 결과를 확인하지 못하면 두 directory를 보�
 보고한다. 비어 있지 않은 절대 경로의 native 임시 directory를 찾지 못하면 attach 전에 실패하며, 추측한 path를 대신
 사용하거나 case probe를 건너뛰지 않는다.
 
-현재 한계: 이 resource scope는 동기식이다. 비동기 action을 기다리거나 중단 시 cleanup을 보장하지 않는다.
-K1231-1이 action과 signal lifetime 수정을 담당하며, 배치 검증은 그 보장의 근거가 아니다.
+## Command resource 수명 (K1231-1)
+
+비동기 command resource scope는 준비부터 cleanup까지 resource를 소유한다. 제어하는 action은 소유한 일반 command를
+기다리며 resource를 사용하는 작업을 기다리지 않은 채 남기지 않는다. Action이 끝난 뒤에 cleanup을 시작하며 반환한
+promise가 끝날 때까지 resource를 유지한다. 정상 완료와 action 실패 모두 cleanup을 기다린다. Action과 cleanup이
+모두 실패하면 호출자에게 두 오류를 전달한다.
+
+중단하면 일반 command 실행을 즉시 막고, 소유한 작업 group에 종료를 요청하여 자식 close와 cleanup을 기다린다.
+Harness는 이어서 모든 active resource scope의 cleanup이 끝난 뒤 SIGINT는 130, SIGTERM은 143으로 종료한다.
+Resource cleanup callback은 그 callback 실행 중에만 유효한 runner를 받는다. 해당 command도 소유하고 기다리며,
+새 작업 실행이 아니라 cleanup이다. 보관한 cleanup runner는 callback이 끝난 뒤 command를 시작할 수 없다.
+
+Runtime runner는 native 인자와 상속한 표준 입력을 유지한다. 해당 native runner가 닫힐 때까지 결과 디렉터리와
+case-sensitive 시험 filesystem을 유지한다.
+선택한 environment 값을 복구하고 image를 detach한 뒤 mountpoint나 image 저장소를 제거한다. 명시적인 결과 report가
+있으면 native test runner는 report의 부모 디렉터리를 만들고 그 안에 private counts와 extension 설정을 둔다. Report
+입력을 hash하기 전에 private 디렉터리를 제거한다. Report가 없으면 호출자의 임시 디렉터리 배치를 유지한다. 두 형태
+모두 자식의 임시 디렉터리 environment를 바꾸지 않는다. Cleanup 실패는
+남아 있는 resource를 보고하며 중단되거나 실패한 실행을 성공으로 바꾸지 않는다.
 
 ## Native event identity (K1091)
 

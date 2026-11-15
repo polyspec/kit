@@ -2,13 +2,114 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { signalGroup } from '../../scripts/kit/process-group.mts';
-import { failureOf, runCommand } from '../../scripts/kit/run-command.mts';
+import { signalGroup, stopGroup } from '../../scripts/kit/process-group.mts';
+import { failureOf, runCommand, withCommandResources, type CleanupCommand } from '../../scripts/kit/run-command.mts';
 import { tree } from './tree.mts';
 import { filePublished } from './file-events.mts';
+
+test('K1231-1: action and cleanup errors survive and an escaped cleanup runner expires', async t => {
+  const root = tree(t);
+  const actionError = new Error('action failed');
+  const cleanupError = new Error('cleanup failed');
+  let escaped: CleanupCommand | undefined;
+  await assert.rejects(withCommandResources(() => { throw actionError; }, run => {
+    escaped = run;
+    throw cleanupError;
+  }), error => {
+    assert.ok(error instanceof AggregateError);
+    assert.deepEqual(error.errors, [actionError, cleanupError]);
+    return true;
+  });
+  assert.ok(escaped);
+  const later = path.join(root, 'expired-command');
+  await assert.rejects(escaped({ command: process.execPath, args: ['-e', `require('node:fs').writeFileSync(${JSON.stringify(later)}, 'bad');`] }), /closed outside its cleanup callback/);
+  assert.equal(existsSync(later), false);
+});
+
+test('K1231-1: an admitted cleanup command is awaited and its failure is reported even without a caller await', async () => {
+  await assert.rejects(withCommandResources(() => 'action completed', run => {
+    void run({ command: process.execPath, args: ['-e', 'process.exit(7)'], stdout: 'pipe', stderr: 'pipe' }).catch(() => undefined);
+  }), /failed with status 7/);
+});
+
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  test(`K1231-1: ${signal} waits for cleanup commands without interrupting them`, { skip: process.platform === 'win32' && 'POSIX signals' }, async t => {
+    const root = tree(t);
+    const readyPath = path.join(root, 'ready.json');
+    const observedPath = path.join(root, 'signal-observed');
+    const ready = filePublished(t, readyPath);
+    const observed = filePublished(t, observedPath);
+    const gate = path.join(root, 'release-cleanup');
+    const body = `
+      const fs = require('node:fs');
+      const hold = fs.watch(${JSON.stringify(root)}, () => {
+        if (!fs.existsSync(${JSON.stringify(gate)})) return;
+        fs.writeFileSync(${JSON.stringify(path.join(root, 'cleanup-finished'))}, 'finished');
+        hold.close();
+      });
+      process.on('SIGTERM', () => {
+        fs.writeFileSync(${JSON.stringify(path.join(root, 'cleanup-was-terminated'))}, 'bad');
+        hold.close();
+      });
+      fs.writeFileSync(${JSON.stringify(readyPath)}, JSON.stringify({ pid: process.pid }));
+    `;
+    const driver = `
+      import fs from 'node:fs';
+      const { runCommand, withCommandResources, interruptionStatus } = await import(${JSON.stringify(new URL('../../scripts/kit/run-command.mts', import.meta.url).href)});
+      const originalExit = process.exit;
+      process.exit = status => {
+        fs.writeFileSync(${JSON.stringify(path.join(root, 'exit.json'))}, JSON.stringify({ cleanupResolved: fs.existsSync(${JSON.stringify(path.join(root, 'cleanup-resolved'))}) }));
+        originalExit(status);
+      };
+      const pending = withCommandResources(() => 'action completed', run => {
+        void run({ command: process.execPath, args: ['-e', ${JSON.stringify(body)}], stdout: 'pipe', stderr: 'pipe' }).then(
+          () => fs.writeFileSync(${JSON.stringify(path.join(root, 'cleanup-resolved'))}, 'closed'),
+          error => fs.writeFileSync(${JSON.stringify(path.join(root, 'cleanup-rejected'))}, String(error)),
+        );
+      });
+      process.on(${JSON.stringify(signal)}, () => fs.writeFileSync(${JSON.stringify(observedPath)}, 'observed'));
+      try {
+        await pending;
+        await runCommand({ command: process.execPath, args: ['-e', ${JSON.stringify(`require('node:fs').writeFileSync(${JSON.stringify(path.join(root, 'later'))}, 'bad');`)}] });
+        process.exitCode = interruptionStatus() ?? 0;
+      } catch (error) {
+        console.error(error);
+        process.exitCode = interruptionStatus() ?? 1;
+      }
+    `;
+    const child = spawn(process.execPath, ['--input-type=module', '-e', driver], { stdio: ['ignore', 'pipe', 'pipe'], detached: true });
+    let output = '';
+    for (const stream of [child.stdout, child.stderr]) stream.setEncoding('utf8').on('data', (chunk: string) => { output += chunk; });
+    const closed = once(child, 'close');
+    let complete = false;
+    try {
+      await Promise.race([ready, closed.then(result => assert.fail(`owner exited before cleanup readiness: ${JSON.stringify(result)}\n${output}`))]);
+      child.kill(signal);
+      await Promise.race([observed, closed.then(result => assert.fail(`owner exited before cleanup release: ${JSON.stringify(result)}\n${output}`))]);
+      writeFileSync(gate, 'release');
+      assert.equal((await closed)[0], signal === 'SIGINT' ? 130 : 143, output);
+      assert.equal(existsSync(path.join(root, 'cleanup-finished')), true);
+      assert.equal(existsSync(path.join(root, 'cleanup-was-terminated')), false);
+      assert.equal(existsSync(path.join(root, 'cleanup-rejected')), false);
+      assert.equal(existsSync(path.join(root, 'later')), false);
+      assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'exit.json'), 'utf8')), { cleanupResolved: true });
+      complete = true;
+    } finally {
+      if (!complete) {
+        if (child.pid !== undefined) await stopGroup(child.pid, closed, 1000);
+        if (existsSync(readyPath)) {
+          const worker: unknown = JSON.parse(readFileSync(readyPath, 'utf8'));
+          assert.ok(worker !== null && typeof worker === 'object' && 'pid' in worker && typeof worker.pid === 'number');
+          await stopGroup(worker.pid, Promise.resolve(), 1000);
+        }
+      }
+      await closed;
+    }
+  });
+}
 
 for (const cooperative of [true, false]) {
   test(`K1036: interruption ${cooperative ? 'allows cooperative cleanup' : 'escalates an uncooperative child'} and reaps owned commands`, { timeout: 10_000 }, async t => {

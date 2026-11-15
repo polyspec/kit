@@ -5,6 +5,14 @@
 
 ## Unreleased
 
+- K1231-1 verification: the declared selection passes 18 tests on the committed integrated implementation with Node 26.12.0. The placement and lifetime selection passes 23 tests, and the complete shared-signal and runtime owner files pass 51 tests without skips. Typecheck, lint-ts, duplication-check and docs-check pass. The exact native Darwin `make case-sensitive-runner-smoke` passes one test and exits 0; the image is detached, both owned resource paths are removed, and the caller temporary directory is empty.
+
+- K1231-1: Command resource scopes await asynchronous actions and cleanup before normal or interrupted completion. Interrupted execution closes normal command admission while cleanup commands remain owned until their phase finishes. The runtime runner retains its case directory and result records through native child close, preserves inherited stdin, and nests private reporter files under an explicit report parent without including those files in the input digest. Event-driven lifetime, provisioning, interruption and report ownership regressions pass.
+
+- K1232 verification: The declared selection passes seven cases on the committed implementation with Node 26.12.0. The complete installer owner files pass fourteen cases; typecheck, lint-ts, duplication-check and docs-check pass.
+
+- K1232: Installer command tests await owned command close instead of killing the owner after twenty seconds. A withheld archive response and an injected clock reproduce the premature kill without orphaning the downloader; the successful retry and exhausted retry cases observe downloader settlement, helper close, publication and cleanup. Proxy connections and servers close before fixture removal. Native helper tests retain cooperative termination and escalation checks without an independent ten-second deadline and preserve their fixture if cleanup fails.
+
 - K1233: Local workflow jobs bind declared typed inputs before planning or running. Workflow-call defaults retain false,
   zero and empty text; explicit inputs preserve their scalar types and composite actions retain their own string scope.
   Invalid, missing and ambiguous inputs fail before scripts run. Dispatch omissions without defaults, expression defaults
