@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 73f457e6897e256d43fb3097ba5ba768bf7aa7caf6a1f95ab8e5fac5f62650f2 -->
+<!-- source-sha256: 76ae42dbeda765b4e3db5ede33f2cdd50af8cd872fa85301e1cf04c3d1abc4d2 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1220 verification: 정정한 선언의 release와 schema owner 명령이 committed tree 9a38f356117f5528c605ec8352aeb088b1953fe2에서 Node 26.12.0과 PHP 8.4.27로 63개 시험을 실패나 skip 없이 통과했다. 수락 조건과 삭제된 파일 정정은 검증 전에 commit했으며 구현 변경은 없다.
 
 - K1219 verification: 선언한 docs-check 명령이 Node 26.12.0의 committed tree에서 통과했다. specification과 plan은 utility의 경계와 제거한 surface를 명시한다.
 
