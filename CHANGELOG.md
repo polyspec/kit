@@ -5,6 +5,11 @@
 
 ## Unreleased
 
+- K1228-2 verification: on the committed implementation, the declared selection passes 21 tests and the native Mac
+  workflow-env-smoke target passes one test, with no failures or skips. The smoke also passes with a child-only ambient
+  Path alias while checking every inherited PATH-case name and value. Typecheck, duplication, lint, owner validation,
+  rebuild classification and document checks pass. Native Windows process evidence remains owned by Windows bootstrap CI.
+
 - K1228-2: Environment expressions retain distinct POSIX key casing. An environment-only public Dictionary adapter
   preserves lookup, filters and serialization while other contexts keep native case folding. Shared environment merges
   retain first spelling and last values for supported Windows ASCII names, including actual child variables and PATH. The exact

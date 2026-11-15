@@ -1,10 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 60fccdb8ed811c836f1fed430c6020f61d540c7db9a52f4d72e242f5959778b4 -->
+<!-- source-sha256: d90ba10f18c0a1f03cfb9ccb3eaa68f8e655a8476db33e06c10d473a6a37b9ad -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1228-2 검증: commit된 구현에서 선언한 선택은 시험 21개를, native Mac workflow-env-smoke target은 시험 한 개를
+  실패나 skip 없이 통과한다. Smoke는 child에만 ambient Path alias를 제공해도 상속한 모든 PATH-case 이름과 값을
+  검사하며 통과한다. Typecheck, duplication, lint, owner 검증, rebuild 분류와 문서 검사가 통과한다. Native Windows
+  process 증거는 Windows bootstrap CI가 소유한다.
 
 - K1228-2: Environment expression은 POSIX key의 대소문자를 구분한다. Environment 전용 public Dictionary adapter는
   조회, filter와 serialization을 보존하고 다른 context는 native case folding을 유지한다. 공유 environment merge는
