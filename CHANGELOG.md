@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1234: Native local-path installations are reported as retained. npm and Composer links show their actual resolved target, mirrors show their installed location, and Python editable entries show their native source. Provider paths are no longer reported as native targets. Two regressions preserve link inodes and installed metadata; all 215 cases in the 12 owner-selected files pass.
+
 - K1235 verification: the exact declared unit passes on the committed implementation with Node 26.12.0; the focused reporter/progress owners pass four tests without skips. Typecheck, lint-ts, duplication-check and docs-check pass. Heartbeat observation age remains distinct from the native 1400ms result, and interval cadence and close behavior are preserved.
 
 - K1235: Progress heartbeats report waiting for test events, each last-reported active case and elapsed time since its start was observed. A reported start without a received result did not prove live execution: native completion events can arrive after later synchronous work. The timer cadence, native durations, counts, selection, timeouts and cleanup are unchanged. A deterministic observation-clock regression preserves the native 1400ms result and interval cleanup.

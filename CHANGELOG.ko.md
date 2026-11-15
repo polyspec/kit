@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c6456e63fa8b2041ddf2b362206e1ecf32f0ed3b9fc0aab1c0a2f15cfda1afe8 -->
+<!-- source-sha256: 78e030f6d28b7568f3ae91901e3c9c57da9a0e5ba6a5500bfacb88209fbcb94e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1234: native local-path installation을 retained로 보고한다. npm과 Composer link는 실제 해석한 target을, mirror는 installed location을, Python editable 항목은 native source를 적으며 provider path를 native target으로 보고하지 않는다. 회귀 2개는 link inode와 installed metadata 보존도 확인하고, owner가 선택한 12개 파일의 215개 경우가 모두 통과한다.
 
 - K1235 검증: Node 26.12.0에서 commit된 구현의 선언된 unit이 통과하며 집중 reporter/progress owner 시험 네 개가 skip 없이 통과한다. Typecheck, lint-ts, duplication-check, docs-check가 통과한다. Heartbeat의 관측 경과 시간은 native 1400ms 결과와 구분하고 interval 주기와 close 동작을 보존한다.
 
