@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 22dbdf64073c8995d65fec9b761fbbc08827dfa3b02c585fa5880227ce3c7e22 -->
+<!-- source-sha256: 73f457e6897e256d43fb3097ba5ba768bf7aa7caf6a1f95ab8e5fac5f62650f2 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1219 verification: 선언한 docs-check 명령이 Node 26.12.0의 committed tree에서 통과했다. specification과 plan은 utility의 경계와 제거한 surface를 명시한다.
 
 - K1218 verification: 원래 선언한 link-folders와 pack-manifest 명령이 Node 26.12.0의 committed tree에서 여섯 시험을 실패나 skip 없이 통과했다. private module export는 없다.
 
