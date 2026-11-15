@@ -1,10 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b727504721d50c681f4c8d62ddbdd978711164e2957a9dfe4e608a1730edb271 -->
+<!-- source-sha256: d41f5b8b59b4f5228fc940be0630680f5a5f0de72062dde87e34cc412b7d75b4 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1228-3 검증: 정확히 선언한 command는 commit된 구현에서 direct/composite capability 사례 여섯 개, native-exit
+  허용 control 두 개와 typed 거부의 출처를 포함해 시험 아홉 개를 통과한다. 관련 owner file 네 개 전체는 실패나
+  skip 없이 시험 112개를 통과한다. Typecheck, duplication, lint, owner 검증, rebuild 분류와 문서 검사가 통과한다.
+  Environment native smoke는 실제 Mac 실행이며 Windows 증거가 아니다.
 
 - K1228-3: Runtime에서 계산한 external-action output과 미지원 dynamic shell은 직접 또는 composite continue-on-error를
   포함해 무조건 로컬 workflow를 거부한다. 공유 typed 거부는 environment capability 처리도 같은 경계에 두고 실제

@@ -5,6 +5,11 @@
 
 ## Unreleased
 
+- K1228-3 verification: the exact declared command passes nine tests on the committed implementation, including six
+  direct/composite capability cases, two native-exit tolerance controls and typed-refusal provenance. The complete four
+  related owner files pass 112 tests without failures or skips. Typecheck, duplication, lint, owner validation, rebuild
+  classification and document checks pass; the environment native smoke remains a real Mac run, not Windows evidence.
+
 - K1228-3: Runtime computed external-action outputs and unsupported dynamic shells are unconditional local workflow
   refusals, including through direct or composite continue-on-error. A shared typed refusal keeps environment capability
   handling at the same boundary while preserving ordinary native exit and file-validation tolerance. Supported shells
