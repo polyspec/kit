@@ -36,6 +36,13 @@ are printed with their inputs and are not executed, so the local run requires th
   The run supplies status functions and the supported values of `github`, `runner`, `matrix`, `env`, `steps` and workflow or composite
   `inputs`. A context that the local run cannot supply is refused with its name before scripts run. External action
   outputs, secrets and repository variables cannot be supplied by a local script run.
+- Planned runtime refusal correction (K1228-3): a computed read of an external action's output and a dynamically
+  selected unsupported shell are local capability refusals, not reproduced native step failures. They end the local job
+  with status 1, bypass direct and every composite caller's continue-on-error, and admit no later user script. Owned
+  process and runner-directory cleanup still finishes before the result. The shared typed local refusal also carries
+  environment capability refusals, including through native error-cause wrappers. A message that merely says "refused"
+  does not change an ordinary Error into this type. Real native command exits and file-validation failures retain their
+  normal failure/tolerance semantics; no expression engine or general dictionary behavior is replaced.
 - Environment key semantics (K1228-2): `env` keys are case-sensitive on POSIX and supported ASCII keys are case-insensitive on Windows.
   Environment merges retain the first key spelling and take the last assigned value under that comparison. The same
   merge applies to workflow, job, composite and step environments, environment-file writes and the actual spawned
