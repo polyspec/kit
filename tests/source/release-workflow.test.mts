@@ -82,7 +82,7 @@ test('the release workflow sets up the PHP of .php-version without a coverage dr
   assert.match(body, /if: \$\{\{ hashFiles\('\.php-version'\) != '' \}\}/);
   assert.match(body, /php-version-file: \.php-version/);
   assert.match(body, /coverage: none/);
-  assert.ok(uses < lines.findIndex(line => /run: make ci-release$/.test(line)), 'PHP is set up before the release job, whose recipe runs release-tools');
+  assert.ok(uses < lines.findIndex(line => line.endsWith('run: make ci-release')), 'PHP is set up before the release job, whose recipe runs release-tools');
 });
 
 test('the release workflow bootstraps the package, checks the configuration, then prepares the release of the repository, before release-tools (K71-2, K132, K193)', () => {

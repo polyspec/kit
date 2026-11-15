@@ -670,6 +670,33 @@ test('a failed detach names the output of hdiutil in its message (K1151)', async
   }
 });
 
+// K1252: Spotlight and fseventsd open a volume that is attached, and a volume they hold fails hdiutil detach with Resource busy.
+// The image is created from a folder that holds their markers, so neither opens the volume from its attachment on.
+test('K1252: the Darwin image carries the markers that keep Spotlight and fseventsd off the volume', async () => {
+  const parent = mkdtempSync(path.join(tmpdir(), 'kit-case-markers-'));
+  let source: string[] = [];
+  let create: string[] = [];
+  try {
+    await withCaseSensitiveDirectory('KIT_CASE_SENSITIVE_TEST_DIR', () => 'ran', {
+      platform: 'darwin', parent, verify: () => undefined,
+      command: (file, args) => {
+        if (file === 'getconf') return { status: 0, stdout: `${parent}\n` };
+        if (args[0] === 'create') {
+          create = args;
+          const folder = args[args.indexOf('-srcfolder') + 1] ?? '';
+          source = readdirSync(folder, { recursive: true, encoding: 'utf8' }).sort();
+        }
+        return { status: 0 };
+      },
+    });
+    assert.ok(create.includes('-srcfolder'), create.join(' '));
+    assert.equal(create[create.indexOf('-format') + 1], 'UDRW', 'the image is writable');
+    assert.deepEqual(source, ['.fseventsd', path.join('.fseventsd', 'no_log'), '.metadata_never_index']);
+  } finally {
+    rmSync(parent, { recursive: true, force: true });
+  }
+});
+
 // A build that fails names its command and how it ended, a signal included (K1164).
 test('K1231-1: asynchronous build execution preserves native standard input', t => {
   const root = tree(t, { 'sub/a.txt': 'a\n' });

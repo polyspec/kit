@@ -7,6 +7,8 @@
 
 ## 0.0.113
 
+- K1252: The CI run of the push of 0.0.113 passes. lint-ts reads no unchecked type assertion, useless escape or unsafe assignment in the CI tests and in `ci-setup.mts`. The bootstrap platform test reads the matrix of the job bootstrap and the order of `make ci-bootstrap`, where K1250 moved its steps. On macOS the case-sensitive disk image starts from a folder with `.metadata_never_index` and `.fseventsd/no_log`, so Spotlight and fseventsd do not open the volume and `hdiutil detach` no longer fails with Resource busy after the tests end.
+
 - K1251: The local runner of workflow jobs is removed: `ci-job.mts`, its expression, environment and refusal modules, their tests, the `workflow-env-smoke` target, the export `./ci-job` and the dependency `@actions/expressions`. Every CI job is one recipe (K1250), so a local run calls the recipe and needs no emulation of the runner. K1227, K1228, K1228-1, K1228-2, K1228-3 and K1233 are withdrawn.
 
 - K1250: Every job of every workflow of kit and of its example workflows runs one recipe: one run step `make ci-<job>` with make variables only. The pipeline runs `make ci-plan`, `ci-shared`, `ci-runtime RUNTIME=<runtime>` and `ci-required`, which read the tools and targets of a job from config/ci.json; the release job runs `make ci-release`; the bootstrap action runs `make bootstrap`; kit's own jobs run `make ci-checks`, `ci-kit-tests`, `ci-source-tests`, `ci-bootstrap` and `ci-kit`. A recipe installs first and stops at a failure, runs every check to its end and cleans up. `tests/kit/ci-workflow-jobs.test.mts` fails a job that breaks the rule.

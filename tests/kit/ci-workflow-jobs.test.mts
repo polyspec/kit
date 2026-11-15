@@ -9,6 +9,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
+import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { makeDatabase } from '../../scripts/kit/owner-check.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -20,7 +21,7 @@ const WORKFLOWS = [
   { file: 'workflows/release.yml', judge: '' },
 ] as const;
 const STEP_KEYS_OF_RUN = new Set(['run', 'name', 'id', 'shell']);
-const WORD = /^[A-Za-z0-9_.\/-]+$/;
+const WORD = /^[A-Za-z0-9_./-]+$/;
 
 type Step = Record<string, unknown>;
 
@@ -38,9 +39,12 @@ function argumentFinding(argument: string, judge: boolean): string | null {
 /** The findings of the rule for the jobs of `workflow`, whose judging job is `judge`. */
 export function jobFindings(workflow: unknown, judge: string): string[] {
   const findings: string[] = [];
-  const jobs = (workflow as { jobs?: Record<string, { steps?: Step[] }> }).jobs ?? {};
+  const jobs = isJsonObject(workflow) && isJsonObject(workflow.jobs) ? workflow.jobs : {};
   for (const [id, job] of Object.entries(jobs)) {
-    const steps = job.steps ?? [];
+    const listed: unknown = isJsonObject(job) ? job.steps : undefined;
+    const entries: unknown[] = Array.isArray(listed) ? listed : [];
+    const steps: Step[] = entries.filter(isJsonObject);
+    if (steps.length !== entries.length) findings.push(`${id}: a step is no mapping`);
     const runs = steps.filter(step => 'run' in step);
     if (runs.length !== 1) findings.push(`${id}: ${runs.length} run steps; a job has exactly one, make ci-${id}`);
     for (const step of steps) {
@@ -62,15 +66,16 @@ export function jobFindings(workflow: unknown, judge: string): string[] {
 test('K1250: every job of the workflows of kit runs one make ci-<job> step, and every other step is a uses step', () => {
   const make = makeDatabase(ROOT);
   for (const { file, judge } of WORKFLOWS) {
-    const workflow = parse(readFileSync(path.join(ROOT, file), 'utf8')) as { jobs: Record<string, unknown> };
-    assert.ok(Object.keys(workflow.jobs).length > 0, `${file} declares jobs`);
+    const workflow: unknown = parse(readFileSync(path.join(ROOT, file), 'utf8'));
+    const jobs = isJsonObject(workflow) && isJsonObject(workflow.jobs) ? Object.keys(workflow.jobs) : [];
+    assert.ok(jobs.length > 0, `${file} declares jobs`);
     assert.deepEqual(jobFindings(workflow, judge), [], file);
-    for (const id of Object.keys(workflow.jobs)) assert.ok(make.targets.has(`ci-${id}`), `${file}: the Makefile of kit defines ci-${id}`);
+    for (const id of jobs) assert.ok(make.targets.has(`ci-${id}`), `${file}: the Makefile of kit defines ci-${id}`);
   }
 });
 
 test('K1250: the rule reports a second run step, an expression, a condition on a run step and a run of another target', () => {
-  const workflow = parse([
+  const workflow: unknown = parse([
     'jobs:',
     '  tests:',
     '    steps:',

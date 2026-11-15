@@ -37,7 +37,7 @@ function verify(directory: string): void {
   }
 }
 
-/** Await `action` with an empty, verified case-sensitive directory, and await resource cleanup before returning. */
+/** Await `action` with a verified case-sensitive directory (on Darwin it holds only the markers of the volume), and await resource cleanup before returning. */
 export async function withCaseSensitiveDirectory<T>(key: string, action: (directory: string) => T | Promise<T>, options: { platform?: NodeJS.Platform; parent?: string; command?: Command; verify?: (directory: string) => void } = {}): Promise<T> {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) throw new Error(`invalid environment variable name ${JSON.stringify(key)}`);
   const platform = options.platform ?? process.platform;
@@ -68,7 +68,13 @@ export async function withCaseSensitiveDirectory<T>(key: string, action: (direct
       await run(fsutil, ['file', 'setCaseSensitiveInfo', directory, 'enable'], command);
     } else if (platform === 'darwin') {
       const image = path.join(parent, 'case-sensitive.dmg');
-      await run('hdiutil', ['create', '-size', '64m', '-fs', 'Case-sensitive APFS', '-volname', 'kit-case', '-ov', image], command);
+      // Spotlight and fseventsd open an attached volume, and a volume that one of them holds fails hdiutil detach with Resource
+      // busy after the tests have ended. The image starts from a folder with their markers, so neither opens the volume.
+      const source = path.join(parent, 'source');
+      mkdirSync(path.join(source, '.fseventsd'), { recursive: true });
+      writeFileSync(path.join(source, '.fseventsd', 'no_log'), '');
+      writeFileSync(path.join(source, '.metadata_never_index'), '');
+      await run('hdiutil', ['create', '-srcfolder', source, '-format', 'UDRW', '-size', '64m', '-fs', 'Case-sensitive APFS', '-volname', 'kit-case', '-ov', image], command);
       // A failed attach may still have mounted the image. Always try to detach after starting it, and retain the
       // mountpoint and image if detachment cannot prove that they are safe to remove.
       admitWork();

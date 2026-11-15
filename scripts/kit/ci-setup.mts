@@ -198,7 +198,7 @@ export function runCIJob(root: string, group: SetupGroup, runtimeName?: string, 
   const job = group === 'runtime' ? result.runtimes.find(({ runtime }) => runtime === runtimeName) : undefined;
   if (group === 'runtime' && (job === undefined || job.runtime === 'none')) throw new Error(`make ci-runtime needs RUNTIME, a runtime of the plan (runtimes and targets.runtimes of config/ci.json); choose ${result.runtimes.filter(({ runtime }) => runtime !== 'none').map(({ runtime }) => runtime).join(', ') || '(none)'}`);
   if (group === 'shared' && runtimeName !== undefined) throw new Error('make ci-shared takes no RUNTIME; omit it');
-  const scope: CIJob = job === undefined ? 'shared' : (job.runtime as Runtime);
+  const scope: CIJob = job === undefined || job.runtime === 'none' ? 'shared' : job.runtime;
   const tools = job === undefined ? result.commonTools : job.installTools;
   const targets = job === undefined ? ['kit-gates-static', ...result.sharedTargets] : [`kit-gates-runtime-${scope}`, ...job.targets];
   const where = job === undefined ? 'shared' : `runtime/${scope}`;

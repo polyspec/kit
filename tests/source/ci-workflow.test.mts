@@ -9,6 +9,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
+import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { reached } from '../../scripts/kit/check-rules.mts';
 import { makeDatabase } from '../../scripts/kit/owner-check.mts';
 import { readFixture } from '../kit/json-fixture.mts';
@@ -17,7 +18,50 @@ import { known } from '../kit/known.mts';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const text = readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8');
 type Step = { uses?: string; run?: string; if?: string };
-const workflow = parse(text) as { jobs: Record<string, { needs?: string[]; 'runs-on'?: string; strategy?: { matrix?: Record<string, unknown> }; steps: Step[] }> };
+type Job = { name?: string; if?: string; needs?: string[]; 'runs-on'?: string; strategy?: { matrix?: Record<string, unknown> }; steps: Step[] };
+const optionalString = (value: unknown, where: string): string | undefined => {
+  if (value === undefined) return undefined;
+  assert.ok(typeof value === 'string', `${where} is a string`);
+  return value;
+};
+/** The jobs of the parsed workflow `value`, each field checked for the type that these tests read. */
+function readWorkflow(value: unknown): { jobs: Record<string, Job> } {
+  assert.ok(isJsonObject(value) && isJsonObject(value.jobs), 'ci.yml declares jobs');
+  const jobs: Record<string, Job> = {};
+  for (const [name, entry] of Object.entries(value.jobs)) {
+    assert.ok(isJsonObject(entry) && Array.isArray(entry.steps), `job ${name} has steps`);
+    const steps = entry.steps.map((step: unknown, index): Step => {
+      assert.ok(isJsonObject(step), `step ${index} of ${name} is a mapping`);
+      const read: Step = {};
+      for (const key of ['uses', 'run', 'if'] as const) {
+        const value = optionalString(step[key], `${key} of ${name}`);
+        if (value !== undefined) read[key] = value;
+      }
+      return read;
+    });
+    const job: Job = { steps };
+    const title = optionalString(entry.name, `name of ${name}`);
+    if (title !== undefined) job.name = title;
+    const condition = optionalString(entry.if, `if of ${name}`);
+    if (condition !== undefined) job.if = condition;
+    const runsOn = optionalString(entry['runs-on'], `runs-on of ${name}`);
+    if (runsOn !== undefined) job['runs-on'] = runsOn;
+    if (entry.needs !== undefined) {
+      const needs: unknown = entry.needs;
+      assert.ok(Array.isArray(needs), `needs of ${name} is a list`);
+      job.needs = needs.map((need: unknown) => known(optionalString(need, `a need of ${name}`), `a need of ${name}`));
+    }
+    if (entry.strategy !== undefined) {
+      assert.ok(isJsonObject(entry.strategy), `strategy of ${name} is a mapping`);
+      const matrix = entry.strategy.matrix;
+      assert.ok(matrix === undefined || isJsonObject(matrix), `matrix of ${name} is a mapping`);
+      job.strategy = matrix === undefined ? {} : { matrix };
+    }
+    jobs[name] = job;
+  }
+  return { jobs };
+}
+const workflow = readWorkflow(parse(text));
 const job = (name: string) => known(workflow.jobs[name], `job ${name}`);
 const jobRun = (name: string) => known(job(name).steps.find(step => step.run !== undefined)?.run, `the run step of ${name}`);
 const isolatedMakeEnvironment = (environment: NodeJS.ProcessEnv) => ({

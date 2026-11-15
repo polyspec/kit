@@ -5,9 +5,16 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { parse } from 'yaml';
 import { miseArchiveUrl, miseBinary, misePlatform, nodeBinary } from '../../scripts/kit/bootstrap/install-mise.mts';
 import { windowsWrapperText } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
 import { changedFiles, snapshotFiles } from '../../scripts/kit/bootstrap/verify-idempotent.mts';
+import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
+import { makeDatabase } from '../../scripts/kit/owner-check.mts';
+import { known } from './known.mts';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 test('bootstrap snapshots accept unchanged installed files and reject a changed installation', (t) => {
   const root = mkdtempSync(path.join(tmpdir(), 'kit-bootstrap-state-'));
@@ -43,31 +50,22 @@ test('Windows wrappers invoke native executables and pass through command argume
   assert.doesNotMatch(npm, /^call /m);
 });
 
-// K912: the smoke is the job bootstrap of kit's ci.yml, which the final job kit needs, so the run of a push covers every OS.
+// K912: the smoke is the job bootstrap of kit's ci.yml, which the final job kit needs, so the run of a push covers every OS. Since
+// K1250 the job runs one recipe, make ci-bootstrap, so its order lives in the Makefile and its platforms in the matrix.
 test('the platform smoke installs pinned packages before SDK tools and requires every OS result', () => {
   const ci = readFileSync(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
   assert.equal(existsSync(new URL('../../.github/workflows/platform-bootstrap.yml', import.meta.url)), false, 'no second push workflow');
-  const workflow = ci.slice(ci.indexOf('\n  bootstrap:\n'), ci.indexOf('\n  kit:\n'));
-  for (const runner of ['ubuntu-24.04', 'macos-15', 'windows-2025']) assert.ok(workflow.includes(`runner: ${runner}`), `${runner} is in the matrix`);
-  assert.match(workflow, /install pinned mise, Node\.js and npm[\s\S]*?install pinned Kit dependencies/);
-  assert.match(workflow, /verify bootstrap is idempotent[\s\S]*?run: node scripts\/kit\/bootstrap\/verify-idempotent\.mts/);
-  assert.doesNotMatch(workflow, /grep -q ['"]installing |match ['"]installing /);
-  assert.match(workflow, /run: var\/tools\/bin\/npm ci --ignore-scripts$/m);
-  assert.match(workflow, /& \.\\var\\tools\\bin\\npm\.cmd ci --ignore-scripts$/m);
-  assert.match(workflow, /install pinned Kit dependencies[\s\S]*?install pinned Go and Rust toolchains/);
-  assert.match(workflow, /verify Git Bash Make uses pinned Node\.js on Windows[\s\S]*?shell: bash[\s\S]*?run: make --no-print-directory owner-validate/);
-  // K923: the real Go benchmark runs the go shim of mise, which reaches mise only by the PATH of kit.mk, so the step runs
-  // the declared go source-test group through Git Bash make on every runner, Windows included.
-  assert.match(workflow, /verify the Go benchmark result line[\s\S]*?shell: bash[\s\S]*?run: make --no-print-directory source-test-group GROUP=go SOURCE_TEST_FILES_go=tests\/source\/go-bench-output-real\.test\.mts/);
-  // K820: on Windows a mise shim run through Git Bash make reaches mise.exe by the PATH of kit.mk.
-  assert.match(workflow, /run a mise shim through Git Bash Make on Windows[\s\S]*?shell: bash[\s\S]*?\$\(KIT_TOOLS\)\/mise\/shims\/go version/);
-  // K830: the process tests start real processes; a hang fails the step by its limit.
-  const processSteps = workflow.split(/\n {6}- /).filter(step =>
-    /^ {8}run: node --test tests\/kit\/process\.test\.mts tests\/kit\/process-group\.test\.mts$/m.test(step));
-  assert.equal(processSteps.length, 1, 'one common step executes the native process tests');
-  const processStep = processSteps[0];
-  assert.ok(processStep);
-  assert.match(processStep, /^ {8}timeout-minutes: 10$/m);
-  assert.doesNotMatch(processStep, /^ {8}if:/m, 'every platform executes common process tests');
-  assert.match(ci, /\n {2}kit:\n[\s\S]*?needs: \[[^\]]*\bbootstrap\b[^\]]*\][\s\S]*?RESULTS: \$\{\{ toJSON\(needs\) \}\}/, 'the final job kit requires the result of every OS');
+  const workflow: unknown = parse(ci);
+  assert.ok(isJsonObject(workflow) && isJsonObject(workflow.jobs), 'ci.yml declares jobs');
+  const job = workflow.jobs.bootstrap;
+  assert.ok(isJsonObject(job) && isJsonObject(job.strategy) && isJsonObject(job.strategy.matrix), 'the job bootstrap has a matrix');
+  assert.deepEqual(job.strategy.matrix.runner, ['ubuntu-24.04', 'macos-15', 'windows-2025'], 'the matrix runs Linux, macOS and Windows');
+  assert.ok(Array.isArray(job.steps));
+  const runs = job.steps.filter((step: unknown) => isJsonObject(step) && step.run !== undefined);
+  assert.deepEqual(runs, [{ run: 'make ci-bootstrap' }], 'the job runs one recipe');
+  const recipe = known(makeDatabase(ROOT).targets.get('ci-bootstrap'), 'ci-bootstrap').recipe;
+  const order = [/--no-print-directory bootstrap$/m, /scripts\/kit\/bootstrap\/verify-idempotent\.mts$/m, /install-tools TOOLS="go rust"$/m, /-k \$\(CI_BOOTSTRAP_CHECKS_\$\(CI_BOOTSTRAP_PLATFORM\)\)$/m]
+    .map(pattern => known(pattern.exec(recipe), `ci-bootstrap runs ${String(pattern)}`).index);
+  assert.deepEqual([...order].sort((a, b) => a - b), order, 'the bootstrap, its idempotence, the pinned Go and Rust, then the checks');
+  assert.match(ci, /\n {2}kit:\n[\s\S]*?needs: \[[^\]]*\bbootstrap\b[^\]]*\][\s\S]*?RESULTS='\$\{\{ toJSON\(needs\) \}\}'/, 'the final job kit requires the result of every OS');
 });

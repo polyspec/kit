@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6d2bd4471219484c74851035d86a8c0425101b9292d98ccd23993750867bd752 -->
+<!-- source-sha256: 1c0dd444f332fcdcaa2cb1d354615e7eae6ba747f29823de55c7d7839b06dd2c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -7,6 +7,8 @@
 ## Unreleased
 
 ## 0.0.113
+
+- K1252: 0.0.113 push의 CI run이 통과한다. lint-ts는 CI test와 `ci-setup.mts`에서 검사하지 않은 type assertion, 쓸모없는 escape, unsafe assignment를 더 보고하지 않는다. bootstrap platform test는 job bootstrap의 matrix와, K1250이 step을 옮긴 `make ci-bootstrap`의 순서를 읽는다. macOS에서 대소문자 구분 disk image는 `.metadata_never_index`와 `.fseventsd/no_log`가 있는 폴더에서 시작하므로 Spotlight와 fseventsd가 volume을 열지 않고, test가 끝난 뒤 `hdiutil detach`가 Resource busy로 실패하지 않는다.
 
 - K1251: workflow job의 로컬 runner를 제거했다. `ci-job.mts`, 그 expression, environment, 거부 module, 그 test, `workflow-env-smoke` target, export `./ci-job`, dependency `@actions/expressions`가 사라졌다. 모든 CI job이 recipe 하나이므로(K1250) 로컬 실행은 recipe를 부르고 runner 흉내가 필요 없다. K1227, K1228, K1228-1, K1228-2, K1228-3, K1233을 철회했다.
 
