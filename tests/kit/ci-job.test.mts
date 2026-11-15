@@ -7,6 +7,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { ciJob, planJob } from '../../scripts/kit/ci-job.mts';
 import { signalGroup } from '../../scripts/kit/process-group.mts';
+import { runCommand as runOwnedCommand } from '../../scripts/kit/run-command.mts';
 import { filePublished } from './file-events.mts';
 
 // K1227: the run of one CI job runs the run steps of the job and of its local composite actions in their order.
@@ -832,5 +833,290 @@ test('K1228: computed producers from step outputs are checked before their scrip
     assert.equal(status, 1, lines.join('\n'));
     assert.ok(lines.some(line => line.includes('external action actions/checkout')), lines.join('\n'));
     assert.equal(existsSync(path.join(root, 'forbidden.log')), false);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('K1233: workflow-call defaults retain their types and false conditions stay false', async () => {
+  const root = fixture(`on:
+  workflow_call:
+    inputs:
+      release: { type: boolean }
+      count: { type: number }
+      ref: { type: string }
+      label: { type: string, required: true, default: stable }
+jobs:
+  j:
+    env:
+      VALUES: \${{ toJSON(inputs) }}
+    steps:
+      - if: \${{ inputs.release }}
+        run: printf wrong > wrong.log
+      - run: printf '%s' "$VALUES" > values.json
+`);
+  try {
+    const { status, lines } = await run(root, 'j');
+    assert.equal(status, 0, lines.join('\n'));
+    assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'values.json'), 'utf8')), { release: false, count: 0, ref: '', label: 'stable' });
+    assert.equal(existsSync(path.join(root, 'wrong.log')), false);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('K1233: explicit inputs preserve empty text, equals signs and expression-looking text', async () => {
+  const root = fixture(`on:
+  workflow_call:
+    inputs:
+      enabled: { type: boolean, required: true }
+      number: { type: number, required: true }
+      empty: { type: string, default: occupied }
+      text: { type: string }
+      literal: { type: string }
+jobs:
+  j:
+    env: { VALUES: '\${{ toJSON(inputs) }}' }
+    steps: [{ run: 'printf %s "$VALUES" > values.json' }]
+`);
+  try {
+    const lines: string[] = [];
+    const status = await ciJob({ root, workflow: '.github/workflows/ci.yml', job: 'j', inputs: ['ENABLED=false', 'number=-1.25e2', 'empty=', 'text=a=b', 'literal=${{ vars.UNAVAILABLE }}'], print: line => lines.push(line) });
+    assert.equal(status, 0, lines.join('\n'));
+    assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'values.json'), 'utf8')), { enabled: false, number: -125, empty: '', text: 'a=b', literal: '${{ vars.UNAVAILABLE }}' });
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('K1233: inputs reach workflow and job env, matrix, defaults, conditions and needed outputs', async () => {
+  const root = fixture(`on:
+  workflow_call:
+    inputs:
+      enabled: { type: boolean, default: true }
+      values: { type: string, default: '["a","b"]' }
+      shell: { type: string, default: bash }
+      label: { type: string, default: native }
+env: { TOP: '\${{ inputs.label }}' }
+jobs:
+  producer:
+    outputs: { value: '\${{ inputs.label }}' }
+    steps: [{ run: 'printf producer > producer.log' }]
+  j:
+    needs: producer
+    if: \${{ inputs.enabled }}
+    strategy: { matrix: { value: '\${{ fromJSON(inputs.values) }}' } }
+    env: { LABEL: '\${{ inputs.label }}' }
+    defaults: { run: { shell: '\${{ inputs.shell }}' } }
+    steps:
+      - run: printf '%s' "$TOP:$LABEL:\${{ matrix.value }}:\${{ needs.producer.outputs.value }}" > \${{ matrix.value }}.log
+`);
+  try {
+    assert.deepEqual(planJob(root, '.github/workflows/ci.yml', 'j').combinations, [{ value: 'a' }, { value: 'b' }]);
+    const { status, lines } = await run(root, 'j');
+    assert.equal(status, 0, lines.join('\n'));
+    assert.equal(readFileSync(path.join(root, 'a.log'), 'utf8'), 'native:native:a:native');
+    assert.equal(readFileSync(path.join(root, 'b.log'), 'utf8'), 'native:native:b:native');
+    assert.equal(readFileSync(path.join(root, 'producer.log'), 'utf8'), 'producer');
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('K1233: composite string inputs shadow typed workflow inputs', async () => {
+  const root = fixture(`on:
+  workflow_call:
+    inputs: { enabled: { type: boolean, default: true } }
+jobs:
+  j:
+    steps:
+      - uses: ./.github/actions/bootstrap
+        with: { enabled: '\${{ inputs.enabled }}' }
+      - env: { VALUE: '\${{ toJSON(inputs.enabled) }}' }
+        run: printf '%s' "$VALUE" > outer.log
+`, `inputs: { enabled: { default: fallback } }
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env: { VALUE: '\${{ toJSON(inputs.enabled) }}' }
+      run: printf '%s' "$VALUE" > inner.log
+`);
+  try {
+    const { status, lines } = await run(root, 'j');
+    assert.equal(status, 0, lines.join('\n'));
+    assert.equal(readFileSync(path.join(root, 'inner.log'), 'utf8'), '"true"');
+    assert.equal(readFileSync(path.join(root, 'outer.log'), 'utf8'), 'true');
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+for (const [outer, inner, status] of [['external', 'local', 0], ['local', 'external', 1]] as const) {
+  test(`K1233: composite producer ${inner} shadows workflow producer ${outer}`, async () => {
+    const root = fixture(`on:
+  workflow_call:
+    inputs: { producer: { type: string, default: ${outer} } }
+jobs:
+  j:
+    steps:
+      - uses: ./.github/actions/bootstrap
+        with: { producer: ${inner} }
+`, `inputs: { producer: { default: local } }
+runs:
+  using: composite
+  steps:
+    - id: local
+      shell: bash
+      run: echo 'value=owned' >> "$GITHUB_OUTPUT"
+    - id: external
+      uses: actions/checkout@v6
+    - shell: bash
+      run: echo \${{ steps[inputs.producer].outputs.value }} > inner.log
+`);
+    try {
+      assert.equal(planJob(root, '.github/workflows/ci.yml', 'j').steps.length, 1);
+      const result = await run(root, 'j');
+      assert.equal(result.status, status, result.lines.join('\n'));
+      if (status === 0) assert.equal(readFileSync(path.join(root, 'inner.log'), 'utf8').trim(), 'owned');
+      else {
+        assert.match(result.lines.join('\n'), /external action actions\/checkout/);
+        assert.equal(existsSync(path.join(root, 'inner.log')), false);
+      }
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+}
+
+test('K1233: dispatch binds explicit typed values and validates choice options', async () => {
+  const root = fixture(`on:
+  workflow_dispatch:
+    inputs:
+      enabled: { type: boolean, default: false }
+      count: { type: number, default: 2 }
+      label: { type: string, required: true }
+      level: { type: choice, options: [info, warning], default: warning }
+      target: { type: environment, required: true }
+jobs:
+  j:
+    env: { VALUES: '\${{ toJSON(inputs) }}' }
+    steps: [{ run: 'printf %s "$VALUES" > values.json' }]
+`);
+  try {
+    const lines: string[] = [];
+    const status = await ciJob({ root, workflow: '.github/workflows/ci.yml', job: 'j', inputs: ['enabled=true', 'count=2.5', 'label=', 'level=info', 'target=production'], print: line => lines.push(line) });
+    assert.equal(status, 0, lines.join('\n'));
+    assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'values.json'), 'utf8')), { enabled: true, count: 2.5, label: '', level: 'info', target: 'production' });
+    assert.throws(() => planJob(root, '.github/workflows/ci.yml', 'j', {}, { inputs: ['label=x', 'target=y', 'level=debug'] }), /level.*options/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('K1233: ambiguous input events need selection only when workflow inputs are read', () => {
+  const root = fixture(`on:
+  workflow_call:
+    inputs: { label: { type: string, default: called } }
+  workflow_dispatch:
+    inputs: { label: { type: string, default: dispatched } }
+jobs:
+  independent: { steps: [{ run: true }] }
+  j:
+    strategy: { matrix: { label: ['\${{ inputs.label }}'] } }
+    steps: [{ run: true }]
+`);
+  try {
+    assert.equal(planJob(root, '.github/workflows/ci.yml', 'independent').steps.length, 1);
+    assert.throws(() => planJob(root, '.github/workflows/ci.yml', 'j'), /input-event.*workflow_call.*workflow_dispatch/);
+    assert.deepEqual(planJob(root, '.github/workflows/ci.yml', 'j', {}, { inputEvent: 'workflow_call' }).combinations, [{ label: 'called' }]);
+    assert.deepEqual(planJob(root, '.github/workflows/ci.yml', 'j', {}, { inputEvent: 'workflow_dispatch' }).combinations, [{ label: 'dispatched' }]);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+for (const [label, declaration, inputs, cause] of [
+  ['wrong boolean', '{ type: boolean }', ['value=False'], /value.*true.*false/],
+  ['empty number', '{ type: number }', ['value='], /value.*finite JSON number/],
+  ['nonfinite number', '{ type: number }', ['value=1e999'], /value.*finite JSON number/],
+  ['number whitespace', '{ type: number }', ['value= 1'], /value.*finite JSON number/],
+  ['wrong default type', '{ type: boolean, default: "false" }', [], /value.*default.*boolean/],
+  ['expression default', '{ type: string, default: "${{ github.ref }}" }', [], /value.*expression default/],
+  ['missing required', '{ type: string, required: true }', [], /value.*required.*--input/],
+  ['unknown argument', '{ type: string }', ['other=x'], /other.*not declared/],
+  ['duplicate argument', '{ type: string }', ['value=x', 'VALUE=y'], /duplicate.*VALUE/i],
+  ['missing type', '{ default: x }', [], /value.*type/],
+  ['malformed argument', '{ type: string }', ['value'], /name=value/],
+] as const) {
+  test(`K1233: ${label} is refused before any script runs`, async () => {
+    const root = fixture(`on:\n  workflow_call:\n    inputs:\n      value: ${declaration}\njobs:\n  j:\n    steps: [{ run: 'printf wrong > ran.log' }]\n`);
+    try {
+      assert.throws(() => planJob(root, '.github/workflows/ci.yml', 'j', {}, { inputs }), cause);
+      const lines: string[] = [];
+      assert.equal(await ciJob({ root, workflow: '.github/workflows/ci.yml', job: 'j', inputs, print: line => lines.push(line) }), 1, lines.join('\n'));
+      assert.match(lines.join('\n'), cause);
+      assert.equal(existsSync(path.join(root, 'ran.log')), false);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+}
+
+test('K1233: declaration collisions, absent event selections and unknown dispatch omissions are refused', () => {
+  for (const [events, options, cause] of [
+    ['workflow_call:\n    inputs:\n      value: { type: string }\n      VALUE: { type: string }', {}, /ambiguous.*value.*VALUE/i],
+    ['workflow_call: {}', { inputEvent: 'workflow_dispatch' }, /workflow_dispatch.*not declared/],
+    ['workflow_dispatch:\n    inputs:\n      value: { type: number }', {}, /value.*--input.*omitted/],
+    ['workflow_call:\n    inputs:\n      value: { type: number, default: .inf }', {}, /value.*default.*finite/],
+    ['workflow_call:\n    inputs:\n      value: { type: string, required: yes }', {}, /value.*required.*boolean/],
+    ['workflow_dispatch:\n    inputs:\n      value: { type: choice, options: [ok], default: wrong }', {}, /value.*options/],
+  ] as const) {
+    const root = fixture(`on:\n  ${events}\njobs:\n  j:\n    steps: [{ run: true }]\n`);
+    try { assert.throws(() => planJob(root, '.github/workflows/ci.yml', 'j', {}, options), cause); }
+    finally { rmSync(root, { recursive: true, force: true }); }
+  }
+});
+
+test('K1233: input-based computed producers keep external action output guards', () => {
+  const root = fixture(`on:
+  workflow_call:
+    inputs: { producer: { type: string, default: external } }
+jobs:
+  j:
+    steps:
+      - id: external
+        uses: actions/checkout@v6
+      - run: echo \${{ steps[inputs.producer].outputs.value }}
+`);
+  try {
+    assert.throws(() => planJob(root, '.github/workflows/ci.yml', 'j'), /external action actions\/checkout/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('K1233: native Dictionary collisions are refused while case-folded noncollisions remain usable', async () => {
+  for (const name of ['__proto__', 'constructor']) {
+    const root = fixture(`on:\n  workflow_call:\n    inputs:\n      ${name}: { type: string, default: owned }\njobs:\n  j:\n    steps: [{ run: true }]\n`);
+    try { assert.throws(() => planJob(root, '.github/workflows/ci.yml', 'j'), /unsupported native Dictionary key/); }
+    finally { rmSync(root, { recursive: true, force: true }); }
+  }
+  const root = fixture(`on:
+  workflow_call:
+    inputs: { toString: { type: string, default: preserved } }
+jobs:
+  j:
+    env: { VALUES: '\${{ toJSON(inputs) }}' }
+    steps: [{ run: 'printf %s "$VALUES" > values.json' }]
+`);
+  try {
+    const result = await run(root, 'j');
+    assert.equal(result.status, 0, result.lines.join('\n'));
+    assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'values.json'), 'utf8')), { toString: 'preserved' });
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('K1233: CLI planning uses the same input binding and rejects repeated event selection', async () => {
+  const root = fixture(`on:
+  workflow_call:
+    inputs:
+      enabled: { type: boolean, default: true }
+      text: { type: string }
+jobs:
+  j:
+    steps: [{ run: true }]
+`);
+  try {
+    const args = [path.resolve('scripts/kit/ci-job.mts'), '--workflow', path.join(root, '.github/workflows/ci.yml'), '--job', 'j', '--plan'];
+    const bound = await runOwnedCommand({ command: process.execPath, args: [...args, '--input', 'enabled=false', '--input', 'text=a=b'], stdout: 'pipe', stderr: 'pipe' });
+    assert.equal(bound.status, 0, bound.stdout + bound.stderr);
+    assert.match(bound.stdout, /inputs from workflow_call: {"enabled":false,"text":"a=b"}/);
+    const duplicate = await runOwnedCommand({ command: process.execPath, args: [...args, '--input', 'text=x', '--input', 'TEXT=y'], stdout: 'pipe', stderr: 'pipe' });
+    assert.equal(duplicate.status, 1, duplicate.stdout + duplicate.stderr);
+    assert.match(duplicate.stdout, /duplicate input TEXT/);
+    const event = await runOwnedCommand({ command: process.execPath, args: [...args, '--input-event', 'workflow_call', '--input-event', 'workflow_call'], stdout: 'pipe', stderr: 'pipe' });
+    assert.equal(event.status, 2, event.stdout + event.stderr);
+    assert.match(event.stderr, /usage:/);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });

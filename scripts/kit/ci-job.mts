@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Runs the steps of one job of a GitHub workflow of the checkout, as CI runs them (K1227, K1228):
 //
-//   node scripts/kit/ci-job.mts --workflow <file> --job <id> [--matrix <key>=<value>]... [--plan]
+//   node scripts/kit/ci-job.mts --workflow <file> --job <id> [--matrix <key>=<value>]... [--input <name>=<value>]... [--input-event <workflow_call|workflow_dispatch>] [--plan]
 //
 // A check before a push must be the CI job itself, not a list of its commands copied by hand, because a copy drifts from
 // the workflow and a missed step makes the local run differ from CI. The run reads the workflow of the checkout and runs
@@ -15,7 +15,7 @@
 //
 // `${{ }}` and `if:` are expressions of GitHub Actions, which `@actions/expressions` of GitHub parses and evaluates
 // (actions-expression.mts), with the status functions and the contexts that the run has: `matrix`, `runner` (`os` and
-// `arch` of this machine, `temp`), `env`, `steps.<id>` (`outputs`, `outcome`, `conclusion`), `inputs` in a composite action, `github.workspace` (the checkout; `github.action_path` in a
+// `arch` of this machine, `temp`), `env`, `steps.<id>` (`outputs`, `outcome`, `conclusion`), `inputs` of a workflow or composite action, `github.workspace` (the checkout; `github.action_path` in a
 // composite action) and `needs.<job>.outputs`. A step writes its outputs, its environment for the later steps, its
 // folders of PATH and its summary to the files `GITHUB_OUTPUT`, `GITHUB_ENV`, `GITHUB_PATH` and `GITHUB_STEP_SUMMARY`, in
 // the form `name=value` or `name<<DELIMITER`; the run prints a summary that a step writes. A condition without a status
@@ -56,7 +56,7 @@ import { callsStatus, evaluateTemplate, parseExpression, parseTemplate, referenc
 import { isMain, repositoryRoot } from './paths.mts';
 import { failureOf, runCommand } from './run-command.mts';
 
-const USAGE = 'usage: node scripts/kit/ci-job.mts --workflow <file> --job <id> [--matrix <key>=<value>]... [--plan]';
+const USAGE = 'usage: node scripts/kit/ci-job.mts --workflow <file> --job <id> [--matrix <key>=<value>]... [--input <name>=<value>]... [--input-event <workflow_call|workflow_dispatch>] [--plan]';
 const WINDOWS = process.platform === 'win32';
 /** `runner.os` and `runner.arch` of GitHub for the machine of the run. */
 const RUNNER_OS = ({ darwin: 'macOS', linux: 'Linux', win32: 'Windows' } as Record<string, string>)[process.platform] ?? process.platform;
@@ -145,6 +145,7 @@ type Place = {
   /** The ids of the steps of the scope: the external action that a step runs, or undefined for a step that the run runs. */
   steps: Map<string, string | undefined>;
   composite: boolean;
+  inputsCause?: string | undefined;
   /** The needed jobs whose outputs the job reads, which the check fills. */
   read: Set<string>;
 };
@@ -157,6 +158,105 @@ const ROOT_CAUSES: Record<string, string> = {
   inputs: 'the inputs of a workflow call or a dispatch, which a local run of one job is not given',
 };
 
+const INPUT_EVENTS = ['workflow_call', 'workflow_dispatch'] as const;
+type InputEvent = typeof INPUT_EVENTS[number];
+export type WorkflowInputSelection = { inputs?: readonly string[] | undefined; inputEvent?: InputEvent | undefined };
+type BoundInputs = { values: Record<string, Value> | undefined; event: InputEvent | undefined; cause: string | undefined };
+type InputDeclaration = { name: string; type: string; required: boolean; fallback: Value | undefined; options: readonly string[] | undefined };
+
+/** Validate the declaration independently of the values supplied to this local run. */
+function inputDeclaration(name: string, value: unknown, event: InputEvent, where: string): InputDeclaration {
+  const at = `${where} input ${name}`;
+  if (!/^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(name)) throw new Error(`${at}: invalid input name`);
+  if (Object.hasOwn(Object.prototype, name.toLowerCase())) throw new Error(`${at}: unsupported native Dictionary key; its case-folded name collides with an inherited property`);
+  const entry = mapping(value, at);
+  const allowed = ['description', 'type', 'required', 'default', ...(event === 'workflow_dispatch' ? ['options'] : [])];
+  for (const key of Object.keys(entry)) if (!allowed.includes(key)) throw new Error(`${at}: unsupported declaration ${key}`);
+  const types = event === 'workflow_call' ? ['boolean', 'number', 'string'] : ['boolean', 'number', 'string', 'choice', 'environment'];
+  if (typeof entry.type !== 'string' || !types.includes(entry.type)) throw new Error(`${at}: type must be ${types.join(', ')}`);
+  if (entry.required !== undefined && typeof entry.required !== 'boolean') throw new Error(`${at}: required must be boolean`);
+  if (entry.description !== undefined && typeof entry.description !== 'string') throw new Error(`${at}: description must be string`);
+  let options: readonly string[] | undefined;
+  if (entry.type === 'choice') {
+    if (!Array.isArray(entry.options) || entry.options.length === 0 || !entry.options.every(item => typeof item === 'string')) throw new Error(`${at}: choice options must be a nonempty list of strings`);
+    options = entry.options;
+    if (new Set(options).size !== options.length) throw new Error(`${at}: choice options must be distinct`);
+  } else if (entry.options !== undefined) throw new Error(`${at}: options require choice type`);
+  const declaration: InputDeclaration = { name, type: entry.type, required: entry.required === true, fallback: undefined, options };
+  if (Object.hasOwn(entry, 'default')) {
+    if (typeof entry.default === 'string' && entry.default.includes('${{')) throw new Error(`${at}: expression default is not supported; supply a literal default`);
+    declaration.fallback = inputValue(entry.default, declaration, `${at} default`);
+  }
+  return declaration;
+}
+
+function inputValue(value: unknown, declaration: InputDeclaration, where: string): Value {
+  const type = declaration.type === 'choice' || declaration.type === 'environment' ? 'string' : declaration.type;
+  if (typeof value !== type) throw new Error(`${where} must be ${type}`);
+  if (typeof value === 'number' && !Number.isFinite(value)) throw new Error(`${where} must be a finite number`);
+  if (declaration.options !== undefined && !declaration.options.includes(String(value))) throw new Error(`${where} must belong to options ${JSON.stringify(declaration.options)}`);
+  return plainValue(value);
+}
+
+/** CLI values are text; decode only the declared scalar type, without coercing empty text to zero or false. */
+function inputArgument(value: string, declaration: InputDeclaration, where: string): Value {
+  if (declaration.type === 'boolean') {
+    if (value !== 'true' && value !== 'false') throw new Error(`${where} must be exactly true or false`);
+    return value === 'true';
+  }
+  if (declaration.type === 'number') {
+    if (!/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(value) || !Number.isFinite(Number(value))) throw new Error(`${where} must be a finite JSON number without whitespace`);
+    return Number(value);
+  }
+  return inputValue(value, declaration, where);
+}
+
+/** Select local declarations, not a GitHub event: no event identity or event payload is fabricated. */
+function bindWorkflowInputs(document: Mapping, workflow: string, selection: WorkflowInputSelection): BoundInputs {
+  const on = document.on;
+  const events: Mapping = typeof on === 'string' ? { [on]: null }
+    : Array.isArray(on) && on.every(item => typeof item === 'string') ? Object.fromEntries(on.map(item => [item, null]))
+      : mapping(on, `${workflow} on`);
+  const available = INPUT_EVENTS.filter(event => Object.hasOwn(events, event));
+  if (selection.inputEvent !== undefined && !available.includes(selection.inputEvent)) throw new Error(`${workflow}: input event ${selection.inputEvent} is not declared`);
+  const event = selection.inputEvent ?? (available.length === 1 ? available[0] : undefined);
+  const arguments_ = selection.inputs ?? [];
+  if (event === undefined) {
+    const cause = available.length > 1 ? 'select --input-event workflow_call or --input-event workflow_dispatch before binding workflow inputs'
+      : ROOT_CAUSES.inputs;
+    if (arguments_.length > 0) throw new Error(`${workflow}: ${cause}`);
+    return { values: undefined, event: undefined, cause };
+  }
+  const where = `${workflow} on.${event}`;
+  const configuration = mapping(events[event], where);
+  const declarations = Object.entries(mapping(configuration.inputs, `${where} inputs`)).map(([name, value]) => inputDeclaration(name, value, event, where));
+  const names = new Map<string, InputDeclaration>();
+  for (const declaration of declarations) {
+    const key = declaration.name.toLowerCase();
+    const previous = names.get(key);
+    if (previous !== undefined) throw new Error(`${where}: ambiguous input names ${previous.name} and ${declaration.name}`);
+    names.set(key, declaration);
+  }
+  const given = new Map<string, Value>();
+  for (const argument of arguments_) {
+    const equals = argument.indexOf('=');
+    if (equals < 1) throw new Error(`${workflow}: --input must be name=value: ${JSON.stringify(argument)}`);
+    const name = argument.slice(0, equals);
+    const declaration = names.get(name.toLowerCase());
+    if (declaration === undefined) throw new Error(`${where}: input ${name} is not declared`);
+    if (given.has(declaration.name)) throw new Error(`${where}: duplicate input ${name}`);
+    given.set(declaration.name, inputArgument(argument.slice(equals + 1), declaration, `${where} input ${name}`));
+  }
+  const values = Object.fromEntries(declarations.map(declaration => {
+    if (given.has(declaration.name)) return [declaration.name, given.get(declaration.name) ?? null];
+    if (declaration.fallback !== undefined) return [declaration.name, declaration.fallback];
+    if (declaration.required) throw new Error(`${where} input ${declaration.name} is required; supply --input ${declaration.name}=value`);
+    if (event === 'workflow_dispatch') throw new Error(`${where} input ${declaration.name}: supply --input ${declaration.name}=value; the native omitted value is not established by this local runner`);
+    return [declaration.name, declaration.type === 'boolean' ? false : declaration.type === 'number' ? 0 : ''];
+  }));
+  return { values, event, cause: undefined };
+}
+
 /** Throws with `where` when `expression` reads a context or a property that the run does not give at `place`. */
 function check(expression: Expression, place: Place, where: string): void {
   for (const { path: chain, dynamic } of referencesOf(expression)) {
@@ -167,7 +267,7 @@ function check(expression: Expression, place: Place, where: string): void {
     };
     if (!place.roots.includes(root)) {
       if (root === 'needs' && place.composite) refuse('which a composite action does not have');
-      refuse(ROOT_CAUSES[root] ?? `which is not a context of GitHub Actions that the local run gives here (${place.roots.join(', ')})`);
+      refuse((root === 'inputs' ? place.inputsCause : undefined) ?? ROOT_CAUSES[root] ?? `which is not a context of GitHub Actions that the local run gives here (${place.roots.join(', ')})`);
     }
     if (root === 'github') {
       const allowed = place.composite ? ['workspace', 'action_path'] : ['workspace'];
@@ -299,6 +399,8 @@ export type JobPlan = {
   job: string;
   where: string;
   root: string;
+  inputs: Record<string, Value> | undefined;
+  inputEvent: InputEvent | undefined;
   /** The needed jobs whose outputs the job reads, which run first. */
   needs: JobPlan[];
   condition: Expression | undefined;
@@ -391,8 +493,8 @@ function decidable(expression: Expression, roots: string[]): boolean {
 }
 
 /** The contexts of an expression of the job before its steps: github and the outputs of the needed jobs. */
-function jobContexts(root: string, needs: Record<string, Value>): Record<string, Value> {
-  return { github: { workspace: root }, needs };
+function jobContexts(root: string, needs: Record<string, Value>, inputs?: Record<string, Value>): Record<string, Value> {
+  return { github: { workspace: root }, needs, ...(inputs === undefined ? {} : { inputs }) };
 }
 
 /**
@@ -400,12 +502,13 @@ function jobContexts(root: string, needs: Record<string, Value>): Record<string,
  * and value of `select`, decided when its matrix reads no needed job. Throws with the cause, also when `select` matches no
  * combination.
  */
-export function planJob(root: string, workflow: string, job: string, select: Record<string, string> = {}): JobPlan {
-  return planJobGraph(root, workflow, job, select, []);
+export function planJob(root: string, workflow: string, job: string, select: Record<string, string> = {}, inputSelection: WorkflowInputSelection = {}): JobPlan {
+  return planJobGraph(root, workflow, job, select, [], inputSelection);
 }
 
-function planJobGraph(root: string, workflow: string, job: string, select: Record<string, string>, ancestors: readonly string[]): JobPlan {
+function planJobGraph(root: string, workflow: string, job: string, select: Record<string, string>, ancestors: readonly string[], inputSelection: WorkflowInputSelection): JobPlan {
   const document = readYaml(path.resolve(root, workflow));
+  const bound = bindWorkflowInputs(document, workflow, inputSelection);
   const jobs = mapping(document.jobs, `${workflow} jobs`);
   const canonical = Object.keys(jobs).find(each => each.toLowerCase() === job.toLowerCase());
   if (canonical === undefined) throw new Error(`${workflow} has no job ${job}; its jobs are ${Object.keys(jobs).join(', ') || 'none'}`);
@@ -419,7 +522,7 @@ function planJobGraph(root: string, workflow: string, job: string, select: Recor
   }
   const needs = needsOf(entry, where);
   const read = new Set<string>();
-  const at = (roots: string[]): Place => ({ roots, needs, steps: new Map(), composite: false, read });
+  const at = (roots: string[]): Place => ({ roots: bound.values === undefined ? roots : [...roots, 'inputs'], inputsCause: bound.cause, needs, steps: new Map(), composite: false, read });
   const workflowEnv = expressions(document.env, at(['github']), `${workflow}: env`);
   const jobEnv = expressions(entry.env, at(['github', 'needs', 'matrix']), `${where}: env`);
   const jobCondition = entry.if === undefined ? undefined : condition(entry.if, where);
@@ -446,24 +549,24 @@ function planJobGraph(root: string, workflow: string, job: string, select: Recor
   const defaultsPlace = at(['github', 'needs', 'matrix', 'env']);
   const stepPlace = at(STEP_ROOTS);
   const steps = planSteps(root, stepList(entry.steps, `${where} steps`), stepPlace, where);
-  const outputs = expressions(entry.outputs, { ...stepPlace, roots: STEP_ROOTS }, `${where}: outputs`);
+  const outputs = expressions(entry.outputs, stepPlace, `${where}: outputs`);
   const plan: JobPlan = {
-    workflow, job, where, root, needs: [], condition: jobCondition, matrix, combinations: undefined, failFast,
+    workflow, job, where, root, inputs: bound.values, inputEvent: bound.event, needs: [], condition: jobCondition, matrix, combinations: undefined, failFast,
     env: { workflow: workflowEnv, job: jobEnv },
     defaults: { shell: optional(defaults.shell, defaultsPlace, `${where}: defaults shell`), directory: optional(defaults['working-directory'], defaultsPlace, `${where}: defaults working-directory`) },
     outputs, steps,
   };
   for (const name of needs.filter(each => read.has(each))) {
-    const needed = planJobGraph(root, workflow, name, {}, [...ancestors, job]);
+    const needed = planJobGraph(root, workflow, name, {}, [...ancestors, job], inputSelection);
     if (needed.matrix !== undefined) throw new Error(`${where} reads the outputs of job ${name}, which has a matrix: CI gives the outputs of the combination that ends last, which a local run cannot reproduce`);
     plan.needs.push(needed);
   }
   if (matrixReads.size === 0) {
-    const all = matrixCombinations(resolve(matrix, jobContexts(root, {}), `${where}: matrix`), where);
+    const all = matrixCombinations(resolve(matrix, jobContexts(root, {}, bound.values), `${where}: matrix`), where);
     const chosen = all.filter(item => selected(item, select));
     if (chosen.length === 0) throw new Error(`${where}: no combination of its matrix has ${JSON.stringify(select)}; its combinations are ${all.map(item => JSON.stringify(item)).join(', ') || 'none'}`);
     plan.combinations = chosen;
-    for (const item of chosen) checkPlannedProducers(plan.steps, { matrix: item, ...jobContexts(root, {}) }, where);
+    for (const item of chosen) checkPlannedProducers(plan.steps, { matrix: item, ...jobContexts(root, {}, bound.values) }, where);
     if (!WINDOWS) for (const item of chosen) refuseShells(plan.steps, item, root);
   }
   return plan;
@@ -472,7 +575,12 @@ function planJobGraph(root: string, workflow: string, job: string, select: Recor
 function checkPlannedProducers(steps: PlannedStep[], values: Record<string, Value>, where: string): void {
   for (const step of steps) {
     checkExternalProducers(stepExpressions(step), steps, values, where);
-    if (step.kind === 'composite') checkPlannedProducers(step.steps, values, step.label);
+    if (step.kind === 'composite') {
+      // Composite inputs are strings bound in their own scope at runtime; caller inputs cannot decide their producers.
+      const innerValues = { ...values };
+      delete innerValues.inputs;
+      checkPlannedProducers(step.steps, innerValues, step.label);
+    }
   }
 }
 
@@ -511,7 +619,7 @@ type JobState = {
 type StepResult = { outputs: Record<string, string>; outcome: string; conclusion: string };
 
 /** The steps of a scope: the job, or a composite action with its inputs and its folder. */
-type Frame = { steps: Record<string, StepResult>; failed: boolean; inputs: Record<string, string> | undefined; actionPath: string | undefined };
+type Frame = { steps: Record<string, StepResult>; failed: boolean; inputs: Record<string, Value> | undefined; actionPath: string | undefined };
 
 function contexts(state: JobState, frame: Frame, env: Record<string, string>): Record<string, Value> {
   const github: Record<string, Value> = { workspace: state.plan.root };
@@ -686,7 +794,7 @@ async function runJob(plan: JobPlan, select: Record<string, string>, print: (lin
     }
     needs[needed.job] = { result: 'success', outputs: done.outputs };
   }
-  const values = jobContexts(plan.root, needs);
+  const values = jobContexts(plan.root, needs, plan.inputs);
   if (plan.condition && !truthy(valueOf(plan.condition, values))) {
     print(`[ci-job] skipped: ${plan.where}: if: ${plan.condition.text}`);
     return { status: 0, result: 'skipped', outputs: {}, runs: 0, passed: 0 };
@@ -718,12 +826,12 @@ async function runJob(plan: JobPlan, select: Record<string, string>, print: (lin
     temps.add(runnerTemp);
     try {
       const github = { workspace: plan.root };
-      const workflowEnv = texts(plan.env.workflow, { github });
+      const workflowEnv = texts(plan.env.workflow, { github, ...(plan.inputs === undefined ? {} : { inputs: plan.inputs }) });
       const state: JobState = {
         plan, runnerTemp, matrix: item, needs, env: {}, path: [], defaults: { shell: undefined, directory: undefined }, scripts: 0, passed: 0, failed: 0, print, interrupted,
       };
-      state.env = { ...workflowEnv, ...texts(plan.env.job, { github, needs, matrix: item }) };
-      const frame: Frame = { steps: {}, failed: false, inputs: undefined, actionPath: undefined };
+      state.env = { ...workflowEnv, ...texts(plan.env.job, { github, needs, matrix: item, ...(plan.inputs === undefined ? {} : { inputs: plan.inputs }) }) };
+      const frame: Frame = { steps: {}, failed: false, inputs: plan.inputs, actionPath: undefined };
       const before = contexts(state, frame, {});
       state.defaults = {
         shell: plan.defaults.shell && textOf(plan.defaults.shell, before),
@@ -747,10 +855,10 @@ async function runJob(plan: JobPlan, select: Record<string, string>, print: (lin
 }
 
 /** Runs the job, the needed jobs whose outputs it reads first and each chosen combination in turn; gives the exit status. */
-export async function ciJob({ root, workflow, job, select = {}, print = (line: string) => console.log(line) }: { root: string; workflow: string; job: string; select?: Record<string, string>; print?: (line: string) => void }): Promise<number> {
+export async function ciJob({ root, workflow, job, select = {}, inputs, inputEvent, print = (line: string) => console.log(line) }: { root: string; workflow: string; job: string; select?: Record<string, string>; print?: (line: string) => void } & WorkflowInputSelection): Promise<number> {
   let plan: JobPlan;
   try {
-    plan = planJob(root, workflow, job, select);
+    plan = planJob(root, workflow, job, select, { inputs, inputEvent });
   } catch (error) {
     print(`[ci-job] refused: ${error instanceof Error ? error.message : String(error)}`);
     return 1;
@@ -789,6 +897,7 @@ function describeSteps(list: PlannedStep[], indent: string): string[] {
 /** The lines of `--plan`: the jobs that run first, the condition, the combinations and the steps, without running them. */
 export function describePlan(plan: JobPlan, indent = ''): string[] {
   const lines = [`${indent}job ${plan.job} of ${plan.workflow}`];
+  if (plan.inputEvent !== undefined) lines.push(`${indent}  inputs from ${plan.inputEvent}: ${JSON.stringify(plan.inputs)}`);
   for (const needed of plan.needs) lines.push(`${indent}  runs first, for its outputs:`, ...describePlan(needed, `${indent}    `));
   if (plan.condition) lines.push(`${indent}  if: ${plan.condition.text}`);
   if (plan.combinations) lines.push(...plan.combinations.filter(item => Object.keys(item).length > 0).map(item => `${indent}  combination ${JSON.stringify(item)}`));
@@ -802,6 +911,8 @@ if (isMain(import.meta.url)) {
   let workflow: string | undefined;
   let job: string | undefined;
   let planOnly = false;
+  const inputs: string[] = [];
+  let inputEvent: InputEvent | undefined;
   const select: Record<string, string> = {};
   let usage = false;
   for (let index = 0; index < args.length; index += 1) {
@@ -812,6 +923,11 @@ if (isMain(import.meta.url)) {
     if (value === undefined) usage = true;
     else if (flag === '--workflow') workflow = value;
     else if (flag === '--job') job = value;
+    else if (flag === '--input') inputs.push(value);
+    else if (flag === '--input-event' && (value === 'workflow_call' || value === 'workflow_dispatch')) {
+      if (inputEvent !== undefined) usage = true;
+      else inputEvent = value;
+    }
     else if (flag === '--matrix' && /^[^=]+=/.test(value)) select[value.slice(0, value.indexOf('='))] = value.slice(value.indexOf('=') + 1);
     else usage = true;
   }
@@ -821,12 +937,12 @@ if (isMain(import.meta.url)) {
   }
   if (planOnly) {
     try {
-      for (const line of describePlan(planJob(repositoryRoot(), workflow, job, select))) console.log(line);
+      for (const line of describePlan(planJob(repositoryRoot(), workflow, job, select, { inputs, inputEvent }))) console.log(line);
     } catch (error) {
       console.log(`[ci-job] refused: ${error instanceof Error ? error.message : String(error)}`);
       process.exitCode = 1;
     }
   } else {
-    process.exitCode = await ciJob({ root: repositoryRoot(), workflow, job, select });
+    process.exitCode = await ciJob({ root: repositoryRoot(), workflow, job, select, inputs, inputEvent });
   }
 }

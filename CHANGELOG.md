@@ -5,6 +5,11 @@
 
 ## Unreleased
 
+- K1233: Local workflow jobs bind declared typed inputs before planning or running. Workflow-call defaults retain false,
+  zero and empty text; explicit inputs preserve their scalar types and composite actions retain their own string scope.
+  Invalid, missing and ambiguous inputs fail before scripts run. Dispatch omissions without defaults, expression defaults
+  and native Dictionary key collisions are named refusals. Computed external-output guards use the actual composite scope.
+
 - K1228-1 verification: the declared command passes seven tests on the committed implementation with Node 26.12.0,
   with zero failures or skips.
 

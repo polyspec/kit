@@ -1,10 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a2763220406d010a01e61214f3e649971b94b7a5311d7cdb297abd3bee9b4d24 -->
+<!-- source-sha256: 3540c63334673434bc7f407cd440bf5217bf51d1de48fdae0776f93699065c68 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1233: 로컬 workflow job은 plan이나 실행 전에 선언한 typed input을 연결한다. Workflow-call default는 false,
+  0과 빈 text를 유지하며 명시한 input은 scalar type을 보존하고 composite action은 자신의 string scope를 유지한다.
+  잘못되거나 누락되거나 모호한 input은 script 실행 전에 실패한다. Default 없는 dispatch 생략값, expression default,
+  native Dictionary key 충돌은 이름을 밝히고 거부한다. 계산한 외부 output guard는 실제 composite scope를 사용한다.
 
 - K1228-1 검증: 선언한 명령은 Node 26.12.0에서 commit된 구현의 시험 일곱 개를 실패나 skip 없이 통과한다.
 
