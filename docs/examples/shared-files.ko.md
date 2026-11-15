@@ -22,4 +22,4 @@ cp node_modules/@polyspec/kit/workflows/release.yml .github/workflows/release.ym
 git diff .github/workflows/release.yml
 ```
 
-workflow는 자기가 실행하는 make target(`kit-ci-plan`, `kit-ci-setup`, `ci-targets`, `kit-gates-*`, `release-*`)을 이름으로 부릅니다. workflow를 복사하는 저장소는 그 target을 정의하거나 workflow를 고칩니다.
+workflow는 자기가 실행하는 make target(`bootstrap`, `ci-plan`, `ci-shared`, `ci-runtime`, `ci-required`, `ci-targets`, `kit-gates-*`, `release-*`)을 이름으로 부릅니다. workflow를 복사하는 저장소는 그 target을 정의하거나 workflow를 고칩니다.

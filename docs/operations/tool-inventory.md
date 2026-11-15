@@ -889,15 +889,17 @@ Left as it is, with the reason:
   no install step precedes the lint, build and test of an extension, since the build runs the `gen_stub.php` that phpize copies into `build/` of the source. Extension tests use PHPUnit installed
   with their Composer package, so Kit's private PHPUnit declaration is not required. A consumer with a nonempty PHP setup list must include every Composer project it needs, including
   root and package projects.
-  The pipeline separates planning from checks. A small `plan` job bootstraps the locked package and runs kit-ci-plan;
-  it publishes the job declarations but runs no check or runtime setup. Shared checks and runtime
+  The pipeline separates planning from checks. A small `plan` job bootstraps the locked package and runs make ci-plan;
+  it publishes the fan-out of the runtime jobs, their runner and whether the shared job sets up PHP, but runs no check or runtime
+  setup. Each other job runs one recipe, make ci-shared or make ci-runtime RUNTIME=<runtime>, which reads the tools and the
+  targets of its job from config/ci.json, so a local run of a job is the same call (K1250). Shared checks and runtime
   jobs depend only on those plan outputs and start independently when runner capacity permits. They exchange no shared
   check artifact. A failed shared check therefore does not suppress independent results. The final required job always
   judges the plan, shared checks and every selected runtime job, including skipped or cancelled selected jobs.
   Removing this control dependency does not increase GitHub's runner concurrency limit.
   Rule reachability reads the CI pipeline of a repository as one of its workflows, by the make commands of its steps; config/ci.json, which the example pipeline reads, reaches no target by itself (K1057).
-  The final job `required` (ubuntu-24.04) needs every job of the pipeline and fails when a job that the plan selected does not
-  succeed, including a skipped one (K950); a job that the plan does not select is skipped and is not a result. There is no kit-ci-verify-gates.
+  The final job `required` (ubuntu-24.04) needs every job of the pipeline and runs make ci-required with the JSON of its needs,
+  which fails when a job that the plan selected does not succeed, including a skipped one (K950); a job that the plan does not select is skipped and is not a result. There is no kit-ci-verify-gates.
   The optional `targets` map names the repository's own check targets of each job: `shared` runs after `kit-gates-static` in the
   shared job, and `runtimes.<runtime>` after
   `kit-gates-runtime-<runtime>` in that runtime's job; a runtime named in `targets.runtimes` has a job even when `runtimes` does

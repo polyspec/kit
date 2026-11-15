@@ -169,18 +169,21 @@ kit-gates-runtime-go: lint-go ## Run the Go gate
 kit-gates-runtime-rust: lint-rust ## Run the Rust gate
 kit-gates-runtime-php-ext: lint-php-ext test-php-ext ## Run the PHP extension gates
 
-.PHONY: kit-ci-plan kit-ci-setup kit-ci-context-prepare kit-ci-context-cleanup
-kit-ci-plan: ## Validate config/ci.json and write the runtime, tool and target plan to GITHUB_OUTPUT for the CI pipeline
+.PHONY: ci-plan ci-shared ci-runtime ci-required
+# Each job of the CI pipeline (workflows/ci-pipeline.yml) is one of these recipes, which CI and a local run call alike (K1250): the
+# job reads its tools and targets from config/ci.json, installs first and stops at a failure, then runs every check to its end
+# and cleans up its context.
+ci-plan: ## Validate config/ci.json and write the fan-out of the CI pipeline (runtimes, runner, has_runtimes, shared_php) to GITHUB_OUTPUT, or print the plan
 	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --plan
 
-kit-ci-setup: ## Run the locked setup targets declared by config/ci.json; GROUP=shared|runtime, RUNTIME=<runtime>
-	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --setup $(GROUP) $(RUNTIME)
+ci-shared: ## The shared job of the CI pipeline: its tools and setup of config/ci.json, then kit-gates-static and targets.shared through ci-targets inside its context
+	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --job shared
 
-kit-ci-context-prepare: ## Run the optional repository context preparation target for GROUP and RUNTIME
-	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --context-prepare $(GROUP) $(RUNTIME)
+ci-runtime: ## The runtime job of the CI pipeline for RUNTIME=<runtime>: its tools and setup, then kit-gates-runtime-<runtime> and targets.runtimes.<runtime> through ci-targets inside its context
+	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --job runtime $(RUNTIME)
 
-kit-ci-context-cleanup: ## Run the optional repository context cleanup target for GROUP and RUNTIME
-	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --context-cleanup $(GROUP) $(RUNTIME)
+ci-required: ## The required job of the CI pipeline: fail unless every job of RESULTS, the JSON of toJSON(needs), succeeded; the runtime job is not judged when config/ci.json declares no runtime
+	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --required
 
 .PHONY: suppression-check
 suppression-check: ## Fail on a tracked suppression of a lint finding (eslint-disable, oxlint-disable, noqa, @phpstan-ignore, phpcs:ignore, nolint, allow) that states no reason in the form of its tool (P8, K334); offline

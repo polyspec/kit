@@ -12,9 +12,10 @@ export type Judgement = { status: number; lines: string[]; errors: string[] };
 
 /**
  * Judges `text`, the JSON of `needs`: `{ status, lines }`, where `lines` are the lines to print and `errors` the failures. A
- * skipped job fails only with `failSkipped`, which the caller sets (K1111).
+ * skipped job fails only with `failSkipped`, which the caller sets (K1111); a job of `unselected`, which the plan of the run did
+ * not select, is printed and not judged (K950).
  */
-export function passed(text: string | undefined, { failSkipped = false }: { failSkipped?: boolean } = {}): Judgement {
+export function passed(text: string | undefined, { failSkipped = false, unselected = [] }: { failSkipped?: boolean; unselected?: readonly string[] } = {}): Judgement {
   const refuse = (message: string): Judgement => ({ status: 2, lines: [`[ci-passed] failed: ${message}`], errors: [message] });
   if (text === undefined || text === '') return refuse('RESULTS is not set; the step passes the JSON of needs: make ci-passed RESULTS=<json>');
   let needs: unknown;
@@ -32,6 +33,10 @@ export function passed(text: string | undefined, { failSkipped = false }: { fail
   let skipped = false;
   for (const [job, value] of Object.entries(needs)) {
     const result = value !== null && typeof value === 'object' && 'result' in value && typeof value.result === 'string' ? value.result : 'no result';
+    if (unselected.includes(job)) {
+      lines.push(`[ci-passed] ${job}: ${result}, not selected by the plan, not judged`);
+      continue;
+    }
     lines.push(`[ci-passed] ${job}: ${result}`);
     skipped ||= result === 'skipped';
     if (result !== 'success' && !(result === 'skipped' && !failSkipped)) errors.push(`the job ${job} ended with ${result}; expected success`);

@@ -16,7 +16,19 @@ ONLINE ?=
 
 include $(dir $(lastword $(MAKEFILE_LIST)))kit.mk
 
-.PHONY: install install-kit install-packages install-link
+.PHONY: bootstrap bootstrap-lock install install-kit install-packages install-link
+# bootstrap is the first make of a fresh checkout, locally and in CI, where the kit-bootstrap action runs it after setting up
+# Node.js (K1250). bootstrap-lock installs the lock, @polyspec/kit included, with the npm that devEngines names: the npm of
+# another release refuses to run in a folder whose devEngines names another npm (EBADDEVENGINES), so that npm runs outside the
+# checkout with --prefix (K938-1), in RUNNER_TEMP on a runner and in TMPDIR elsewhere.
+BOOTSTRAP_DIRECTORY ?= $(or $(RUNNER_TEMP),$(TMPDIR),/tmp)
+bootstrap: bootstrap-lock ## Install the lock with the npm of devEngines, then the mise, node and npm of mise.toml and the packages of package-lock.json; ONLINE
+	$(MAKE) --no-print-directory install-tools TOOLS=npm
+	$(MAKE) --no-print-directory install-packages
+bootstrap-lock: ## Install package-lock.json, @polyspec/kit included, with the npm that devEngines names, run outside the checkout; ONLINE
+	version="$$($(BOOTSTRAP_NODE) -p 'require("./package.json").devEngines.packageManager.version')" && \
+	cd "$(BOOTSTRAP_DIRECTORY)" && $(ONLINE) env npm_config_cache="$(CURDIR)/var/bootstrap/npm-cache" npm exec --yes --package="npm@$$version" -- npm --prefix "$(CURDIR)" ci --ignore-scripts
+
 # install-packages runs npm ci of the lock as it is; npm reads the allow-remote and the other settings of the repository's .npmrc.
 install-packages: ## Install the packages of package-lock.json, @polyspec/kit included, with the npm of var/tools; ONLINE
 	$(ONLINE) $(NPM) ci

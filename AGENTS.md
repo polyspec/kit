@@ -28,8 +28,11 @@ and its Korean twin, as such an example; a repository's AGENTS.md links to its c
 - Own: A settled VS Code download keeps its result while its owned helper group receives a termination request. The installer awaits child close and cleanup, escalating only after the one-second grace. Native POSIX lifecycle evidence runs in the Linux source CI group.
   Enforced by: `tests/source/install-vscode-posix.test.mts`, `tests/source/ci-workflow.test.mts`
 
-- Refines S12: `workflows/ci-pipeline.yml` plans its job data separately from running checks. Shared and runtime checks depend only on the plan outputs, use their own checkout and setup, and run independently; a failed shared check suppresses no independent result. The final required job judges planning, shared checks and every selected job, and fails on a skipped selected job.
+- Refines S12: `workflows/ci-pipeline.yml` plans its fan-out separately from running checks. Shared and runtime checks depend only on the plan outputs, use their own checkout and setup, and run independently; a failed shared check suppresses no independent result. The final required job judges planning, shared checks and every selected job, and fails on a skipped selected job.
   Enforced by: `tests/kit/gates-workflow.test.mts`
+
+- Own: Every job of `.github/workflows/ci.yml` and of `workflows/ci-pipeline.yml` has one `run:` step, `make ci-<job>` with make variables only: a matrix value as `NAME=${{ matrix.key }}`, and for the job that judges the other jobs `RESULTS='${{ toJSON(needs) }}'`. Every other step is a `uses:` step, and only a `uses:` step has an `if:`. The recipe installs first and stops at a failure, runs every check to its end and cleans up always, and reads the values of the job from the tracked configuration. A job held in YAML steps and expressions runs outside CI only through an emulation of the runner, while a recipe runs the same way in CI and locally (`docs/spec/utilities-and-recipes.md`, K1250).
+  Enforced by: `tests/kit/ci-workflow-jobs.test.mts`
 
 - Own: Incoming Kit change requests are tracked in GitHub issues. Keep each issue updated with implementation progress,
   verification evidence and release status, and close it only after its stated acceptance conditions are met.

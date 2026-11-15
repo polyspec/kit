@@ -2,7 +2,6 @@
 // repository that copies it calls it, it partitions every gate named by PRINCIPLES.md with the targets that config/ci.json declares for each job, and a
 // final job fails when a job of the pipeline failed or was cancelled.
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
@@ -44,18 +43,20 @@ test('the CI pipeline partitions every kit-gates target across shared and runtim
     });
   assert.deepEqual([...partitions].sort(), [...gates].sort(), 'every original gate occurs once in the workflow partitions');
   const workflow = read(PIPELINE);
-  assert.match(workflow, /run: make -k ci-targets TARGETS="kit-gates-static /);
-  assert.match(workflow, /run: make -k ci-targets TARGETS="kit-gates-runtime-\$\{\{ matrix\.runtime \}\} /);
-  assert.match(workflow, /run: make kit-ci-plan/, 'the tracked setup planner selects runtime jobs and pinned tools');
+  const setup = read('scripts/kit/ci-setup.mts');
+  // K1250: each job runs one recipe, which runs the gate of its group through ci-targets.
+  assert.match(setup, /\['kit-gates-static', \.\.\.result\.sharedTargets\]/);
+  assert.match(setup, /\[`kit-gates-runtime-\$\{scope\}`, \.\.\.job\.targets\]/);
+  assert.match(setup, /'-k', 'ci-targets', `TARGETS=\$\{targets\.join\(' '\)\}`/);
+  assert.match(workflow, /run: make ci-plan/, 'the tracked setup planner selects runtime jobs');
   assert.match(workflow, /runner: \$\{\{ steps\.plan\.outputs\.runner \}\}/, 'gate runner selection comes from the validated CI plan');
   for (const name of ['plan', 'shared', 'required']) assert.ok(workflowJob(workflow, name).includes('    runs-on: ubuntu-24.04'), `${name} runs on the supported default runner`);
   for (const name of ['runtime']) {
     assert.match(workflowJob(workflow, name).join('\n'), /runs-on: \$\{\{ needs\.plan\.outputs\.runner \}\}/, `${name} uses the selected supported runner`);
   }
-  assert.match(workflow, /run: make kit-ci-setup GROUP=shared/);
-  assert.match(workflow, /run: make kit-ci-setup GROUP=runtime RUNTIME=\$\{\{ matrix\.runtime \}\}/);
-  assert.match(workflow, /join\(matrix\.installTools, ' '\)/, 'runtime tool selectors are joined into the form install-tools accepts');
-  const setup = read('scripts/kit/ci-setup.mts');
+  assert.match(workflow, /run: make ci-shared$/m);
+  assert.match(workflow, /run: make ci-runtime RUNTIME=\$\{\{ matrix\.runtime \}\}$/m);
+  assert.match(setup, /`TOOLS=\$\{tools\.join\(' '\)\}`/, 'runtime tool selectors are joined into the form install-tools accepts');
   assert.match(setup, /declaredMiseTools\(root\)/, 'tool selection uses the same declaration reader as install-tools');
   assert.match(setup, /declaredToolchain\(root\)/);
   assert.match(setup, /\.\.\.config\.runtimes, /, 'the runtimes of the plan are those that config/ci.json declares (K1114)');
@@ -66,7 +67,11 @@ test('the CI pipeline partitions every kit-gates target across shared and runtim
   const named = new Set([...enforced.matchAll(/`make ([a-z0-9-]+)`/g)].map(match => match[1]));
   assert.ok(named.size > 10, 'the rules of PRINCIPLES.md name their checks');
   // A check that only a release runs is in release.yml, which no merge gate runs; every other named check is a kit-gates target (K941-1).
-  const released = new Set([...`${read('.github/workflows/release.yml')}${read(BOOTSTRAP_ACTION)}`.matchAll(/run: make ([a-z0-9-]+)/g)].map(match => match[1] ?? ''));
+  // The bootstrap action runs make bootstrap, whose recipe in docs/examples/bootstrap.mk runs the install targets (K1250).
+  const released = new Set([
+    ...[...`${read('.github/workflows/release.yml')}${read(BOOTSTRAP_ACTION)}`.matchAll(/run: make ([a-z0-9-]+)/g)].map(match => match[1] ?? ''),
+    ...[...read('docs/examples/bootstrap.mk').matchAll(/^\t\$\(MAKE\) --no-print-directory ([a-z0-9-]+)/gm)].map(match => match[1] ?? ''),
+  ]);
   for (const target of named) assert.ok(gates.has(target ?? '') || released.has(target ?? ''), `kit-gates or release.yml runs make ${target}`);
 });
 
@@ -92,25 +97,14 @@ test('K824: no gates job links packages or checks links; CI installs with the pa
   assert.doesNotMatch(read('scripts/kit/kit.mk').split('\n').filter(line => line.startsWith('kit-gates:')).join('\n'), /link-check/);
 });
 
-test('K731-1: context preparation surrounds the unchanged required gate and cleanup always runs after entry', () => {
+// K731-1, K1250: the context of a job and its cleanup are steps of its recipe (tests/kit/ci-setup.test.mts runs them); the
+// pipeline holds no context step.
+test('K731-1: context preparation and cleanup belong to the recipe of the job, not to steps of the pipeline', () => {
   const workflow = read(PIPELINE);
-  const partitions = [
-    ['shared', 'prepare shared CI context', 'shared gates', 'cleanup shared CI context', 'GROUP=shared'],
-    ['runtime', 'prepare runtime CI context', 'runtime gate', 'cleanup runtime CI context', 'GROUP=runtime RUNTIME=${{ matrix.runtime }}'],
-  ] as const;
-  for (const [jobName, prepareName, gateName, cleanupName, selection] of partitions) {
-    const job = workflowJob(workflow, jobName);
-    const prepare = job.findIndex(line => line === `      - name: ${prepareName}` || line === `        name: ${prepareName}`);
-    const gate = job.findIndex(line => line === `      - name: ${gateName}`);
-    const cleanup = job.findIndex(line => line === `      - name: ${cleanupName}`);
-    assert.ok(prepare >= 0 && gate > prepare && cleanup > gate, `${jobName} prepares before its provider gate and cleans after it`);
-    assert.ok(job.slice(prepare, prepare + 4).some(line => line.includes(`make kit-ci-context-prepare ${selection}`)), `${jobName} selects its declared context`);
-    assert.ok(job.slice(cleanup, cleanup + 4).some(line => line.includes(`make kit-ci-context-cleanup ${selection}`)), `${jobName} selects its cleanup`);
-    assert.ok(job.slice(cleanup, cleanup + 4).some(line => line.includes("always() && steps.context_prepare.outcome != 'skipped'")), `${jobName} cleans up after prepare or gate failure only after preparation was entered`);
-    assert.doesNotMatch(job.slice(cleanup, cleanup + 4).join('\n'), /continue-on-error/);
-  }
-  assert.match(read('scripts/kit/kit.mk'), /^kit-ci-context-prepare:.*$/m);
-  assert.match(read('scripts/kit/kit.mk'), /^kit-ci-context-cleanup:.*$/m);
+  assert.doesNotMatch(workflow, /context|continue-on-error/);
+  const mk = read('scripts/kit/kit.mk');
+  assert.match(mk, /^ci-shared:.*\n\t\$\(NODE\) \$\(KIT\)\/ci-setup\.\$\(KIT_EXT\) --job shared$/m);
+  assert.match(mk, /^ci-runtime:.*\n\t\$\(NODE\) \$\(KIT\)\/ci-setup\.\$\(KIT_EXT\) --job runtime \$\(RUNTIME\)$/m);
 });
 
 test('K671-3: gates use the standard root checkout and retain the native installation sequence', () => {
@@ -121,8 +115,7 @@ test('K671-3: gates use the standard root checkout and retain the native install
     assert.equal(workflowJob(workflow, name).join('\n').match(new RegExp(BOOTSTRAP_USES.source, 'gm'))?.length, 1, `${name} runs the bootstrap action exactly once`);
   const action = read(BOOTSTRAP_ACTION);
   assert.match(action, /node-version-file: mise\.toml/);
-  assert.match(action, /run: make install-tools TOOLS=npm/);
-  assert.match(action, /run: make install-packages/);
+  assert.deepEqual([...action.matchAll(/^\s+run: (.+)$/gm)].map(match => match[1]), ['make bootstrap'], 'the action provisions Node.js and runs the one make call of a local bootstrap');
   assert.doesNotMatch(workflow, /^\s+run: make install$/m, 'the pipeline does not run the full install target');
 });
 
@@ -130,53 +123,18 @@ test('the final job needs every job of the pipeline (K910)', () => {
   assert.deepEqual(workflowNeeds(workflowJob(read(PIPELINE), 'required'), 'required').sort(), [...REQUIRED_NEEDS].sort());
 });
 
-// K910: the final job judges the results of its needs with no checkout or install: a failed or cancelled job fails it, and a
-// skipped job (no runtime, or a red shared job, which is a failure itself) does not.
-// The jobs that required judges, in the order of its needs: the result of each job and whether the plan selected it. The run
-// of required reads them from its environment, and RESULTS, the join of the results as the earlier judgement read them, is set
-// too, so that the judgement of the earlier script runs and fails the cases below.
-const JOBS = ['PLAN', 'SHARED', 'RUNTIME'] as const;
-function requiredJudgement(required: readonly string[]) {
-  const run = required.slice(required.findIndex(line => line === '        run: |') + 1).map(line => line.replace(/^ {10}/, '')).join('\n');
-  return (results: Record<(typeof JOBS)[number], string>, selected: Record<(typeof JOBS)[number], boolean>) => {
-    const env: NodeJS.ProcessEnv = { ...process.env, RESULTS: JOBS.map(job => results[job]).join(' ') };
-    for (const job of JOBS) {
-      env[`${job}_RESULT`] = results[job];
-      env[`${job}_SELECTED`] = String(selected[job]);
-    }
-    return spawnSync('bash', ['-eu', '-c', run], { env, encoding: 'utf8' }).status;
-  };
-}
-
-test('K910: required runs always on the default runner and fails on a failed or cancelled job of the pipeline', () => {
+// K910, K950, K1250: the final job runs make ci-required with the JSON of needs; tests/kit/ci-setup.test.mts judges results with it.
+test('K910: required runs always on the default runner and passes the results of its needs to make ci-required', () => {
   const required = workflowJob(read(PIPELINE), 'required');
   assert.ok(required.includes('    if: ${{ always() }}'));
-  assert.doesNotMatch(required.join('\n'), /actions\/checkout|make /, 'required installs nothing');
-  const judge = requiredJudgement(required);
-  const full = { PLAN: true, SHARED: true, RUNTIME: true };
-  assert.equal(judge({ PLAN: 'success', SHARED: 'success', RUNTIME: 'success' }, full), 0);
-  assert.equal(judge({ PLAN: 'success', SHARED: 'failure', RUNTIME: 'success' }, full), 1);
-  assert.equal(judge({ PLAN: 'success', SHARED: 'success', RUNTIME: 'cancelled' }, full), 1);
-});
-
-// K950: required judges only the jobs that the plan selected (shared, and runtime when the
-// repository has one). A selected job that is skipped fails the pipeline, a job the plan did not select is not a result.
-test('K950: required fails when a job the plan selected is skipped, and judges no job the plan did not select', () => {
-  const judge = requiredJudgement(workflowJob(read(PIPELINE), 'required'));
-  const none = { PLAN: true, SHARED: true, RUNTIME: false };
-  const skipped = { PLAN: 'success', SHARED: 'success', RUNTIME: 'skipped' } as const;
-  assert.equal(judge(skipped, none), 0, 'the runtime job is not selected, so it is no result');
-  assert.equal(judge({ ...skipped, RUNTIME: 'success' }, { ...none, RUNTIME: true }), 0);
-  assert.equal(judge({ ...skipped, RUNTIME: 'skipped' }, { ...none, RUNTIME: true }), 1, 'a selected runtime job that is skipped fails the pipeline');
-  assert.equal(judge({ ...skipped, SHARED: 'failure' }, none), 1, 'a failed shared job fails the pipeline');
+  assert.ok(required.includes("      - run: make ci-required RESULTS='${{ toJSON(needs) }}'"));
+  assert.match(read('scripts/kit/kit.mk'), /^ci-required:.*\n\t\$\(NODE\) \$\(KIT\)\/ci-setup\.\$\(KIT_EXT\) --required$/m);
 });
 
 // K1029: independent checks consume plan data, not shared check results. Each still runs its declared targets.
-test('K1029: independent jobs need only plan and run the declared targets of their group', () => {
+test('K1029: independent jobs need only plan and upload their reports', () => {
   const workflow = read(PIPELINE);
   for (const name of ['shared', 'runtime']) assert.deepEqual(workflowNeeds(workflowJob(workflow, name), name), ['plan'], `${name} needs only the plan`);
-  assert.match(workflowJob(workflow, 'shared').join('\n'), /TARGETS="kit-gates-static \$\{\{ join\(fromJSON\(needs\.plan\.outputs\.shared_targets\), ' '\) \}\}"/);
-  assert.match(workflowJob(workflow, 'runtime').join('\n'), /TARGETS="kit-gates-runtime-\$\{\{ matrix\.runtime \}\} \$\{\{ join\(matrix\.targets, ' '\) \}\}"/);
   for (const name of ['shared', 'runtime']) assert.ok(workflowJob(workflow, name).some(line => line.includes('uses: actions/upload-artifact@')), `${name} uploads its report`);
   assert.doesNotMatch(workflow, /name: report-/, 'the reports of the pipeline carry the prefix kit-, apart from those of repository jobs');
 });
@@ -207,23 +165,11 @@ test('each kept harness piece is named by a rule of AGENTS.md or PRINCIPLES.md (
 });
 
 
-test('K1029: planning emits job data without running checks, runtime setup or contexts', () => {
+test('K1029: planning publishes only the fan-out and runs no checks, setup or contexts', () => {
   const plan = workflowJob(read(PIPELINE), 'plan').join('\n');
-  assert.match(plan, /run: make kit-ci-plan/);
-  assert.doesNotMatch(plan, /ci-targets|kit-ci-setup|kit-ci-context|install-tools|kit-install-symbols/);
-  for (const output of ['common_tools', 'shared_targets', 'runtimes', 'runner', 'has_runtimes'])
-    assert.ok(plan.includes(`${output}: \${{ steps.plan.outputs.${output} }}`), `plan publishes ${output}`);
-  assert.doesNotMatch(read(PIPELINE), /needs\.shared\.outputs/);
-});
-
-test('K1029: every selected job including planning fails required on failure, cancellation or skipping', () => {
-  const required = workflowJob(read(PIPELINE), 'required');
-  const judge = requiredJudgement(required);
-  assert.deepEqual(workflowNeeds(required, 'required').sort(), [...REQUIRED_NEEDS].sort());
-  const selected = { PLAN: true, SHARED: true, RUNTIME: true };
-  const passed = { PLAN: 'success', SHARED: 'success', RUNTIME: 'success' };
-  assert.equal(judge(passed, selected), 0);
-  for (const job of JOBS.filter(job => selected[job]))
-    for (const result of ['failure', 'cancelled', 'skipped'])
-      assert.equal(judge({ ...passed, [job]: result }, selected), 1, `${job} ${result} must fail required`);
+  assert.match(plan, /run: make ci-plan/);
+  assert.doesNotMatch(plan, /ci-targets|ci-shared|ci-runtime|install-tools|kit-install-symbols/);
+  const outputs = [...plan.matchAll(/^ {6}([a-z_]+): \$\{\{ steps\.plan\.outputs\.([a-z_]+) \}\}$/gm)].map(match => [match[1], match[2]]);
+  assert.deepEqual(outputs, [['runtimes', 'runtimes'], ['runner', 'runner'], ['has_runtimes', 'has_runtimes'], ['shared_php', 'shared_php']], 'K1250: the jobs read their tools and targets from config/ci.json');
+  assert.doesNotMatch(read(PIPELINE), /needs\.shared\.outputs|needs\.plan\.outputs\.(?:common_tools|shared_targets)|matrix\.(?:installTools|targets)/);
 });

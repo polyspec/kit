@@ -21,4 +21,4 @@ cp node_modules/@polyspec/kit/workflows/release.yml .github/workflows/release.ym
 git diff .github/workflows/release.yml
 ```
 
-The workflows name the make targets that they run (`kit-ci-plan`, `kit-ci-setup`, `ci-targets`, `kit-gates-*`, `release-*`); a repository that copies a workflow defines those targets or changes the workflow.
+The workflows name the make targets that they run (`bootstrap`, `ci-plan`, `ci-shared`, `ci-runtime`, `ci-required`, `ci-targets`, `kit-gates-*`, `release-*`); a repository that copies a workflow defines those targets or changes the workflow.

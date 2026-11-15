@@ -26,93 +26,32 @@ The allow-remote case shows the chain:
 
    An example shows one working way. A repository copies it, changes it, or ignores it.
 
-## Local workflow jobs (K1228)
+## CI jobs run one recipe (K1250)
 
-`ci-job.mts --workflow <file> --job <id>` runs the job's scripts and local composite actions in their declared order.
-`--matrix <key>=<value>` selects matrix combinations; `--plan` prints the plan without executing scripts. External actions
-are printed with their inputs and are not executed, so the local run requires the tools that those actions would install.
+Every job of a workflow that CI runs on a commit, the pipeline that it calls included, has exactly one `run:` step: `make ci-<job>`,
+where `<job>` is the id of the job, followed only by make variables. A matrix value is passed as `NAME=${{ matrix.key }}`; no other
+expression appears in a run line. Every other step is a `uses:` step that provisions the runner or carries a result: the checkout,
+a setup action, the bootstrap composite action, an upload of a report. Only a `uses:` step has an `if:` condition. The bootstrap
+composite action holds its provisioning `uses:` steps and one `make bootstrap`, the call that a local bootstrap makes.
 
-- Expressions use GitHub's `@actions/expressions`, including native coercion, property filters and built-in functions.
-  The run supplies status functions and the supported values of `github`, `runner`, `matrix`, `env`, `steps` and workflow or composite
-  `inputs`. A context that the local run cannot supply is refused with its name before scripts run. External action
-  outputs, secrets and repository variables cannot be supplied by a local script run.
-- Runtime capability refusal (K1228-3): a computed read of an external action's output and a dynamically
-  selected unsupported shell are local capability refusals, not reproduced native step failures. They end the local job
-  with status 1, bypass direct and every composite caller's continue-on-error, and admit no later user script. Owned
-  process and runner-directory cleanup still finishes before the result. The shared typed local refusal also carries
-  environment capability refusals, including through native error-cause wrappers. A message that merely says "refused"
-  does not change an ordinary Error into this type. Real native command exits and file-validation failures retain their
-  normal failure/tolerance semantics; no expression engine or general dictionary behavior is replaced.
-- Environment key semantics (K1228-2): `env` keys are case-sensitive on POSIX and supported ASCII keys are case-insensitive on Windows.
-  Environment merges retain the first key spelling and take the last assigned value under that comparison. The same
-  merge applies to workflow, job, composite and step environments, environment-file writes and the actual spawned
-  environment, including inherited process values and PATH lookup. Other expression contexts keep native case folding.
-  A context-only Dictionary subclass uses a standard Map through the native public add/get/values/pairs API; parsing,
-  evaluation, coercion, status functions and general dictionaries remain native. Conditions, serialization and computed
-  external-output guards use the environment of the actual scope, without changing caller or sibling scopes.
-- Windows local environment names are ASCII-only until a pinned native comparer supplies OrdinalIgnoreCase faithfully.
-  Non-ASCII names, including names used for lookup, are refused by name before use; Unicode values remain supported on
-  every platform and POSIX Unicode names remain distinct. JavaScript lowercasing is not OrdinalIgnoreCase: native invariant
-  uppercasing merges micro sign µ and Greek capital mu Μ, while lowercasing keeps their keys distinct. JavaScript full
-  uppercasing is not a substitute either. This boundary follows the [native comparison rule](https://learn.microsoft.com/en-us/dotnet/standard/base-types/best-practices-strings).
-  Remove it only when the pinned native comparer provides that rule and actual Windows Unicode-name regressions pass.
-- The exact environment key `__proto__` is refused by name before scripts run when declared, and before publication when
-  an environment file writes it. The pinned native JSON replacer assigns properties to a plain object and silently drops
-  that key through its prototype setter. Safe record construction preserves the key until this refusal; it never silently
-  deletes it. An unsupported local environment name is a capability refusal, not a native step failure: it ends the job
-  with status 1, cannot be tolerated by direct or composite `continue-on-error`, and admits no later user script, even one
-  with `always()`. Valid independent file-command channels are processed before the refusal propagates; owned process and
-  directory cleanup still finishes. Native file-command failures such as blocked NODE_OPTIONS or malformed syntax retain
-  their normal step-failure and continue-on-error semantics. Remove this boundary after the pinned native serializer
-  preserves the key in the same environment serialization regressions.
-- Environment source evidence is the runner's [platform comparer](https://github.com/actions/runner/blob/8cfa1049f86781d141056082d73802d56cd2b433/src/Runner.Common/Util/VarUtil.cs),
-  [step context selection](https://github.com/actions/runner/blob/8cfa1049f86781d141056082d73802d56cd2b433/src/Runner.Worker/StepsRunner.cs)
-  and [case-insensitive setter](https://github.com/actions/runner/blob/8cfa1049f86781d141056082d73802d56cd2b433/src/Sdk/DTPipelines/Pipelines/ContextData/DictionaryContextData.cs).
-  Linux source CI owns the native environment smoke; macOS and Windows bootstrap run the same target on their actual
-  platform. A Mac run of the Windows merge algorithm is a policy unit test, not native Windows process evidence.
-- A quoted expression literal decodes every doubled single quote once, including literals used in `format` and step
-  conditions (K1228-1). The pinned lexer decodes only the first pair, so the adapter derives STRING token values from
-  their validated raw lexemes and preserves their original lexemes and ranges. Tokenization, syntax rejection, parsing
-  and evaluation remain native. Remove this adapter when the pinned lexer passes the same repeated-escape regressions
-  without normalization; correcting its already-decoded token value would decode the first pair twice.
-- Workflow inputs are bound before planning or running scripts (K1233). Repeated `--input name=value` arguments
-  split at the first `=`, preserve empty text and later `=` characters, and bind case-insensitively to declared names.
-  This CLI binding policy follows the expression context's case-insensitive lookup; duplicate input names and declarations
-  that differ only by case are refused. Boolean arguments are exactly `true` or `false`; number arguments follow finite
-  JSON number syntax without whitespace; string arguments remain text. Defaults must already have their declared type.
-  Expression defaults are refused rather than treated as literal text, because the local runner does not supply their
-  native default-evaluation context. Input declarations without an explicit supported type are refused. A declaration
-  whose lowercased name collides with an own property of Object.prototype is also refused by name: the pinned native
-  Dictionary silently drops those keys. This boundary does not reject a name merely because its original casing names a
-  prototype property; the native lookup lowercases it first. Remove this boundary after the pinned native Dictionary
-  preserves these keys in evaluation and serialization regressions.
-- The selected `workflow_call` declaration supplies its documented implicit defaults: false, zero and empty text for
-  boolean, number and string. Required inputs without a declared default need an explicit value. A `workflow_dispatch`
-  declaration supports boolean, number, string, choice and environment inputs; choice values must belong to its options,
-  and environment values are text without querying GitHub. A dispatch input without a declared default needs an explicit
-  value even when optional, because this local runner does not establish the native omitted value. Unknown names, invalid
-  types, missing values and unsupported declarations fail before any script runs, including in `--plan`.
-- A sole input-capable event declaration is selected automatically, even when the workflow declares other events.
-  `--input-event workflow_call` or `--input-event workflow_dispatch` selects between both declarations; a job that reads
-  inputs while both remain unselected is refused. Repeating `--input-event` or selecting an absent declaration is refused. This selects local input
-  declarations and does not fabricate a GitHub event or enable `github.event` values. Typed workflow inputs reach the
-  workflow and job environment, job conditions, matrices, defaults, outputs and steps. Composite actions shadow them with
-  their own string inputs. Composite preflight masks caller inputs instead of guessing inner input values; the runtime
-  guard checks computed external-output producers against the actual bound composite inputs before their script runs.
-  Reusable caller jobs remain refused; run a job from the called workflow itself.
-- Each script receives fresh `GITHUB_OUTPUT`, `GITHUB_ENV`, `GITHUB_PATH` and `GITHUB_STEP_SUMMARY` files. Outputs belong to
-  their step; environment changes and path entries reach subsequent steps. Output and environment files accept both
-  `name=value` and delimited multiline values. A malformed file command fails its step; independent valid channels still
-  apply their changes so cleanup steps can use them.
-- A failed step skips subsequent conditions without a status function. Conditions with `failure()`, `always()` or
-  `!cancelled()` retain their native meaning; a tolerated failure keeps its failure outcome and success conclusion.
-  The job fails if an untolerated step failed, even when its remaining cleanup steps succeed.
-- Matrices apply their axes, exclusions, inclusions and fail-fast setting. A job that reads `needs.<job>.outputs` first
-  runs that dependency. Other dependency properties and outputs of matrix jobs are refused because a local run cannot
-  reproduce the outcome of a complete CI run or the matrix combination that finishes last.
-- The run owns its script processes and runner temporary directories. Interruption stops further step admission,
-  terminates and awaits the owned processes, and then removes their directories. A process must finish cleanup while its
-  runner directory still exists.
+The recipe `ci-<job>` holds the order and the conditions of the job: its prerequisites and installs first, each stopping the job
+at its failure, since a later step needs what an earlier one installed; then its checks, every check to its end (`ci-targets` or
+`make -k`), so that one run names every failure; then the cleanup of what the job prepared, also when a check failed. The job fails
+when a check, a preparation or a cleanup failed. The values that a job needs, such as its tools and its targets, are read by the
+recipe from the configuration of the repository (`config/ci.json` for the example pipeline), not passed through job outputs. A
+local run of a job is the same call that CI makes, such as `make ci-runtime RUNTIME=go`.
+
+Two parts of a workflow stay in CI. The fan-out of a matrix may come from an output of a plan job (`fromJSON` in
+`strategy.matrix`), since the fan-out is no content of a job; the plan job itself runs `make ci-plan`. A judgement job that reads
+the results of the other jobs exists only in CI, since only a run has those results; its run step may pass the needs as a make
+variable, `RESULTS='${{ toJSON(needs) }}'`, the one other expression that a run line holds.
+
+The reason: a job whose content is YAML steps, step conditions and expressions can be run outside CI only by a program that
+emulates the runner, its expressions, contexts and status functions, and such a program follows every change of the runner. A
+job whose content is one recipe is run outside CI by make, so CI and a local run execute the same recipe and cannot drift apart.
+
+`tests/kit/ci-workflow-jobs.test.mts` checks the rule on `.github/workflows/ci.yml` of kit and on the example
+`workflows/ci-pipeline.yml`.
 
 ## Installer command verification (K1232)
 
@@ -285,6 +224,10 @@ kit removes what it forces, each change as a checklist row with its Red, Green a
 - **Parity.** Until K1129 kit read `config/parity.json` and checked how the implementations of a repository relate: shared units, requirement citations, test names and ids, public symbols, divergence and test markers (parity-check, parity-declarations-check, divergence-check, test-markers-check), with parity jobs in the CI pipeline. Delete parity: kit does not check how implementations relate; each repository runs its own tests.
 - **Owner refusals.** Until K1131 owner-check refused, whatever the repository declared or passed, a target whose recipe text started ci-targets and a rule that selected every target of the make variable CHECK_TARGETS, each as the full suite. It now refuses only the targets that the repository's own `fullSuite` names.
 - **Verification cells.** Until K1132 docs-check (verification.mts) required every open item of a checklist with a Verification column to name a command in backticks there and refused a pipeline, with no flag that a repository's recipe could leave out, unlike its other checklist rules. docs-check requires no command; `make item-test` still runs the commands that a cell names.
+- **Workflow runner emulation.** Until K1251 `ci-job.mts` ran the steps of one job of a workflow locally, with the expressions of
+  GitHub Actions evaluated through `@actions/expressions` (`actions-expression.mts`), the environment semantics of the runner
+  (`environment.mts`) and its capability refusals (`workflow-refusal.mts`) (K1227, K1228, K1233). The content of every CI job is
+  now one recipe (K1250), which a local run calls as CI calls it, so no emulation of the runner is needed.
 - **Rule texts.** The `Enforced by:` lines of PRINCIPLES named these checks (S11, S12, S13 and S15 among them) and changed with each removal; until K1055 the text of PRINCIPLES also bound every repository to kit's pipeline (S12), to the gates of kit (P31) and to changes made only in kit. The shipped PRINCIPLES now claims no check that kit no longer forces.
 
 A part that works becomes an example in `docs/examples/` in the same change that removes it from kit. The removal ships in a new patch release of kit. A repository pins the kit release it installs, so it keeps its current release until it adopts the new one, and then writes its own recipes from the examples.

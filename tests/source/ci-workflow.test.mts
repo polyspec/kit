@@ -1,6 +1,6 @@
 // The CI workflow of kit (.github/workflows/ci.yml), which only kit runs. Every gate of a kit commit runs there: the
 // documents besides the tests. Without them a commit that fails docs-check passed CI (b415ad8,
-// K82).
+// K82). Each job is one recipe of the Makefile (K1250), so these tests read the recipes and their dry runs.
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -8,76 +8,80 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { parse } from 'yaml';
+import { reached } from '../../scripts/kit/check-rules.mts';
+import { makeDatabase } from '../../scripts/kit/owner-check.mts';
 import { readFixture } from '../kit/json-fixture.mts';
 import { known } from '../kit/known.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const text = readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8');
-// The group always takes part in a match of the pattern.
-const runs = [...text.matchAll(/^\s+run: (.+)$/gm)].map(match => known(match[1], 'match[1]'));
-const jobsText = text.slice(text.indexOf('jobs:\n'));
-function jobText(name: string): string {
-  const lines = jobsText.split('\n');
-  const start = lines.findIndex(line => line === `  ${name}:`);
-  assert.notEqual(start, -1, `the workflow declares job ${name}`);
-  const end = lines.findIndex((line, index) => index > start && /^  [A-Za-z0-9_-]+:$/.test(line));
-  return lines.slice(start + 1, end < 0 ? undefined : end).join('\n');
-}
-function jobRuns(name: string): string[] {
-  return [...jobText(name).matchAll(/^\s+run: (.+)$/gm)].map(match => known(match[1], 'match[1]'));
-}
+type Step = { uses?: string; run?: string; if?: string };
+const workflow = parse(text) as { jobs: Record<string, { needs?: string[]; 'runs-on'?: string; strategy?: { matrix?: Record<string, unknown> }; steps: Step[] }> };
+const job = (name: string) => known(workflow.jobs[name], `job ${name}`);
+const jobRun = (name: string) => known(job(name).steps.find(step => step.run !== undefined)?.run, `the run step of ${name}`);
 const isolatedMakeEnvironment = (environment: NodeJS.ProcessEnv) => ({
   PATH: environment.PATH ?? '',
   HOME: environment.HOME ?? '',
   TMPDIR: environment.TMPDIR ?? '',
 });
+/** The commands that `make -n <target> <variables>` prints, recursive makes included. */
+function dryRun(target: string, ...variables: string[]): string[] {
+  const result = spawnSync('make', ['--no-print-directory', '-n', target, ...variables], { cwd: ROOT, encoding: 'utf8', env: isolatedMakeEnvironment(process.env) });
+  assert.equal(result.status, 0, `make -n ${target} ${variables.join(' ')}: ${result.stdout}${result.stderr}`);
+  return result.stdout.split('\n');
+}
+const indexOf = (lines: readonly string[], pattern: RegExp) => lines.findIndex(line => pattern.test(line));
+const make = makeDatabase(ROOT);
+const ciChecks = (make.variables.get('CI_CHECKS') ?? '').trim().split(/\s+/);
 
-test('the CI workflow runs duplication-check after npm ci installed jscpd (K126)', () => {
-  const check = runs.indexOf('make duplication-check');
-  assert.ok(check > runs.indexOf('make install-packages'), 'a step runs make duplication-check after npm ci');
+test('the checks job sets up PHP and bootstraps before its one recipe, which installs every tool before the checks (K71-1, K78, K248-4)', () => {
+  const steps = job('checks').steps;
+  const php = steps.findIndex(step => step.uses?.startsWith('shivammathur/setup-php@'));
+  const bootstrap = steps.findIndex(step => step.uses === './.github/actions/kit-bootstrap');
+  const run = steps.findIndex(step => step.run !== undefined);
+  assert.ok(php >= 0 && bootstrap > php && run > bootstrap, 'PHP of .php-version, then the bootstrap, then make ci-checks');
+  assert.equal(jobRun('checks'), 'make ci-checks');
+  const lines = dryRun('ci-checks');
+  const tools = indexOf(lines, /install-tools\.mts --no-self-update$/);
+  const symbols = indexOf(lines, /composer install --working-dir=scripts\/kit\/symbols\/php/);
+  const lintPhp = indexOf(lines, /lint-php\.mts/);
+  assert.ok(tools >= 0 && symbols > tools && lintPhp > symbols, 'install-tools, then the PHP symbol packages, then lint-php');
+  assert.ok(indexOf(lines, /tsc -p tsconfig\.json/) > tools, 'typecheck runs after the installs');
 });
 
-test('the CI workflow lints kit with make lint-ts, the TypeScript lint of its consumers, after npm ci installed it (K142)', () => {
-  const lint = runs.indexOf('make lint-ts');
-  assert.ok(lint > runs.indexOf('make install-packages'), 'a step runs make lint-ts after npm ci');
+test('the checks job runs each check once, past the failure of another (K126, K142, K182, K251)', () => {
+  assert.equal(new Set(ciChecks).size, ciChecks.length, 'each check target runs once');
+  for (const check of ['duplication-check', 'lint-ts', 'catch-check', 'rebuild-check', 'owner-validate', 'docs-check', 'typecheck', 'release-coverage'])
+    assert.ok(ciChecks.includes(check), `ci-checks runs ${check}`);
+  assert.ok(!ciChecks.includes('kit-test') && !ciChecks.includes('source-test'));
+  assert.match(known(make.targets.get('ci-checks'), 'ci-checks').recipe, /\$\(MAKE\) --no-print-directory -k \$\(CI_CHECKS\)$/m);
+  assert.match(known(make.targets.get('ci-bootstrap'), 'ci-bootstrap').recipe, /\$\(MAKE\) --no-print-directory -k \$\(CI_BOOTSTRAP_CHECKS_\$\(CI_BOOTSTRAP_PLATFORM\)\)$/m);
 });
 
 test('kit-test shards install only their declared PHP, Composer and runtime prerequisites (K78, K127)', () => {
-  const kitTestRuns = jobRuns('kit_tests');
-  const phpTools = kitTestRuns.indexOf('make install-tools TOOLS="php composer phpunit"');
-  const rustTools = kitTestRuns.indexOf('make install-tools TOOLS=rust');
-  const kitTest = kitTestRuns.indexOf('make kit-test-shard SHARD=${{ matrix.shard }}');
-  assert.ok(!jobText('kit_tests').includes('GITHUB_PATH'), 'no step puts var/tools on PATH by hand');
-  assert.ok(phpTools >= 0 && phpTools < kitTest, 'the PHP fixture shard installs PHP, Composer and PHPUnit');
-  for (const [shard, tools] of [
-    [1, 'make install-tools TOOLS="php composer"'],
-    [3, 'make install-tools TOOLS="php composer phpunit"'],
-    [4, 'make install-tools TOOLS="php composer python go"'],
-    [7, 'make install-tools TOOLS="php composer"'],
-  ] as const) {
-    const install = kitTestRuns.indexOf(tools);
-    assert.ok(install >= 0 && install < kitTest, `shard ${shard} installs ${tools}`);
-    assert.ok(jobText('kit_tests').includes(`if: \${{ matrix.shard == ${shard} && !cancelled() }}\n        run: ${tools}`), `shard ${shard} installs only its declared tools`);
+  assert.equal(jobRun('kit-tests'), 'make ci-kit-tests SHARD=${{ matrix.shard }}');
+  for (const [shard, tools] of [[1, 'php composer'], [2, ''], [3, 'php composer phpunit'], [4, 'php composer python go'], [5, 'php composer phpunit'], [6, 'rust'], [7, 'php composer']] as const) {
+    const lines = dryRun('ci-kit-tests', `SHARD=${shard}`);
+    const install = indexOf(lines, /install-tools\.mts --no-self-update/);
+    const tests = indexOf(lines, /run-tests\.mts node -- --test-concurrency=1 tests\/kit\//);
+    assert.ok(tests >= 0, `shard ${shard} runs its tests`);
+    if (tools === '') assert.equal(install, -1, `shard ${shard} installs no tool`);
+    else assert.ok(install >= 0 && install < tests && lines[install]?.endsWith(`--no-self-update ${tools}`), `shard ${shard} installs ${tools}:\n${lines.join('\n')}`);
+    const parser = indexOf(lines, /composer install --working-dir=scripts\/kit\/symbols\/php/);
+    assert.equal(parser >= 0, shard === 5, 'only shard 5 installs the source parser for its consumer fixtures');
   }
-  assert.match(jobText('kit_tests'), /if: \$\{\{ contains\(fromJSON\('\[1,3,4,5,7\]'\), matrix\.shard\) \}\}[\s\S]*?php-version-file: \.php-version/);
-  assert.ok(rustTools >= 0 && rustTools < kitTest, 'the Cargo fixture shard installs Rust');
-  const phpParser = kitTestRuns.indexOf('make kit-install-symbols-php');
-  assert.ok(phpParser > phpTools && phpParser < kitTest, 'the temporary PHP consumer fixtures resolve the parser from the Kit source installation');
-  assert.ok(jobText('kit_tests').includes('if: ${{ matrix.shard == 5 && !cancelled() }}\n        run: make kit-install-symbols-php'), 'only shard 5 installs the source parser for its consumer fixtures');
+  assert.match(text, /if: \$\{\{ contains\(fromJSON\('\[1,3,4,5,7\]'\), matrix\.shard\) \}\}/);
 });
 
-test('Rust source groups install Rust before their tests (K1014)', () => {
-  const sourceRuns = jobRuns('source_tests');
-  const rust = sourceRuns.indexOf('make install-tools TOOLS=rust');
-  assert.ok(rust >= 0 && rust < sourceRuns.indexOf('make source-test-group GROUP=${{ matrix.group }}'), 'Rust groups install their toolchain before tests');
-  assert.ok(!sourceRuns.includes('rustup toolchain install'), 'install-tools owns Rust toolchain installation');
-});
-
-test('the CI workflow checks the classes of config/rebuild.json and the owner rules of config/owner-checks.json (K182)', () => {
-  // Without them in CI, four tools of scripts/kit went without a class from K156 and a config file without an
-  // owner from K173 while every run passed.
-  assert.ok(runs.includes('make rebuild-check'), 'a step runs make rebuild-check');
-  assert.ok(runs.includes('make owner-validate'), 'a step runs make owner-validate');
+test('source groups install their declared tools before their tests, Rust through install-tools (K1014)', () => {
+  assert.equal(jobRun('source-tests'), 'make ci-source-tests GROUP=${{ matrix.group }}');
+  const lines = dryRun('ci-source-tests', 'GROUP=rust');
+  const rust = indexOf(lines, /install-tools\.mts --no-self-update rust$/);
+  assert.ok(rust >= 0 && rust < indexOf(lines, /run-tests\.mts .*tests\/source\//), 'Rust groups install their toolchain before tests');
+  assert.ok(!lines.some(line => line.includes('rustup toolchain install')), 'install-tools owns Rust toolchain installation');
+  assert.equal(indexOf(dryRun('ci-source-tests', 'GROUP=ts'), /install-tools\.mts/), -1, 'the ts group installs no tool');
+  assert.match(text, /if: \$\{\{ contains\(fromJSON\('\["php","common-1","common-2","common-3"\]'\), matrix\.group\) \}\}/);
 });
 
 test('the CI workflow runs every make target of config/owner-checks.json but the exempt ones, each with its reason (K183)', () => {
@@ -89,50 +93,19 @@ test('the CI workflow runs every make target of config/owner-checks.json but the
   for (const entry of ciExempt) assert.ok(entry.reason.trim().length > 0, `the exemption of ${entry.target} gives its reason`);
   const targets = new Set(owners.flatMap(owner => owner.targets ?? []));
   assert.deepEqual([...exempt].filter(target => !targets.has(target)), [], 'every exemption names a target of an owner rule');
-  const ran = new Set(runs.flatMap(run => /^make ([a-z][a-z0-9-]*)/.exec(run)?.[1] ?? []));
-  if (ran.has('kit-test-shard')) ran.add('kit-test'); // The six explicit matrix shards cover the owner target's complete test inventory.
-  assert.deepEqual([...targets].filter(target => !exempt.has(target) && !ran.has(target)), [], 'no CI step runs these owner targets');
-  assert.deepEqual([...exempt].filter(target => ran.has(target)), [], 'an exempt target that a step runs needs no exemption');
+  // The targets that the run steps of the workflows reach through their recipes (K1250).
+  const ran = reached(ROOT, make).targets;
+  if (ran.has('kit-test-shard')) ran.add('kit-test'); // The explicit matrix shards cover the owner target's complete test inventory.
+  assert.deepEqual([...targets].filter(target => !exempt.has(target) && !ran.has(target)), [], 'no CI job runs these owner targets');
+  assert.deepEqual([...exempt].filter(target => ran.has(target)), [], 'an exempt target that a job runs needs no exemption');
 });
 
-test('the CI workflow installs the packages of the PHP symbol extractor after install-tools and before lint-php (K248-4)', () => {
-  // lint-php runs PHPStan on scripts/kit/symbols/php with the autoloader of its Composer project; without the install the
-  // step failed in the run of e9d0bb8.
-  const checkRuns = jobRuns('checks');
-  const install = checkRuns.indexOf('make kit-install-symbols-php');
-  assert.ok(install > checkRuns.indexOf('make install-tools'), 'make kit-install-symbols-php runs after install-tools installed Composer');
-  assert.ok(install < checkRuns.indexOf('make lint-php'), 'make kit-install-symbols-php runs before make lint-php');
-});
-
-test('the CI workflow runs docs-check', () => {
-  assert.ok(runs.includes('make docs-check'), 'a step runs make docs-check');
-});
-
-test('the CI workflow installs the packages with the pinned npm and then checks the types (K71-1)', () => {
-  const install = runs.indexOf('make install-packages');
-  const typecheck = runs.indexOf('make typecheck');
-  assert.ok(runs.indexOf('make install-tools TOOLS=npm') >= 0 && install > runs.indexOf('make install-tools TOOLS=npm'), 'npm ci runs after install-tools installed the npm of mise.toml');
-  assert.ok(typecheck > install, 'make typecheck runs after npm ci installed TypeScript');
-});
-
-test('the CI workflow bootstraps npm and package-lock before job-specific tools (K71-2)', () => {
-  const bootstrap = ['make install-tools TOOLS=npm', 'make install-packages'];
-  for (const name of ['checks', 'kit_tests', 'source_tests']) assert.deepEqual(jobRuns(name).slice(0, 2), bootstrap, `${name} bootstraps from its own checkout`);
-  assert.ok(jobRuns('checks').includes('make install-tools'), 'checks installs all tools for its full gate set');
-});
-
-test('the CI workflow installs the PHP of .php-version before install-tools, which runs PHPUnit on it (K78)', () => {
-  // The Composer projects of kit (config/phpunit, config/php-lint) require the PHP of the pin; the runner's own PHP is
-  // older, so the workflow installs the declared release first (CI run 38438896766 failed on PHP 8.3.6).
-  const checkJob = jobText('checks');
-  const setup = checkJob.indexOf('php-version-file: .php-version');
-  const tools = checkJob.indexOf('run: make install-tools\n');
-  assert.ok(setup >= 0, 'the workflow sets up PHP from .php-version');
-  assert.ok(tools > setup, 'install-tools runs after the PHP of .php-version is installed');
-});
-
-test('the fresh-checkout source group installs its declared PHP runtime', () => {
-  assert.match(jobText('source_tests'), /if: \$\{\{ contains\(fromJSON\('\["php","common-1","common-2","common-3"\]'\), matrix\.group\) \}\}[\s\S]*?php-version-file: \.php-version/);
+test('the jobs bootstrap npm and package-lock with the bootstrap action before their recipe (K71-2, K992)', () => {
+  for (const name of ['checks', 'kit-tests', 'source-tests']) {
+    const steps = job(name).steps;
+    const bootstrap = steps.findIndex(step => step.uses === './.github/actions/kit-bootstrap');
+    assert.ok(bootstrap >= 0 && bootstrap < steps.findIndex(step => step.run !== undefined), `${name} bootstraps from its own checkout`);
+  }
 });
 
 test('rust-toolchain.toml declares the clippy that make lint-rust runs, so rustup installs it with the channel (K77)', () => {
@@ -142,31 +115,15 @@ test('rust-toolchain.toml declares the clippy that make lint-rust runs, so rustu
   assert.match(toolchain, /^components = \[[^\]]*"clippy"[^\]]*\]$/m);
 });
 
-test('every check step runs after an earlier step failed, so one run shows every failure (K251)', () => {
-  for (const name of ['checks', 'kit_tests', 'source_tests']) {
-    const steps = jobText(name).split(/\n(?= {6}- )/).slice(1);
-    const install = steps.findLastIndex(step => /run: (make (?:kit-)?install-|rustup toolchain install)/.test(step));
-    assert.ok(install >= 0, `${name} installs its tools`);
-    const checks = steps.slice(install + 1);
-    assert.ok(checks.length > 0, `${name} runs checks after the installs`);
-    for (const step of checks) assert.match(step, /^ {8}if: .*!cancelled\(\)/m, `${name} continues after a failed setup step:\n${step}`);
-  }
-});
-
 test('the kit required check aggregates independent checks, kit tests and source tests exactly once', () => {
-  const kit = jobText('kit');
-  assert.match(kit, /^    name: kit$/m, 'the required check keeps the name kit');
-  assert.match(kit, /^    if: \$\{\{ always\(\) \}\}$/m, 'the aggregator runs after failures');
-  assert.match(kit, /^    needs: \[checks, kit_tests, source_tests, bootstrap\]$/m, 'the aggregator needs every independent job, the platform bootstrap included (K912)');
-  assert.match(kit, /RESULTS: \$\{\{ toJSON\(needs\) \}\}/, 'the aggregator receives every job result');
-  assert.match(jobText('kit_tests'), /fail-fast: false[\s\S]*shard: \[1, 2, 3, 4, 5, 6, 7\]/);
-  assert.match(jobText('source_tests'), /fail-fast: false[\s\S]*group: \[ts, php, rust, go, python, common-1, common-2, common-3\]/);
-  assert.deepEqual(jobRuns('kit_tests').filter(run => run === 'make kit-test-shard SHARD=${{ matrix.shard }}'), ['make kit-test-shard SHARD=${{ matrix.shard }}']);
-  assert.deepEqual(jobRuns('source_tests').filter(run => run === 'make source-test-group GROUP=${{ matrix.group }}'), ['make source-test-group GROUP=${{ matrix.group }}']);
-  const checks = jobRuns('checks').filter(run => run.startsWith('make ') && !/^make (?:install-tools|install-packages|kit-install-)/.test(run));
-  const names = checks.map(run => run.split(/\s+/, 2)[1]);
-  assert.equal(new Set(names).size, names.length, 'each check target runs once');
-  assert.ok(!checks.includes('make kit-test') && !checks.includes('make source-test'));
+  const kit = job('kit') as { name?: string; if?: string; needs?: string[] };
+  assert.equal(kit.name, 'kit', 'the required check keeps the name kit');
+  assert.equal(kit.if, '${{ always() }}', 'the aggregator runs after failures');
+  assert.deepEqual(kit.needs, ['checks', 'kit-tests', 'source-tests', 'bootstrap'], 'the aggregator needs every independent job, the platform bootstrap included (K912)');
+  assert.equal(jobRun('kit'), "make ci-kit NODE=node RESULTS='${{ toJSON(needs) }}'", 'the aggregator receives every job result');
+  assert.match(known(make.targets.get('ci-kit'), 'ci-kit').recipe, /ci-passed FAIL_SKIPPED=1/);
+  assert.deepEqual(job('kit-tests').strategy?.matrix, { shard: [1, 2, 3, 4, 5, 6, 7] });
+  assert.deepEqual(job('source-tests').strategy?.matrix, { group: ['ts', 'php', 'rust', 'go', 'python', 'common-1', 'common-2', 'common-3'] });
 });
 
 function assertShardInventory(prefix: string, directory: string, groups: string[]): void {
@@ -197,6 +154,8 @@ test('the CI shard targets reject an empty or unknown selection before starting 
   for (const [target, args] of [
     ['kit-test-shard', []], ['kit-test-shard', ['SHARD=unknown']],
     ['source-test-group', []], ['source-test-group', ['GROUP=unknown']],
+    ['ci-kit-tests', []], ['ci-kit-tests', ['SHARD=unknown']],
+    ['ci-source-tests', []], ['ci-source-tests', ['GROUP=unknown']],
   ] as const) {
     const result = spawnSync('make', ['--no-print-directory', target, ...args], { cwd: ROOT, encoding: 'utf8', env: isolatedMakeEnvironment(process.env) });
     assert.equal(result.status, 2, `${target} ${args.join(' ')}: ${result.stdout}${result.stderr}`);
@@ -233,26 +192,15 @@ test('a shard selection probe drops inherited GNU Make variables (K721)', (t) =>
   });
 });
 
-test('K1041: POSIX source coverage runs in Linux source CI and macOS bootstrap while common process checks remain on Windows', () => {
-  assert.match(jobText('source_tests'), /runs-on: ubuntu-24\.04/);
-  const steps = jobText('bootstrap').split(/(?=^      - name:)/m);
-  const commonCommand = 'run: node --test tests/kit/process.test.mts tests/kit/process-group.test.mts';
-  const common = steps.find(step => step.includes(commonCommand));
-  assert.ok(common, 'every platform retains the common process ownership checks');
-  assert.ok(!common.includes('runner.os') && !common.includes('matrix.runner'), 'common process checks have no platform exclusion');
-  const command = 'run: node --test tests/source/process-group-posix.test.mts';
-  const posix = steps.filter(step => step.includes(command));
-  assert.equal(posix.length, 1, 'one macOS bootstrap step owns its POSIX source case');
-  assert.ok(posix[0]?.includes("if: ${{ !cancelled() && runner.os == 'macOS' }}"), 'Linux source CI owns Linux execution, macOS owns its bootstrap execution, Windows retains its own native process contract');
-});
-
-
-test('K1228-2: native workflow environment smoke has Linux source and macOS/Windows bootstrap owners', () => {
-  const make = readFileSync(path.join(ROOT, 'Makefile'), 'utf8');
-  assert.match(make, /^SOURCE_TEST_FILES_common-3 :=.*tests\/source\/workflow-env-real\.test\.mts/m);
-  const steps = jobText('bootstrap').split(/(?=^      - name:)/m);
-  const native = steps.filter(step => step.includes('run: make workflow-env-smoke'));
-  assert.equal(native.length, 1, 'one bootstrap step owns native macOS and Windows environment proof');
-  assert.ok(native[0]?.includes("if: ${{ !cancelled() && runner.os != 'Linux' }}"));
-  assert.match(make, /^workflow-env-smoke:.*\n\t.*run-tests.*tests\/source\/workflow-env-real\.test\.mts/m);
+test('K1041: POSIX source coverage runs in Linux source CI and macOS bootstrap while common process checks run on every platform', () => {
+  assert.equal(job('source-tests')['runs-on'], 'ubuntu-24.04');
+  assert.equal(jobRun('bootstrap'), 'make ci-bootstrap');
+  const checks = (platform: string) => {
+    const lines = dryRun('ci-bootstrap', `CI_BOOTSTRAP_PLATFORM=${platform}`);
+    return known(lines.find(line => / -k case-sensitive-runner-smoke /.test(line) || / -k owner-validate /.test(line)), `the checks of ${platform}`).split(' -k ')[1]?.split(' ') ?? [];
+  };
+  for (const platform of ['linux', 'macos', 'windows']) assert.ok(checks(platform).includes('bootstrap-process-smoke'), `${platform} retains the common process ownership checks`);
+  assert.deepEqual(['linux', 'macos', 'windows'].filter(platform => checks(platform).includes('bootstrap-posix-smoke')), ['macos'], 'macOS owns its bootstrap execution of the POSIX case');
+  assert.match(known(make.targets.get('bootstrap-posix-smoke'), 'bootstrap-posix-smoke').recipe, /tests\/source\/process-group-posix\.test\.mts/);
+  assert.ok(checks('windows').includes('owner-validate') && checks('windows').includes('bootstrap-windows-versions-check'), 'Windows checks Git Bash make and its native wrappers');
 });

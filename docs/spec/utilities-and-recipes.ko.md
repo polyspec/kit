@@ -27,90 +27,30 @@ allow-remote 사례가 그 연쇄를 보여 준다.
 
    예제는 작동하는 방법 하나를 보여 준다. 저장소는 그것을 복사하거나, 바꾸거나, 무시한다.
 
-## 로컬 workflow job (K1228)
+## CI job은 recipe 하나를 실행한다 (K1250)
 
-`ci-job.mts --workflow <file> --job <id>`는 job의 script와 로컬 composite action을 선언된 순서로 실행한다.
-`--matrix <key>=<value>`는 matrix 조합을 선택하고, `--plan`은 script를 실행하지 않고 plan을 출력한다. 외부 action은
-입력과 함께 출력하고 실행하지 않으므로, 로컬 실행에는 해당 action이 설치할 도구가 필요하다.
+CI가 commit에 실행하는 workflow의 모든 job은, 그 workflow가 부르는 pipeline을 포함해, `run:` step을 정확히 하나 가진다. 그 step은
+`make ci-<job>`이며 `<job>`은 job의 id이고, 뒤에는 make 변수만 온다. Matrix 값은 `NAME=${{ matrix.key }}`로 넘긴다. run 줄에는
+다른 expression이 없다. 다른 step은 모두 runner를 준비하거나 결과를 옮기는 `uses:` step이다. checkout, setup action, bootstrap
+composite action, report upload가 그렇다. `if:` 조건은 `uses:` step에만 있다. bootstrap composite action은 준비하는 `uses:` step과
+로컬 bootstrap이 하는 호출인 `make bootstrap` 하나를 가진다.
 
-- Expression은 native coercion, property filter, built-in function을 포함하여 GitHub의 `@actions/expressions`를 사용한다.
-  실행은 status function과 지원하는 `github`, `runner`, `matrix`, `env`, `steps`, workflow 또는 composite `inputs` 값을 제공한다.
-  로컬 실행이 제공할 수 없는 context는 script를 실행하기 전에 이름을 밝히고 거부한다. 외부 action의 output,
-  secret, 저장소 variable은 로컬 script 실행이 제공할 수 없다.
-- Runtime capability 거부(K1228-3): external action output의 계산한 조회와 동적으로 선택한 미지원 shell은
-  재현한 native step 실패가 아닌 로컬 capability 거부다. 로컬 job은 status 1로 끝나며 직접 또는 모든 composite
-  caller의 continue-on-error를 넘어서 이후 user script를 실행하지 않는다. 결과를 반환하기 전에 소유한 process와
-  runner directory cleanup을 마친다. 공유 typed 로컬 거부는 native error-cause wrapper를 거친 environment
-  capability 거부도 전달한다. 단지 "refused"라고 적힌 message가 일반 Error를 이 type으로 바꾸지는 않는다.
-  실제 native command 종료와 file-validation 실패는 원래 실패와 허용 의미를 유지한다. Expression engine이나
-  일반 dictionary 동작을 교체하지 않는다.
-- Environment key 규칙(K1228-2): `env` key는 POSIX에서 대소문자를 구분하고 Windows의 지원하는 ASCII key에서는 구분하지 않는다.
-  Environment merge는 해당 비교에서 첫 key 표기를 유지하고 마지막에 할당한 값을 사용한다. 같은 merge를 workflow,
-  job, composite, step environment, environment-file 쓰기와 상속한 process 값 및 PATH 조회를 포함한 실제 spawn
-  environment에 적용한다. 다른 expression context는 native case folding을 유지한다. Context 전용 Dictionary
-  subclass는 native public add/get/values/pairs API와 표준 Map을 사용한다. Parsing, evaluation, coercion,
-  status function과 일반 dictionary는 native로 유지한다. Condition, serialization과 계산한 외부 output guard는
-  caller나 sibling scope를 바꾸지 않고 실제 scope의 environment를 사용한다.
-- Windows 로컬 environment 이름은 pin한 native comparer가 OrdinalIgnoreCase를 정확히 제공할 때까지 ASCII만
-  지원한다. 조회에 쓰는 이름을 포함해 non-ASCII 이름은 사용 전에 이름을 밝히고 거부한다. Unicode 값은 모든
-  platform에서 지원하고 POSIX Unicode 이름은 서로 구분한다. JavaScript 소문자 변환은 OrdinalIgnoreCase가 아니다.
-  Native invariant 대문자 변환은 micro sign µ와 Greek capital mu Μ를 합치지만 소문자 변환은 두 key를 구분한다.
-  JavaScript full 대문자 변환도 대체 수단이 아니다. 이 제한은 [native 비교 규칙](https://learn.microsoft.com/en-us/dotnet/standard/base-types/best-practices-strings)을 따른다.
-  Pin한 native comparer가 해당 규칙을 제공하고 실제 Windows Unicode-name 회귀 시험을 통과하면 제한을 제거한다.
-- 정확히 `__proto__`인 environment key는 선언한 경우 script 실행 전에, environment file이 쓴 경우 게시 전에
-  이름을 밝히고 거부한다. Pin한 native JSON replacer가 plain object에 property를 할당하면서 prototype setter를
-  통해 해당 key를 조용히 버리기 때문이다. 안전한 record 생성은 이 거부까지 key를 보존하며 조용히 삭제하지 않는다.
-  지원하지 않는 로컬 environment 이름은 native step 실패가 아닌 capability 거부다. Job은 status 1로 끝나며
-  직접 또는 composite `continue-on-error`로 허용할 수 없고 `always()`를 포함한 이후 user script도 실행하지 않는다.
-  거부를 전달하기 전에 독립된 정상 file-command channel을 처리하고 소유한 process와 directory cleanup은 마친다.
-  차단한 NODE_OPTIONS나 잘못된 문법처럼 native file-command 실패는 원래 step 실패와 continue-on-error 의미를
-  유지한다. Pin한 native serializer가 같은 environment serialization 회귀 시험에서 key를 보존하면 제한을 제거한다.
-- Environment의 근거는 runner의 [platform comparer](https://github.com/actions/runner/blob/8cfa1049f86781d141056082d73802d56cd2b433/src/Runner.Common/Util/VarUtil.cs),
-  [step context 선택](https://github.com/actions/runner/blob/8cfa1049f86781d141056082d73802d56cd2b433/src/Runner.Worker/StepsRunner.cs)과
-  [대소문자를 구분하지 않는 setter](https://github.com/actions/runner/blob/8cfa1049f86781d141056082d73802d56cd2b433/src/Sdk/DTPipelines/Pipelines/ContextData/DictionaryContextData.cs)다.
-  Linux source CI는 native environment smoke를 소유하고 macOS와 Windows bootstrap은 실제 platform에서 같은 target을
-  실행한다. Mac에서 Windows merge algorithm을 실행한 결과는 policy unit test이며 native Windows process 증거가 아니다.
-- 따옴표로 감싼 expression literal은 `format`과 step condition에 쓰인 literal을 포함해 모든 겹친 작은따옴표를
-  한 번씩 해석한다(K1228-1). Pin한 lexer는 첫 쌍만 해석하므로 adapter는 검증한 raw lexeme에서 STRING token 값을
-  만들고 원래 lexeme과 range를 보존한다. Tokenization, syntax 거부, parsing, evaluation은 native로 유지한다.
-  Pin한 lexer가 정규화 없이 같은 반복 escape 회귀 시험을 통과하면 adapter를 제거한다. 이미 해석한 token 값을
-  고치면 첫 쌍을 두 번 해석하게 된다.
-- Workflow input은 plan이나 script 실행 전에 결정한다(K1233). 반복하는 `--input name=value` 인자는 첫 `=`에서
-  나누고 빈 text와 뒤의 `=` 문자를 보존하며 선언한 이름에 대소문자를 구분하지 않고 연결한다. 이 CLI 연결 규칙은
-  expression context의 대소문자를 구분하지 않는 조회를 따른다. 중복 input 이름과 대소문자만 다른 선언은 거부한다.
-  Boolean 인자는 정확히 `true` 또는 `false`이고 number 인자는 공백 없는 유한 JSON number 문법을 따른다.
-  String 인자는 text로 유지하며 default는 이미 선언한 type이어야 한다. Expression default는 native default 평가
-  context를 이 로컬 runner가 제공하지 않으므로 literal text로 취급하지 않고 거부한다. 명시한 지원 type이 없는
-  input 선언도 거부한다. 소문자로 바꾼 이름이 Object.prototype의 own property와 겹치는 선언도 이름을 밝히고
-  거부한다. Pin한 native Dictionary가 해당 key를 조용히 버리기 때문이다. 원래 대소문자가 prototype property와
-  같다는 이유만으로 거부하지는 않는다. Native 조회는 먼저 이름을 소문자로 바꾼다. Pin한 native Dictionary가
-  evaluation과 serialization 회귀 시험에서 이 key들을 보존하면 이 제한을 제거한다.
-- 선택한 `workflow_call` 선언은 문서화된 암시적 default를 제공한다. Boolean은 false, number는 0, string은 빈
-  text다. 선언한 default가 없는 required input에는 명시한 값이 필요하다. `workflow_dispatch` 선언은 boolean,
-  number, string, choice, environment input을 지원한다. Choice 값은 options에 속해야 하고 environment 값은
-  GitHub에 조회하지 않는 text다. 선언한 default가 없는 dispatch input은 optional이어도 명시한 값이 필요하다.
-  이 로컬 runner는 native에서 생략한 값을 확정하지 않기 때문이다. 알 수 없는 이름, 잘못된 type, 누락한 값과
-  지원하지 않는 선언은 `--plan`을 포함해 script 실행 전에 실패한다.
-- Input을 받을 수 있는 event 선언이 하나면 다른 event를 함께 선언했어도 자동으로 선택한다.
-  `--input-event workflow_call` 또는 `--input-event workflow_dispatch`는 두 선언 중 하나를 선택한다. 두 선언을
-  선택하지 않은 상태에서 input을 읽는 job은 거부한다. `--input-event`를 반복하거나 없는 선언을 선택해도 거부한다. 이는 로컬 input 선언의
-  선택이며 GitHub event를 만들거나 `github.event` 값을 제공하지 않는다. Typed workflow input은 workflow와 job
-  environment, job condition, matrix, default, output, step에 전달한다. Composite action은 자신의 string input으로
-  이를 가린다. Composite 사전 검사는 내부 input 값을 추측하지 않고 caller input을 가린다. Runtime guard는
-  script 실행 전에 실제로 연결한 composite input으로 계산한 외부 output producer를 검사한다. Reusable caller
-  job은 계속 거부하며 호출할 workflow 자체의 job을 실행해야 한다.
-- 각 script는 새로운 `GITHUB_OUTPUT`, `GITHUB_ENV`, `GITHUB_PATH`, `GITHUB_STEP_SUMMARY` 파일을 받는다. Output은 해당
-  step에 속하며, environment 변경과 path 항목은 다음 step에 전달된다. Output과 environment 파일은 `name=value`와
-  delimiter를 사용하는 multiline 값을 모두 받는다. 잘못된 file command는 해당 step을 실패시키지만, 다른 정상 채널의
-  변경은 적용하므로 cleanup step이 사용할 수 있다.
-- Step이 실패하면 status function이 없는 후속 condition은 건너뛴다. `failure()`, `always()`, `!cancelled()`를 사용하는
-  condition은 native 의미를 유지하며, 허용된 실패의 outcome은 failure이고 conclusion은 success다.
-  허용하지 않은 step 실패가 있으면 이후 cleanup step이 성공해도 job은 실패한다.
-- Matrix는 axes, exclusions, inclusions, fail-fast 설정을 적용한다. `needs.<job>.outputs`를 읽는 job은 먼저 해당
-  dependency를 실행한다. 다른 dependency 속성과 matrix job의 output은 로컬 실행이 전체 CI 실행의 결과나 마지막에
-  끝나는 matrix 조합을 재현할 수 없으므로 거부한다.
-- 실행은 script process와 runner 임시 디렉터리를 소유한다. 중단하면 새 step의 실행을 막고, 소유한 process를 종료하고
-  기다린 뒤 디렉터리를 지운다. Process는 runner 디렉터리가 존재하는 동안 cleanup을 마쳐야 한다.
+recipe `ci-<job>`은 job의 순서와 조건을 가진다. 먼저 전제와 설치를 실행하고 각각의 실패에서 job을 멈춘다. 뒤 단계가 앞 단계가 설치한
+것을 쓰기 때문이다. 다음으로 검사를 실행하며 모든 검사를 끝까지 실행한다(`ci-targets` 또는 `make -k`). 그래서 한 번의 실행이 모든
+실패를 보여 준다. 마지막으로 job이 준비한 것을 정리하며, 검사가 실패해도 정리한다. 검사, 준비 또는 정리가 실패하면 job은 실패한다.
+job에 필요한 값, 예를 들어 도구와 target은 recipe가 저장소의 설정(예시 pipeline에서는 `config/ci.json`)에서 읽고, job output으로
+넘기지 않는다. job의 로컬 실행은 CI가 하는 호출과 같다. 예를 들어 `make ci-runtime RUNTIME=go`이다.
+
+workflow의 두 부분은 CI에 남는다. matrix의 fan-out은 plan job의 output에서 올 수 있다(`strategy.matrix`의 `fromJSON`). fan-out은
+job의 내용이 아니기 때문이다. plan job 자신은 `make ci-plan`을 실행한다. 다른 job의 결과를 읽는 판정 job은 CI에만 있다. 그 결과는
+실행에만 있기 때문이다. 그 run step은 needs를 make 변수 `RESULTS='${{ toJSON(needs) }}'`로 넘길 수 있으며, 이것이 run 줄에 있는
+유일한 다른 expression이다.
+
+근거: 내용이 YAML step, step 조건, expression인 job은 runner, 그 expression, context, status function을 흉내 내는 프로그램으로만 CI
+밖에서 실행할 수 있고, 그런 프로그램은 runner의 모든 변경을 따라가야 한다. 내용이 recipe 하나인 job은 CI 밖에서 make가 실행한다.
+그래서 CI와 로컬 실행은 같은 recipe를 실행하고 서로 어긋나지 않는다.
+
+`tests/kit/ci-workflow-jobs.test.mts`는 kit의 `.github/workflows/ci.yml`과 예시 `workflows/ci-pipeline.yml`에서 이 규칙을 검사한다.
 
 ## Installer command 검증 (K1232)
 
@@ -277,6 +217,10 @@ kit은 자기가 강제하는 것을 지운다. 각 변경은 Red, Green, 커밋
 - **Parity.** K1129 전까지 kit은 `config/parity.json`을 읽고 저장소의 구현들이 서로 어떻게 관계되는지 검사했다. 공유 unit, requirement 인용, test 이름과 id, public symbol, divergence, test marker(parity-check, parity-declarations-check, divergence-check, test-markers-check)이며, CI 파이프라인에 parity job이 있었다. parity 삭제: kit은 구현들이 서로 어떻게 관계되는지 검사하지 않으며, 각 저장소가 자기 테스트를 실행한다.
 - **owner 거부.** K1131 전까지 owner-check는 저장소가 무엇을 선언하거나 넘기든, recipe 문장이 ci-targets를 시작하는 target과 make 변수 CHECK_TARGETS의 모든 target을 고르는 규칙을 각각 full suite로 보고 거부했다. 이제는 저장소 자신의 `fullSuite`가 적은 target만 거부한다.
 - **Verification cell.** K1132 전까지 docs-check(verification.mts)는 Verification 열이 있는 checklist의 모든 열린 item이 거기에 backtick으로 command를 적기를 요구하고 pipeline을 거부했으며, 다른 checklist 규칙과 달리 저장소의 recipe가 뺄 수 있는 flag가 없었다. docs-check는 command를 요구하지 않으며, `make item-test`는 여전히 cell이 적은 command를 실행한다.
+- **Workflow runner 흉내.** K1251 전까지 `ci-job.mts`는 workflow의 job 하나의 step을 로컬에서 실행했다. GitHub Actions의 expression은
+  `@actions/expressions`(`actions-expression.mts`)로 평가했고, runner의 environment 규칙(`environment.mts`)과 capability 거부
+  (`workflow-refusal.mts`)를 흉내 냈다(K1227, K1228, K1233). 이제 모든 CI job의 내용은 recipe 하나이고(K1250), 로컬 실행은 CI가 부르는
+  것처럼 그것을 부르므로 runner를 흉내 낼 필요가 없다.
 - **규칙 문장.** PRINCIPLES의 `Enforced by:` 줄은 이 검사들(S11, S12, S13, S15 등)을 적었고 각 삭제와 함께 바뀌었다. K1055 전까지 PRINCIPLES의 본문은 모든 저장소를 kit의 파이프라인(S12), kit의 gate(P31), kit에서만 하는 변경에도 묶었다. 이제 배포되는 PRINCIPLES는 kit이 더는 강제하지 않는 검사를 주장하지 않는다.
 
 작동하는 부분은 kit에서 지우는 바로 그 변경에서 `docs/examples/`의 예제가 된다. 삭제는 kit의 새 패치 릴리즈로 나간다. 저장소는 자기가 설치하는 kit 릴리즈를 고정하므로, 새 릴리즈를 받을 때까지 지금 릴리즈를 유지하고, 받을 때 예제를 보고 자기 레시피를 쓴다.

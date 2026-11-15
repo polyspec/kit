@@ -6,7 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { initRepository } from './sandbox-repository.mts';
-import { ciPlan, ciSetupInvocations, runCIContext, runCISetup } from '../../scripts/kit/ci-setup.mts';
+import { ciPlan, ciSetupInvocations, requiredJudgement, runCIJob, runCISetup } from '../../scripts/kit/ci-setup.mts';
 import { readConfig } from '../../scripts/kit/schema-validate.mts';
 
 const runtimes = ['go', 'php', 'php-ext', 'python', 'rust', 'ts'] as const;
@@ -55,35 +55,133 @@ test('K731: CI setup executes only the declared existing runtime targets', () =>
   }
 });
 
-test('K731-1: setup CLI is explicit and unknown modes cannot execute a valid group', () => {
+test('K731-1: the CLI is explicit and an unknown mode or job cannot execute a valid group', () => {
   const root = fixture();
   try {
     const script = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/ci-setup.mts');
     assert.throws(() => execFileSync(process.execPath, [script, '--context-typo', 'shared'], { cwd: root, stdio: 'pipe' }), /unknown CI setup mode/);
+    assert.throws(() => execFileSync(process.execPath, [script, '--job', 'sharde'], { cwd: root, stdio: 'pipe' }), /unknown CI job sharde/);
     assert.equal(existsSync(path.join(root, 'setup.log')), false, 'an unknown mode cannot start any configured Make target');
-    execFileSync(process.execPath, [script, '--setup', 'shared'], { cwd: root, stdio: 'pipe' });
-    assert.equal(readFileSync(path.join(root, 'setup.log'), 'utf8'), 'shared', 'the explicit setup mode preserves the existing group selection');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('K731-1: the real kit-ci-setup Make target forwards the explicit CLI mode', () => {
+// K1250: the job recipes of kit.mk start the job of ci-setup.mts, so CI and a local run make the same call.
+test('K1250: the ci-shared, ci-runtime and ci-required targets of kit.mk run the jobs of ci-setup', () => {
   const root = fixture();
   try {
     const kitRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-    writeFileSync(path.join(root, 'Makefile'), [
-      `KIT := ${path.join(kitRoot, 'scripts/kit')}`,
-      'KIT_EXT := mts',
-      `include ${path.join(kitRoot, 'scripts/kit/kit.mk')}`,
-      '.PHONY: shared-setup go-setup',
-      'shared-setup:', '\t@printf shared >> setup.log',
-      'go-setup:', '\t@printf go >> setup.log',
-      '',
-    ].join('\n'));
-    execFileSync('git', ['add', 'Makefile'], { cwd: root });
-    execFileSync('make', ['kit-ci-setup', 'GROUP=shared', `NODE=${process.execPath}`], { cwd: root, stdio: 'pipe' });
-    assert.equal(readFileSync(path.join(root, 'setup.log'), 'utf8'), 'shared');
+    writeFileSync(path.join(root, 'Makefile'), [`KIT := ${path.join(kitRoot, 'scripts/kit')}`, 'KIT_EXT := mts', `include ${path.join(kitRoot, 'scripts/kit/kit.mk')}`, ''].join('\n'));
+    const dry = (...args: string[]) => execFileSync('make', ['--no-print-directory', '-n', ...args, `NODE=${process.execPath}`], { cwd: root, encoding: 'utf8' });
+    assert.match(dry('ci-shared'), /ci-setup\.mts --job shared\n/);
+    assert.match(dry('ci-runtime', 'RUNTIME=go'), /ci-setup\.mts --job runtime go\n/);
+    assert.match(dry('ci-required'), /ci-setup\.mts --required\n/);
+    assert.match(dry('ci-plan'), /ci-setup\.mts --plan\n/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+/** A make that records the arguments of each call of the job and fails the calls that `failing` names. */
+function recorder(failing: (args: string[]) => boolean = () => false) {
+  const calls: string[] = [];
+  return { calls, make: (args: string[]) => { calls.push(args.filter(arg => arg !== '--no-print-directory').join(' ')); return failing(args) ? 1 : 0; } };
+}
+
+test('K1250: a job installs its tools and runs its setup, then prepares its context, runs its checks and cleans up', () => {
+  const root = fixture();
+  try {
+    const config = fixtureConfig(root);
+    config.tools = { go: ['go'] };
+    config.targets = { runtimes: { go: ['test-go'] } };
+    config.contexts = { go: { prepare: 'context-prepare', cleanup: 'context-cleanup' } };
+    writeFileSync(path.join(root, 'config/ci.json'), JSON.stringify(config));
+    const { calls, make } = recorder();
+    assert.equal(runCIJob(root, 'runtime', 'go', make), 0);
+    assert.deepEqual(calls, ['install-tools TOOLS=go', 'context-prepare', '-k ci-targets TARGETS=kit-gates-runtime-go test-go', 'context-cleanup']);
+    assert.equal(readFileSync(path.join(root, 'setup.log'), 'utf8'), 'go', 'the setup target ran after the install and before the context');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('K1250: a failed check fails the job after the cleanup, and a failed preparation runs no check', () => {
+  const root = fixture();
+  try {
+    const config = fixtureConfig(root);
+    config.contexts = { shared: { prepare: 'context-prepare', cleanup: 'context-cleanup' } };
+    writeFileSync(path.join(root, 'config/ci.json'), JSON.stringify(config));
+    const checks = recorder(args => args.includes('ci-targets'));
+    assert.equal(runCIJob(root, 'shared', undefined, checks.make), 1);
+    assert.deepEqual(checks.calls, ['context-prepare', '-k ci-targets TARGETS=kit-gates-static', 'context-cleanup']);
+    const prepare = recorder(args => args.includes('context-prepare'));
+    assert.equal(runCIJob(root, 'shared', undefined, prepare.make), 1);
+    assert.deepEqual(prepare.calls, ['context-prepare', 'context-cleanup'], 'the cleanup runs once the preparation was entered');
+    const cleanup = recorder(args => args.includes('context-cleanup'));
+    assert.equal(runCIJob(root, 'shared', undefined, cleanup.make), 1, 'a failed cleanup fails the job');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('K1250: a failed install or setup stops the job before its context and checks', () => {
+  const root = fixture();
+  try {
+    const config = fixtureConfig(root);
+    config.tools = { go: ['go'] };
+    config.contexts = { go: { prepare: 'context-prepare', cleanup: 'context-cleanup' } };
+    writeFileSync(path.join(root, 'config/ci.json'), JSON.stringify(config));
+    const install = recorder(args => args.includes('install-tools'));
+    assert.equal(runCIJob(root, 'runtime', 'go', install.make), 1);
+    assert.deepEqual(install.calls, ['install-tools TOOLS=go']);
+    assert.equal(existsSync(path.join(root, 'setup.log')), false, 'no setup runs after a failed install');
+    config.setup.runtimes.go = ['missing-setup'];
+    writeFileSync(path.join(root, 'config/ci.json'), JSON.stringify(config));
+    const setup = recorder();
+    assert.throws(() => runCIJob(root, 'runtime', 'go', setup.make), /make missing-setup failed in the CI setup runtime\/go/);
+    assert.deepEqual(setup.calls, ['install-tools TOOLS=go']);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('K1250: the runtime job needs a runtime of the plan and the shared job takes none', () => {
+  const root = fixture();
+  try {
+    const { calls, make } = recorder();
+    assert.throws(() => runCIJob(root, 'runtime', undefined, make), /make ci-runtime needs RUNTIME, a runtime of the plan .*; choose go/);
+    assert.throws(() => runCIJob(root, 'runtime', 'python', make), /choose go/);
+    assert.throws(() => runCIJob(root, 'shared', 'go', make), /make ci-shared takes no RUNTIME/);
+    assert.deepEqual(calls, []);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// K910, K950: required fails on a failed, cancelled or skipped job that the plan selected; the runtime job is selected only when
+// config/ci.json declares a runtime.
+test('K950: required judges every selected job and leaves the runtime job of a repository without runtimes unjudged', () => {
+  const root = fixture();
+  try {
+    const needs = (plan: string, shared: string, runtime: string) => JSON.stringify({ plan: { result: plan, outputs: {} }, shared: { result: shared, outputs: {} }, runtime: { result: runtime, outputs: {} } });
+    assert.equal(requiredJudgement(root, needs('success', 'success', 'success')).status, 0);
+    for (const result of ['failure', 'cancelled', 'skipped']) {
+      assert.equal(requiredJudgement(root, needs(result, 'success', 'success')).status, 1, `plan ${result}`);
+      assert.equal(requiredJudgement(root, needs('success', result, 'success')).status, 1, `shared ${result}`);
+      assert.equal(requiredJudgement(root, needs('success', 'success', result)).status, 1, `runtime ${result}`);
+    }
+    const config = fixtureConfig(root);
+    config.runtimes = [];
+    writeFileSync(path.join(root, 'config/ci.json'), JSON.stringify(config));
+    const none = requiredJudgement(root, needs('success', 'success', 'skipped'));
+    assert.equal(none.status, 0, none.lines.join('\n'));
+    assert.ok(none.lines.includes('[ci-passed] runtime: skipped, not selected by the plan, not judged'));
+    assert.equal(requiredJudgement(root, needs('success', 'failure', 'skipped')).status, 1);
+    writeFileSync(path.join(root, 'config/ci.json'), '{');
+    const broken = requiredJudgement(root, needs('failure', 'skipped', 'skipped'));
+    assert.equal(broken.status, 1);
+    assert.match(broken.lines.join('\n'), /\[ci-passed\] plan: failure/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -122,41 +220,6 @@ test('K731-1: contexts require a complete pair of targets, planned as declared',
     writeFileSync(file, JSON.stringify(config));
     assert.equal(ciPlan(root).runner, 'ubuntu-24.04', 'K1068: a declared context target is not pre-checked against the Makefile');
 
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('K731-1: selected context targets run through Make and missing contexts are a no-op', () => {
-  const root = fixture();
-  try {
-    const file = path.join(root, 'config/ci.json');
-    assert.doesNotThrow(() => runCIContext(root, 'prepare', 'shared', undefined));
-    assert.equal(existsSync(path.join(root, 'setup.log')), false, 'no context declaration preserves default setup behavior');
-    const config = fixtureConfig(root);
-    config.contexts = { shared: { prepare: 'context-prepare', cleanup: 'context-cleanup' } };
-    writeFileSync(file, JSON.stringify(config));
-    runCIContext(root, 'prepare', 'shared', undefined);
-    runCIContext(root, 'cleanup', 'shared', undefined);
-    assert.equal(readFileSync(path.join(root, 'setup.log'), 'utf8'), 'preparecleanup');
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('K731-1: a failed context target is reported as a failed CI phase', () => {
-  const root = fixture();
-  try {
-    const config = fixtureConfig(root);
-    config.contexts = { shared: { prepare: 'context-prepare', cleanup: 'context-cleanup' } };
-    writeFileSync(path.join(root, 'config/ci.json'), JSON.stringify(config));
-    const makefile = path.join(root, 'Makefile');
-    writeFileSync(makefile, `${readFileSync(makefile, 'utf8').replace('context-prepare:\n\t@printf prepare >> setup.log', 'context-prepare:\n\t@false')}`);
-    assert.throws(() => runCIContext(root, 'prepare', 'shared', undefined), /make context-prepare failed in the CI context prepare for shared/);
-    runCIContext(root, 'cleanup', 'shared', undefined);
-    assert.equal(readFileSync(path.join(root, 'setup.log'), 'utf8'), 'cleanup', 'cleanup remains independently executable after prepare fails');
-    writeFileSync(makefile, readFileSync(makefile, 'utf8').replace('context-cleanup:\n\t@printf cleanup >> setup.log', 'context-cleanup:\n\t@false'));
-    assert.throws(() => runCIContext(root, 'cleanup', 'shared', undefined), /make context-cleanup failed in the CI context cleanup for shared/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -265,14 +328,17 @@ test('K910: the plan passes the declared targets of each job and takes the runti
     assert.deepEqual(plan.sharedTargets, ['shared-check']);
     assert.deepEqual(plan.runtimes.map(({ runtime, targets }) => [runtime, targets]), [['go', ['test-go']], ['python', ['test-python']]]);
     assert.deepEqual(ciSetupInvocations(root, 'runtime', 'python'), [{ target: 'shared-setup', args: [] }]);
-    runCIContext(root, 'prepare', 'runtime', 'python');
-    assert.equal(readFileSync(path.join(root, 'setup.log'), 'utf8'), 'prepare');
+    const { calls, make } = recorder();
+    assert.equal(runCIJob(root, 'runtime', 'python', make), 0);
+    assert.deepEqual(calls, ['context-prepare', '-k ci-targets TARGETS=kit-gates-runtime-python test-python', 'context-cleanup']);
     const output = path.join(root, 'github-output');
     const script = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/ci-setup.mts');
     execFileSync(process.execPath, [script, '--plan'], { cwd: root, env: { ...process.env, GITHUB_OUTPUT: output } });
     const written = readFileSync(output, 'utf8');
-    assert.match(written, /^shared_targets=\["shared-check"\]$/m);
-    assert.match(written, /"runtime":"python","installTools":\[\],"targets":\["test-python"\]/);
+    // K1250: the plan publishes the fan-out; each job reads its targets from config/ci.json.
+    assert.match(written, /^runtimes=\[\{"runtime":"go"\},\{"runtime":"python"\}\]$/m);
+    assert.match(written, /^shared_php=false$/m);
+    assert.doesNotMatch(written, /shared_targets|common_tools|installTools/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

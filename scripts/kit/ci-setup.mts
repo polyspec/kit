@@ -1,8 +1,17 @@
 #!/usr/bin/env node
-// The locked setup of the jobs of the CI pipeline (`make kit-ci-plan`, `make kit-ci-setup`, K731, K910): config/ci.json names
-// repository-owned Make targets; where none are declared, Kit uses the repository's deps-<runtime> targets (K859). The plan
-// also passes the targets that config/ci.json declares for each job (targets.shared, targets.runtimes). The
+// The jobs of the CI pipeline, each one recipe that CI and a local run call alike (K1250):
+//
+//   node scripts/kit/ci-setup.mts --plan                      make ci-plan: the fan-out of the pipeline to GITHUB_OUTPUT
+//   node scripts/kit/ci-setup.mts --job shared                make ci-shared
+//   node scripts/kit/ci-setup.mts --job runtime <runtime>     make ci-runtime RUNTIME=<runtime>
+//   node scripts/kit/ci-setup.mts --required                  make ci-required RESULTS=<toJSON(needs)>
+//
+// A job installs its tools and runs its setup targets first and stops at the first failure; it then prepares its context, runs
+// kit's gate of its group and the targets that config/ci.json declares for it through `make -k ci-targets`, every target to its
+// end, and cleans up its context after the preparation was entered, also when the checks failed (K731, K910). config/ci.json
+// names repository-owned Make targets; where none are declared, Kit uses the repository's deps-<runtime> targets (K859). The
 // runtimes of the plan are those that config/ci.json declares (K1114): kit reads no runtime from a folder name or a file.
+// Each job reads its tools and targets from config/ci.json itself; the plan publishes only the fan-out of the pipeline.
 import { appendFileSync, existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
@@ -13,6 +22,7 @@ import { declaredMiseTools, TOOLS as CHECK_TOOLS } from './toolchain-mise.mts';
 import { declaredLintTools } from './toolchain-lint.mts';
 import { declaredRust } from './toolchain-files.mts';
 import { isJsonObject } from './bootstrap/files.mts';
+import { passed } from './ci-passed.mts';
 
 export const CI_CONFIG = 'config/ci.json';
 export const RUNTIMES = ['go', 'php', 'php-ext', 'python', 'rust', 'ts'] as const;
@@ -127,10 +137,10 @@ function runtimeSetup(runtime: Runtime, config: CIConfig): { target: string; arg
 function invocations(root: string, group: SetupGroup, runtime?: string): { target: string; args: string[] }[] {
   const { config, runtimes } = readAndValidate(root);
   if (group === 'shared') {
-    if (runtime !== undefined) throw new Error('make kit-ci-setup GROUP=shared does not accept a selector; omit RUNTIME');
+    if (runtime !== undefined) throw new Error('make ci-shared takes no RUNTIME; omit it');
     return config.setup.shared.map(target => ({ target, args: [] }));
   }
-  if (runtime === undefined || !isRuntime(runtime) || !runtimes.includes(runtime)) throw new Error(`make kit-ci-setup GROUP=runtime needs a runtime of the plan (runtimes and targets.runtimes of config/ci.json); choose ${runtimes.join(', ') || '(none)'}`);
+  if (runtime === undefined || !isRuntime(runtime) || !runtimes.includes(runtime)) throw new Error(`make ci-runtime needs RUNTIME, a runtime of the plan (runtimes and targets.runtimes of config/ci.json); choose ${runtimes.join(', ') || '(none)'}`);
   const php = symbolExtractors(toolchainNames(root).declared).includes('php');
   return [...runtimeSetup(runtime, config), ...(php && runtime === 'php' ? [PHP_EXTRACTOR] : [])];
 }
@@ -146,12 +156,13 @@ function writePlan(root: string): void {
     console.log(JSON.stringify(result));
     return;
   }
+  // The fan-out of the pipeline and the condition of the PHP setup action of the shared job: each job reads its tools and
+  // targets from config/ci.json itself (K1250).
   const outputs: Record<string, unknown> = {
-    runtimes: result.runtimes,
+    runtimes: result.runtimes.map(({ runtime }) => ({ runtime })),
     runner: result.runner,
     has_runtimes: result.runtimes.some(({ runtime }) => runtime !== 'none'),
-    common_tools: result.commonTools,
-    shared_targets: result.sharedTargets,
+    shared_php: result.commonTools.includes('php'),
   };
   for (const [key, value] of Object.entries(outputs)) appendFileSync(output, `${key}=${typeof value === 'string' ? value : JSON.stringify(value)}\n`);
 }
@@ -162,25 +173,8 @@ export function runCISetup(root: string, group: SetupGroup, runtimeName?: string
   const commands = invocations(root, group, runtime);
   for (const { target, args } of commands) {
     const result = spawnMake('make', ['--no-print-directory', target, ...args], root);
-    if (result !== 0) throw new Error(`make ${target}${args.length ? ` ${args.join(' ')}` : ''} failed in the CI setup ${group}${runtime ? `/${runtime}` : ''}; fix that locked install/build target and rerun this gate`);
+    if (result !== 0) throw new Error(`make ${target}${args.length ? ` ${args.join(' ')}` : ''} failed in the CI setup ${group}${runtime ? `/${runtime}` : ''}; fix that locked install/build target and run the job again`);
   }
-}
-
-export function runCIContext(root: string, phase: 'prepare' | 'cleanup', group: string, runtimeName?: Runtime): void {
-  if (group !== 'shared' && group !== 'runtime') throw new Error(`unknown CI context group ${group}; choose shared or runtime`);
-  const { config, runtimes } = readAndValidate(root);
-  let scope: CIJob;
-  if (group === 'runtime') {
-    if (runtimeName === undefined || !runtimes.includes(runtimeName)) throw new Error(`make kit-ci-context-${phase} GROUP=runtime needs a runtime of the plan (runtimes and targets.runtimes of config/ci.json); choose ${runtimes.join(', ') || '(none)'}`);
-    scope = runtimeName;
-  } else {
-    if (runtimeName !== undefined) throw new Error(`make kit-ci-context-${phase} GROUP=${group} does not accept RUNTIME; omit it`);
-    scope = group;
-  }
-  const target = config.contexts?.[scope]?.[phase];
-  if (target === undefined) return;
-  const result = spawnMake('make', ['--no-print-directory', target], root);
-  if (result !== 0) throw new Error(`make ${target} failed in the CI context ${phase} for ${scope}; fix that target and rerun the gate`);
 }
 
 // Kept as one small seam for an execution test; a target name of config/ci.json is one argument of make, never shell input.
@@ -192,19 +186,68 @@ function spawnMake(command: string, args: string[], cwd: string): number {
   return result.status ?? 1;
 }
 
+/**
+ * Runs the CI job of `group` (`make ci-shared`, `make ci-runtime RUNTIME=<runtime>`) as CI runs it and returns its exit status: the
+ * tools of the job and its setup targets first, stopping at the first failure; then its context, the gate of kit and the targets of
+ * config/ci.json through `make -k ci-targets`, every target to its end; then the cleanup of the context whenever its preparation
+ * ran. The status is 0 only when the checks passed and the context was prepared and cleaned up (K1250).
+ */
+export function runCIJob(root: string, group: SetupGroup, runtimeName?: string, make: (args: string[]) => number = args => spawnMake('make', args, root)): number {
+  const result = plan(root);
+  const { config } = readAndValidate(root);
+  const job = group === 'runtime' ? result.runtimes.find(({ runtime }) => runtime === runtimeName) : undefined;
+  if (group === 'runtime' && (job === undefined || job.runtime === 'none')) throw new Error(`make ci-runtime needs RUNTIME, a runtime of the plan (runtimes and targets.runtimes of config/ci.json); choose ${result.runtimes.filter(({ runtime }) => runtime !== 'none').map(({ runtime }) => runtime).join(', ') || '(none)'}`);
+  if (group === 'shared' && runtimeName !== undefined) throw new Error('make ci-shared takes no RUNTIME; omit it');
+  const scope: CIJob = job === undefined ? 'shared' : (job.runtime as Runtime);
+  const tools = job === undefined ? result.commonTools : job.installTools;
+  const targets = job === undefined ? ['kit-gates-static', ...result.sharedTargets] : [`kit-gates-runtime-${scope}`, ...job.targets];
+  const where = job === undefined ? 'shared' : `runtime/${scope}`;
+  // The installs and the setup: a later step needs what an earlier one installed, so the first failure stops the job.
+  if (tools.length > 0 && make(['--no-print-directory', 'install-tools', `TOOLS=${tools.join(' ')}`]) !== 0) {
+    console.error(`[ci-setup] make install-tools TOOLS="${tools.join(' ')}" failed in the CI job ${where}; fix that install and run the job again`);
+    return 1;
+  }
+  runCISetup(root, group, runtimeName);
+  const context = config.contexts?.[scope];
+  const failed: string[] = [];
+  if (context !== undefined && make(['--no-print-directory', context.prepare]) !== 0) failed.push(`the context preparation make ${context.prepare}`);
+  if (failed.length === 0 && make(['--no-print-directory', '-k', 'ci-targets', `TARGETS=${targets.join(' ')}`]) !== 0) failed.push(`the checks make -k ci-targets TARGETS="${targets.join(' ')}"`);
+  if (context !== undefined && make(['--no-print-directory', context.cleanup]) !== 0) failed.push(`the context cleanup make ${context.cleanup}`);
+  for (const failure of failed) console.error(`[ci-setup] ${failure} failed in the CI job ${where}`);
+  return failed.length === 0 ? 0 : 1;
+}
+
+/**
+ * The judgement of the required job of the pipeline (`make ci-required RESULTS=<toJSON(needs)>`): every needed job must succeed, a
+ * skipped one included, except the runtime job when config/ci.json declares no runtime, which the plan does not select (K950).
+ */
+export function requiredJudgement(root: string, text: string | undefined): ReturnType<typeof passed> {
+  let unselected: string[] = [];
+  try {
+    if (readAndValidate(root).runtimes.length === 0) unselected = ['runtime'];
+  } catch (error) {
+    if (!(error instanceof Error)) throw error;
+    // A config/ci.json that does not validate failed the plan too; the judgement of the jobs is still printed.
+    const judged = passed(text, { failSkipped: true });
+    return { status: Math.max(1, judged.status), lines: [...judged.lines, `[ci-passed] failed: ${error.message}`], errors: [...judged.errors, error.message] };
+  }
+  return passed(text, { failSkipped: true, unselected });
+}
+
 if (isMain(import.meta.url)) {
   try {
     const root = repositoryRoot();
     const [mode = '', group = '', runtime = ''] = process.argv.slice(2);
     if (mode === '--plan') writePlan(root);
-    else if (mode === '--context-prepare' || mode === '--context-cleanup') {
-      if (runtime !== '' && !isRuntime(runtime)) throw new Error(`unknown runtime ${runtime}; choose ${RUNTIMES.join(', ')}`);
-      runCIContext(root, mode === '--context-prepare' ? 'prepare' : 'cleanup', group, runtime === '' ? undefined : runtime);
-    } else if (mode === '--setup') {
-      if (group !== 'shared' && group !== 'runtime') throw new Error(`unknown CI setup group ${group}; choose shared or runtime`);
-      if (group === 'runtime' && runtime !== '' && !isRuntime(runtime)) throw new Error(`unknown runtime ${runtime}; choose ${RUNTIMES.join(', ')}`);
-      runCISetup(root, group, runtime === '' ? undefined : runtime);
-    } else throw new Error(`unknown CI setup mode ${mode}; use --plan, --setup GROUP [RUNTIME], --context-prepare GROUP [RUNTIME], or --context-cleanup GROUP [RUNTIME]`);
+    else if (mode === '--job') {
+      if (group !== 'shared' && group !== 'runtime') throw new Error(`unknown CI job ${group}; choose shared or runtime`);
+      process.exitCode = runCIJob(root, group, runtime === '' ? undefined : runtime);
+    } else if (mode === '--required') {
+      const result = requiredJudgement(root, process.env.RESULTS);
+      for (const line of result.lines) console.log(line);
+      if (process.env.GITHUB_ACTIONS === 'true') for (const error of result.errors) console.log(`::error title=ci-required::${error}`);
+      process.exitCode = result.status;
+    } else throw new Error(`unknown CI setup mode ${mode}; use --plan, --job shared, --job runtime RUNTIME, or --required`);
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     console.error(`[ci-setup] ${error.message}`);
