@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1217 verification: The original declared link owner command passes 82 tests on the committed tree with Node 26.12.0 and PHP 8.4.27, without failures or skips. The removed packages command remains absent.
+
 - K1216 verification: The annotated v0.0.111 release is public at its tagged commit. The declared docs-check command passes on the committed tree with Node 26.12.0; the release task is complete.
 
 - K1235 verification: the exact declared unit passes on the committed implementation with Node 26.12.0; the focused reporter/progress owners pass four tests without skips. Typecheck, lint-ts, duplication-check and docs-check pass. Heartbeat observation age remains distinct from the native 1400ms result, and interval cadence and close behavior are preserved.

@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 94cc970df46edf82957d3dcb590b56daeb480410cb6152d0862c5416a966e16c -->
+<!-- source-sha256: d795ad0236ff1da882ca9e359bae8e9e9ebeebde6a8e98643312b32fd1e1de7f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1217 verification: 원래 선언한 link owner 명령이 Node 26.12.0과 PHP 8.4.27의 committed tree에서 82개 시험을 실패나 skip 없이 통과했다. 제거한 packages 명령은 없다.
 
 - K1216 verification: annotated v0.0.111 release가 tag의 commit에서 공개됐다. 선언한 docs-check 명령이 Node 26.12.0으로 committed tree에서 통과하여 release task를 완료했다.
 
