@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1237: Worktree workspace executable links use worktree source while retaining npm-selected names and external executable entries.
+
 ## 0.0.113
 
 - K1236 verification: make docs-check passes on the committed candidate-note fold. Candidate preparation is complete; CI, archive and publication verification remain separate.

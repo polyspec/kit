@@ -58,7 +58,7 @@ test('K1226: the worktree node_modules links every entry of main and its own wor
   const nodeModules = path.join(worktree, 'node_modules');
   assert.ok(lstatSync(nodeModules).isDirectory() && !lstatSync(nodeModules).isSymbolicLink(), 'node_modules is a real directory');
   assert.equal(readlinkSync(path.join(nodeModules, 'left-pad')), path.join(main, 'node_modules/left-pad'), 'a top-level package links to main');
-  assert.equal(readlinkSync(path.join(nodeModules, '.bin')), path.join(main, 'node_modules/.bin'), 'the bin folder links to main');
+  assert.equal(realpathSync(path.join(nodeModules, '.bin/tool')), path.join(main, 'node_modules/.bin/tool'), 'an external bin links to main');
   assert.ok(lstatSync(path.join(nodeModules, '@scope')).isDirectory() && !lstatSync(path.join(nodeModules, '@scope')).isSymbolicLink(), 'a scope is a real directory');
   assert.equal(readlinkSync(path.join(nodeModules, '@scope/other')), path.join(main, 'node_modules/@scope/other'), 'a scoped package links to main');
   assert.equal(readlinkSync(path.join(nodeModules, '@scope/app')), path.join(worktree, 'packages/app'), 'an own workspace package links into the worktree');
@@ -91,4 +91,27 @@ test('K1226: a worktree node_modules that holds a real package is refused', (t) 
   mkdirSync(path.join(worktree, 'node_modules/real'), { recursive: true });
   writeFileSync(path.join(worktree, 'node_modules/real/index.js'), 'x\n');
   assert.throws(() => linkNodeModules(worktree), /node_modules\/real holds an installed package, not a link/);
+});
+
+
+test('K1237: workspace bins execute worktree source and retain external bins', (t) => {
+  const main = repository(t);
+  put(main, { 'packages/app/cli.mjs': "console.log('main');\n" });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'cli');
+  installMain(main);
+  symlinkSync('../../packages/app/cli.mjs', path.join(main, 'node_modules/.bin/app'));
+  const original = readlinkSync(path.join(main, 'node_modules/.bin/app'));
+  const worktree = worktreeOf(main, path.join(path.dirname(main), 'repo-bin-T1'));
+  put(worktree, { 'packages/app/cli.mjs': "console.log('worktree');\n" });
+  for (let run = 0; run < 2; run++) {
+    linkNodeModules(worktree);
+    const bins = path.join(worktree, 'node_modules/.bin');
+    assert.equal(realpathSync(path.join(bins, 'app')), path.join(worktree, 'packages/app/cli.mjs'));
+    const result = spawnSync(process.execPath, [path.join(bins, 'app')], { encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, 'worktree\n');
+    assert.equal(realpathSync(path.join(bins, 'tool')), path.join(main, 'node_modules/.bin/tool'));
+    assert.equal(readlinkSync(path.join(main, 'node_modules/.bin/app')), original);
+  }
 });

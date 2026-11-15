@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5a876145a36b8938d63b771df4ab17c2f69c74f8fd21f8ae2140f665f80c6b51 -->
+<!-- source-sha256: c94f4cd801cf1055a95bdd83d1c229a086e4682cf3d3a6b462c6c0aabf091bda -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1237: worktree workspace executable link는 npm이 선택한 name과 external executable entry를 보존하면서 worktree source를 사용한다.
 
 ## 0.0.113
 

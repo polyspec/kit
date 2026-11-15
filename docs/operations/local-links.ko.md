@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: dcc2411668d266a38a474726450e9aebcc4c5414ea426c88399ef43ba56dd400 -->
+<!-- source-sha256: 63fbbc4301f6a4df334b382f335a52740885deaeae83239deaa3c307035c30fd -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -96,3 +96,5 @@ consumer는 정상 package manager를 통해 배포 dependency를 채택하고 �
 K1230은 native Python editable distribution을 PEP 610 record에 따라 package manager 소유로 보존한다. .links가 같은 distribution의 다른 checkout을 제공해도 link와 uv-install은 editable loader 위에 package folder를 만들지 않는다. 정상 link reconciliation은 선언에 더는 속하지 않는 generated package link를 제거하며 native loader, installed record와 source folder를 보존한다. Source 선택과 loader 생성은 uv에 맡기며, link-check는 명시한 local path와 기록된 installed source를 비교한다.
 
 K1234는 package-manager-owned 항목을 `retained`로 보고한다. npm과 Composer link는 해석한 native target을, Composer mirror는 `at`과 함께 installed location을, Python editable 항목은 native source를 적는다. Provider folder를 native target으로 보고하지 않으며, native location이 해석되지 않으면 그 상태를 명시한다. 이 출력은 installed source나 package-manager metadata를 변경하지 않는다.
+
+K1237: worktree preparation은 `.bin`을 개별 link의 directory로 만든다. main npm installation이 선택한 executable name을 보존하고 own workspace package 내부 target만 worktree의 같은 path로 연결한다. external executable entry는 main을 계속 사용한다. manifest에서 bin을 선택하거나 dependency를 설치하지 않는다.

@@ -5,7 +5,7 @@
 // packages from its own source. The main checkout is the common Git directory's work tree (K858), and the worktree is the working directory.
 //
 //   node scripts/kit/worktree-links.mts
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { isMain } from './paths.mts';
@@ -56,7 +56,7 @@ function refuseInstalled(nodeModules: string): void {
   for (const entry of readdirSync(nodeModules)) {
     const full = path.join(nodeModules, entry);
     if (lstatSync(full).isSymbolicLink()) continue;
-    if (entry.startsWith('@') && isRealDirectory(full)) {
+    if ((entry.startsWith('@') || entry === '.bin') && isRealDirectory(full)) {
       for (const child of readdirSync(full)) {
         if (!lstatSync(path.join(full, child)).isSymbolicLink()) {
           throw new Error(`${path.join(full, child)} holds an installed package, not a link; remove node_modules of the worktree and run again`);
@@ -89,7 +89,27 @@ export function linkNodeModules(worktree: string): string {
   const ownPaths = new Set([...own.keys()].map(name => path.join(target, name)));
   for (const entry of readdirSync(source).sort()) {
     const from = path.join(source, entry);
-    if (entry.startsWith('@') && isRealDirectory(from)) {
+    if (entry === '.bin' && statSync(from).isDirectory()) {
+      const bins = path.join(target, entry);
+      mkdirSync(bins);
+      for (const name of readdirSync(from).sort()) {
+        const installed = path.join(from, name);
+        let selected = installed;
+        if (lstatSync(installed).isSymbolicLink()) {
+          const resolved = realpathSync(installed);
+          for (const folder of own.values()) {
+            const mainFolder = path.join(main, path.relative(worktree, folder));
+            if (!existsSync(mainFolder)) continue;
+            const relative = path.relative(realpathSync(mainFolder), resolved);
+            if (relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))) {
+              selected = path.join(folder, relative);
+              break;
+            }
+          }
+        }
+        symlinkSync(selected, path.join(bins, name));
+      }
+    } else if (entry.startsWith('@') && isRealDirectory(from)) {
       mkdirSync(path.join(target, entry));
       for (const child of readdirSync(from).sort()) {
         const link = path.join(target, entry, child);
