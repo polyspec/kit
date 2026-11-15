@@ -8,6 +8,7 @@ import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileS
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
+import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { link, unlink } from '../../scripts/kit/link.mts';
 import { toolCommand } from '../../scripts/kit/mise-tools.mts';
 import { initRepository } from '../kit/sandbox-repository.mts';
@@ -115,7 +116,7 @@ test('K1212: a module that requires a linked Go module at a version without a ta
   assert.equal(existsSync(work) || existsSync(`${work}.sum`), false, 'unlink removes the go.work and its go.work.sum');
 });
 
-test('K1212: the go.work of a module of a tracked workspace replaces each version that a used module requires, and link-check names a replace that is missing or left over', (t) => {
+test('K1212: workspace generation supports graph loading while source validation accepts native selection and rejects stale replacements', (t) => {
   const box = sandbox(t);
   const tracked = `go ${box.version}\n\nuse (\n\t./a\n\t./b\n)\n`;
   const consumer = box.consumer({ ...box.moduleFiles('a/', 'a', 'v0.0.34'), ...box.moduleFiles('b/', 'b', 'v0.0.35') });
@@ -135,12 +136,11 @@ test('K1212: the go.work of a module of a tracked workspace replaces each versio
     box.command(path.join(consumer, name), box.go, 'build', './...');
   }
   assert.equal(box.run(consumer, true).ok, true);
-  // A replace that is missing: go fails again on the version, and link-check names it; link writes it again.
+  // K1238: a missing replace can affect graph loading, but native workspace metadata still selects the declared source; link may restore graph support.
   box.command(consumer, box.go, 'work', 'edit', `-dropreplace=${PROVIDED}@v0.0.35`, work);
   assert.match(box.outcome(path.join(consumer, 'a'), box.go, 'list', '-m', 'all').text, /unknown revision legacy\/packages\/go\/v0\.0\.35/);
   const missing = box.run(consumer, true);
-  assert.equal(missing.ok, false, missing.text);
-  assert.match(missing.text, new RegExp(`NOT linked +go +${PROVIDED} v0\\.0\\.35 \\(go\\.work of ${path.join(consumer, 'a')} does not replace it with `), missing.text);
+  assert.equal(missing.ok, true, missing.text);
   assert.equal(box.run(consumer, false).ok, true);
   assert.equal(box.run(consumer, true).ok, true);
   // A replace that is left over, and a requirement that moved to another version.
@@ -148,11 +148,37 @@ test('K1212: the go.work of a module of a tracked workspace replaces each versio
   put(consumer, { 'a/go.mod': readFileSync(path.join(consumer, 'a/go.mod'), 'utf8').replace('v0.0.34', 'v0.0.36') });
   const stale = box.run(consumer, true);
   assert.equal(stale.ok, false, stale.text);
-  assert.match(stale.text, new RegExp(`NOT linked +go +${PROVIDED} v0\\.0\\.36 \\(go\\.work of ${path.join(consumer, 'a')} does not replace it with `), stale.text);
   for (const version of ['v0\\.0\\.34', 'v0\\.0\\.99']) assert.match(stale.text, new RegExp(`NOT linked +go +${PROVIDED} ${version} \\(go\\.work of ${path.join(consumer, 'a')} replaces it, though `), stale.text);
   assert.equal(box.run(consumer, false).ok, true);
   assert.deepEqual(replaced(), [`${PROVIDED} v0.0.35 ${folder}`, `${PROVIDED} v0.0.36 ${folder}`]);
   assert.equal(box.run(consumer, true).ok, true);
   box.command(path.join(consumer, 'a'), box.go, 'build', './...');
   assert.equal(readFileSync(path.join(consumer, 'go.work'), 'utf8'), tracked, 'the tracked go.work of the repository is unchanged');
+});
+
+
+test('K1238: native workspace exact source needs no version replacement and a wrong source fails', (t) => {
+  const box = sandbox(t);
+  const consumer = box.consumer(box.moduleFiles('', 'app', 'v0.0.34'));
+  const work = path.join(consumer, 'go.work');
+  const provider = path.join(box.provider, 'legacy/packages/go');
+  box.command(consumer, box.go, 'work', 'init', '.', provider);
+  const before = readFileSync(work, 'utf8');
+  const native: unknown = JSON.parse(box.command(consumer, box.go, 'list', '-m', '-json', PROVIDED));
+  assert.ok(isJsonObject(native));
+  assert.equal(native.Main, true);
+  assert.equal(native.Dir, provider);
+  const checked = box.run(consumer, true);
+  assert.equal(checked.ok, true, checked.text);
+  assert.equal(readFileSync(work, 'utf8'), before);
+  const wrong = path.join(consumer, 'wrong');
+  put(wrong, { 'go.mod': `module ${PROVIDED}\n\ngo ${box.version}\n` });
+  box.command(consumer, box.go, 'work', 'edit', `-dropuse=${provider}`, `-use=${wrong}`);
+  const badNative: unknown = JSON.parse(box.command(consumer, box.go, 'list', '-m', '-json', PROVIDED));
+  assert.ok(isJsonObject(badNative));
+  assert.equal(badNative.Main, true);
+  assert.equal(badNative.Dir, wrong);
+  const rejected = box.run(consumer, true);
+  assert.equal(rejected.ok, false);
+  assert.match(rejected.text, /NOT linked +go/);
 });

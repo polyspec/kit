@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1238: Source validation accepts native Go workspace main modules at their declared provider without demanding a version replacement, and rejects another native source.
+
 - K1237: Worktree workspace executable links use worktree source while retaining npm-selected names and external executable entries.
 
 ## 0.0.113

@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c94f4cd801cf1055a95bdd83d1c229a086e4682cf3d3a6b462c6c0aabf091bda -->
+<!-- source-sha256: a38dd106cde51d0fba90c17938e7458bc7601509d027d17faff1667b14550701 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1238: source validation은 선언 provider의 native Go workspace main module에 version replacement를 요구하지 않고 다른 native source는 거절한다.
 
 - K1237: worktree workspace executable link는 npm이 선택한 name과 external executable entry를 보존하면서 worktree source를 사용한다.
 

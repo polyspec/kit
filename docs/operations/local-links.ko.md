@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 63fbbc4301f6a4df334b382f335a52740885deaeae83239deaa3c307035c30fd -->
+<!-- source-sha256: a3424c161d188012a88e9481dd9370f78787b9a22da9d418c5c32f5ba385570f -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -98,3 +98,5 @@ K1230은 native Python editable distribution을 PEP 610 record에 따라 package
 K1234는 package-manager-owned 항목을 `retained`로 보고한다. npm과 Composer link는 해석한 native target을, Composer mirror는 `at`과 함께 installed location을, Python editable 항목은 native source를 적는다. Provider folder를 native target으로 보고하지 않으며, native location이 해석되지 않으면 그 상태를 명시한다. 이 출력은 installed source나 package-manager metadata를 변경하지 않는다.
 
 K1237: worktree preparation은 `.bin`을 개별 link의 directory로 만든다. main npm installation이 선택한 executable name을 보존하고 own workspace package 내부 target만 worktree의 같은 path로 연결한다. external executable entry는 main을 계속 사용한다. manifest에서 bin을 선택하거나 dependency를 설치하지 않는다.
+
+K1238: Go workspace의 version-specific replacement가 없으면 link-check는 선택한 go.work로 `go list -m -json <module>`을 읽는다. canonical Dir가 선언 provider와 같은 main workspace module은 replacement 없이도 정확한 source이다. 다르거나 없는 native directory는 실패한다. source 검사는 graph availability를 판단하지 않으며 native build가 이를 판단한다. 기존 link workspace generation은 변경하지 않는다.

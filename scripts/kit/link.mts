@@ -346,10 +346,21 @@ function linkGo(work: Run, consumer: Consumer) {
         else unlinkable(work, 'go', name, `go.work of ${directory} does not use ${folder}; Fix: make link`);
       }
       for (const folder of used ?? []) if (!expected.has(folder)) unlinkable(work, 'go', folder, `go.work of ${directory} uses it, though the link declaration does not name it; Fix: make link`);
-      // K1212: the replace list of a go.work that link wrote is compared in the same way, each required version with its provider.
+      // K1212: check recorded replacements; K1238 also accepts the exact source selected natively by a main workspace module.
       for (const item of written === undefined ? [] : replaces) {
         const actual = written?.replaces.find(candidate => replaced(candidate) === replaced(item));
         if (actual?.folder !== undefined && (real(actual.folder) ?? actual.folder) === (real(item.folder) ?? item.folder)) continue;
+        if (actual === undefined) {
+          // K1238: Go's workspace selection already supplies a main module; a replace is not its source identity.
+          const selected: unknown = JSON.parse(run(go.command, ['list', '-m', '-json', item.module], { cwd: directory, env: { ...go.env, GOWORK: file } }));
+          if (!isJsonObject(selected)) throw new Error(`${file}: go list -m -json printed no module object`);
+          if (selected.Main === true && selected.Path === item.module) {
+            const source = typeof selected.Dir === 'string' ? real(selected.Dir) : undefined;
+            if (source !== undefined && source === (real(item.folder) ?? item.folder)) continue;
+            unlinkable(work, 'go', item.module, `native workspace source ${typeof selected.Dir === 'string' ? selected.Dir : 'is missing'}, not ${item.folder}; Fix: make link`);
+            continue;
+          }
+        }
         const state = actual === undefined ? 'does not replace it with' : `replaces it with ${actual.folder ?? 'a module version'}, not with`;
         unlinkable(work, 'go', `${item.module} ${item.version}`, `go.work of ${directory} ${state} ${item.folder}; Fix: make link`);
       }

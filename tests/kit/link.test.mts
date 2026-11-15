@@ -253,7 +253,7 @@ for (const flag of flags) {
 }
 writeFileSync(record, JSON.stringify(state));
 ` });
-  stub(bin, log, 'go', `case "$1 $2" in "mod edit") cat "$4.json";; "work edit") if [ "$3" = -json ]; then cat "$4.json"; else exec ${JSON.stringify(process.execPath)} ${JSON.stringify(path.join(bin, 'go-work-edit.mjs'))} "$@"; fi;; "work init") : > "$GOWORK"; shift 2; { printf '{"Use":['; s=""; for d in "$@"; do printf '%s{"DiskPath":"%s"}' "$s" "$d"; s=","; done; printf ']}'; } > "$GOWORK.json";; "list -m") if [ "$5" = b ] && [ "$(basename "$PWD")" = a ]; then echo "go: module $5: not a known dependency" >&2; exit 1; fi; echo ${JSON.stringify(path.join(provider, 'go'))};; esac`);
+  stub(bin, log, 'go', `case "$1 $2" in "mod edit") cat "$4.json";; "work edit") if [ "$3" = -json ]; then cat "$4.json"; else exec ${JSON.stringify(process.execPath)} ${JSON.stringify(path.join(bin, 'go-work-edit.mjs'))} "$@"; fi;; "work init") : > "$GOWORK"; shift 2; { printf '{"Use":['; s=""; for d in "$@"; do printf '%s{"DiskPath":"%s"}' "$s" "$d"; s=","; done; printf ']}'; } > "$GOWORK.json";; "list -m") if [ "$3" = -json ]; then if [ -f native-go.json ]; then cat native-go.json; else echo '{"Main":false}'; fi; exit 0; fi; if [ "$5" = b ] && [ "$(basename "$PWD")" = a ]; then echo "go: module $5: not a known dependency" >&2; exit 1; fi; echo ${JSON.stringify(path.join(provider, 'go'))};; esac`);
   const cargoGraph = JSON.stringify({ packages: [{ id: 'provider', name: 'polyspec-prov', manifest_path: path.join(provider, 'rust/Cargo.toml') }], resolve: { nodes: [{ id: 'provider' }] } });
   stub(bin, log, 'cargo', `for arg in "$@"; do if [ "$arg" = locate-project ]; then echo "$PWD/Cargo.toml"; exit 0; fi; if [ "$arg" = metadata ]; then printf '%s' '${cargoGraph}'; exit 0; fi; done`);
   const pythonProject = path.join(consumer, 'python/pyproject.toml');
@@ -1689,3 +1689,19 @@ for (const mirror of [false, true]) {
     assert.equal(realpathSync(composer), mirror ? composer : targets[1]);
   });
 }
+
+
+test('K1238: native workspace source metadata accepts the declared source and rejects another source', (t) => {
+  const { consumer, provider, kit, env } = workspace(t);
+  const linked = linkLines([consumer], env);
+  assert.equal(linked.ok, true, linked.text);
+  const work = path.join(consumer, 'go.work');
+  const state = readJsonObject(`${work}.json`);
+  put(consumer, { 'go.work.json': JSON.stringify({ ...state, Replace: [] }), 'native-go.json': JSON.stringify({ Path: GO_PROVIDED, Main: true, Dir: path.join(provider, 'go') }) });
+  const checked = linkLines([consumer], env, true);
+  assert.equal(checked.ok, true, checked.text);
+  put(consumer, { 'native-go.json': JSON.stringify({ Path: GO_PROVIDED, Main: true, Dir: kit }) });
+  const rejected = linkLines([consumer], env, true);
+  assert.equal(rejected.ok, false);
+  assert.match(rejected.text, /native workspace source/);
+});
