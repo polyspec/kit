@@ -1,5 +1,5 @@
 <!-- doc-id: spec-utilities-and-recipes -->
-<!-- source-sha256: 6ceeeea35a784fa7554b50aa9858fa1dd61856b0ef42d81f8ece780f5cf50ce5 -->
+<!-- source-sha256: 009e5763b189e2358fd210450f644513facf56888e5a5a3801b8ed8c7af9c6d8 -->
 # 유틸리티와 예제
 
 [English](utilities-and-recipes.md)

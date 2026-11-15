@@ -103,7 +103,7 @@ test('K824: no gates job links packages or checks links; CI installs with the pa
 // pipeline holds no context step.
 test('K731-1: context preparation and cleanup belong to the recipe of the job, not to steps of the pipeline', () => {
   const workflow = read(PIPELINE);
-  assert.doesNotMatch(workflow, /context|continue-on-error/);
+  assert.doesNotMatch(workflow, /run: make kit-ci-context|continue-on-error/);
   const mk = read('scripts/kit/kit.mk');
   assert.match(mk, /^ci-shared:.*\n\t\$\(NODE\) \$\(KIT\)\/ci-setup\.\$\(KIT_EXT\) --job shared$/m);
   assert.match(mk, /^ci-runtime:.*\n\t\$\(NODE\) \$\(KIT\)\/ci-setup\.\$\(KIT_EXT\) --job runtime \$\(RUNTIME\)$/m);

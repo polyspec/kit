@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- K1251: The local runner of workflow jobs is removed: `ci-job.mts`, its expression, environment and refusal modules, their tests, the `workflow-env-smoke` target, the export `./ci-job` and the dependency `@actions/expressions`. Every CI job is one recipe (K1250), so a local run calls the recipe and needs no emulation of the runner. K1227, K1228, K1228-1, K1228-2, K1228-3 and K1233 are withdrawn.
+
+- K1250: Every job of every workflow of kit and of its example workflows runs one recipe: one run step `make ci-<job>` with make variables only. The pipeline runs `make ci-plan`, `ci-shared`, `ci-runtime RUNTIME=<runtime>` and `ci-required`, which read the tools and targets of a job from config/ci.json; the release job runs `make ci-release`; the bootstrap action runs `make bootstrap`; kit's own jobs run `make ci-checks`, `ci-kit-tests`, `ci-source-tests`, `ci-bootstrap` and `ci-kit`. A recipe installs first and stops at a failure, runs every check to its end and cleans up. `tests/kit/ci-workflow-jobs.test.mts` fails a job that breaks the rule.
+
 ## 0.0.113
 
 - K1236 verification: make docs-check passes on the committed candidate-note fold. Candidate preparation is complete; CI, archive and publication verification remain separate.

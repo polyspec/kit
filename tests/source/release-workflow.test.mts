@@ -23,7 +23,7 @@ const recipe = known(/^ci-release:.*\n((?:\t.*\n)+)/m.exec(readFileSync(path.joi
   .map(part => part.replace(/^(?:GITHUB_ENV=\S+ )?\$\(MAKE\) --no-print-directory /, 'make ')).filter(Boolean);
 const runs = lines.flatMap(line => {
   if (BOOTSTRAP_USES.test(line)) return bootstrapActionCommands();
-  const command = /^\s+run: (.+)$/.exec(line)?.[1];
+  const command = /^\s+(?:- )?run: (.+)$/.exec(line)?.[1];
   return command === undefined ? [] : command === 'make ci-release' ? recipe : [command];
 }).map((command, index) => ({ command, line: index + 1 }));
 const step = (command: string, pattern: RegExp) => {
@@ -70,7 +70,7 @@ test('no step of the release workflow continues past a failure', () => {
 });
 
 test('the release job is the one recipe ci-release, so a local run is the same call (K1250)', () => {
-  assert.deepEqual(lines.filter(line => /^\s+run: /.test(line)).map(line => line.trim()), ['run: make ci-release']);
+  assert.deepEqual(lines.filter(line => /^\s+(?:- )?run: /.test(line)).map(line => line.trim().replace(/^- /, '')), ['run: make ci-release']);
   assert.ok(!runs.some(run => run.command.includes('release-tools-path')), 'the recipes put the tools on PATH themselves');
 });
 
@@ -82,7 +82,7 @@ test('the release workflow sets up the PHP of .php-version without a coverage dr
   assert.match(body, /if: \$\{\{ hashFiles\('\.php-version'\) != '' \}\}/);
   assert.match(body, /php-version-file: \.php-version/);
   assert.match(body, /coverage: none/);
-  assert.ok(uses + 1 < step('make release-tools', /^make release-tools$/).line, 'PHP is set up before release-tools');
+  assert.ok(uses < lines.findIndex(line => /run: make ci-release$/.test(line)), 'PHP is set up before the release job, whose recipe runs release-tools');
 });
 
 test('the release workflow bootstraps the package, checks the configuration, then prepares the release of the repository, before release-tools (K71-2, K132, K193)', () => {

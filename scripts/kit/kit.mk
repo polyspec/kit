@@ -307,7 +307,7 @@ RELEASE_ENV := var/release/run.env
 ci-release: ## The release job: Info-ZIP, release-tag of RUN, then on the tagged commit bootstrap, release-prepare, release-tools, release-assets, release-publish and release-undraft; reads the run with gh
 	@command -v zip >/dev/null || { echo 'Info-ZIP is required for Composer release archives; install the zip package on the Ubuntu runner' >&2; exit 1; }
 	@mkdir -p $(dir $(RELEASE_ENV)) && : > $(RELEASE_ENV)
-	GITHUB_ENV=$(CURDIR)/$(RELEASE_ENV) $(MAKE) --no-print-directory release-tag $(if $(filter workflow_run,$(GITHUB_EVENT_NAME)),AUTO=1)
+	$(MAKE) --no-print-directory release-tag GITHUB_ENV=$(CURDIR)/$(RELEASE_ENV) $(if $(filter workflow_run,$(GITHUB_EVENT_NAME)),AUTO=1)
 	@tag="$$(sed -n 's/^TAG=//p' $(RELEASE_ENV) | tail -n 1)"; \
 	if [ -z "$$tag" ]; then echo "[ci-release] release-tag tagged nothing to release"; exit 0; fi; \
 	git checkout --quiet "$$tag" && \
@@ -347,7 +347,7 @@ release-tools-path: ## Append var/tools/bin and the shims of mise to GITHUB_PATH
 
 release-tag: ## Create and push the annotated tag vX.Y.Z, X.Y.Z the newest section of the change log, and the tag <directory>/vX.Y.Z of every Go module at the commit of the successful CI run RUN of ci.yml on main, or pass for a tag there already, and append TAG and VERSION to GITHUB_ENV when it is set (K269, K911, K924); with AUTO, as the workflow_run of a green CI starts it, only the version commit of the top version releases, a commit whose top version is tagged elsewhere passes with nothing to release, and any other fails naming the version commit (K987); reads the run with gh
 	@test -n "$$RUN" || { echo "release-tag: RUN is required, for example make release-tag RUN=123"; exit 1; }
-	RELEASE_MAIN="$(RELEASE_MAIN)" $(NODE) $(KIT)/release-run.$(KIT_EXT) tag "$$RUN"$(if $(AUTO), --auto)
+	$(if $(GITHUB_ENV),GITHUB_ENV="$(GITHUB_ENV)") RELEASE_MAIN="$(RELEASE_MAIN)" $(NODE) $(KIT)/release-run.$(KIT_EXT) tag "$$RUN"$(if $(AUTO), --auto)
 
 release-assets: ## Build the archive of every package of TAG, and packages.json of its Composer packages (K871), into RELEASE_ASSETS (K1102); ONLINE, since uv build installs the build-system.requires of a wheel package
 	@test -n "$$TAG" || { echo "release-assets: TAG is required, for example make release-assets TAG=v0.0.1"; exit 1; }

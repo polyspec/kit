@@ -43,7 +43,7 @@ test('the checks job sets up PHP and bootstraps before its one recipe, which ins
   assert.ok(php >= 0 && bootstrap > php && run > bootstrap, 'PHP of .php-version, then the bootstrap, then make ci-checks');
   assert.equal(jobRun('checks'), 'make ci-checks');
   const lines = dryRun('ci-checks');
-  const tools = indexOf(lines, /install-tools\.mts --no-self-update$/);
+  const tools = indexOf(lines, /install-tools\.mts --no-self-update\s*$/);
   const symbols = indexOf(lines, /composer install --working-dir=scripts\/kit\/symbols\/php/);
   const lintPhp = indexOf(lines, /lint-php\.mts/);
   assert.ok(tools >= 0 && symbols > tools && lintPhp > symbols, 'install-tools, then the PHP symbol packages, then lint-php');

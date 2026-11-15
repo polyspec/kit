@@ -95,7 +95,7 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   // The make steps of the workflow; a step that checks the runner, as for zip, runs no target.
   // The step that runs the bootstrap action of kit (K992) stands for the make commands of the action.
   const action = readFileSync(path.join(consumer, '.github/actions/kit-bootstrap/action.yml'), 'utf8');
-  const steps = workflow.split('\n').flatMap(line => BOOTSTRAP_USES.test(line) ? bootstrapActionCommands(action) : [...line.matchAll(/^\s+run: (make .+)$/g)].map(match => match[1] ?? ''));
+  const steps = workflow.split('\n').flatMap(line => BOOTSTRAP_USES.test(line) ? bootstrapActionCommands(action) : [...line.matchAll(/^\s+(?:- )?run: (make .+)$/g)].map(match => match[1] ?? ''));
   assert.deepEqual(steps, ['make bootstrap', 'make ci-release'], 'the release workflow bootstraps the package and runs its one recipe, which tags, bootstraps the tag and releases it (K755, K911, K1250)');
   // release-tag reads a CI run with gh (K911); release-tag.test.mts runs it.
   // make bootstrap installs the locked kit with the npm of devEngines first (bootstrap-lock), so the recipes find its tools; the

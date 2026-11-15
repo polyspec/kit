@@ -1,5 +1,5 @@
 <!-- doc-id: example-shared-files -->
-<!-- source-sha256: 740b3490b7865d5148430dedd8e805ac73ccacbe062163bb2102c9e0791bfce2 -->
+<!-- source-sha256: a948c24f696acf610b75392acf596911ca363a6035768c525cb869e994e79bda -->
 # 예제: 공유 파일
 
 [English](shared-files.md)
