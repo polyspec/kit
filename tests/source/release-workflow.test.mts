@@ -20,7 +20,8 @@ const lines = readFileSync(path.join(ROOT, 'workflows/release.yml'), 'utf8').spl
  */
 const recipe = known(/^ci-release:.*\n((?:\t.*\n)+)/m.exec(readFileSync(path.join(ROOT, 'scripts/kit/kit.mk'), 'utf8'))?.[1], 'the recipe of ci-release')
   .replace(/\\\n\t/g, ' ').split('\n').flatMap(line => line.split(/ && | ; |; /)).map(part => part.trim().replace(/^@/, ''))
-  .map(part => part.replace(/^(?:GITHUB_ENV=\S+ )?\$\(MAKE\) --no-print-directory /, 'make ')).filter(Boolean);
+  .map(part => part.replace(/^(?:GITHUB_ENV=\S+ )?\$\(MAKE\) --no-print-directory /, 'make '))
+  .map(part => part.replace(/^(make [\w-]+)(?: [A-Z_]+="[^"]*")+$/, '$1')).filter(Boolean);
 const runs = lines.flatMap(line => {
   if (BOOTSTRAP_USES.test(line)) return bootstrapActionCommands();
   const command = /^\s+(?:- )?run: (.+)$/.exec(line)?.[1];
@@ -58,7 +59,7 @@ test('K911, K924: a dispatch with a CI run alone starts the release, which tags 
 
 test('the release workflow creates the release as a draft and makes it public last', () => {
   const publish = step('make release-publish', /^make release-publish$/);
-  const undraft = step('make release-undraft', /^make release-undraft TAG="\$\$tag"$/);
+  const undraft = step('make release-undraft', /^make release-undraft$/);
   assert.ok(publish.line < undraft.line, `release-undraft (line ${undraft.line}) runs after release-publish (line ${publish.line})`);
   const last = runs.at(-1);
   assert.ok(last, 'the workflow runs no step');
@@ -117,4 +118,12 @@ test('K987: a green push or dispatch run of ci starts the release of its head_sh
   const checkout = step('git checkout of the tag', /git checkout --quiet "\$\$tag"$/);
   assert.ok(tag.line < checkout.line, 'the steps after release-tag run only for the tag it wrote');
   assert.match(recipe.join('\n'), /if \[ -z "\$\$tag" \]\nthen echo .*\nexit 0\nfi/, 'without a tag the job releases nothing and passes');
+});
+
+// K1253: the job reads TAG from the environment file of release-tag, so each release step after the checkout of the tag gets it
+// as a make variable; a step without it stops the release with "TAG is required".
+test('K1253: every release step after the checkout of the tag is passed TAG', () => {
+  const body = known(/^ci-release:.*\n((?:\t.*\n)+)/m.exec(readFileSync(path.join(ROOT, 'scripts/kit/kit.mk'), 'utf8'))?.[1], 'the recipe of ci-release');
+  for (const target of ['release-prepare', 'release-tools', 'release-assets', 'release-publish', 'release-undraft'])
+    assert.match(body, new RegExp(`--no-print-directory ${target} TAG="\\$\\$tag"`), `${target} is passed TAG`);
 });

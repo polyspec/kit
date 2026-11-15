@@ -309,14 +309,15 @@ ci-release: ## The release job: Info-ZIP, release-tag of RUN, then on the tagged
 	@mkdir -p $(dir $(RELEASE_ENV)) && : > $(RELEASE_ENV)
 	$(MAKE) --no-print-directory release-tag GITHUB_ENV=$(CURDIR)/$(RELEASE_ENV) $(if $(filter workflow_run,$(GITHUB_EVENT_NAME)),AUTO=1)
 	@tag="$$(sed -n 's/^TAG=//p' $(RELEASE_ENV) | tail -n 1)"; \
+	version="$$(sed -n 's/^VERSION=//p' $(RELEASE_ENV) | tail -n 1)"; \
 	if [ -z "$$tag" ]; then echo "[ci-release] release-tag tagged nothing to release"; exit 0; fi; \
 	git checkout --quiet "$$tag" && \
 	$(MAKE) --no-print-directory bootstrap && \
-	$(MAKE) --no-print-directory release-prepare && \
-	$(MAKE) --no-print-directory release-tools && \
-	$(MAKE) --no-print-directory release-assets && \
-	$(MAKE) --no-print-directory release-publish && \
-	$(MAKE) --no-print-directory release-undraft TAG="$$tag"
+	$(MAKE) --no-print-directory release-prepare TAG="$$tag" VERSION="$$version" && \
+	$(MAKE) --no-print-directory release-tools TAG="$$tag" VERSION="$$version" && \
+	$(MAKE) --no-print-directory release-assets TAG="$$tag" VERSION="$$version" && \
+	$(MAKE) --no-print-directory release-publish TAG="$$tag" VERSION="$$version" && \
+	$(MAKE) --no-print-directory release-undraft TAG="$$tag" VERSION="$$version"
 
 # kit's own release names its main ref, its asset folder and the folder of its release records, which the release tools take
 # from the caller and never fix (K1102, K1115).
