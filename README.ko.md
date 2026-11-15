@@ -15,7 +15,7 @@ workflow, `actions/`의 bootstrap action, `config/layout.kit.yml`, PRINCIPLES.md
 | Lint | `lint-python.mts`, `lint-php.mts`, `lint-rust.mts`, `lint-go.mts`, `lint-ts.mts`, 복사된 설정(docs/operations/tool-inventory.md, Lint 설정)과 `mise.toml`의 ruff, vulture, golangci-lint, deadcode, `install-php-lint.mts`의 PHP lint | `lint-python`, `lint-php`, `lint-rust`, `lint-go`, `lint-ts` |
 | Hook과 checklist | `git-hooks.mts` (저장소가 나열한 hook과 merge driver), `generated-files.mts`, `holder-lock.mts`, `checklist.mts` | `hooks`, `hooks-check` |
 | 문서와 commit | `check-documents.mts`, `documents-stamp.mts`, `check-commits.mts`, `owner-check.mts` | `docs-check`, `documents-stamp`, `owner-check`, `owner-validate` |
-| 테스트와 CI | `run-tests.mts`, `ci-setup.mts`, `ci-targets.mts`, `ci-job.mts`, `ci-passed.mts`, `target-report.mts` | `ci-plan`, `ci-shared`, `ci-runtime`, `ci-required`, `ci-targets`, `ci-summary`, `ci-passed` |
+| 테스트와 CI | `run-tests.mts`, `ci-setup.mts`, `ci-targets.mts`, `ci-passed.mts`, `target-report.mts` | `ci-plan`, `ci-shared`, `ci-runtime`, `ci-required`, `ci-targets`, `ci-summary`, `ci-passed` |
 | Release | `release.mts` | `release-tag`, `release-tools`, `release-assets`, `release-publish`, `release-undraft`, `release-coverage` |
 
 `docs/operations/tool-inventory.ko.md`는 각 도구가 어떤 구현들을 대체했고 어떤 동작을 가져오거나 버렸는지 기록합니다.

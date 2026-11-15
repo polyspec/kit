@@ -55,7 +55,7 @@ KIT_TEST_FILES_5 := \
 	tests/kit/release-wheel.test.mts tests/kit/retained-branches.test.mts tests/kit/sandbox-repository.test.mts \
 	tests/kit/schema.test.mts tests/kit/schema-validate.test.mts tests/kit/test-build-first.test.mts tests/kit/twin-merge.test.mts
 KIT_TEST_FILES_6 := \
-	tests/kit/actions-expression.test.mts tests/kit/catch-check.test.mts tests/kit/ci-job.test.mts tests/kit/ci-setup.test.mts tests/kit/ci-workflow-jobs.test.mts tests/kit/commits.test.mts \
+	tests/kit/catch-check.test.mts tests/kit/ci-setup.test.mts tests/kit/ci-workflow-jobs.test.mts tests/kit/commits.test.mts \
 	tests/kit/documents.test.mts tests/kit/gates-workflow.test.mts \
 	tests/kit/generated-files.test.mts tests/kit/git.test.mts tests/kit/kit-sync.test.mts \
 	tests/kit/linked-sources.test.mts tests/kit/lint-rust.test.mts tests/kit/lint-steps.test.mts tests/kit/lint-ts.test.mts \
@@ -73,7 +73,7 @@ SOURCE_TEST_FILES_go := tests/source/go-bench-output-real.test.mts tests/source/
 SOURCE_TEST_FILES_python := tests/source/lint-python-real.test.mts tests/source/python-real.test.mts tests/source/python-venv-real.test.mts tests/source/uv-link-real.test.mts tests/source/wheel-metadata-real.test.mts
 SOURCE_TEST_FILES_common-1 := tests/source/package.test.mts tests/source/npm-audit-online-real.test.mts tests/source/tool-records-real.test.mts tests/source/ci-workflow.test.mts
 SOURCE_TEST_FILES_common-2 := tests/source/consumer-layout.test.mts
-SOURCE_TEST_FILES_common-3 := tests/source/workflow-env-real.test.mts tests/source/process-group-posix.test.mts tests/source/install-vscode-posix.test.mts tests/source/checklist-real.test.mts tests/source/checkout.test.mts tests/source/fresh-checkout.test.mts tests/source/layout-real.test.mts tests/source/mise-env-real.test.mts tests/source/mise-trust-real.test.mts tests/source/npm-locked-link-real.test.mts tests/source/npm-source-link-real.test.mts tests/source/release-workflow.test.mts tests/source/tracked-var.test.mts
+SOURCE_TEST_FILES_common-3 := tests/source/process-group-posix.test.mts tests/source/install-vscode-posix.test.mts tests/source/checklist-real.test.mts tests/source/checkout.test.mts tests/source/fresh-checkout.test.mts tests/source/layout-real.test.mts tests/source/mise-env-real.test.mts tests/source/mise-trust-real.test.mts tests/source/npm-locked-link-real.test.mts tests/source/npm-source-link-real.test.mts tests/source/release-workflow.test.mts tests/source/tracked-var.test.mts
 
 # The packages of package-lock.json with the npm of var/tools, the step after make install-tools TOOLS=npm; the release
 # workflow that kit runs for itself calls it.
@@ -216,10 +216,6 @@ ci-kit: ## The required job of kit's CI: fail unless every job of RESULTS, the J
 
 catch-check: ## Fail on a catch without a statement (K537, K1050); offline
 	$(NODE) scripts/kit/catch-check.mts
-
-.PHONY: workflow-env-smoke
-workflow-env-smoke: ## Verify native workflow expression and child environment casing, last writes and PATH; offline
-	$(NODE) scripts/kit/run-tests.mts node -- --test-concurrency=1 tests/source/workflow-env-real.test.mts
 
 .PHONY: case-sensitive-runner-smoke
 # The smoke of kit's own CI (K1121): the standard Node runner in a temporary verified case-sensitive directory, with kit's own smoke file.
