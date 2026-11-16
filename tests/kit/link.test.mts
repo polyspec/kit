@@ -1467,6 +1467,22 @@ test('K529, K888: a declared package of a project that is not installed is left 
   assert.equal(existsSync(path.join(consumer, 'var/not-installed/polyspec/y')), false);
 });
 
+// K1277: a composer.json of the type php-ext or php-ext-zend is the PIE manifest of an extension, which no composer install
+// installs, so link and link-check take it as no project.
+test('K1277: a tracked PIE manifest of an extension, php-ext or php-ext-zend, is no Composer project of link and link-check', (t) => {
+  const { consumer, env } = workspace(t);
+  put(consumer, {
+    'packages/ext/composer.json': JSON.stringify({ name: 'cons/ext', type: 'php-ext', require: { 'polyspec/y': '0.0.1' }, 'php-ext': { 'extension-name': 'ext' } }),
+    'packages/zend/composer.json': JSON.stringify({ name: 'cons/zend', type: 'php-ext-zend', require: { 'polyspec/y': '0.0.1' }, 'php-ext': { 'extension-name': 'zend' } }),
+  });
+  git(consumer, 'add', '-A');
+  git(consumer, 'commit', '--quiet', '-m', 'extension manifests');
+  declareSiblings(consumer);
+  assert.deepEqual(linkFindings(consumer, env).filter(line => line.includes('packages/')), []);
+  const linked = linkLines([consumer], env);
+  assert.equal(linked.ok, true, linked.text);
+});
+
 
 // K1272: a package of the consumer's own repository that uv installed as a copy stays a copy. Replaced by a link to the source of the
 // checkout, the next uv install removed the old install through that link and deleted tracked source files.

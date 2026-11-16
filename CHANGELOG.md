@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1277: link and link-check take no tracked composer.json of the type `php-ext` or `php-ext-zend`, the PIE manifest of a PHP extension, as a Composer project. Before, with a `.links` that names a checkout such a manifest requires, link-check exited 2 with `no installed folder of <folder> links it; Fix: make install`, which make install did not change, since no composer install installs that folder. Red: the K1277 test of `tests/kit/link.test.mts` got that finding for both types; green: it passes, with the link and link-check tests.
+
 ## 0.0.116
 
 - K1273: `link.mjs cargo` updates each version of a patched crate in the lock copy by `-p <name>@<version>`. Before, a copy that held one crate at two versions, pulled in by two tags, made `cargo update -p <name>` exit 101 as ambiguous. Red: the K1273 test of `tests/kit/link.test.mts` found no per-version update; green: it passes, with the link tests.

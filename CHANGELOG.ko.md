@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- K1277: link와 link-check가 type이 `php-ext` 또는 `php-ext-zend`인 tracked composer.json, 곧 PHP extension의 PIE manifest를 Composer project로 보지 않습니다. 전에는 그런 manifest가 require하는 checkout을 `.links`가 지정하면 link-check가 `no installed folder of <folder> links it; Fix: make install`로 2를 내고 끝났고, 어떤 composer install도 그 폴더를 설치하지 않으므로 make install로 바뀌지 않았습니다. Red: `tests/kit/link.test.mts`의 K1277 시험이 두 type 모두에서 그 finding을 받았고, green: 그 시험과 link, link-check 시험이 통과합니다.
+
 ## 0.0.116
 
 - K1273: `link.mjs cargo`가 lock 사본에 있는 patch된 crate의 각 version을 `-p <name>@<version>`으로 갱신합니다. 전에는 두 tag가 끌어온 한 crate의 두 version을 가진 사본에서 `cargo update -p <name>`이 모호하다며 101로 끝났습니다. Red: `tests/kit/link.test.mts`의 K1273 시험이 version별 갱신을 찾지 못했고, green: 그 시험과 link 시험이 통과합니다.

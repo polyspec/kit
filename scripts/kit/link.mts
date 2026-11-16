@@ -410,14 +410,19 @@ export function link({ checkouts, directories, check, print, env = process.env, 
 // The tracked projects that the folder link leaves as they are: the tests and the fixtures (K447).
 const UNLINKED = /(^|\/)(tests?|[^/]*fixtures?)\//;
 
+// K1277: the Composer types of the PIE manifest of a PHP extension, which PIE installs from a Composer repository and no composer
+// install installs, so its folder has no vendor.
+const PIE_TYPES = new Set(['php-ext', 'php-ext-zend']);
+
 type FolderEcosystem = 'npm' | 'composer' | 'python';
 
 /**
  * K447: every tracked project of the consumer, a nested one below the root such as hyper's examples/board included, as link-check
- * reads them; a test, a fixture or the release consumer keeps the install that it tests.
+ * reads them; a test, a fixture or the release consumer keeps the install that it tests, and a PIE manifest is no project (K1277).
  */
 function linkedProjects(consumer: Consumer, ecosystems: readonly FolderEcosystem[]): string[] {
-  return [...new Set([consumer.scope, ...ecosystems.flatMap(ecosystem => consumer.manifests(ecosystem, true).filter(file => !UNLINKED.test(path.relative(consumer.top, file))).map(file => path.dirname(file)))])].sort();
+  const project = (ecosystem: FolderEcosystem, file: string) => !UNLINKED.test(path.relative(consumer.top, file)) && !(ecosystem === 'composer' && PIE_TYPES.has(String(readJsonObject(file).type)));
+  return [...new Set([consumer.scope, ...ecosystems.flatMap(ecosystem => consumer.manifests(ecosystem, true).filter(file => project(ecosystem, file)).map(file => path.dirname(file)))])].sort();
 }
 
 /**
