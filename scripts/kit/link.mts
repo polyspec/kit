@@ -9,7 +9,8 @@
 //   Go        each go.mod of the consumer gets a git-ignored go.work that uses its module and the provider modules, which
 //             go reads by itself, whatever version the module requires (K856), and that replaces each required version of a
 //             provider module with its folder, so go fetches no version that has no tag yet (K1212); unlink removes it;
-//   Rust      `cargo <dir> <args>` runs one cargo command with --config patches and a lock copy under var/link/cargo.
+//   Rust      `cargo <dir> <args>` runs one cargo command with --config patches and a lock copy under var/link/cargo;
+//             `maturin <dir> <args>` runs one maturin command with the same options, which maturin passes to the cargo it runs (K1266).
 // No environment variable declares anything: without checkouts nothing is linked, and the installs stay the locked releases.
 // A consumer is a directory: the top of a work tree stands for every tracked manifest of it, another directory for those
 // below it; with --project the folder is the consumer and its own manifest is read, tracked or not (K212). Each file that link writes
@@ -17,7 +18,7 @@
 // unlink only removes the links and the files that link wrote; make install restores the locked installs, reinstalling each Python
 // distribution whose package folder a removed link left missing (K856).
 //   node link.mjs link [--project <dir>] [--runtime <runtime>] | unlink [--project <dir>] |
-//                 providers [--ecosystem npm|composer|python|go] [<checkout>...] | cargo <dir> <args>...
+//                 providers [--ecosystem npm|composer|python|go] [<checkout>...] | cargo <dir> <args>... | maturin <dir> <args>...
 // The providers are the checkouts that the link declaration names (K869): LINKS_FILE at the root of the checkout itself (K1118), one path per
 // line; with no file nothing is linked. make link-check (link-check.mts) compares the declaration with the state.
 // A package name that two folders of a provider give (K1213) is judged only for the ecosystems of the runtime and in a project that
@@ -740,10 +741,13 @@ function declaredUrl(checkout: string): string {
  * their packages, and the lock of the tree is copied to var/link, so the patches resolve against it. Native arguments and the
  * environment, CARGO_TARGET_DIR among them, remain unchanged (K1049).
  */
-export function cargo({ directory, args, checkouts = [], env = process.env }: { directory: string; args: readonly string[]; checkouts?: readonly string[]; env?: NodeJS.ProcessEnv }): number {
+export function cargo({ directory, args, checkouts = [], env = process.env, runner = 'cargo' }: { directory: string; args: readonly string[]; checkouts?: readonly string[]; env?: NodeJS.ProcessEnv; runner?: 'cargo' | 'maturin' }): number {
   const consumer = consumerOf(directory);
   const tool = consumerTool(consumer.top, 'cargo', env);
-  const channel = args[0]?.startsWith('+') ? [args[0]] : [];
+  // K1266: maturin runs cargo itself, so the options of the link reach that cargo only as maturin's own --config options (maturin
+  // 1.16 `build --help`: --config <KEY=VALUE>); the workspace and the graph are still read with cargo. maturin is MATURIN, else that of PATH.
+  const command = runner === 'maturin' ? env.MATURIN || 'maturin' : tool.command;
+  const channel = runner === 'cargo' && args[0]?.startsWith('+') ? [args[0]] : [];
   const commandArgs = channel.length ? args.slice(1) : args;
   const graphArgs = cargoMetadataArguments(args);
   const manifestArgs = graphArgs.flatMap((arg, index) => arg.startsWith('--manifest-path=') ? [arg] : arg === '--manifest-path' ? [arg, graphArgs[index + 1] ?? ''] : []);
@@ -787,8 +791,8 @@ export function cargo({ directory, args, checkouts = [], env = process.env }: { 
     // The configuration follows the subcommand (K802): cargo passes a --config before it to no external subcommand, and cargo clippy runs
     // cargo again, which would resolve the git tag of the lock instead of the sibling.
     const [subcommand, ...options] = commandArgs;
-    const outcome = execute(tool.command, [...channel, ...(subcommand === undefined ? [] : [subcommand]), ...config, ...options], { cwd: directory, env: tool.env });
-    if (outcome.error) throw new Error(`${tool.command} could not start: ${outcome.error.message}`);
+    const outcome = execute(command, [...channel, ...(subcommand === undefined ? [] : [subcommand]), ...config, ...options], { cwd: directory, env: tool.env });
+    if (outcome.error) throw new Error(`${command} could not start: ${outcome.error.message}`);
     process.stdout.write(outcome.stdout);
     process.stderr.write(outcome.stderr);
     return outcome.status ?? 1;
@@ -855,7 +859,14 @@ if (isMain(import.meta.url)) {
         process.exitCode = cargo({ directory, args, checkouts: declaredCheckouts(directory) ?? [] });
         break;
       }
-      default: throw new Error('Usage: link.mjs link [--project <dir>] [--runtime <runtime>] | unlink [--project <dir>] | providers [--ecosystem npm|composer|python|go] [<checkout>...] | cargo <dir> <args>...');
+      case 'maturin': {
+        // K1266: the link of `cargo` for the cargo that maturin runs; with no file maturin runs as given.
+        const [directory, ...args] = rest;
+        if (!directory) throw new Error('Usage: link.mjs maturin <dir> <maturin args>...');
+        process.exitCode = cargo({ directory, args, checkouts: declaredCheckouts(directory) ?? [], runner: 'maturin' });
+        break;
+      }
+      default: throw new Error('Usage: link.mjs link [--project <dir>] [--runtime <runtime>] | unlink [--project <dir>] | providers [--ecosystem npm|composer|python|go] [<checkout>...] | cargo <dir> <args>... | maturin <dir> <args>...');
     }
   } catch (error) {
     if (!(error instanceof Error)) throw error;

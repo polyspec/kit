@@ -1220,6 +1220,23 @@ test('link cargo with a declaration passes the patches after the subcommand, whi
   assert.match(log(), /^cargo clippy --config resolver\.lockfile-path=\S+ --config patch\."https:\/\/github\.com\/polyspec\/prov"\.polyspec-prov\.path=\S+ --workspace -- -D warnings$/m);
 });
 
+// K1266: maturin runs cargo itself, so the link gives maturin build the lock copy and the patches as its own --config options, which
+// maturin 1.16 passes to cargo (`maturin build --help`: --config <KEY=VALUE>); without a declaration maturin runs as given.
+test('link maturin with a declaration passes the lock copy and the patches to maturin after its subcommand (K1266)', (t) => {
+  const { root, consumer, env, log } = workspace(t);
+  const bin = path.dirname(env.CARGO);
+  stub(bin, path.join(root, 'tools.log'), 'maturin', '');
+  const maturinEnv = { ...env, MATURIN: path.join(bin, 'maturin') };
+  put(consumer, { 'Cargo.lock': 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n' });
+  const plain = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'maturin', consumer, 'build', '--release'], { cwd: consumer, env: maturinEnv, encoding: 'utf8' });
+  assert.equal(plain.status, 0, plain.stderr);
+  assert.match(log(), /^maturin build --release$/m, 'with no declaration maturin runs as given');
+  declareSiblings(consumer);
+  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'maturin', consumer, 'build', '--release'], { cwd: consumer, env: maturinEnv, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(log(), /^maturin build --config resolver\.lockfile-path=\S+ --config patch\."https:\/\/github\.com\/polyspec\/prov"\.polyspec-prov\.path=\S+ --release$/m);
+});
+
 // K489: cargo patches the crates of a sibling checkout that the consumer's lock names from git, and needs nothing from a checkout
 // that has no config/release.json and that the lock does not name, such as an unrelated polyspec checkout (fsm) beside the consumer.
 test('link cargo with a declaration patches no crate of a checkout without config/release.json that the lock does not name (K489)', (t) => {
