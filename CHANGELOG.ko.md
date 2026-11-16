@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4e0c3e0a367921874dba1756139bfc6bd9e6f65016d9b499b64da2a0264a5a65 -->
+<!-- source-sha256: ec5d4c9a8b79edb6f9a40fe2c7318e12b7089f2a987d1f6189f78cff0b9ba371 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1282: `PRINCIPLES.md`의 P25가 verification item은 push를 허용하고, tag와 release는 CI run이 통과한 커밋에만 만들며, 그 run이 verification의 증거이고, 그것을 기록하는 커밋이 item을 done으로 옮긴다고 적습니다. Enforced by는 `make docs-check` 옆에 `make release-tag`를 적습니다. 전에는 P25가 verification item이 done이 되기 전 tag 생성과 release를 막는다고 했지만, `make release-tag`는 `origin/main`에서 성공한 CI run의 커밋에 tag를 달고 checklist state를 읽지 않으므로(K987, K988, K990) tag된 커밋에 verification item이 남습니다.
 
 - K1281: item-new와 item-edit가 VERIFICATION_KO와 DELIVERABLES_KO를 받아 checklist의 한국어 twin에 씁니다. TASK_KO가 TASK와 함께 필요하듯이, 각각은 VERIFICATION이나 DELIVERABLES가 주어지는 곳마다 필요합니다. 전에는 하나의 VERIFICATION과 하나의 DELIVERABLES가 두 twin에 모두 쓰였는데, 그런 칸은 command와 path 외에 문장도 담으므로 한국어 twin이 영어 텍스트를 받았습니다. Red: `tests/kit/plan.test.mts`의 K1281 시험이 한국어 twin에서 영어 Verification과 Deliverables를 찾았고, green: 한국어 twin이 한국어 텍스트를 가지며, 한국어 twin이 없는 텍스트는 거부되고, plan 시험이 통과합니다.
 

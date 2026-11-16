@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1282: P25 of `PRINCIPLES.md` states that a verification item permits a push, that a tag and a release are made only for a commit whose CI run passed, that this run is the evidence of the verification, and that the commit that records it moves the item to done; its Enforced by names `make release-tag` beside `make docs-check`. Before, P25 said that a verification item blocks tag creation and release until it is done, while `make release-tag` tags the commit of a successful CI run on `origin/main` and reads no checklist state (K987, K988, K990), so a tagged commit holds verification items.
+
 - K1281: item-new and item-edit take VERIFICATION_KO and DELIVERABLES_KO and write them into the Korean twin of the checklist; each is required wherever VERIFICATION or DELIVERABLES is given, as TASK_KO is with TASK. Before, the one VERIFICATION and the one DELIVERABLES were written into both twins, though such a cell holds prose as well as commands and paths, so the Korean twin received the English text. Red: the K1281 test of `tests/kit/plan.test.mts` found the English Verification and Deliverables in the Korean twin; green: the Korean twin holds the Korean texts, a text without its Korean twin is refused, and the plan tests pass.
 
 ## 0.0.118

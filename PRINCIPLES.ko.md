@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: c31b4d3ed885f75c5b5783381ac2fa590e860c7bc788ecfb8df807bbb5dc5ca9 -->
+<!-- source-sha256: 5187e0afa70b10f3fceacfe374adb88015fe35853365e8531e7e8198d15894cb -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -118,9 +118,10 @@ repository는 자기 사본을 자기 파일로 바꿉니다(K1055).
 - P25 item은 `[ ]` waiting, `[~]` active, `[v]` verification, `[o]` done, `[!] cause: <cause>; retry: <condition>` bypassed 또는
   `[-] cause: <cause>` impossible이다. `make item-state`는 item을 어느 state에서 어느 state로든 옮기며, 이 중 어느 것도 아닌 state와
   cause 없는 bypassed 또는 impossible state만 거부한다(K1090). verification은 구현이 commit되었고 선언한 unit test가
-  통과했음을 뜻한다. push는 허용하지만 done이 되기 전 tag 생성과 release를 막으며, verification이 실패하면 active로 되돌린다.
-  done item에 대한 새 발견은 그 자신의 sub-item이 되고, done item은 state를 유지한다.
-  Enforced by: `make docs-check`
+  통과했음을 뜻한다. verification은 push를 허용한다. tag와 release는 CI run이 통과한 커밋에만 만든다. 그 run이 verification의
+  증거이고, 그 run을 기록하는 커밋이 item을 done으로 옮긴다. 그래서 tag된 커밋에 verification item이 남아 있을 수 있다.
+  verification이 실패하면 item을 active로 되돌린다. done item에 대한 새 발견은 그 자신의 sub-item이 되고, done item은 state를 유지한다.
+  Enforced by: state는 `make docs-check`, 성공한 CI run의 커밋에만 다는 tag는 `make release-tag`
 - P26 열린 item은 Verification cell에 자기 unit test의 command를 명시한다. 어떤 item도 suite로 검증하지 않는다. Suite는 CI에서
   실행하거나 모든 checklist item이 종결된 뒤 명시적인 final verification으로 한 번 실행한다. `make item-test`가 그 command를 실행한다.
   Enforced by: `make docs-check`

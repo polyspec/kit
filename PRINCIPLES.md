@@ -123,9 +123,11 @@ repository.
 - P25 An item is `[ ]` waiting, `[~]` active, `[v]` verification, `[o]` done, `[!] cause: <cause>; retry: <condition>` bypassed or
   `[-] cause: <cause>` impossible. `make item-state` moves an item from any state to any other; it refuses only a state that is none
   of these and a bypassed or impossible state without its cause (K1090). Verification means the implementation is
-  committed and its declared unit tests passed. It permits a push, but blocks tag creation and release until it is done; a failed
-  verification returns it to active. A new finding on a done item is a sub-item of its own; the done item keeps its state.
-  Enforced by: `make docs-check`
+  committed and its declared unit tests passed. It permits a push. A tag and a release are made only for a commit whose CI run
+  passed; that run is the evidence of the verification, and the commit that records the run moves the item to done, so a tagged
+  commit can still hold verification items. A failed verification returns the item to active. A new finding on a done item is a
+  sub-item of its own; the done item keeps its state.
+  Enforced by: `make docs-check` for the states, `make release-tag` for a tag only at the commit of a successful CI run
 - P26 An open item names, in its Verification cell, the commands of its own unit tests; no item is verified by a suite. A suite runs in CI, or once as an explicit final verification after all checklist
   items are terminal. `make item-test` runs the commands.
   Enforced by: `make docs-check`
