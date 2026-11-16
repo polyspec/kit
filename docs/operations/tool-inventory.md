@@ -72,6 +72,7 @@ These pins and smoke cases do not establish that every Kit gate runs on Windows 
 PHP is wrapped, not installed (K283, K862). `.php-version` or `config/toolchain.json` `php` declares that the checkout uses
 PHP; `.php-version` is read as written, as the input of CI's setup-php, which a repository that needs PHP declares
 (K193, below).
+An existing `var/tools/bin/php` is the PHP that the checkout chose and is kept with its companions, so a later install with another php first on PATH changes nothing; removing it wraps the php of PATH again (K1271).
 `install-php.mts` takes the `php` of the PATH of the bootstrap (without `var/tools/bin`, so it never finds its own wrapper) as it
 is and compares no release: a PHP that the packages' `require` excludes is refused by Composer's platform check, and what
 remains is the repository's own checks. It writes `var/tools/bin/php`

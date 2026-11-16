@@ -76,10 +76,15 @@ test('K862: the php on PATH is wrapped as it is, whatever .php-version names, an
 
 test('a wrapper of an earlier run is never wrapped, as install-php strips var/tools/bin from PATH (K283)', (t) => {
   const { root, machine, bin } = sandbox(t, '8.4');
-  fake(path.join(bin, 'php'), '8.4.1');
+  const text = readFileSync(fake(path.join(bin, 'php-only'), '8.4.1'), 'utf8');
   const result = start(root, machine(bin));
   assert.equal(result.status, 1);
   assert.match(result.stderr, /php is not on PATH/);
+  // K1271: an existing wrapper is kept as it is, never wrapped again.
+  writeFileSync(path.join(bin, 'php'), text, { mode: 0o755 });
+  const kept = start(root, machine(bin));
+  assert.equal(kept.status, 0, kept.stderr);
+  assert.equal(wrapper(bin, 'php'), text);
 });
 
 test('no php on PATH fails with php is not on PATH, and nothing else is judged (K862)', (t) => {
@@ -135,7 +140,25 @@ test('install-php wraps php-fpm of the same prefix as php (K341)', (t) => {
   assert.equal(result.status, 0, result.stderr);
   assert.ok(wrapper(bin, 'php-fpm').includes(quoted(fpm)), 'php-fpm holds the sbin of the prefix of php');
   rmSync(fpm);
+  // K1271: an existing wrapper is kept, so the checkout chooses again by removing it.
+  rmSync(path.join(bin, 'php'));
   const without = start(root, machine(path.join(prefix, 'bin')));
   assert.equal(without.status, 0, without.stderr);
   assert.deepEqual(readdirSync(bin).sort(), ['mise', 'php', 'phpcs', 'phpstan'], 'no php-fpm wrapper without sbin/php-fpm, and the earlier one is removed');
+});
+
+// K1271: the wrapper is the PHP that the checkout chose, so a later install keeps it whatever php PATH names then; a run that
+// rewrote it silently switched a checkout chosen at 8.4 to a machine's 8.5. Removing the wrapper chooses the php of PATH again.
+test('K1271: an existing php wrapper is kept when a later install finds another php on PATH', (t) => {
+  const { root, directory, machine, bin } = sandbox(t, '8.4');
+  const chosen = path.join(directory, 'php84');
+  const other = path.join(directory, 'php85');
+  for (const name of ['php', 'php-config', 'phpize']) { fake(path.join(chosen, name), '8.4.12'); fake(path.join(other, name), '8.5.10'); }
+  assert.equal(start(root, machine(chosen)).status, 0);
+  const later = start(root, machine(other));
+  assert.equal(later.status, 0, later.stderr);
+  for (const name of ['php', 'php-config', 'phpize']) assert.match(wrapper(bin, name), new RegExp(quoted(path.join(chosen, name)).replace(/[$"*.]/g, '\\$&')), `${name} keeps the chosen PHP`);
+  rmSync(path.join(bin, 'php'));
+  assert.equal(start(root, machine(other)).status, 0);
+  assert.match(wrapper(bin, 'php'), new RegExp(quoted(path.join(other, 'php')).replace(/[$"*.]/g, '\\$&')), 'without a wrapper the php of PATH is wrapped');
 });

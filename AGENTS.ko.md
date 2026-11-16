@@ -109,7 +109,7 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   설치합니다. rustup이 없으면 그 설치 방법과 함께 실패하고, 설치되지 않은 toolchain은 cargo가 실행될 때 rustup이 이름으로
   알립니다. PHP는 설치하지 않고 wrapper로 제공합니다(K283, K862):
   `.php-version`이나 config/toolchain.json `php`가 PHP를 선언하면 `make install-tools`가 PATH의 `php`를 그대로, 그 옆의
-  php-config, phpize와 함께 var/tools/bin에 wrapper로 쓰고, release를 비교하지 않습니다. PATH에 php가 없거나
+  php-config, phpize와 함께 var/tools/bin에 wrapper로 쓰고, release를 비교하지 않으며, checkout이 고른 PHP인 기존 wrapper는 유지하므로 뒤의 install이 그것을 바꾸지 않습니다. var/tools/bin/php를 지우면 다시 고릅니다(K1271). PATH에 php가 없거나
   `packages/php-ext`에 php-config나 phpize가 없으면 실패합니다. PHP가 필요한 저장소는 CI setup-php의 입력인 `.php-version`을
   둡니다. 이 파일이 없으면 setup-php는 조용히 다른 PHP를 설치합니다(K193).
   Enforced by: `tests/kit/install-rust.test.mts`, `tests/kit/install-tools.test.mts`, `tests/kit/install-php.test.mts`

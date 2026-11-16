@@ -1,6 +1,6 @@
 // Provides the PHP of the checkout (`make install-tools`, K283, K862): the machine provides PHP, and install-tools wraps the php
 // that PATH names, as it is, in var/tools/bin, with php-config and phpize when they exist beside it, so that every tool of the
-// checkout runs that php whatever PATH a later step has. Kit compares no release: Composer's platform check refuses a PHP that
+// checkout runs that php whatever PATH a later step has; an existing wrapper is kept, so a later install never switches it (K1271). Kit compares no release: Composer's platform check refuses a PHP that
 // the packages' require excludes. The PATH is that of the bootstrap (no var/tools/bin, so it never finds its own wrapper); a wrapper holds
 // the absolute path of the command. PHP itself refuses to load an extension built by the php-config and phpize of another
 // install (its module API and build ID), so kit judges no install either.
@@ -28,6 +28,12 @@ function onPath(name: string, env: NodeJS.ProcessEnv): string | undefined {
  * when php is not on PATH.
  */
 export function installPhp({ root, print }: { root: string; print: (text: string) => void }): void {
+  // K1271: an existing wrapper is the PHP that the checkout chose, and a later install keeps it with its companions whatever php
+  // PATH names then; removing var/tools/bin/php chooses the php of PATH again.
+  if (existsSync(toolsPath(root, 'bin', 'php'))) {
+    print(`kept ${path.relative(root, toolsPath(root, 'bin', 'php'))}, the PHP of the checkout; remove it to wrap the php of PATH`);
+    return;
+  }
   const env = bootstrapEnvironment(root);
   const php = onPath('php', env);
   if (php === undefined) throw new Error('php is not on PATH; install PHP so that php is on PATH');

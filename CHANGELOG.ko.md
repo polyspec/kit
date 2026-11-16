@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- K1271: install-php가 checkout이 고른 PHP인 기존 var/tools/bin/php와 그 companion을 유지합니다. 전에는 실행마다 PATH의 php를 다시 wrapper로 썼으므로, PATH의 처음에 PHP 8.4가 없는 뒤의 `make install`이 8.4로 고른 checkout을 조용히 8.5로 바꾸었습니다. wrapper를 지우면 PATH의 php를 다시 씁니다. kit은 version을 비교하지 않습니다. Red: `tests/kit/install-php.test.mts`의 K1271 시험이 두 번째 install 뒤 8.5 wrapper를 찾았고, green: 그 시험과 install-php, install-tools 시험이 통과합니다.
+
 - K1270: `link.mjs cargo <dir> fmt`가 cargo fmt를 주어진 그대로 실행합니다. 전에는 선언이 있으면 `fmt` 뒤에 cargo-fmt가 받지 않는 `--config` option을 두었고, 명령이 `unexpected argument '--config'`로 실패했습니다. cargo fmt는 workspace 자신의 파일만 정리하며 어떤 patch도 그 파일을 바꾸지 않습니다. Red: `tests/kit/link.test.mts`의 K1270 시험이 fmt 호출에서 `--config`를 찾았고, green: 그 시험과 link 시험이 통과합니다.
 
 - K1269: `link.mjs cargo`가 명령 전에 같은 patch로 patch된 crate마다 lock 사본을 offline으로 갱신합니다. 전에는 사본이 tag의 version을 담았으므로 다른 version의 link된 crate가 쓰이지 않은 patch가 되었고, `--locked`가 그것을 갱신할 수 없어 source 검사가 먼저 release하라는 거부로 실패했습니다. `.links`를 통한 개발은 release를 기다리지 않습니다. 이제 거부는 checkout의 어떤 version도 받아들이지 않는 requirement에만 남습니다. 추적되는 Cargo.lock은 바뀌지 않습니다. 이 변경의 첫 commit 69658adc2는 K856 시험이 실패한 채로 만들어졌고, 메시지가 `x`인 commit 56f0c8a0c가 그것을 되돌리며, 6e4f5f64e가 K856 시험을 git이 무시하는 사본에 맞추어 변경을 다시 만듭니다. Red: `tests/kit/link.test.mts`의 K1269 시험이 명령 전에 `cargo update`를 찾지 못했고, green: 그 시험과 link 시험이 통과합니다.

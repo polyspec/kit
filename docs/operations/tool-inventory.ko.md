@@ -66,6 +66,7 @@ Windows에서 동작하거나 Windows PHP extension SDK를 지원한다고 입�
 PHP는 설치하지 않고 wrapper로 제공합니다(K283, K862). `.php-version`이나 `config/toolchain.json`의 `php`는 checkout이 PHP를
 쓴다는 선언입니다. `.php-version`은 CI setup-php의 입력으로서 적힌 그대로 읽으며, PHP가 필요한 저장소가 이를
 선언합니다(K193, 아래).
+기존 `var/tools/bin/php`는 checkout이 고른 PHP이므로 그 companion과 함께 유지되며, PATH의 첫 php가 다른 뒤의 install도 아무것도 바꾸지 않습니다. 그것을 지우면 PATH의 php를 다시 wrapper로 씁니다(K1271).
 `install-php.mts`는 bootstrap의 PATH(`var/tools/bin` 제외, 자기 wrapper를 찾지 않기 위해)의 `php`를 그대로 쓰며 release를
 비교하지 않습니다. 패키지의 `require`가 제외하는 PHP는 Composer의 platform 검사가 거부하고, 나머지는 저장소 자신의 검사가
 맡습니다. 절대 경로를 담은 exec wrapper로

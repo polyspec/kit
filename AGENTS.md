@@ -119,7 +119,7 @@ and its Korean twin, as such an example; a repository's AGENTS.md links to its c
   first runs) and each Rust channel that config/toolchain.json `exceptions` declares; a missing rustup fails with its
   install, and rustup names a toolchain that is not installed when cargo runs. PHP is wrapped, not
   installed (K283, K862): when `.php-version` or config/toolchain.json `php` declares PHP, `make install-tools` wraps the
-  `php` of PATH as it is with php-config and phpize beside it in var/tools/bin and compares no release; it fails when php is
+  `php` of PATH as it is with php-config and phpize beside it in var/tools/bin and compares no release, and keeps an existing wrapper, the PHP that the checkout chose, so a later install never switches it; removing var/tools/bin/php chooses again (K1271); it fails when php is
   not on PATH, or when `packages/php-ext` lacks php-config or phpize. A repository that needs PHP keeps `.php-version`,
   the input of CI's setup-php, which silently sets up another PHP without it (K193).
   Enforced by: `tests/kit/install-rust.test.mts`, `tests/kit/install-tools.test.mts`, `tests/kit/install-php.test.mts`
