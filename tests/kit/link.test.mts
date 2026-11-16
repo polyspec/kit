@@ -1422,6 +1422,7 @@ test('K529: a uv workspace member links the package path that its hatchling sour
     put(repo, {
       '.venv/pyvenv.cfg': 'home = /usr\n',
       '.venv/lib/python3.14/site-packages/limepie/contracts/__init__.py': '',
+      '.venv/lib/python3.14/site-packages/limepie_contracts-0.dist-info/METADATA': 'Name: limepie-contracts\n',
     });
     const found = providedFolders(repo, providers([repo], undefined, repo).values(), { environment: '.venv' });
     const lines = found.map(item => `${item.name} ${path.relative(repo, item.folder)} ${path.relative(repo, item.target)}`);
@@ -1445,6 +1446,7 @@ test('K1279: a maturin provider links the package paths under its python-source,
     put(repo, {
       '.venv/pyvenv.cfg': 'home = /usr\n',
       '.venv/lib/python3.14/site-packages/polyspec/native/__init__.py': '',
+      '.venv/lib/python3.14/site-packages/polyspec_native-0.dist-info/METADATA': 'Name: polyspec-native\n',
     });
     const provider = providers([repo], undefined, repo).get('python:polyspec-native');
     assert.ok(provider, 'the member is a provider');
@@ -1452,6 +1454,34 @@ test('K1279: a maturin provider links the package paths under its python-source,
     const found = providedFolders(repo, [provider], { environment: '.venv' });
     const lines = found.map(item => `${item.name} ${path.relative(repo, item.folder)} ${path.relative(repo, item.target)}`);
     assert.deepEqual(lines, ['polyspec-native polyspec/native .venv/lib/python3.14/site-packages/polyspec/native native/generated/python/polyspec/native']);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// K1280: two distributions of one checkout offer one package path, and the project installs one; the installed record decides.
+test('K1280: link links a package path only for the provider whose distribution site-packages holds (K1280)', () => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-k1280-')));
+  try {
+    const hyper = path.join(root, 'hyper');
+    const repo = repository(hyper, 'python', {
+      'pyproject.toml': '[project]\nname = "limepie-python"\nversion = "0"\n\n[tool.uv.workspace]\nmembers = ["legacy", "native"]\n',
+      'legacy/pyproject.toml': '[project]\nname = "polyspec-native-legacy"\nversion = "0"\n',
+      'legacy/src/polyspec/native/__init__.py': '',
+      'native/pyproject.toml': '[project]\nname = "polyspec-native"\nversion = "0"\n\n[tool.maturin]\npython-source = "generated/python"\n',
+      'native/generated/python/polyspec/native/__init__.py': '',
+    });
+    put(repo, {
+      '.venv/pyvenv.cfg': 'home = /usr\n',
+      '.venv/lib/python3.14/site-packages/polyspec/native/__init__.py': '',
+      '.venv/lib/python3.14/site-packages/polyspec_native-0.dist-info/METADATA': 'Name: polyspec-native\n',
+    });
+    const found = providers([repo], undefined, repo);
+    const provided = ['python:polyspec-native-legacy', 'python:polyspec-native'].map(key => found.get(key));
+    assert.ok(provided.every(item => item !== undefined), 'both members are providers');
+    const folders = providedFolders(repo, provided.filter(item => item !== undefined), { environment: '.venv' });
+    const lines = folders.map(item => `${item.name} ${path.relative(repo, item.target)}`);
+    assert.deepEqual(lines, ['polyspec-native polyspec/native native/generated/python/polyspec/native']);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -1533,7 +1563,7 @@ test('K765: a Python package folder becomes one link to its checkout, with no uv
   const source = path.join(provider, 'packages/python/src/polyspec_z');
   const site = path.join(consumer, 'python/.venv/lib/python3.14/site-packages');
   put(provider, { 'packages/python/src/polyspec_z/__init__.py': 'VALUE = 1\n' });
-  put(consumer, { 'python/.venv/lib/python3.14/site-packages/polyspec_z/__init__.py': 'VALUE = 0\n' });
+  put(consumer, { 'python/.venv/lib/python3.14/site-packages/polyspec_z/__init__.py': 'VALUE = 0\n', 'python/.venv/lib/python3.14/site-packages/polyspec_z-0.0.1.dist-info/METADATA': 'Name: polyspec-z\nVersion: 0.0.1\n' });
   const linked = linkLines([consumer], env);
   assert.equal(linked.ok, true, linked.text);
   assert.ok(lstatSync(path.join(site, 'polyspec_z')).isSymbolicLink());

@@ -13,6 +13,8 @@ function fixture(t: { after: (fn: () => void) => void }) {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const site = path.join(root, '.venv/lib/python3.14/site-packages');
   mkdirSync(path.join(site, 'polyspec_new_unreleased'), { recursive: true });
+  // The installed record of the distribution, as uv writes it beside the package folder (K1280).
+  mkdirSync(path.join(site, 'polyspec_new_unreleased-0.0.1.dist-info'));
   writeFileSync(path.join(root, '.venv/pyvenv.cfg'), 'native fixture environment\n');
   const checkout = path.join(root, 'provider');
   mkdirSync(path.join(checkout, 'src/polyspec_new_unreleased'), { recursive: true });
@@ -101,7 +103,6 @@ test('K888: the link leaves out a project without its environment, as a project 
 test('K772: the installer links a package folder that uv sync left missing, since the distribution is installed', { timeout: 30_000 }, (t) => {
   const { root, uv, site, checkout, provider, env } = fixture(t);
   uvLink({ directory: root, uv, env, providers: [provider] });
-  mkdirSync(path.join(site, 'polyspec_new_unreleased-0.0.1.dist-info'));
   // uv sync keeps the installed distribution and writes no folder, as for python-server: the fixture uv writes nothing here.
   writeFileSync(path.join(root, '.links'), 'provider\n');
   const lines: string[] = [];

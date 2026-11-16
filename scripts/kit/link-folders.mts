@@ -299,7 +299,8 @@ export function providedFolders(project: string, provided: Iterable<Provider>, {
         const packages = mapped.length > 0 ? mapped : pythonPackages(source).map(relative => ({ from: path.relative(provider.folder, path.join(source, relative)), to: relative }));
         for (const { from, to } of packages) {
           const folder = path.join(site, to);
-          if (present(folder) || distributionInstalled(site, provider.name)) found.push({ ecosystem: 'python', name: `${provider.name} ${to}`, folder, target: path.join(provider.folder, from) });
+          // K1280: the dist-info of the provider says that it is installed; a folder of the path may be another distribution's.
+          if (distributionInstalled(site, provider.name)) found.push({ ecosystem: 'python', name: `${provider.name} ${to}`, folder, target: path.join(provider.folder, from) });
         }
       }
     }

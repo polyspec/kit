@@ -164,7 +164,7 @@ test('a declared provider that no installed folder links is a finding in npm and
   ], 'projects that were never installed end red');
   const python = (line: string) => line.startsWith('python polyspec-p');
   const site = path.join(consumer, 'packages/python/.venv/lib/python3.14/site-packages');
-  mkdirSync(site, { recursive: true });
+  mkdirSync(path.join(site, 'polyspec_p-0.0.1.dist-info'), { recursive: true });
   symlinkSync(path.join(provider, 'packages/python/src/polyspec_p'), path.join(site, 'polyspec_p'));
   assert.deepEqual(linkFindings(consumer, env).filter(python), [], 'the link to the provider passes');
 });
@@ -201,7 +201,7 @@ test('a uv workspace member whose provider is linked in the environment of the w
   put(consumer, { 'uv': `#!/bin/sh\nif [ "$1 $2" = "workspace dir" ]; then echo '${consumer}'; fi\n`, '.venv/pyvenv.cfg': 'fixture\n' });
   chmodSync(path.join(consumer, 'uv'), 0o755);
   const site = path.join(consumer, '.venv/lib/python3.14/site-packages');
-  mkdirSync(site, { recursive: true });
+  mkdirSync(path.join(site, 'polyspec_p-0.0.1.dist-info'), { recursive: true });
   symlinkSync(path.join(provider, 'packages/python/src/polyspec_p'), path.join(site, 'polyspec_p'));
   const env = { ...process.env, UV: path.join(consumer, 'uv') };
   assert.deepEqual(linkFindings(consumer, env).filter(line => line.includes('polyspec-p')), []);

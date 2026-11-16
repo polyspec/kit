@@ -30,7 +30,7 @@ import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSy
 import path from 'node:path';
 import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { projectEnvironment, uvLink } from './uv-install.mts';
-import { composerRecordFindings, composerVendorDir, decideProviders, environmentLinks, folderFindings, hasPythonPackages, linkFolders, managerLink, managerLinkFindings, nativeLocalSourceFindings, type ProvidedFolder, providedFolders, providerDependencyFindings } from './link-folders.mts';
+import { composerRecordFindings, composerVendorDir, decideProviders, environmentLinks, folderFindings, hasPythonPackages, linkFolders, managerLink, managerLinkFindings, nativeLocalSourceFindings, present, type ProvidedFolder, providedFolders, providerDependencyFindings } from './link-folders.mts';
 import { assertIgnored, declaredCheckouts, type Ecosystem, EXCLUDED, goModule, type GoRequirement, LINKS_FILE, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, soleProvider, type Tool, trackedManifests, workTreeOf } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
 import { toolCommand } from './mise-tools.mts';
@@ -644,7 +644,9 @@ function declaredWithoutFolder(work: Run, consumer: Consumer, project: string, f
     if (ecosystem === 'python' && ![provider, ...(provider.rivals ?? [])].some(hasPythonPackages)) return false;
     // K888: a project whose installer has not run yet has no folder to link; link-check reports it once make install has run.
     if (!uninstalled && !installed(work, consumer, project, ecosystem)) return false;
-    return !folders.some(folder => folder.ecosystem === ecosystem && (folder.name === name || folder.name.startsWith(`${name} `)));
+    // K1280: a provided folder counts only when it exists: an installed distribution whose package folder a removed link left missing
+    // is in `folders` and holds no folder.
+    return !folders.some(folder => folder.ecosystem === ecosystem && present(folder.folder) && (folder.name === name || folder.name.startsWith(`${name} `)));
   });
 }
 
