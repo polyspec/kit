@@ -1712,7 +1712,7 @@ test('K1259: a declared worktree is a provider at its top level; a folder inside
   const main = path.join(root, 'provider');
   mkdirSync(path.join(main, 'packages/ts'), { recursive: true });
   writeFileSync(path.join(main, 'packages/ts/package.json'), '{"name":"@polyspec/x"}');
-  git(main, 'init', '--quiet', '-b', 'main');
+  initRepository(main);
   git(main, 'add', '-A');
   git(main, '-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '--quiet', '-m', 'fixture');
   const worktree = path.join(root, 'provider-lane');

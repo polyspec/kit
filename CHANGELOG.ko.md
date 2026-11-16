@@ -6,6 +6,7 @@
 
 ## Unreleased
 
+- K1264: K1258과 K1259의 시험이 저장소를 `initRepository`로 만든다. 그 시험은 `git init`을 직접 실행했고 sandbox 시험이 그것을 거부해서, K1258부터 main의 ci가 실패했다.
 - K1262: docs-check는 checklist의 한국어 twin이 영어 파일의 행 ID를 같은 순서로 가지기를 요구합니다. 비교하는 것은 각 task 행의 첫 칸인 ID뿐이고, twin의 문장과 state는 K809대로 twin 자신의 것입니다. 전에는 행이 빠진 twin도 통과했습니다. 한 consumer의 한국어 checklist가 영어 파일의 열다섯 행을 빠뜨렸는데 docs-check가 통과했고, 그래서 두 파일의 행을 함께 고치는 utility가 고칠 한국어 행이 없었습니다. kit 자신의 한국어 checklist는 K1108~K1112를 다른 자리에 두고 있었고, 이제 영어 순서를 따릅니다. red: `tests/kit/documents.test.mts`의 K1262 시험은 T1.2가 없고 T1.4가 있는 twin을 통과시켰습니다. green: 그 twin과 순서가 바뀐 twin이 빠진 ID와 남는 ID를 적은 `checklist-pair`로 실패하고, documents와 checklist 파일의 시험 54개가 통과합니다.
 
 - K1261: 릴리스의 `packages.json`은 `download-url-method`에 `pre-packaged-binary`가 있는 php-ext를 PIE가 설치하게 합니다(kit#50). version을 tag `v<version>`으로 쓰고 Composer는 그것을 같은 version으로 정규화합니다. PIE 1.4.10은 패키지의 version으로 release를 찾아 어떤 tag도 없는 `/releases/tags/0.0.30`을 요청했기 때문입니다. 또 그런 패키지의 dist에는 `shasum`이 없습니다. PIE가 URL을 플랫폼의 zip으로 바꾸면서 소스 zip의 sha1을 유지해서 Composer가 다운로드를 거부했기 때문입니다(`The checksum verification of the file failed`). 다른 Composer 패키지는 zip의 sha1을 유지합니다. PIE 1.4.10은 확장의 다운로드를 attestation으로 검증하지 않으므로 그런 binary는 PIE에서 무결성 검사가 없습니다. 그 무결성은 K1263이 다룹니다. Red: `tests/kit/release.test.mts`의 새 K1261 시험이 0.0.114에서 version `0.0.1`과 shasum을 찾습니다; green: 그것이 K871과 release, release-wheel, release-run, schema의 시험 95개와 함께 통과합니다.

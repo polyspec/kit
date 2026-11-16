@@ -6,6 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { execFileSync } from 'node:child_process';
 import { pythonProviders, uvInstallCommand, uvLink } from '../../scripts/kit/uv-install.mts';
+import { initRepository } from './sandbox-repository.mts';
 
 function fixture(t: { after: (fn: () => void) => void }) {
   const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-uv-native-')));
@@ -156,7 +157,7 @@ test('K1258: the providers that the installer links are found as link-check find
   writeFileSync(path.join(folder, 'pyproject.toml'), '[project]\nname = "polyspec-ordered-json"\nversion = "0.0.25"\n');
   writeFileSync(path.join(folder, 'src/polyspec/ordered_json/__init__.py'), '');
   const git = (...args: string[]) => execFileSync('git', args, { cwd: checkout, stdio: 'pipe' });
-  git('init', '-q', '-b', 'main');
+  initRepository(checkout);
   git('add', '-A');
   git('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-q', '-m', 'fixture');
   const found = pythonProviders([checkout], root);
