@@ -92,6 +92,14 @@ that the example pipeline runs only through an expression, such as a target of c
 matrix, is reached when a step names it, when its matrix lists the value, or when the `Enforced by` line names a target that a
 step runs.
 
+A principle of a copied PRINCIPLES.md may have no object in a repository, such as S10 in a repository that holds no PHP
+library, and then the repository has no reason to define the checks of its `Enforced by:` line. Its AGENTS.md states this
+with an item `- Refines <id>: No object: <reason>.`, which ends with its own `Enforced by:` line, and rules-check then checks
+that item instead of the checks of the principle in that repository (K1284). The item names a rule of PRINCIPLES.md and needs
+no term of the repository, since it restates nothing of the principle. Its reason states why the principle has no object, and
+its `Enforced by:` line names the check that fails when the object appears, or `none, <reason>`. The principle itself stays
+as it is in the copy.
+
 ## Hooks and checks of a commit (K1053)
 
 kit writes no Git hook and no Claude Code setting, and no utility of kit refuses a commit, a command or the place of a run. A

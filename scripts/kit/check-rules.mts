@@ -12,7 +12,8 @@
 // starts make with it, it is a prerequisite of a reached target, a reached recipe names it after the expansion of its variables, or a reached recipe names the test file or a folder
 // of it. A rule of PRINCIPLES.md begins with an id, P<n> or S<n>. A rule of AGENTS.md begins with `Own:` or `Refines <id>:`; a
 // refining rule names, in backticks, a term of the repository that PRINCIPLES.md lacks (an existing path or a make target), so a
-// restatement of a principle is a finding (K300). The Korean twin of a document (<name>.ko.md) names the same checks for each rule.
+// restatement of a principle is a finding (K300). An AGENTS rule `Refines <id>: No object: <reason>` states that the principle
+// has no object in the repository: it needs no term, and the checks of that principle are not checked there (K1284). The Korean twin of a document (<name>.ko.md) names the same checks for each rule.
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
@@ -111,6 +112,11 @@ const RULE_ID = /^\s*(?:[-*+]\s+)?([PS]\d+)\b/;
 // An AGENTS rule begins with `Own:` or with `Refines <id>:` (K300).
 const OWN = /^\s*[-*+]\s+Own:\s/;
 const REFINES = /^\s*[-*+]\s+Refines\s+([PS]\d+):\s/;
+// An AGENTS rule that states a principle has no object in the repository (K1284): its checks are not this repository's.
+const NO_OBJECT = /^\s*[-*+]\s+Refines\s+([PS]\d+):\s+No object:\s/;
+
+/** The ids of the principles that the AGENTS document `agents` states have no object in the repository (K1284). */
+const noObjectIds = (agents: string) => new Set(rulesOf(agents).flatMap(rule => NO_OBJECT.exec(rule.text)?.[1] ?? []));
 
 /** Whether the backtick span `term` names something of the repository `root`: an existing path or a make target. */
 function ownTerm(root: string, make: MakeDatabase, term: string): boolean {
@@ -140,7 +146,7 @@ function refinementFindings(root: string, make: MakeDatabase, agents: string, pr
       found.push(`${where}: the rule begins with neither \`Own:\` nor \`Refines <id>:\`; a rule of this repository is Own, or refines a rule of PRINCIPLES.md by its id`);
     } else if (!ids.has(refined)) {
       found.push(`${where}: Refines ${refined} names no rule of PRINCIPLES.md`);
-    } else if (!checksOf(rule.text).some(term => !principles.includes(`\`${term}\``) && ownTerm(root, make, term))) {
+    } else if (!NO_OBJECT.test(rule.text) && !checksOf(rule.text).some(term => !principles.includes(`\`${term}\``) && ownTerm(root, make, term))) {
       found.push(`${where}: Refines ${refined} names no term of this repository that PRINCIPLES.md lacks (an existing path, a make target or a configuration file in backticks); a rule without one restates the principle`);
     }
   }
@@ -330,6 +336,7 @@ export function checkRules(root: string, documents: readonly string[] = DEFAULT_
   const planned: Planned[] = [];
   const reach = reached(root, make);
   const states = itemStates(root);
+  const withoutObject = documents.includes('PRINCIPLES.md') && documents.includes('AGENTS.md') ? noObjectIds(readFileSync(path.join(root, 'AGENTS.md'), 'utf8')) : new Set<string>();
   for (const document of documents) {
     const text = readFileSync(path.join(root, document), 'utf8');
     for (const line of proseLines(text)) findings.push(`${document}:${line}: a paragraph that introduces no section; a rule is an item of a top-level list with its Enforced by line, and a section opens with at most one paragraph`);
@@ -348,6 +355,8 @@ export function checkRules(root: string, documents: readonly string[] = DEFAULT_
         else unenforced.push({ file: document, line: rule.line, reason });
         continue;
       }
+      const id = document === 'PRINCIPLES.md' ? RULE_ID.exec(rule.text)?.[1] : undefined;
+      if (id !== undefined && withoutObject.has(id)) continue;
       const checks = checksOf(rule.enforced);
       const items = plannedOf(rule.enforced);
       if (checks.length === 0 && items.length === 0) findings.push(`${where}: \`Enforced by:\` names no check in backticks and no planned item`);

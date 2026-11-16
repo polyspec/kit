@@ -1,5 +1,5 @@
 <!-- doc-id: adoption -->
-<!-- source-sha256: 6122fa4a89c50bb5bd44b8922232ed10a7cfa1720037357df140eb6dc8469296 -->
+<!-- source-sha256: d9a695cc95b43a0e4ccba3d890bc878d462161354f6895f6706ac7f19296be47 -->
 # kit을 채택한 저장소에서 일하기
 
 [English](adoption.md)
@@ -88,6 +88,13 @@ commit한다. kit-sync의 사본을 가진 저장소는 그것을 자기 파일�
 rules-check는 복사한 pipeline을 저장소의 workflow 중 하나로서 step의 make 명령으로 읽는다(K1057). config/ci.json의 target이나
 계산된 matrix의 runtime처럼 예시 pipeline이 표현식으로만 실행하는 검사는 step이 그것을 적거나, matrix가 그 값을 나열하거나,
 `Enforced by` 줄이 step이 실행하는 target을 적을 때 도달한다.
+
+복사한 PRINCIPLES.md의 원칙은 PHP library가 없는 저장소의 S10처럼 저장소에 대상이 없을 수 있고, 그러면 저장소는 그
+`Enforced by:` 줄의 검사를 정의할 이유가 없다. 그 저장소의 AGENTS.md는 이것을 자기 `Enforced by:` 줄로 끝나는 항목
+`- Refines <id>: No object: <reason>.`으로 적고, rules-check는 그 저장소에서 원칙의 검사 대신 그 항목을 검사한다(K1284).
+항목은 PRINCIPLES.md의 규칙을 적고, 원칙의 어떤 것도 다시 말하지 않으므로 저장소의 용어가 필요 없다. 이유는 원칙에 대상이
+없는 까닭을 적고, `Enforced by:` 줄은 대상이 생기면 실패하는 검사나 `none, <reason>`을 적는다. 원칙 자체는 사본에 그대로
+남는다.
 
 ## commit의 hook과 검사 (K1053)
 

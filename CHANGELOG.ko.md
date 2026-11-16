@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ec5d4c9a8b79edb6f9a40fe2c7318e12b7089f2a987d1f6189f78cff0b9ba371 -->
+<!-- source-sha256: 667511efbfff8c9228af1ab8bba43f37eeafb9773d9e5a90372b0b2e1c5f9971 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1284: rules-check가 AGENTS 항목 `Refines <id>: No object: <reason>`을, PHP library가 없는 저장소의 S10처럼 원칙 `<id>`가 저장소에 대상이 없다는 진술로 읽습니다. 그 저장소에서는 그 원칙의 `Enforced by:` 줄의 검사를 검사하지 않고, 항목은 자기 `Enforced by:` 줄로 검사되며 PRINCIPLES.md의 규칙을 적고 저장소의 용어가 필요 없습니다. `docs/operations/adoption.md`가 그 형식을 적습니다. 전에는 모든 원칙의 검사를 검사해서, 그런 저장소가 정의할 이유가 없는 target에 대해 `make <target> is no target of the Makefile`로 실패했습니다. Red: `tests/kit/check-rules.test.mts`의 K1284 시험이 S10 target과 빠진 용어의 finding을 받았고, green: finding을 받지 않으며 check-rules 시험과 kit 자신의 rules-check가 통과합니다.
 
 - K1282: `PRINCIPLES.md`의 P25가 verification item은 push를 허용하고, tag와 release는 CI run이 통과한 커밋에만 만들며, 그 run이 verification의 증거이고, 그것을 기록하는 커밋이 item을 done으로 옮긴다고 적습니다. Enforced by는 `make docs-check` 옆에 `make release-tag`를 적습니다. 전에는 P25가 verification item이 done이 되기 전 tag 생성과 release를 막는다고 했지만, `make release-tag`는 `origin/main`에서 성공한 CI run의 커밋에 tag를 달고 checklist state를 읽지 않으므로(K987, K988, K990) tag된 커밋에 verification item이 남습니다.
 

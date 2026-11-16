@@ -183,6 +183,26 @@ test('an AGENTS rule that names neither Own nor a rule it refines, a rule that d
   ]);
 });
 
+// K1284: a principle may have no object in a repository, such as S10 where no PHP library exists; the AGENTS item
+// `Refines <id>: No object:` states it, and its own Enforced by line is checked instead of the checks of the principle.
+test('a principle that an AGENTS item states has no object is checked by that item, not by its own checks (K1284)', (t) => {
+  const principles = ['- P1 Components are modular.\n  Enforced by: `make lint`', '- S10 A PHP extension implements every PHP library.\n  Enforced by: `make lint-php-ext`, `make test-php-ext`'];
+  const root = principled(t, [
+    '- Own: Documents are checked on every change.\n  Enforced by: `make docs-check`',
+    '- Refines S10: No object: the repository holds no PHP library, so no extension implements one.\n  Enforced by: none, a PHP library that appears is found by review.',
+  ], principles);
+  assert.deepEqual(checkRules(root, both).findings, []);
+  const without = principled(t, ['- Own: Documents are checked on every change.\n  Enforced by: `make docs-check`'], principles);
+  assert.deepEqual(checkRules(without, both).findings, ['PRINCIPLES.md:5: make lint-php-ext is no target of the Makefile', 'PRINCIPLES.md:5: make test-php-ext is no target of the Makefile'], 'without the item the checks of S10 are checked');
+  const unknown = principled(t, ['- Refines S11: No object: nothing.\n  Enforced by: `make missing`'], principles);
+  assert.deepEqual(checkRules(unknown, both).findings, [
+    'PRINCIPLES.md:5: make lint-php-ext is no target of the Makefile',
+    'PRINCIPLES.md:5: make test-php-ext is no target of the Makefile',
+    'AGENTS.md:3: make missing is no target of the Makefile',
+    'AGENTS.md:3: Refines S11 names no rule of PRINCIPLES.md',
+  ], 'the item is checked with its own Enforced by line and names a rule of PRINCIPLES.md');
+});
+
 test('a rule of PRINCIPLES.md without an id fails when AGENTS.md is read with it (K300)', (t) => {
   const root = principled(t, ['- Own: A rule.\n  Enforced by: `make docs-check`'], ['- Components are modular.\n  Enforced by: `make lint`']);
   assert.deepEqual(checkRules(root, both).findings, ['PRINCIPLES.md:3: the rule has no id; a rule of PRINCIPLES.md begins with P<n> or S<n>']);
