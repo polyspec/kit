@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1279: link reads `[tool.maturin] python-source` of a Python provider's pyproject.toml as the source root of its packages. Before, link took only `src` or the hatchling wheel sources, so a maturin provider whose package lies under `python-source` and whose `src` holds only Rust counted as having no Python package, and link linked another folder of the provider that offered the same package path. kit builds no native module. Red: the K1279 test of `tests/kit/link.test.mts` found no package; green: it passes, with the link, link-folders and link-check tests.
+
 ## 0.0.117
 
 - K1278: install-tools and ci-setup accept the selector `maturin`, which installs the `github:PyO3/maturin` of mise.toml alone. Before, `make install-tools TOOLS=maturin` failed with `unknown TOOLS selector maturin`, so a CI group that builds Python bindings with `link.mjs maturin` could not install the maturin that its mise.toml pins. Red: the K1278 test of `tests/kit/install-tools.test.mts` got that error; green: it passes, with the install-tools and toolchain-mise tests.

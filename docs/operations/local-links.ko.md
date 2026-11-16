@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: a3424c161d188012a88e9481dd9370f78787b9a22da9d418c5c32f5ba385570f -->
+<!-- source-sha256: 132f20c299e0c3ddf0a0541f0ffb35c4b349f9e4dadc8ecdec0384f3218ec19a -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -47,7 +47,7 @@ Composer가 생성한 autoload는 `vendor/<vendor>/<package>/src`를 가리키�
 |---|---|
 | npm | `node_modules/<name>`은 `npm ci` 뒤 쓴, provider로 가는 상대 디렉터리 심링크 하나입니다 |
 | Composer | `<vendor-dir>/<vendor>/<package>`는 `composer install` 뒤 쓴, provider로 가는 상대 디렉터리 심링크 하나이며 `COMPOSER`, `COMPOSER_VENDOR_DIR`를 따릅니다 |
-| Python | `<site-packages>/<package path>` -> provider source root 아래 같은 package path, namespace의 package마다 link 하나입니다. uv가 lock을 먼저 설치하고, uv는 link를 거쳐 쓰므로 모든 uv 쓰기 전에 이 link를 제거합니다(K539). environment가 없는 project는 아직 설치되지 않았으므로 `make link`는 그것을 빼고 environment를 만들지 않습니다(K689-3, K888) |
+| Python | `<site-packages>/<package path>` -> provider source root 아래 같은 package path, namespace의 package마다 link 하나입니다. source root는 provider pyproject.toml의 `[tool.maturin]`이 `python-source`를 지정하면 그것, 아니면 `src`가 있으면 `src`, 아니면 provider 폴더이며, `[tool.hatch.build.targets.wheel] sources`는 그 디렉터리를 package path에 대응시킵니다(K529, K1279). kit는 maturin provider의 native module을 build하지 않으며, provider가 그것을 source root에 build합니다. uv가 lock을 먼저 설치하고, uv는 link를 거쳐 쓰므로 모든 uv 쓰기 전에 이 link를 제거합니다(K539). environment가 없는 project는 아직 설치되지 않았으므로 `make link`는 그것을 빼고 environment를 만들지 않습니다(K689-3, K888) |
 | Go | 각 Go module에 git이 무시하는 `go.work`. module과 provider module의 `use` 줄을 가지고, 그 `go.work`가 use하는 module이 provider module을 require하는 버전마다 `replace <module> <version> => <provider folder>` 줄을 가집니다(K1212) |
 | Rust | `link.mjs cargo <dir> <cargo args>`가 `--config` `[patch]` 항목과 `var/link/cargo` 아래 lock 사본으로 cargo 명령 하나를 실행합니다. 명령 전에 같은 patch로 `cargo update --offline -p <crate>@<version>`이 사본에 있는 patch된 crate의 version마다 사본을 갱신하므로(K1273), lock의 tag와 다른 version의 link된 crate도 graph에 들고 `--locked`가 지켜지며, 추적되는 lock은 바뀌지 않습니다(K1269). `--config`를 받지 않고 workspace 자신의 crate 파일만 정리하는 `cargo fmt`는 주어진 그대로 실행됩니다(K1270). `link.mjs maturin <dir> <maturin args>`는 `MATURIN`이 가리키는 maturin으로(kit은 checkout에 maturin을 설치하지 않고 PATH의 maturin은 쓰지 않습니다) `maturin build` 같은 maturin 명령 하나를 subcommand 뒤의 같은 option으로 실행하고, maturin은 그 option을 자신이 실행하는 cargo에 넘기므로(maturin `--config <KEY=VALUE>`) Python binding도 다른 Rust target처럼 link된 crate로 build됩니다(K1266). `.links`가 없으면 둘 다 주어진 그대로 실행됩니다 |
 

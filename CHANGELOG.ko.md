@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 784af9920843a9e295312b25b254a5208240390b28bc9985386ddfc19508e23f -->
+<!-- source-sha256: 077c35af77adda09200c049977ad343a7341d1cc536b48873326d83a4ebeaf09 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1279: link가 Python provider pyproject.toml의 `[tool.maturin] python-source`를 package의 source root로 읽습니다. 전에는 `src` 또는 hatchling wheel sources만 받았으므로, package가 `python-source` 아래에 있고 `src`에 Rust만 있는 maturin provider를 Python package가 없는 것으로 셌고, link는 같은 package path를 제공하는 provider의 다른 폴더를 연결했습니다. kit는 native module을 build하지 않습니다. Red: `tests/kit/link.test.mts`의 K1279 시험이 package를 찾지 못했고, green: 그 시험과 link, link-folders, link-check 시험이 통과합니다.
 
 ## 0.0.117
 

@@ -254,6 +254,25 @@ function hatchSources(folder: string): { from: string; to: string }[] {
 }
 
 /**
+ * The source root of the Python provider folder `folder` (K1279): the `python-source` of its `[tool.maturin]` table when it names
+ * one, since maturin installs the packages under that directory and src holds the Rust crate; else src when it exists; else the
+ * folder. kit builds no native module: the provider builds it into that source root.
+ */
+function pythonSourceRoot(folder: string): string {
+  const file = path.join(folder, MANIFEST.python);
+  if (existsSync(file)) {
+    const tool = readToml(readFileSync(file, 'utf8'), file).tool;
+    const maturin = typeof tool === 'object' && tool !== null && 'maturin' in tool ? tool.maturin : undefined;
+    const source = typeof maturin === 'object' && maturin !== null && 'python-source' in maturin ? maturin['python-source'] : undefined;
+    if (source !== undefined) {
+      if (typeof source !== 'string' || source === '') throw new Error(`[tool.maturin] python-source of ${file} is no directory`);
+      return path.join(folder, source);
+    }
+  }
+  return existsSync(path.join(folder, 'src')) ? path.join(folder, 'src') : folder;
+}
+
+/**
  * The installed folders of the project `project` that a provider of `provided` provides, each with the folder it must link to. A
  * package that is not installed is left out: the install of the tracked lock installs what the project needs, and the link only
  * replaces it.
@@ -269,7 +288,7 @@ export function providedFolders(project: string, provided: Iterable<Provider>, {
       const folder = path.join(vendorDirectory(project, vendorDir), provider.name);
       if (present(folder)) found.push({ ecosystem: 'composer', name: provider.name, folder, target: provider.folder, ...(managerLink(folder) ? { manager: true as const } : {}) });
     } else if (provider.ecosystem === 'python') {
-      const source = existsSync(path.join(provider.folder, 'src')) ? path.join(provider.folder, 'src') : provider.folder;
+      const source = pythonSourceRoot(provider.folder);
       for (const site of sites) {
         const editable = editableDistribution(site, provider.name);
         if (editable !== undefined) {
@@ -310,13 +329,12 @@ function editableDistribution(site: string, name: string): { folder: string; tar
 }
 
 /**
- * Whether the Python provider `provider` names installable package paths: its hatchling sources, or the packages of its source root.
+ * Whether the Python provider `provider` names installable package paths: its hatchling sources, or the packages of its source root (pythonSourceRoot).
  * A provider with none installs no folder, so a declaration of it has nothing to link (K529).
  */
 export function hasPythonPackages(provider: Provider): boolean {
   if (hatchSources(provider.folder).length > 0) return true;
-  const source = existsSync(path.join(provider.folder, 'src')) ? path.join(provider.folder, 'src') : provider.folder;
-  return pythonPackages(source).length > 0;
+  return pythonPackages(pythonSourceRoot(provider.folder)).length > 0;
 }
 
 /** Whether the paths `left` and `right` name one existing folder. */

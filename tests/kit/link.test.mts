@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { buildState, buildTargets, rebuild } from '../../scripts/kit/link-build.mts';
 import { refreshLinked } from '../../scripts/kit/linked-build.mts';
 import { assertIgnored, declaredCheckouts, foreignEnvironment, isIgnored, mainCheckouts, providers, trackedManifests } from '../../scripts/kit/link-providers.mts';
-import { providedFolders } from '../../scripts/kit/link-folders.mts';
+import { hasPythonPackages, providedFolders } from '../../scripts/kit/link-folders.mts';
 import { linkFindings } from '../../scripts/kit/link-check.mts';
 import { acquireHolderLock } from '../../scripts/kit/holder-lock.mts';
 import { cargoMetadataArguments } from '../../scripts/kit/cargo-source.mts';
@@ -1426,6 +1426,32 @@ test('K529: a uv workspace member links the package path that its hatchling sour
     const found = providedFolders(repo, providers([repo], undefined, repo).values(), { environment: '.venv' });
     const lines = found.map(item => `${item.name} ${path.relative(repo, item.folder)} ${path.relative(repo, item.target)}`);
     assert.deepEqual(lines, ['limepie-contracts limepie/contracts .venv/lib/python3.14/site-packages/limepie/contracts contracts/src']);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// K1279: a maturin provider names the source root of its Python packages by `[tool.maturin] python-source`; its src holds only Rust.
+test('K1279: a maturin provider links the package paths under its python-source, not under src (K1279)', () => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-k1279-')));
+  try {
+    const hyper = path.join(root, 'hyper');
+    const repo = repository(hyper, 'python', {
+      'pyproject.toml': '[project]\nname = "limepie-python"\nversion = "0"\n\n[tool.uv.workspace]\nmembers = ["native"]\n',
+      'native/pyproject.toml': '[build-system]\nrequires = ["maturin"]\nbuild-backend = "maturin"\n\n[project]\nname = "polyspec-native"\nversion = "0"\n\n[tool.maturin]\npython-source = "generated/python"\nmodule-name = "polyspec.native._native"\n',
+      'native/src/lib.rs': '',
+      'native/generated/python/polyspec/native/__init__.py': '',
+    });
+    put(repo, {
+      '.venv/pyvenv.cfg': 'home = /usr\n',
+      '.venv/lib/python3.14/site-packages/polyspec/native/__init__.py': '',
+    });
+    const provider = providers([repo], undefined, repo).get('python:polyspec-native');
+    assert.ok(provider, 'the member is a provider');
+    assert.equal(hasPythonPackages(provider), true, 'the python-source holds a package');
+    const found = providedFolders(repo, [provider], { environment: '.venv' });
+    const lines = found.map(item => `${item.name} ${path.relative(repo, item.folder)} ${path.relative(repo, item.target)}`);
+    assert.deepEqual(lines, ['polyspec-native polyspec/native .venv/lib/python3.14/site-packages/polyspec/native native/generated/python/polyspec/native']);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
