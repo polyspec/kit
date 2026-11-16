@@ -391,3 +391,13 @@ test('K1168: a document whose check throws is a finding of that document, and th
   hasPart(found, 'a.md:', 'link: the link missing.md');
   hasPart(found, 'b.md: error: the check of the document failed:', 'EACCES');
 });
+
+test('K1262: a checklist twin holds the row IDs of its English file in their order; its text and states may differ', (t) => {
+  const en = checklist('| T1.1 | a | [o] |\n| T1.2 | b | [ ] |\n| T1.3 | c | [ ] |');
+  // The twin may word its tasks and keep its states as it is (K809): only the IDs are compared.
+  assert.deepEqual(run2(withChecklist(t, en, checklist('| T1.1 | 가 | [o] |\n| T1.2 | 나 | [~] |\n| T1.3 | 다 | [ ] |'))), []);
+  const missing = run2(withChecklist(t, en, checklist('| T1.1 | 가 | [o] |\n| T1.3 | 다 | [ ] |\n| T1.4 | 라 | [ ] |')));
+  hasPart(missing, `${PLAN}/checklist.ko.md`, 'checklist-pair', 'missing T1.2', 'extra T1.4');
+  const order = run2(withChecklist(t, en, checklist('| T1.2 | 나 | [ ] |\n| T1.1 | 가 | [o] |\n| T1.3 | 다 | [ ] |')));
+  hasPart(order, `${PLAN}/checklist.ko.md`, 'checklist-pair', 'missing none, extra none, in another order');
+});

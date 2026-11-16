@@ -295,8 +295,14 @@ export function checklistsFindings(trackers: readonly Tracker[], read: (file: st
   const tracker = (file: string) => present(byFile.get(file), 'byFile.get(file)');
   for (const entry of trackers) {
     const english = strictItems(entry.path);
-    strictItems(entry.translation);
+    const korean = strictItems(entry.translation);
     if (english) checklists.push({ tracker: entry, items: english });
+    // K1262: the twin holds the row IDs of its English file in their order, so a row that one file lacks is found; the text
+    // and the states of the twin are its own (K809), and only the IDs are compared.
+    if (english && korean) {
+      const ids = (items: readonly ChecklistItem[]) => items.map(item => item.id).join(' ');
+      if (ids(english) !== ids(korean)) for (const finding of twinFindings(english, korean, entry)) found.push({ file: entry.translation, finding });
+    }
   }
   for (const entry of crossFindings(checklists)) found.push({ file: entry.file, finding: { line: entry.line, column: 1, rule: 'checklist-cross', message: entry.message } });
   return found;
