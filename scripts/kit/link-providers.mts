@@ -43,7 +43,7 @@ export const MANIFESTS: Readonly<Record<Ecosystem, string>> = { npm: 'package.js
 export const EXCLUDED = /(^|\/)(tests?|examples|benchmarks|docs|config|\.mise|[^/]*fixtures?)\//;
 
 /** A command of a tool and the environment that it runs in. */
-export type Tool = { command: string; env: NodeJS.ProcessEnv };
+export type Tool = { command: string; env: NodeJS.ProcessEnv; fix?: string | undefined };
 
 /**
  * Whether `directory` or a folder above it holds a `.git` entry, a directory or a gitfile, even a broken one. Without one the

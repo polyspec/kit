@@ -45,6 +45,7 @@ import { isMain, repositoryRoot, siblingTool, TEST_ROOT } from './paths.mts';
 import { inputsDigest } from './tracked-files.mts';
 import { readJsonFile } from './schema-validate.mts';
 import { present } from './present.mts';
+import { cannotStart, INSTALL } from './tool-install.mts';
 
 // The options of run-tests.mts, each followed by its value.
 const RUNNER_OPTIONS = ['--php-extension', '--venv', '--module', '--cwd', '--results', '--inputs'];
@@ -92,17 +93,6 @@ type Ended = { error: Error } | { error?: undefined; status: number | null; sign
 
 // The counts that a progress reporter writes to KIT_TEST_RESULT.
 type Counts = { ran: number; skipped: number; [key: string]: unknown };
-
-// The fix for a tool that cannot start.
-const INSTALL: Record<string, (options: { cwd: string; root: string }) => string> = {
-  node: () => 'run make install-tools TOOLS=npm, which installs the Node.js of mise.toml',
-  vitest: () => 'run make install',
-  playwright: () => 'run make install, which installs the project-local Playwright package',
-  go: () => 'declare go in mise.toml and run make install-tools, which installs it into var/tools/mise',
-  cargo: () => 'install rustup and run make install, which installs the toolchain of rust-toolchain.toml',
-  phpunit: ({ cwd, root }) => `run composer install in ${path.relative(root, cwd) || '.'}`,
-  python: () => 'declare python in mise.toml and run make install-tools, which installs it into var/tools/mise',
-};
 
 export function parseArguments(argv: string[], root = repositoryRoot()) {
   const [tool, ...rest] = argv;
@@ -340,7 +330,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
   const finished = (ended: Ended, what: string): Exclude<Ended, { error: Error }> | string => {
     if (interrupted) return `interrupted by ${interrupted}; stopped the process group of ${what}`;
     // parseArguments accepts only the tools of TOOLS, and INSTALL has each.
-    if (ended.error) return `cannot start ${command}: ${ended.error.message}; ${present(INSTALL[options.tool], 'INSTALL[options.tool]')({ cwd: options.cwd, root })}`;
+    if (ended.error) return cannotStart(command, ended.error, present(INSTALL[options.tool], 'INSTALL[options.tool]')({ cwd: options.cwd, root }));
     return ended;
   };
   let onInterrupt: ((signal: NodeJS.Signals) => void) | undefined;

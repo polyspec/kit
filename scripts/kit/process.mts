@@ -2,6 +2,7 @@
 // not end with an accepted status, and `git.mts` runs git through them.
 import spawn from 'cross-spawn';
 import type { SpawnSyncReturns } from 'node:child_process';
+import { cannotStart } from './tool-install.mts';
 
 const MAX_BUFFER = 256 * 1024 * 1024;
 
@@ -24,9 +25,13 @@ export const execute = (command: string, args: readonly string[], { cwd, env }: 
   return spawn.sync(command, [...args], { cwd, env, encoding: 'utf8', maxBuffer: MAX_BUFFER });
 };
 
+/** The options of a run: the statuses it accepts, and `fix`, the install of a tool that cannot start (K1276). */
+export type RunOptions = RunPlace & { statuses?: readonly number[] | undefined; fix?: string | undefined };
+
 /** The standard output and standard error of a command; Stop with the command, its exit status or the signal that ended it, and its output when the status is not in `statuses`. */
-export function runOutput(command: string, args: readonly string[], { cwd, env, statuses = [0] }: RunPlace & { statuses?: readonly number[] | undefined } = {}): { stdout: string; stderr: string } {
+export function runOutput(command: string, args: readonly string[], { cwd, env, statuses = [0], fix }: RunOptions = {}): { stdout: string; stderr: string } {
   const result = execute(command, args, { cwd, env });
+  if (result.error && fix !== undefined) throw new Stop(cannotStart(command, result.error, fix));
   if (result.error) throw new Stop(`${[command, ...args].join(' ')} could not start: ${result.error.message}`);
   // Both streams, each kept when not empty (K352): an error may come on stdout after progress on stderr.
   const output = [result.stderr, result.stdout].map(text => (text ?? '').trim()).filter(text => text !== '').join('\n');
@@ -39,7 +44,7 @@ export function runOutput(command: string, args: readonly string[], { cwd, env, 
  * The standard output of a command, which stops as runOutput does; the standard error of a command that succeeds, such as a warning
  * of uv or the messages of git push, is written to standard error (K1152).
  */
-export function run(command: string, args: readonly string[], place: RunPlace & { statuses?: readonly number[] | undefined } = {}): string {
+export function run(command: string, args: readonly string[], place: RunOptions = {}): string {
   const { stdout, stderr } = runOutput(command, args, place);
   if (stderr.trim()) process.stderr.write(stderr.endsWith('\n') ? stderr : `${stderr}\n`);
   return stdout;

@@ -1248,6 +1248,19 @@ test('link cargo updates each version of a patched crate of the lock copy by its
   assert.match(log(), /^cargo update --config \S+ --config \S+ --offline -p polyspec-prov@0\.0\.10 -p polyspec-prov@0\.0\.13$/m);
 });
 
+// K1276: a linked tool that cannot start fails as the runner does (K947): `cannot start <tool>: <cause>; <fix>`, so the fix of the
+// install is not lost on the link path.
+test('link cargo whose cargo cannot start names the cause and the install of cargo (K1276)', (t) => {
+  const { consumer, env } = workspace(t);
+  declareSiblings(consumer);
+  put(consumer, { 'Cargo.lock': 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n' });
+  // A cargo that does not exist, as a CARGO of the recipe or cargo of a PATH without it.
+  const missing = path.join(consumer, 'missing', 'cargo');
+  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', consumer, 'tree', '--locked'], { cwd: consumer, env: { ...env, CARGO: missing }, encoding: 'utf8' });
+  assert.equal(run.status, 1, run.stderr);
+  assert.match(run.stderr, /cannot start \S*cargo: spawnSync \S*cargo ENOENT; install rustup and run make install, which installs the toolchain of rust-toolchain\.toml/);
+});
+
 // K1270: cargo fmt is an external subcommand that takes no --config (cargo 1.98 `cargo fmt --help`) and formats only the files of
 // the workspace's own crates, which no patch changes, so it runs as given under a declaration.
 test('link cargo with a declaration runs cargo fmt as given (K1270)', (t) => {
