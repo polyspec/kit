@@ -25,6 +25,22 @@ export const TAIL_BYTES = 256 * 1024;
 // The variables of a calling make, which a target of the run must not inherit.
 const CALLER = ['MAKEFLAGS', 'MFLAGS', 'MAKELEVEL', 'MAKEOVERRIDES'];
 
+/** The command-line variables of a calling make, which make passes in MAKEFLAGS after `--`, each word with its spaces and backslashes escaped by a backslash (K1256). */
+export function commandVariables(makeflags: string | undefined): string[] {
+  const text = /(?:^| )-- (.*)$/s.exec(makeflags ?? '')?.[1];
+  if (text === undefined) return [];
+  const words: string[] = [];
+  let word = '';
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charAt(i);
+    if (c === '\\' && i + 1 < text.length) word += text.charAt(++i);
+    else if (c === ' ') { if (word) words.push(word); word = ''; }
+    else word += c;
+  }
+  if (word) words.push(word);
+  return words.filter((w) => /^[^=\s]+=/.test(w));
+}
+
 // A target name is a word of letters, digits, dots, underscores and hyphens that starts with a letter or a digit, so it names its log file without escaping and make takes it for a target.
 export const TARGET_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
@@ -188,7 +204,8 @@ export function runLogged({ root, target, log, writer, output, make = 'make', en
 }): Promise<{ lines: string[]; exit: string }> {
   return new Promise((resolve) => {
     const clean = Object.fromEntries(Object.entries(env).filter(([name]) => !CALLER.includes(name)));
-    const command = ['--no-print-directory', ...(keepGoing ? ['-k'] : []), target];
+    // The job server and the level of the caller are dropped; its command-line variables reach the target as they reach a recursive make (K1256).
+    const command = ['--no-print-directory', ...(keepGoing ? ['-k'] : []), target, ...commandVariables(env.MAKEFLAGS)];
     mkdirSync(path.dirname(log), { recursive: true });
     const descriptor = openSync(log, 'w');
     const lines: string[] = [];

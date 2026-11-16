@@ -526,7 +526,7 @@ Export된 `runCommand`는 자신이 시작한 command만 소유한다. 긴 comma
   호출자가 `make -k ci-targets`로 요청할 때만 씁니다(K1098). 출력은 화면에 쓰면서 `<report>/targets/<target>.log`에
   기록합니다(template, crudui, hyper, ordered-json). 실행은 `<report>.lock`을 잡습니다(template, crudui). 이전 실행의 report는
   먼저 지웁니다. target에는 시간 제한이 없습니다.
-- hyper: `make --no-print-directory`, 호출한 make의 변수(`MAKEFLAGS`, `MFLAGS`, `MAKELEVEL`, `MAKEOVERRIDES`)를 넘기지 않음,
+- hyper: `make --no-print-directory`, 호출한 make의 flag, job server, level(`MAKEFLAGS`, `MFLAGS`, `MAKELEVEL`, `MAKEOVERRIDES`)을 넘기지 않고 명령줄 변수는 인자로 넘김(K1256),
   표준 출력과 표준 오류가 한 줄로 섞이지 않는 완전한 줄, target 전후에 쓰는 `record.json`(중단된 실행은 실행 중이던 target을
   남김), 던지지 않고 `reportErrors`에 기록하는 report 쓰기(orm도 같은 규칙), 아무것도 기록하지 못했거나 끝나지 않은 실행에서도
   page를 만드는 `CI_STEPS`를 쓰는 `--summary` 단계(hyper와 ordered-json의 `summary`).

@@ -10,7 +10,7 @@ import type { TestContext } from 'node:test';
 import { ciSummary, ciTargets } from '../../scripts/kit/ci-targets.mts';
 import { acquireHolderLock, HolderLockRefused, removeDeadLock } from '../../scripts/kit/holder-lock.mts';
 import { passed } from '../../scripts/kit/ci-passed.mts';
-import { capLog, failureLines, reportWriter, warningLines, type RunRecord } from '../../scripts/kit/target-report.mts';
+import { capLog, commandVariables, failureLines, reportWriter, warningLines, type RunRecord } from '../../scripts/kit/target-report.mts';
 import { readJsonFile } from '../../scripts/kit/schema-validate.mts';
 import { put, tree } from './tree.mts';
 import { KIT, tool } from './kit-tools.mts';
@@ -25,6 +25,9 @@ mixed:
 \t@printf 'partial'; echo ' out' >&2; echo ' more'
 flags:
 \t@echo flags-ran
+NAME := default
+show:
+\t@echo "name=$(NAME)"
 `;
 
 // A target of record.json, as the tests read it.
@@ -89,6 +92,21 @@ test('a target does not inherit the flags of a calling make', async (t) => {
   assert.equal(result.status, 0);
   assert.match(result.read('targets/flags.log'), /^flags-ran$/m);
   assert.doesNotMatch(result.read('targets/flags.log'), /echo flags-ran/);
+});
+
+test('a target takes the command-line variables of a calling make and not its flags (K1256)', async (t) => {
+  const root = setup(t);
+  // make passes `make -n check NAME='lo cal'` to its recipe as MAKEFLAGS=n -- NAME=lo\\ cal.
+  const result = await run(root, ['show'], { env: { ...process.env, GITHUB_ACTIONS: 'true', MAKEFLAGS: 'n -- NAME=lo\\ cal', MAKELEVEL: '1' } });
+  assert.equal(result.status, 0);
+  assert.match(result.read('targets/show.log'), /^name=lo cal$/m);
+});
+
+test('commandVariables reads the assignments after -- and unescapes them (K1256)', () => {
+  assert.deepEqual(commandVariables(undefined), []);
+  assert.deepEqual(commandVariables('ks'), []);
+  assert.deepEqual(commandVariables(' -- X=1'), ['X=1']);
+  assert.deepEqual(commandVariables('sk -- X=1 NAME=lo\\ cal B=a\\\\b'), ['X=1', 'NAME=lo cal', 'B=a\\b']);
 });
 
 test('a make that cannot start fails the target with the reason', async (t) => {

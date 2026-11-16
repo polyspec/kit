@@ -573,7 +573,7 @@ Merged behaviors:
   failed prerequisite, only when the caller asks with `make -k ci-targets` (K1098); its output is printed and written to
   `<report>/targets/<target>.log` (template, crudui, hyper, ordered-json); the run holds `<report>.lock` (template, crudui). The
   report of an earlier run is removed first. No target has a time limit.
-- hyper: `make --no-print-directory`, no variable of a calling make (`MAKEFLAGS`, `MFLAGS`, `MAKELEVEL`, `MAKEOVERRIDES`), complete
+- hyper: `make --no-print-directory`, no flag, job server or level of a calling make (`MAKEFLAGS`, `MFLAGS`, `MAKELEVEL`, `MAKEOVERRIDES`), its command-line variables passed as arguments (K1256), complete
   lines of standard output and standard error that never join, `record.json` written before and after each target
   (a run that stops leaves the target that was running), a report write that never throws and is recorded in `reportErrors`
   (orm has the same rule), and the `--summary` step with `CI_STEPS` that renders the page also for a run that recorded nothing

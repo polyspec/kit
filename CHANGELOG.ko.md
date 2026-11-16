@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- K1256: CI runner와 full run의 target은 recursive make처럼 호출한 make의 명령줄 변수를 받습니다. `runLogged`는 `MAKEFLAGS`의 `--` 뒤에 있는 `VAR=value` 낱말을 읽어 `make <target>`의 인자로 넘기고, flag, job server, level은 여전히 지웁니다. 전에는 `make -k check NAME=value`가 모든 target을 `NAME`의 기본값으로 실행했습니다. red: `tests/kit/ci.test.mts`의 새 시험은 0.0.114에서 `name=default`로 실패합니다. green: 수정 뒤 통과합니다.
+
 ## 0.0.114
 
 - K1254: rules check는 `ci-setup.mjs` 호출이 실행하는 target에 도달한다. `--job shared`는 `kit-gates-static`과 `config/ci.json`의 shared job의 setup과 target에 도달하고, `--job runtime <runtime>`은 `kit-gates-runtime-<runtime>`과 그 runtime의 setup과 target에, runtime이 변수이면 plan의 runtime 각각에 도달한다. 이전에는 그런 target이 모두 어떤 CI workflow나 Git hook도 도달하지 않는다고 보고되었다.

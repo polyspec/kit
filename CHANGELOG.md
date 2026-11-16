@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1256: A target of the CI runner and the full run takes the command-line variables of the calling make, as a recursive make does: `runLogged` reads the `VAR=value` words after `--` of `MAKEFLAGS` and passes them as arguments of `make <target>`, and still drops the flags, the job server and the level. Before, `make -k check NAME=value` ran every target with the default of `NAME`. Red: the new tests of `tests/kit/ci.test.mts` fail on 0.0.114 with `name=default`; green: they pass.
+
 ## 0.0.114
 
 - K1254: The rules check reaches the targets that a call of `ci-setup.mjs` runs: `--job shared` reaches `kit-gates-static` and the setup and targets of the shared job of `config/ci.json`, and `--job runtime <runtime>` reaches `kit-gates-runtime-<runtime>` and the setup and targets of that runtime, or of each runtime of the plan when the runtime is a variable. Before, every such target was reported as reached by no CI workflow or Git hook.
