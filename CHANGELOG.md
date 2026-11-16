@@ -5,8 +5,6 @@
 
 ## Unreleased
 
-- K1269: `link.mjs cargo` updates its lock copy offline for each patched crate, with the same patches, before the command. Before, the copy named the version of the tag, so a linked crate of another version was an unused patch that `--locked` could not update, and the source check failed. The tracked Cargo.lock stays unchanged. Red: the K1269 test of `tests/kit/link.test.mts` found no `cargo update` before the command; green: it passes, with the link tests.
-
 - K1268: run-tests starts its cargo runner and its build through `link.mjs cargo` of the package directory. Before, it started a bare `cargo` of PATH, so `$(RUN_TESTS) cargo ...` in a linked checkout tested against the tagged core of the lock instead of the linked crates; with no `.links` cargo runs as given. Red: the K1175 test of `tests/kit/run-tests.test.mts` found `cargo test`; green: it passes, with the run-tests and test-build-first tests.
 
 - K1267: config/release.json `files` lists repository files, such as contract case files, that a release publishes as assets under their base names, with `files.json`, which records the URL and the sha256 of each file by its path, as packages.json records each dist. Before, a release published only the package archives and packages.json, so a consumer could not pin such a file by version and integrity. A listed path that the commit does not hold, or two paths of one base name, fail with their names. Red: the K1267 test of `tests/kit/release.test.mts` found no fields.json among the release files; green: it passes, with the release and schema tests.
