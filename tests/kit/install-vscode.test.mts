@@ -120,6 +120,8 @@ test('an incomplete download publishes nothing and names its directory, and the 
   await assert.rejects(installVSCode(extension, tools, incomplete), /left no complete copy in .*\.next-\d+\/vscode-/);
   assert.deepEqual(readdirSync(tools), []);
   assert.throws(() => installedExecutable(extension, tools), /^Error: VS Code 1\.138\.0 is not installed in .*; run make install-vscode$/);
+  // K1257: the fix names the install target of the consumer, whose Makefile may give it another name.
+  assert.throws(() => installedExecutable(extension, tools, 'make app-install-vscode'), /^Error: VS Code 1\.138\.0 is not installed in .*; run make app-install-vscode$/);
 });
 
 test('the offline read of an installed copy returns its executable', async (t) => {

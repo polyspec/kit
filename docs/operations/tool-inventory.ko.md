@@ -1095,7 +1095,7 @@ orm과 template은 둘 다 editor package를 갖습니다: language service, lan
 
 `scripts/kit/install-vscode.mts <extension package directory> <tools directory>`는 `engines.vscode`의 최소 버전(semver가 읽는 어떤
 범위 형식이든 그 최솟값, K1077)을 `@vscode/test-electron`의 layout으로 설치하며, 내려받기는 그 library가 합니다. tool은 다음 동작을 더합니다:
-- `installedExecutable`: integration 실행의 offline 읽기입니다. 사본이 없으면 `run make install-vscode`와 함께 실패합니다.
+- `installedExecutable`: integration 실행의 offline 읽기입니다. 사본이 없으면 `run <fix>`와 함께 실패합니다. `fix`는 consumer의 설치 명령이고 기본값은 `make install-vscode`입니다(K1257).
 - `<tools>/.next-<pid>`에 내려받아 제자리로 rename합니다. library는 최종 directory에 압축을 풀므로 두 install이 동시에 돌면 서로를
   망가뜨립니다. rename을 쓰면 먼저 끝난 install의 사본이 남습니다.
 - 내려받기를 자기 process에서 돌립니다(K173). `@vscode/test-electron` 3.1.0은 `.tar.gz` 내려받기를 `tar -xzf -` child에 pipe하고,

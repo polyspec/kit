@@ -1187,8 +1187,8 @@ repository runs it from its own make target. The check of the editor boundaries 
 
 `scripts/kit/install-vscode.mts <extension package directory> <tools directory>` installs the minimum of `engines.vscode`
 (the minimum version of a range of any form that semver reads, K1077) in the layout of `@vscode/test-electron`, which does the download. The tool adds the following behavior:
-- `installedExecutable`, the offline read of the integration run. It fails with `run make install-vscode` when the copy is
-  missing.
+- `installedExecutable`, the offline read of the integration run. It fails with `run <fix>` when the copy is missing; `fix`
+  is the install command of the consumer and defaults to `make install-vscode` (K1257).
 - A download into `<tools>/.next-<pid>` that is renamed into place. The library unzips into the final directory, so two
   installs at once would destroy each other; with the rename, the copy of the first install stays.
 - The download in a process of its own (K173). `@vscode/test-electron` 3.1.0 pipes a `.tar.gz` download into a

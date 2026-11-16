@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1257: `installedExecutable` of `install-vscode` takes the install command of its consumer, `fix`, and names it when the copy of VS Code is missing; it defaults to `make install-vscode`. Before, the error named `make install-vscode` in a repository whose Makefile names the target otherwise. Red: the new assertion of `tests/kit/install-vscode.test.mts` fails on 0.0.114; green: it passes.
+
 - K1256: A target of the CI runner and the full run takes the command-line variables of the calling make, as a recursive make does: `runLogged` reads the `VAR=value` words after `--` of `MAKEFLAGS` and passes them as arguments of `make <target>`, and still drops the flags, the job server and the level. Before, `make -k check NAME=value` ran every target with the default of `NAME`. Red: the new tests of `tests/kit/ci.test.mts` fail on 0.0.114 with `name=default`; green: they pass.
 
 ## 0.0.114

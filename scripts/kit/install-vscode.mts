@@ -41,10 +41,11 @@ export function vscodeCopy(extension: string, base: string, platform: string = u
 
 const complete = (directory: string): boolean => existsSync(path.join(directory, COMPLETE));
 
-/** The executable of the installed copy; fails with the fix when the copy is missing or incomplete. Reads no network. */
-export function installedExecutable(extension: string, base: string): string {
+/** The executable of the installed copy; fails with the fix when the copy is missing or incomplete. Reads no network. `fix` is the
+ * command of the consumer that installs the copy, since its Makefile names the install target (K1257). */
+export function installedExecutable(extension: string, base: string, fix = 'make install-vscode'): string {
   const { version, platform, directory } = vscodeCopy(extension, base);
-  if (!complete(directory)) throw new Error(`VS Code ${version} is not installed in ${directory}; run make install-vscode`);
+  if (!complete(directory)) throw new Error(`VS Code ${version} is not installed in ${directory}; run ${fix}`);
   return util.downloadDirToExecutablePath(directory, platform);
 }
 
