@@ -548,6 +548,29 @@ test('K1261: packages.json names the tag as the version and no shasum for a pre-
   assert.deepEqual(JSON.parse(readFileSync(path.join(target, 'packages.json'), 'utf8')), { packages: { 'polyspec/kit-fixture': { 'v0.0.1': { ...manifest, version: 'v0.0.1', dist } } } });
 });
 
+// K1267: config/release.json `files` names repository files that a release publishes as assets, such as contract case files, and
+// files.json records the URL and the sha256 of each one, as packages.json records the dist of each package, so a consumer pins a
+// file by its version and integrity.
+test('K1267: a listed file is a release file with its sha256 in files.json, and a missing one fails by its name', (t) => {
+  const box = releaseSandbox(t, { mutate(root) {
+    mkdirSync(path.join(root, 'contracts'), { recursive: true });
+    writeFileSync(path.join(root, 'contracts/fields.json'), '{"fields":[]}\n');
+    edit(root, 'config/release.json', config => ({ ...config, files: ['contracts/fields.json'] }));
+  } });
+  const files = release.candidateAssets(context(box), '0.0.1');
+  assert.deepEqual(files.filter(name => name.endsWith('.json')), ['packages.json', 'fields.json', 'files.json']);
+  const target = path.join(box.root, 'var/release/assets');
+  const sha256 = createHash('sha256').update(readFileSync(path.join(box.root, 'contracts/fields.json'))).digest('hex');
+  assert.equal(readFileSync(path.join(target, 'fields.json'), 'utf8'), '{"fields":[]}\n');
+  assert.deepEqual(JSON.parse(readFileSync(path.join(target, 'files.json'), 'utf8')), { files: { 'contracts/fields.json': { url: 'https://example.com/polyspec/kit-fixture/releases/download/v0.0.1/fields.json', sha256 } } });
+  edit(box.root, 'config/release.json', config => ({ ...config, files: ['contracts/fields.json', 'other/fields.json'] }));
+  git(box.root, 'commit', '-qam', 'list two files of one base name');
+  stop(() => release.candidateAssets(context(box), '0.0.1'), /`files` names \[other\/fields\.json\], whose base names another listed file has/);
+  edit(box.root, 'config/release.json', config => ({ ...config, files: ['contracts/forms.json'] }));
+  git(box.root, 'commit', '-qam', 'list a missing file');
+  stop(() => release.candidateAssets(context(box), '0.0.1'), /config\/release\.json `files` names contracts\/forms\.json, which the commit \S+ does not hold/);
+});
+
 test('K712 candidate archives refuse changed source inputs rather than packing worktree files', (t) => {
   const box = releaseSandbox(t, { mutate(root) {
     writeFileSync(path.join(root, 'Makefile'), 'release-assets: build\n');

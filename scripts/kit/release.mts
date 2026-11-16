@@ -31,6 +31,7 @@
 // A `wheel` package builds its PEP 427 wheel `<distribution>-<version>-py3-none-any.whl` from the tagged commit with uv build,
 // which installs the build-system.requires of its pyproject.toml (release-wheel.mts).
 // Each failure names the tag, the file or the check, and the expected and the actual value, and exits with status 1.
+import { spawnSync } from 'node:child_process';
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -54,6 +55,8 @@ import { packedPackageManifest } from './pack-manifest.mts';
 export const CONFIG = 'config/release.json';
 /** The Composer repository of the Composer packages of a release, beside its archives (K871). */
 export const PACKAGES_JSON = 'packages.json';
+/** The record of the URL and the sha256 of each file that `files` of config/release.json publishes (K1267). */
+export const FILES_JSON = 'files.json';
 // GitHub refuses a release body over 125000 characters.
 export const NOTES_LIMIT = 125000;
 export const MODES: readonly string[] = ['archive', 'version', 'git-tag'];
@@ -102,6 +105,8 @@ export interface ReleaseConfig {
   packageFiles?: string[];
   writtenFiles?: string[];
   fixtures?: string[];
+  /** The repository files that a release publishes as assets by their base names, with files.json (K1267). */
+  files?: string[];
   /** The repository's own rule that an existing release tag is annotated (K1084); without it a tag at the commit passes. */
   annotatedTags?: boolean;
 }
@@ -406,9 +411,13 @@ export function assetLabels(config: Pick<ReleaseConfig, 'packages' | 'repository
   return config.packages.map(({ product, runtime }) => `${vendor}-${product}-${runtime}-${version}`);
 }
 
-/** The files of the release at `version`: the archives, and packages.json when a package is a Composer package (K871). */
-function releaseFiles(config: Pick<ReleaseConfig, 'packages' | 'repositoryUrl'>, version: string): string[] {
-  return [...assetNames(config, version), ...(config.packages.some(({ kind }) => kind === 'composer') ? [PACKAGES_JSON] : [])];
+/**
+ * The files of the release at `version`: the archives, packages.json when a package is a Composer package (K871), and each file
+ * that `files` lists by its base name with files.json (K1267).
+ */
+function releaseFiles(config: Pick<ReleaseConfig, 'packages' | 'repositoryUrl' | 'files'>, version: string): string[] {
+  const listed = (config.files ?? []).map(file => path.posix.basename(file));
+  return [...assetNames(config, version), ...(config.packages.some(({ kind }) => kind === 'composer') ? [PACKAGES_JSON] : []), ...listed, ...(listed.length ? [FILES_JSON] : [])];
 }
 
 /**
@@ -648,6 +657,22 @@ function assetsFromCommit(ctx: Context, reference: string, commit: string, versi
     if (files.includes(PACKAGES_JSON)) {
       writeFileSync(path.join(next, PACKAGES_JSON), composerRepository(config, version, next, sources));
       ctx.log(`[release] ${reference}: wrote ${PACKAGES_JSON}, the Composer repository of the release`);
+    }
+    // K1267: each listed file of the commit, and files.json with its URL and sha256, as packages.json records the dist of a package.
+    if (config.files?.length) {
+      const bases = config.files.map(file => path.posix.basename(file));
+      const shared = config.files.filter((_, index) => bases.indexOf(bases[index] ?? '') !== index);
+      if (shared.length) throw new Stop(`${CONFIG} \`files\` names [${shared.join(', ')}], whose base names another listed file has; release assets hold no folder`);
+      const record = Object.fromEntries(config.files.map((file) => {
+        const name = path.posix.basename(file);
+        // The bytes of the blob, unchanged, so a file of any content keeps its digest.
+        const shown = spawnSync('git', ['cat-file', 'blob', `${commit}:${file}`], { cwd: root, env: ctx.env });
+        if (shown.status !== 0) throw new Stop(`${CONFIG} \`files\` names ${file}, which the commit ${commit} does not hold`);
+        writeFileSync(path.join(next, name), shown.stdout);
+        return [file, { url: `${config.repositoryUrl}/releases/download/v${version}/${name}`, sha256: fileDigest(path.join(next, name), 'sha256') }];
+      }));
+      writeFileSync(path.join(next, FILES_JSON), `${JSON.stringify({ files: record }, null, 2)}\n`);
+      ctx.log(`[release] ${reference}: wrote ${FILES_JSON} with the sha256 of ${config.files.length} files`);
     }
     if (existsSync(target)) renameSync(target, previous);
     renameSync(next, target);

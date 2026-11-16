@@ -117,6 +117,12 @@
       "type": "array",
       "items": { "type": "string", "minLength": 1 }
     },
+    "files": {
+      "description": "The repository files that a release publishes as assets, each by its base name, with files.json, which records the URL and the sha256 of each one by its path (K1267).",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
     "annotatedTags": {"description": "The repository's own rule that an existing release tag is annotated (K1084); without it a tag at the commit passes whatever its kind.", "type": "boolean"}
   }
 }
