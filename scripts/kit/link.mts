@@ -758,7 +758,8 @@ export function cargo({ directory, args, checkouts = [], env = process.env, runn
   const expected = new Map<string, string>();
   const patched: string[] = [];
   try {
-    if (checkouts.length) {
+    // K1270: cargo fmt takes no --config and formats only the files of the workspace's own crates, which no patch changes.
+    if (checkouts.length && !(runner === 'cargo' && commandArgs[0] === 'fmt')) {
       const workspace = path.dirname(run(tool.command, [...channel, 'locate-project', '--workspace', '--message-format', 'plain', ...manifestArgs], { cwd: consumer.scope, env: tool.env }).trim());
       held = acquireHolderLock(path.join(consumer.top, 'var/link/cargo', path.relative(consumer.top, workspace).replaceAll('/', '_') || 'root', 'execution.lock'), { checkout: consumer.top, command: ['cargo', ...args].join(' ') });
       // A fresh copy of the tracked lock on every run, so the patches resolve against the lock of the tree.

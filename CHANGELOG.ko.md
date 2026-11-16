@@ -6,7 +6,9 @@
 
 ## Unreleased
 
-- K1269: `link.mjs cargo`가 명령 전에 같은 patch로 patch된 crate마다 lock 사본을 offline으로 갱신합니다. 전에는 사본이 tag의 version을 담았으므로 다른 version의 link된 crate가 쓰이지 않은 patch가 되었고, `--locked`가 그것을 갱신할 수 없어 source 검사가 먼저 release하라는 거부로 실패했습니다. `.links`를 통한 개발은 release를 기다리지 않습니다. 이제 거부는 checkout의 어떤 version도 받아들이지 않는 requirement에만 남습니다. 추적되는 Cargo.lock은 바뀌지 않습니다. Red: `tests/kit/link.test.mts`의 K1269 시험이 명령 전에 `cargo update`를 찾지 못했고, green: 그 시험과 link 시험이 통과합니다.
+- K1270: `link.mjs cargo <dir> fmt`가 cargo fmt를 주어진 그대로 실행합니다. 전에는 선언이 있으면 `fmt` 뒤에 cargo-fmt가 받지 않는 `--config` option을 두었고, 명령이 `unexpected argument '--config'`로 실패했습니다. cargo fmt는 workspace 자신의 파일만 정리하며 어떤 patch도 그 파일을 바꾸지 않습니다. Red: `tests/kit/link.test.mts`의 K1270 시험이 fmt 호출에서 `--config`를 찾았고, green: 그 시험과 link 시험이 통과합니다.
+
+- K1269: `link.mjs cargo`가 명령 전에 같은 patch로 patch된 crate마다 lock 사본을 offline으로 갱신합니다. 전에는 사본이 tag의 version을 담았으므로 다른 version의 link된 crate가 쓰이지 않은 patch가 되었고, `--locked`가 그것을 갱신할 수 없어 source 검사가 먼저 release하라는 거부로 실패했습니다. `.links`를 통한 개발은 release를 기다리지 않습니다. 이제 거부는 checkout의 어떤 version도 받아들이지 않는 requirement에만 남습니다. 추적되는 Cargo.lock은 바뀌지 않습니다. 이 변경의 첫 commit 69658adc2는 K856 시험이 실패한 채로 만들어졌고, 메시지가 `x`인 commit 56f0c8a0c가 그것을 되돌리며, 6e4f5f64e가 K856 시험을 git이 무시하는 사본에 맞추어 변경을 다시 만듭니다. Red: `tests/kit/link.test.mts`의 K1269 시험이 명령 전에 `cargo update`를 찾지 못했고, green: 그 시험과 link 시험이 통과합니다.
 
 - K1268: run-tests가 cargo runner와 그 build를 package 디렉터리의 `link.mjs cargo`를 거쳐 시작합니다. 전에는 PATH의 `cargo`를 그대로 시작했으므로, link된 checkout에서 `$(RUN_TESTS) cargo ...`가 link된 crate가 아니라 lock의 tag된 core로 시험했습니다. `.links`가 없으면 cargo는 주어진 그대로 실행됩니다. Red: `tests/kit/run-tests.test.mts`의 K1175 시험이 `cargo test`를 찾았고, green: 그 시험과 run-tests, test-build-first 시험이 통과합니다.
 

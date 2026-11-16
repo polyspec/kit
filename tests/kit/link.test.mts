@@ -1237,6 +1237,18 @@ test('link cargo with a declaration updates the lock copy offline for the patche
   assert.equal(readFileSync(path.join(consumer, 'Cargo.lock'), 'utf8'), lock);
 });
 
+// K1270: cargo fmt is an external subcommand that takes no --config (cargo 1.98 `cargo fmt --help`) and formats only the files of
+// the workspace's own crates, which no patch changes, so it runs as given under a declaration.
+test('link cargo with a declaration runs cargo fmt as given (K1270)', (t) => {
+  const { consumer, env, log } = workspace(t);
+  declareSiblings(consumer);
+  put(consumer, { 'Cargo.lock': 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n' });
+  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', consumer, 'fmt', '--check', '-p', 'polyspec-hyper'], { cwd: consumer, env, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(log(), /^cargo fmt --check -p polyspec-hyper$/m);
+  assert.doesNotMatch(log(), /--config/);
+});
+
 // K1266: maturin runs cargo itself, so the link gives maturin build the lock copy and the patches as its own --config options, which
 // maturin 1.16 passes to cargo (`maturin build --help`: --config <KEY=VALUE>); without a declaration maturin runs as given.
 test('link maturin with a declaration passes the lock copy and the patches to maturin after its subcommand (K1266)', (t) => {
