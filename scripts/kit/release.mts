@@ -413,7 +413,10 @@ function releaseFiles(config: Pick<ReleaseConfig, 'packages' | 'repositoryUrl'>,
 
 /**
  * packages.json of the release at `version` from the archives of `folder` (K871): each Composer package as its composer.json
- * `sources[index]` at the version, with the dist of its release asset and the sha1 of its zip.
+ * `sources[index]` at the tag `v<version>`, with the dist of its release asset and the sha1 of its zip. The version is the tag
+ * because PIE finds the release of a php-ext by the version of its package, and Composer normalizes `v0.0.1` to `0.0.1` (K1261).
+ * A package whose `php-ext.download-url-method` holds `pre-packaged-binary` has a dist that PIE replaces by the zip of the
+ * platform while it keeps the shasum, so that dist carries no shasum, which would name the source zip (K1261).
  */
 function composerRepository(config: Pick<ReleaseConfig, 'packages' | 'repositoryUrl'>, version: string, folder: string, sources: string[]): string {
   const names = assetNames(config, version);
@@ -422,8 +425,11 @@ function composerRepository(config: Pick<ReleaseConfig, 'packages' | 'repository
     // names and sources hold the archive name and the manifest of each package at its index.
     const archive = present(names[index], 'names[index]');
     const manifest = parseJson<ComposerManifest>(present(sources[index], 'sources[index]'), 'composer-manifest.schema.json', `the composer.json of ${name}`);
-    const dist = { type: 'zip', url: `${config.repositoryUrl}/releases/download/v${version}/${archive}`, shasum: fileDigest(path.join(folder, archive), 'sha1') };
-    return [[name, { [version]: { ...manifest, version, dist } }]];
+    const url = `${config.repositoryUrl}/releases/download/v${version}/${archive}`;
+    const prePackaged = manifest['php-ext']?.['download-url-method']?.includes('pre-packaged-binary') === true;
+    const dist = prePackaged ? { type: 'zip', url } : { type: 'zip', url, shasum: fileDigest(path.join(folder, archive), 'sha1') };
+    const tag = `v${version}`;
+    return [[name, { [tag]: { ...manifest, version: tag, dist } }]];
   }));
   return `${JSON.stringify({ packages }, null, 2)}\n`;
 }

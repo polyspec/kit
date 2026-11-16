@@ -59,6 +59,18 @@
         }
       }
     },
+    "php-ext": {
+      "type": "object",
+      "description": "The fields of a PHP extension that PIE reads; the release writes no shasum for a pre-packaged-binary download (K1261).",
+      "properties": {
+        "download-url-method": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "config": {
       "type": "object",
       "properties": {

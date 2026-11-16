@@ -54,6 +54,8 @@ export type ComposerManifest = {
   autoload?: { files?: string[] };
   repositories?: { type?: string; url?: string; package?: { name?: string; version?: string } }[];
   config?: { platform?: Record<string, string | boolean> };
+  // K1261: the download methods of a php-ext, which PIE reads.
+  'php-ext'?: { 'download-url-method'?: string[] };
 };
 
 /** A package of a Composer lock; its require holds the requirements that the platform checks (K415). */

@@ -509,7 +509,7 @@ test('K871: candidate assets hold packages.json, a flat Composer repository that
   const dist = { type: 'zip', url: `https://example.com/polyspec/kit-fixture/releases/download/v0.0.1/${zip}`, shasum: createHash('sha1').update(readFileSync(path.join(target, zip))).digest('hex') };
   const manifest = readJson<ManifestJson>(box.root, 'packages/fixture-php/composer.json');
   // packages.json and composer.lock are the formats of Composer, which no schema of kit describes.
-  assert.deepEqual(JSON.parse(readFileSync(path.join(target, 'packages.json'), 'utf8')), { packages: { 'polyspec/kit-fixture': { '0.0.1': { ...manifest, version: '0.0.1', dist } } } });
+  assert.deepEqual(JSON.parse(readFileSync(path.join(target, 'packages.json'), 'utf8')), { packages: { 'polyspec/kit-fixture': { 'v0.0.1': { ...manifest, version: 'v0.0.1', dist } } } });
   const consumer = mkdtempSync(path.join(tmpdir(), 'kit-packages-json-'));
   t.after(() => rmSync(consumer, { recursive: true, force: true }));
   const download = path.join(consumer, 'releases/download/v0.0.1');
@@ -526,7 +526,26 @@ test('K871: candidate assets hold packages.json, a flat Composer repository that
   assert.equal(update.error, undefined, `the Composer of ${CHECKOUT} did not start: ${update.error?.message}; run make install-tools there`);
   assert.equal(update.status, 0, update.stdout + update.stderr);
   const locked = readComposerLockFile(path.join(consumer, 'composer.lock')).packages ?? [];
-  assert.deepEqual(locked.map(({ name, version, dist: lockedDist }) => ({ name, version, dist: lockedDist })), [{ name: 'polyspec/kit-fixture', version: '0.0.1', dist }]);
+  assert.deepEqual(locked.map(({ name, version, dist: lockedDist }) => ({ name, version, dist: lockedDist })), [{ name: 'polyspec/kit-fixture', version: 'v0.0.1', dist }]);
+});
+
+// K1261 (kit#50): PIE finds the release of a php-ext by the version of its package (GithubPackageReleaseAssets of PIE 1.4.10
+// requests /releases/tags/<version>), so packages.json writes the version as the tag v<version>, which Composer normalizes to
+// the same version. A package whose download-url-method holds pre-packaged-binary has a dist that PIE replaces by the zip of
+// the platform and keeps the shasum of (OverrideDownloadUrlInstallListener), so Composer refused that zip; such a dist carries
+// no shasum, and a package that PIE does not redirect keeps the sha1 of its zip.
+test('K1261: packages.json names the tag as the version and no shasum for a pre-packaged-binary php-ext', (t) => {
+  const box = releaseSandbox(t, { mutate(root) {
+    edit(root, 'packages/fixture-php/composer.json', manifest => ({ ...manifest, type: 'php-ext', require: { php: '>=8.2' }, 'php-ext': { 'extension-name': 'kit_fixture', 'download-url-method': ['pre-packaged-binary'] } }));
+  } });
+  const output: string[] = [];
+  assert.equal(release.main(['candidate-assets', '0.0.1'], { root: box.root, env: context(box).env, print: line => output.push(line), error: line => output.push(line) }), 0, output.join('\n'));
+  const target = path.join(box.root, 'var/release/assets');
+  const zip = 'polyspec-kit-fixture-php-0.0.1.zip';
+  const manifest = readJson<ManifestJson>(box.root, 'packages/fixture-php/composer.json');
+  const dist = { type: 'zip', url: `https://example.com/polyspec/kit-fixture/releases/download/v0.0.1/${zip}` };
+  // packages.json is the format of Composer, which no schema of kit describes.
+  assert.deepEqual(JSON.parse(readFileSync(path.join(target, 'packages.json'), 'utf8')), { packages: { 'polyspec/kit-fixture': { 'v0.0.1': { ...manifest, version: 'v0.0.1', dist } } } });
 });
 
 test('K712 candidate archives refuse changed source inputs rather than packing worktree files', (t) => {
