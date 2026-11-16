@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1278: install-tools and ci-setup accept the selector `maturin`, which installs the `github:PyO3/maturin` of mise.toml alone. Before, `make install-tools TOOLS=maturin` failed with `unknown TOOLS selector maturin`, so a CI group that builds Python bindings with `link.mjs maturin` could not install the maturin that its mise.toml pins. Red: the K1278 test of `tests/kit/install-tools.test.mts` got that error; green: it passes, with the install-tools and toolchain-mise tests.
+
 - K1277: link and link-check take no tracked composer.json of the type `php-ext` or `php-ext-zend`, the PIE manifest of a PHP extension, as a Composer project. Before, with a `.links` that names a checkout such a manifest requires, link-check exited 2 with `no installed folder of <folder> links it; Fix: make install`, which make install did not change, since no composer install installs that folder. Red: the K1277 test of `tests/kit/link.test.mts` got that finding for both types; green: it passes, with the link and link-check tests.
 
 ## 0.0.116

@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- K1278: install-tools와 ci-setup이 mise.toml의 `github:PyO3/maturin`만 설치하는 selector `maturin`을 받습니다. 전에는 `make install-tools TOOLS=maturin`이 `unknown TOOLS selector maturin`으로 실패했으므로, `link.mjs maturin`으로 Python binding을 build하는 CI group은 mise.toml이 고정한 maturin을 설치할 수 없었습니다. Red: `tests/kit/install-tools.test.mts`의 K1278 시험이 그 오류를 받았고, green: 그 시험과 install-tools, toolchain-mise 시험이 통과합니다.
+
 - K1277: link와 link-check가 type이 `php-ext` 또는 `php-ext-zend`인 tracked composer.json, 곧 PHP extension의 PIE manifest를 Composer project로 보지 않습니다. 전에는 그런 manifest가 require하는 checkout을 `.links`가 지정하면 link-check가 `no installed folder of <folder> links it; Fix: make install`로 2를 내고 끝났고, 어떤 composer install도 그 폴더를 설치하지 않으므로 make install로 바뀌지 않았습니다. Red: `tests/kit/link.test.mts`의 K1277 시험이 두 type 모두에서 그 finding을 받았고, green: 그 시험과 link, link-check 시험이 통과합니다.
 
 ## 0.0.116

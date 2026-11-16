@@ -134,6 +134,13 @@ test('selected tools include only their declared mise prerequisites, and a missi
   assert.match(phplessPie.stderr, /selected PHP tools need PHP/);
 });
 
+test('K1278: TOOLS=maturin installs the github:PyO3/maturin of mise.toml alone, a release binary with no prerequisite', (t) => {
+  const { root, stubs } = checkout(t, '[tools]\n"github:PyO3/maturin" = "1.16.0"\n');
+  const result = start(INSTALL_TOOLS, root, stubs.env, 'maturin');
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(stubs.calls(), ['mise install github:PyO3/maturin']);
+});
+
 test('a requested tool absent from the checkout declaration is refused before mutation, and install-tools needs bootstrap mise', (t) => {
   const { root, stubs } = checkout(t, '[tools]\n');
   const named = start(INSTALL_TOOLS, root, stubs.env, 'ruff');
