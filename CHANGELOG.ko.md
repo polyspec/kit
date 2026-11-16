@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+## 0.0.118
+
 - K1280: link가 site-packages에 provider 배포판의 dist-info가 있을 때만 그 provider의 Python package 폴더를 연결합니다. 전에는 package path의 폴더가 있으면 설치된 것으로 셌으므로, 한 checkout의 두 배포판이 한 package path를 제공하고 project가 하나를 설치하면 link는 배포판이 설치되지 않은 provider도 같은 path에 연결했고, 실행의 마지막 provider가 폴더를 정했습니다. link-check는 제공 폴더가 존재하지 않는 선언된 package, 곧 지워진 link가 폴더를 비운 설치된 배포판도 보고합니다. 전에는 그 폴더를 설치된 것으로 셌습니다. Red: `tests/kit/link.test.mts`의 K1280 시험이 두 provider의 폴더를 모두 받았고, green: 설치된 것만 받으며 link, link-folders, link-check, uv-install 시험이 통과합니다.
 
 - K1279: link가 Python provider pyproject.toml의 `[tool.maturin] python-source`를 package의 source root로 읽습니다. 전에는 `src` 또는 hatchling wheel sources만 받았으므로, package가 `python-source` 아래에 있고 `src`에 Rust만 있는 maturin provider를 Python package가 없는 것으로 셌고, link는 같은 package path를 제공하는 provider의 다른 폴더를 연결했습니다. kit는 native module을 build하지 않습니다. Red: `tests/kit/link.test.mts`의 K1279 시험이 package를 찾지 못했고, green: 그 시험과 link, link-folders, link-check 시험이 통과합니다.

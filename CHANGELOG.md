@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+## 0.0.118
+
 - K1280: link links a Python package folder of a provider only when site-packages holds the dist-info of that provider's distribution. Before, an existing folder of the package path counted as installed, so when two distributions of one checkout offer one package path and the project installs one, link also linked the provider whose distribution is not installed over the same path, and the last provider of the run decided the folder. link-check also reports a declared package whose provided folder does not exist, as an installed distribution whose folder a removed link left missing; before, it counted that folder as installed. Red: the K1280 test of `tests/kit/link.test.mts` got the folders of both providers; green: it gets the installed one alone, with the link, link-folders, link-check and uv-install tests.
 
 - K1279: link reads `[tool.maturin] python-source` of a Python provider's pyproject.toml as the source root of its packages. Before, link took only `src` or the hatchling wheel sources, so a maturin provider whose package lies under `python-source` and whose `src` holds only Rust counted as having no Python package, and link linked another folder of the provider that offered the same package path. kit builds no native module. Red: the K1279 test of `tests/kit/link.test.mts` found no package; green: it passes, with the link, link-folders and link-check tests.
