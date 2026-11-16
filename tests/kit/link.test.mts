@@ -1220,6 +1220,23 @@ test('link cargo with a declaration passes the patches after the subcommand, whi
   assert.match(log(), /^cargo clippy --config resolver\.lockfile-path=\S+ --config patch\."https:\/\/github\.com\/polyspec\/prov"\.polyspec-prov\.path=\S+ --workspace -- -D warnings$/m);
 });
 
+// K1269: the lock copy names the version of the tag, and a linked checkout may hold another version of the crate, which cargo
+// leaves out of the graph as an unused patch and cannot update under --locked; so the copy is updated offline for each patched crate
+// with the same patches before the command, and the tracked lock stays as it is.
+test('link cargo with a declaration updates the lock copy offline for the patched crates before the command (K1269)', (t) => {
+  const { consumer, env, log } = workspace(t);
+  declareSiblings(consumer);
+  const lock = 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n';
+  put(consumer, { 'Cargo.lock': lock });
+  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', consumer, 'tree', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  const lines = log().split('\n');
+  const update = lines.findIndex(line => /^cargo update --config resolver\.lockfile-path=\S+ --config patch\."https:\/\/github\.com\/polyspec\/prov"\.polyspec-prov\.path=\S+ --offline -p polyspec-prov$/.test(line));
+  const tree = lines.findIndex(line => line.startsWith('cargo tree '));
+  assert.ok(update !== -1 && update < tree, log());
+  assert.equal(readFileSync(path.join(consumer, 'Cargo.lock'), 'utf8'), lock);
+});
+
 // K1266: maturin runs cargo itself, so the link gives maturin build the lock copy and the patches as its own --config options, which
 // maturin 1.16 passes to cargo (`maturin build --help`: --config <KEY=VALUE>); without a declaration maturin runs as given.
 test('link maturin with a declaration passes the lock copy and the patches to maturin after its subcommand (K1266)', (t) => {
@@ -1479,7 +1496,7 @@ test('K664-3 refuses a release selected instead of the sibling development sourc
   put(consumer, { 'Cargo.lock': 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n', 'release/Cargo.toml': '[package]\nname="polyspec-prov"\nversion="0.0.1"\n' });
   const metadata = JSON.stringify({ packages: [{ id: 'opaque-release', name: 'polyspec-prov', manifest_path: path.join(consumer, 'release/Cargo.toml') }], resolve: { nodes: [{ id: 'opaque-release' }] } });
   stub(path.dirname(env.CARGO), path.join(consumer, 'cargo-source.log'), 'cargo', `for arg in "$@"; do if [ "$arg" = locate-project ]; then echo "$PWD/Cargo.toml"; exit 0; fi; if [ "$arg" = update ]; then exit 0; fi; if [ "$arg" = metadata ]; then printf '%s' '${metadata}'; exit 0; fi; done; echo executed >> ${JSON.stringify(path.join(consumer, 'executed'))}`);
-  assert.throws(() => cargo({ directory: consumer, args: ['check'], checkouts: current, env }), /Cargo selected .*instead of development source .*; the requirement or git tag of polyspec-prov in the consumer Cargo\.toml does not match the provider version.*: a provider ahead of it is released first and then required/);
+  assert.throws(() => cargo({ directory: consumer, args: ['check'], checkouts: current, env }), /Cargo selected .*instead of development source .*; the requirement or git tag of polyspec-prov in the consumer Cargo\.toml admits no version.* of the checkout, so Cargo cannot use it; .*an exact version requirement is widened in the consumer/);
   assert.equal(existsSync(path.join(consumer, 'executed')), false);
   assert.equal(existsSync(path.join(consumer, 'var/link/cargo/root/execution.lock')), false);
   put(consumer, { 'Cargo.lock': 'version = 4\n' });
@@ -1651,14 +1668,16 @@ test('K1212: the go.work of a module replaces each version at which a module tha
   assert.doesNotMatch(linkLines([consumer], env, true).text, /NOT linked +go/);
 });
 
-test('K856: link cargo runs no cargo update, and link has no rebuild command', (t) => {
+test('K856, K1269: link cargo updates only the lock copy, and link has no rebuild command', (t) => {
   const { consumer, env } = workspace(t);
   writeFileSync(path.join(consumer, 'Cargo.lock'), 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\nsource = "git+https://github.com/polyspec/prov?tag=v0.0.1#abc"\n');
   const cargoLog = path.join(consumer, 'cargo-calls.log');
   const metadata = JSON.stringify({ packages: [{ id: 'provider', name: 'polyspec-prov', manifest_path: path.join(path.dirname(consumer), 'prov/rust/Cargo.toml') }], resolve: { nodes: [{ id: 'provider' }] } });
   stub(path.dirname(env.CARGO), cargoLog, 'cargo', `for arg in "$@"; do if [ "$arg" = locate-project ]; then echo "$PWD/Cargo.toml"; exit 0; fi; if [ "$arg" = metadata ]; then printf '%s' '${metadata}'; exit 0; fi; done`);
   assert.equal(cargo({ directory: consumer, args: ['fetch'], checkouts: current, env }), 0);
-  assert.doesNotMatch(readFileSync(cargoLog, 'utf8'), / update /);
+  const updates = readFileSync(cargoLog, 'utf8').split('\n').filter(line => line.startsWith('cargo update '));
+  assert.ok(updates.length === 1 && updates[0]?.includes(`resolver.lockfile-path=${JSON.stringify(path.join(consumer, 'var/link/cargo/root/Cargo.lock'))}`), updates.join('\n'));
+  assert.match(readFileSync(path.join(consumer, 'Cargo.lock'), 'utf8'), /tag=v0\.0\.1#abc/, 'the tracked lock is unchanged');
   const rebuild = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'rebuild', consumer], { encoding: 'utf8' });
   assert.notEqual(rebuild.status, 0);
   assert.doesNotMatch(rebuild.stderr, /rebuild <repository>/, 'the usage names no rebuild command');

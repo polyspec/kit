@@ -785,6 +785,9 @@ export function cargo({ directory, args, checkouts = [], env = process.env, runn
         }
       }
     }
+    // K1269: the copy names the versions of the tags, and a linked crate of another version is an unused patch that --locked cannot
+    // update; so cargo updates the copy offline for each patched crate with the same patches, and the tracked lock stays as it is.
+    if (patched.length) run(tool.command, [...channel, 'update', ...config, '--offline', ...patched.flatMap(name => ['-p', name]), ...manifestArgs], { cwd: directory, env: tool.env });
     // This validates the resolved workspace, including packages outside a caller's -p execution scope.
     if (checkouts.length && expected.size) {
       const metadata = run(tool.command, [...channel, ...config, 'metadata', '--format-version=1', ...graphArgs], { cwd: directory, env: tool.env });

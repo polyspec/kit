@@ -44,9 +44,9 @@ export function verifyCargoSources(text: string, expected: ReadonlyMap<string, s
     const folder = expected.get(item.name);
     if (!folder || !selected.has(item.id)) continue;
     if (realpathSync(item.manifest_path) === realpathSync(path.join(folder, 'Cargo.toml'))) continue;
-    // K856: the requirement of the consumer does not match its provider, a real mismatch that is resolved at its side; no lock is rewritten.
+    // K1269: the lock copy is already updated for the patch, so the requirement of the consumer admits no version of the checkout.
     const provided = packageVersion(folder);
     const version = typeof item.version === 'string' ? ` ${item.version}` : '';
-    throw new Error(`Cargo selected ${item.name}${version} at ${item.manifest_path}, instead of development source ${folder}; the requirement or git tag of ${item.name} in the consumer Cargo.toml does not match the provider version${provided === undefined ? '' : ` ${provided}`}: a provider ahead of it is released first and then required, a provider behind it is updated in its checkout; no release command was run`);
+    throw new Error(`Cargo selected ${item.name}${version} at ${item.manifest_path}, instead of development source ${folder}; the requirement or git tag of ${item.name} in the consumer Cargo.toml admits no version${provided === undefined ? '' : ` ${provided}`} of the checkout, so Cargo cannot use it; a requirement by git and tag admits every version, and an exact version requirement is widened in the consumer`);
   }
 }
