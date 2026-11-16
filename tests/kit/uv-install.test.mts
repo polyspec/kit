@@ -4,7 +4,8 @@ import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync,
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { uvInstallCommand, uvLink } from '../../scripts/kit/uv-install.mts';
+import { execFileSync } from 'node:child_process';
+import { pythonProviders, uvInstallCommand, uvLink } from '../../scripts/kit/uv-install.mts';
 
 function fixture(t: { after: (fn: () => void) => void }) {
   const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-uv-native-')));
@@ -144,4 +145,20 @@ test('K1134: a failed uv sync leaves the provider links as the installer found t
   assert.notEqual(uvInstallCommand([root], { ...env, UV_FIXTURE_SYNC: 'fail' }, line => lines.push(line)), 0, lines.join(''));
   assert.match(lines.join(''), /native Python development installation failed.*The lockfile needs to be updated/s);
   assert.equal(realpathSync(path.join(site, 'polyspec_new_unreleased')), path.join(checkout, 'src/polyspec_new_unreleased'));
+});
+
+test('K1258: the providers that the installer links are found as link-check finds them, a tracked pyproject.toml outside packages/ included', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-uv-providers-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const checkout = path.join(root, 'json');
+  const folder = path.join(checkout, 'legacy/packages/python');
+  mkdirSync(path.join(folder, 'src/polyspec/ordered_json'), { recursive: true });
+  writeFileSync(path.join(folder, 'pyproject.toml'), '[project]\nname = "polyspec-ordered-json"\nversion = "0.0.25"\n');
+  writeFileSync(path.join(folder, 'src/polyspec/ordered_json/__init__.py'), '');
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: checkout, stdio: 'pipe' });
+  git('init', '-q', '-b', 'main');
+  git('add', '-A');
+  git('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-q', '-m', 'fixture');
+  const found = pythonProviders([checkout], root);
+  assert.deepEqual(found.map(provider => [provider.name, provider.folder]), [['polyspec-ordered-json', folder]]);
 });

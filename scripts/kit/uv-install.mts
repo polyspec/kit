@@ -3,7 +3,7 @@
 import path from 'node:path';
 import { existsSync, readdirSync, readlinkSync, symlinkSync } from 'node:fs';
 import { checkoutProviders, environmentLinks, incompleteDistributions, linkFolders, present, providedFolders, releaseEnvironmentLinks } from './link-folders.mts';
-import { declaredCheckouts, type Provider } from './link-providers.mts';
+import { declaredCheckouts, providers as checkoutManifests, type Provider } from './link-providers.mts';
 import { isMain } from './paths.mts';
 import { cleanupAfter, run } from './process.mts';
 
@@ -36,6 +36,22 @@ function locationFlags(sync: readonly string[]): string[] {
     if (flag === '--project' || flag === '--directory') return [flag, sync[index + 1] ?? ''];
     return flag.startsWith('--project=') || flag.startsWith('--directory=') ? [flag] : [];
   });
+}
+
+/**
+ * The Python providers of the declared checkouts, found as link-check finds them: every tracked pyproject.toml of each main checkout, at
+ * any depth, such as legacy/packages/python, besides the package folders under packages/ (K1258). A discovery limited to packages/ left a
+ * provider that link-check requires unlinked.
+ */
+export function pythonProviders(checkouts: readonly string[], project: string): Provider[] {
+  const found = checkoutProviders(checkouts, 'python');
+  const names = new Set(found.map(provider => provider.name));
+  // A checkout that is no main checkout gives no tracked manifests; its packages/ folders above still provide.
+  const tracked = checkouts.filter(checkout => existsSync(path.join(checkout, '.git')));
+  for (const provider of checkoutManifests(tracked, undefined, project).values()) {
+    if (provider.ecosystem === 'python' && !names.has(provider.name)) { found.push(provider); names.add(provider.name); }
+  }
+  return found;
 }
 
 type UvSourcesOptions = {
@@ -106,7 +122,7 @@ export function uvInstallCommand(args: readonly string[], env: NodeJS.ProcessEnv
   try {
     // uv validates its own flags; the links of the environment that the flags choose go before the sync (K850).
     const sync = (env.UV_SYNC ?? '').split(/\s+/).filter(flag => flag !== '');
-    const providers = checkoutProviders(checkouts, 'python');
+    const providers = pythonProviders(checkouts, project);
     const linked = installSources({ directory: project, providers, uv: env.UV ?? 'uv', env, print: text => write(`${text}\n`) }, sync);
     write(`uv-install ${project}: native locked development sync passed${linked.length ? `; linked sources: ${linked.join(', ')}` : ''}\n`);
     return 0;

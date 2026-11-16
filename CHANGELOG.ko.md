@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- K1258: 개발 checkout의 Python 설치는 link-check가 요구하는 provider를 모두 link합니다. `uv-install`은 선언된 각 checkout의 `packages/` 아래 package folder에서만 provider를 찾았고, link-check는 추적되는 `pyproject.toml`을 모두 읽습니다. 그래서 `legacy/packages/python`으로 옮겨진 provider는 설치가 link를 풀고 release 사본으로 설치한 뒤 다시 link하지 않았고, link-check는 그것을 사본으로 보고했습니다. 이제 설치는 각 main checkout의 추적되는 manifest의 provider를 더합니다. red: `legacy/packages/python/pyproject.toml`만 추적하는 checkout의 `pythonProviders`는 0.0.114에서 아무것도 찾지 못했습니다. green: 그 provider를 찾습니다.
+
 - K1257: `install-vscode`의 `installedExecutable`은 consumer의 설치 명령 `fix`를 받아, VS Code 사본이 없을 때 그 명령을 이름합니다. 기본값은 `make install-vscode`입니다. 전에는 Makefile이 target을 다른 이름으로 두는 저장소에서도 오류가 `make install-vscode`를 이름했습니다. red: `tests/kit/install-vscode.test.mts`의 새 assertion은 0.0.114에서 실패합니다. green: 수정 뒤 통과합니다.
 
 - K1256: CI runner와 full run의 target은 recursive make처럼 호출한 make의 명령줄 변수를 받습니다. `runLogged`는 `MAKEFLAGS`의 `--` 뒤에 있는 `VAR=value` 낱말을 읽어 `make <target>`의 인자로 넘기고, flag, job server, level은 여전히 지웁니다. 전에는 `make -k check NAME=value`가 모든 target을 `NAME`의 기본값으로 실행했습니다. red: `tests/kit/ci.test.mts`의 새 시험은 0.0.114에서 `name=default`로 실패합니다. green: 수정 뒤 통과합니다.
