@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 00e5a8a46f6eae0679607678a99b49cf08d15398b4cc2eaf7a2df9b3a7a109b4 -->
+<!-- source-sha256: a6292ad699fc885f1fb89167c4b8e56e230bf8353189bc9a7532e2b7af8fb397 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |

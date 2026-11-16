@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+## 0.0.115
+
 - K1264: The tests of K1258 and K1259 create their repositories through `initRepository`; they ran `git init` themselves, which the sandbox test rejects, and ci of main failed from K1258 on.
 - K1262: docs-check requires the Korean twin of a checklist to hold the row IDs of its English file in their order. It compares only the IDs, the first cell of each task row; the text and the states of the twin stay its own, as K809 keeps them. Before, a twin that lacked rows passed: a consumer's Korean checklist missed fifteen rows of its English file and docs-check passed, so a utility that edits a row in both files had no Korean row to edit. kit's own Korean checklist held K1108 to K1112 in another place; it now follows the English order. Red: the K1262 test of `tests/kit/documents.test.mts` passed a twin that misses T1.2 and holds T1.4; green: that twin and a reordered twin fail with `checklist-pair`, naming the missing and the extra IDs, and the 54 tests of the documents and checklist files pass.
 

@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 45642e9ab40eeecb8ad1003f175b2ed0e2241e72bdf6827c4f4384c6790b125a -->
+<!-- source-sha256: e2ef6a1c66ef09caeabad5a87d2767ad455ec887acfe3f77a11d74f2e82fad52 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.115
 
 - K1264: K1258과 K1259의 시험이 저장소를 `initRepository`로 만든다. 그 시험은 `git init`을 직접 실행했고 sandbox 시험이 그것을 거부해서, K1258부터 main의 ci가 실패했다.
 - K1262: docs-check는 checklist의 한국어 twin이 영어 파일의 행 ID를 같은 순서로 가지기를 요구합니다. 비교하는 것은 각 task 행의 첫 칸인 ID뿐이고, twin의 문장과 state는 K809대로 twin 자신의 것입니다. 전에는 행이 빠진 twin도 통과했습니다. 한 consumer의 한국어 checklist가 영어 파일의 열다섯 행을 빠뜨렸는데 docs-check가 통과했고, 그래서 두 파일의 행을 함께 고치는 utility가 고칠 한국어 행이 없었습니다. kit 자신의 한국어 checklist는 K1108~K1112를 다른 자리에 두고 있었고, 이제 영어 순서를 따릅니다. red: `tests/kit/documents.test.mts`의 K1262 시험은 T1.2가 없고 T1.4가 있는 twin을 통과시켰습니다. green: 그 twin과 순서가 바뀐 twin이 빠진 ID와 남는 ID를 적은 `checklist-pair`로 실패하고, documents와 checklist 파일의 시험 54개가 통과합니다.
