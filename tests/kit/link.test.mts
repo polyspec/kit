@@ -4,7 +4,7 @@
 // Python, go or cargo runs. make is the make of the machine, on Makefiles of the fixture.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, closeSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import nodeTest, { type TestContext } from 'node:test';
@@ -1198,6 +1198,24 @@ test('link writes no Claude Code settings into the workspace folder, even beside
   linkSiblings(consumer, env);
   assert.equal(existsSync(path.join(path.dirname(consumer), '.claude')), false);
   assert.equal(existsSync(path.join(consumer, '.claude')), false);
+});
+
+// K1283: cargo test writes `Running <target>` to stderr before the lines of its tests on stdout, and run-tests names the suite of a
+// test by that line, so the wrapper passes the streams of cargo through as cargo writes them instead of each one after the run.
+test('link cargo passes the stdout and stderr of cargo through in the order that cargo writes them (K1283)', (t) => {
+  const { root, consumer, env } = workspace(t);
+  const fake = path.join(root, 'bin/interleaving-cargo');
+  put(root, { 'bin/interleaving-cargo': '#!/bin/sh\necho "Running one" >&2\necho "test a ... ok"\necho "Running two" >&2\necho "test b ... ok"\nexit 3\n' });
+  chmodSync(fake, 0o755);
+  const output = path.join(root, 'cargo-output.txt');
+  const fd = openSync(output, 'w');
+  try {
+    const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', consumer, 'test'], { cwd: consumer, env: { ...env, CARGO: fake }, stdio: ['ignore', fd, fd] });
+    assert.equal(run.status, 3, 'the exit status of cargo is that of the wrapper');
+  } finally {
+    closeSync(fd);
+  }
+  assert.equal(readFileSync(output, 'utf8'), 'Running one\ntest a ... ok\nRunning two\ntest b ... ok\n');
 });
 
 test('link cargo with a declaration runs cargo with the sibling crates patched and the arguments unchanged (K448-5)', (t) => {

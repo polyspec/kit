@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 667511efbfff8c9228af1ab8bba43f37eeafb9773d9e5a90372b0b2e1c5f9971 -->
+<!-- source-sha256: 019ced55e39d71416eb75d0c961d9d384db04b75567b8217695e007c341e6d64 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1283: `link.mjs cargo`가 cargo 명령을 wrapper의 stdio로 실행하므로, stdout과 stderr 줄이 cargo가 쓰는 순서대로 읽는 쪽에 닿습니다. exit status와 시작할 수 없는 명령의 error는 그대로입니다. 전에는 wrapper가 두 stream을 buffer하고 stdout 전체, 그다음 stderr 전체를 썼으므로, cargo test의 `Running <target>` 줄이 그 test 줄 뒤에 왔고 run-tests는 test의 suite를 적지 못했습니다. 그 명령의 buffer된 출력을 읽는 호출자는 없었습니다. Red: stderr 줄과 stdout 줄을 번갈아 한 파일에 쓰는 cargo stub으로 `tests/kit/link.test.mts`의 K1283 시험이 stdout 줄을 먼저 받았고, green: link와 run-tests 시험과 함께 stub의 순서를 받습니다.
 
 - K1284: rules-check가 AGENTS 항목 `Refines <id>: No object: <reason>`을, PHP library가 없는 저장소의 S10처럼 원칙 `<id>`가 저장소에 대상이 없다는 진술로 읽습니다. 그 저장소에서는 그 원칙의 `Enforced by:` 줄의 검사를 검사하지 않고, 항목은 자기 `Enforced by:` 줄로 검사되며 PRINCIPLES.md의 규칙을 적고 저장소의 용어가 필요 없습니다. `docs/operations/adoption.md`가 그 형식을 적습니다. 전에는 모든 원칙의 검사를 검사해서, 그런 저장소가 정의할 이유가 없는 target에 대해 `make <target> is no target of the Makefile`로 실패했습니다. Red: `tests/kit/check-rules.test.mts`의 K1284 시험이 S10 target과 빠진 용어의 finding을 받았고, green: finding을 받지 않으며 check-rules 시험과 kit 자신의 rules-check가 통과합니다.
 

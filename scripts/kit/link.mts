@@ -35,7 +35,7 @@ import { assertIgnored, declaredCheckouts, type Ecosystem, EXCLUDED, goModule, t
 import { readComposerManifestFile } from './manifests.mts';
 import { toolCommand } from './mise-tools.mts';
 import { isMain } from './paths.mts';
-import { errorCode, execute, run } from './process.mts';
+import { errorCode, executeInherited, run } from './process.mts';
 import { acquireHolderLock } from './holder-lock.mts';
 import { cargoMetadataArguments, verifyCargoSources } from './cargo-source.mts';
 import { manifestPolyspecNames } from './pyproject-dependencies.mts';
@@ -806,10 +806,9 @@ export function cargo({ directory, args, checkouts = [], env = process.env, runn
     // The configuration follows the subcommand (K802): cargo passes a --config before it to no external subcommand, and cargo clippy runs
     // cargo again, which would resolve the git tag of the lock instead of the sibling.
     const [subcommand, ...options] = commandArgs;
-    const outcome = execute(command, [...channel, ...(subcommand === undefined ? [] : [subcommand]), ...config, ...options], { cwd: directory, env: tool.env });
+    // K1283: the streams pass through as cargo writes them, so `Running <target>` on stderr stays before the lines of its tests.
+    const outcome = executeInherited(command, [...channel, ...(subcommand === undefined ? [] : [subcommand]), ...config, ...options], { cwd: directory, env: tool.env });
     if (outcome.error) throw new Error(`${command} could not start: ${outcome.error.message}`);
-    process.stdout.write(outcome.stdout);
-    process.stderr.write(outcome.stderr);
     return outcome.status ?? 1;
   } finally {
     held?.release();

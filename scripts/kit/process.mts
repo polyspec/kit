@@ -24,6 +24,12 @@ export const execute = (command: string, args: readonly string[], { cwd, env }: 
   return spawn.sync(command, [...args], { cwd, env, encoding: 'utf8', maxBuffer: MAX_BUFFER });
 };
 
+/** Runs a command to its end with the stdio of this process, so its lines reach the reader as it writes them; returns its status and start error. */
+export const executeInherited = (command: string, args: readonly string[], { cwd, env }: RunPlace = {}): { status: number | null; error: Error | undefined } => {
+  const { status, error } = spawn.sync(command, [...args], { cwd, env, stdio: 'inherit' });
+  return { status, error };
+};
+
 /** The standard output and standard error of a command; Stop with the command, its exit status or the signal that ended it, and its output when the status is not in `statuses`. */
 export function runOutput(command: string, args: readonly string[], { cwd, env, statuses = [0] }: RunPlace & { statuses?: readonly number[] | undefined } = {}): { stdout: string; stderr: string } {
   const result = execute(command, args, { cwd, env });
