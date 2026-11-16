@@ -36,7 +36,6 @@ import { readComposerManifestFile } from './manifests.mts';
 import { toolCommand } from './mise-tools.mts';
 import { isMain } from './paths.mts';
 import { errorCode, execute, run } from './process.mts';
-import { cannotStart, INSTALL } from './tool-install.mts';
 import { acquireHolderLock } from './holder-lock.mts';
 import { cargoMetadataArguments, verifyCargoSources } from './cargo-source.mts';
 import { manifestPolyspecNames } from './pyproject-dependencies.mts';
@@ -60,12 +59,10 @@ const isLinkRuntime = (value: string): value is LinkRuntime => Object.hasOwn(RUN
 function consumerTool(top: string, name: 'npm' | 'composer' | 'uv' | 'go' | 'cargo', env: NodeJS.ProcessEnv): Tool {
   const variable = { npm: 'NPM', composer: 'COMPOSER_BIN', uv: 'UV', go: 'GO', cargo: 'CARGO' }[name];
   const given = env[variable];
-  // A go or cargo that cannot start fails with the fix of the runner (K1276).
-  const fix = INSTALL[name]?.({ cwd: top, root: top });
-  if (given) return { command: given, env, fix };
-  if (name === 'cargo') return { command: 'cargo', env, fix };
+  if (given) return { command: given, env };
+  if (name === 'cargo') return { command: 'cargo', env };
   // The tool of the checkout, else the one on PATH (K947).
-  return { command: toolCommand(top, name), env, fix };
+  return { command: toolCommand(top, name), env };
 }
 
 /** The real path of `file`, or undefined when it does not exist; any other error is thrown. */
@@ -243,7 +240,7 @@ const replaced = (item: { module: string; version: string }): string => (item.ve
  */
 function readGoWorkspace(go: Tool, file: string, env: NodeJS.ProcessEnv = go.env): { uses: { written: string; folder: string }[]; replaces: { module: string; version: string; folder: string | undefined }[] } {
   const directory = path.dirname(file);
-  const parsed: unknown = JSON.parse(run(go.command, ['work', 'edit', '-json', file], { cwd: directory, env, fix: go.fix }));
+  const parsed: unknown = JSON.parse(run(go.command, ['work', 'edit', '-json', file], { cwd: directory, env }));
   if (!isJsonObject(parsed)) throw new Error(`${file}: go work edit -json printed no object`);
   const uses = (Array.isArray(parsed.Use) ? parsed.Use : []).flatMap(item => (isJsonObject(item) && typeof item.DiskPath === 'string' ? [{ written: item.DiskPath, folder: path.resolve(directory, item.DiskPath) }] : []));
   const replaces = (Array.isArray(parsed.Replace) ? parsed.Replace : []).flatMap((item) => {
@@ -286,7 +283,7 @@ function goReplaces(folders: readonly string[], linked: ReadonlyMap<string, Prov
  */
 export function writeGoWorkspace(go: Tool, file: string, folders: readonly string[], replaces: readonly GoReplace[] = []): void {
   const directory = path.dirname(file);
-  const place = { cwd: directory, env: { ...go.env, GOWORK: file }, fix: go.fix };
+  const place = { cwd: directory, env: { ...go.env, GOWORK: file } };
   const desired = new Set(folders.map(folder => path.resolve(folder)));
   const shown = (folder: string) => path.relative(directory, folder) || '.';
   // go work init writes the use directives that it is given, and no replace.
@@ -356,7 +353,7 @@ function linkGo(work: Run, consumer: Consumer) {
         if (actual?.folder !== undefined && (real(actual.folder) ?? actual.folder) === (real(item.folder) ?? item.folder)) continue;
         if (actual === undefined) {
           // K1238: Go's workspace selection already supplies a main module; a replace is not its source identity.
-          const selected: unknown = JSON.parse(run(go.command, ['list', '-m', '-json', item.module], { cwd: directory, env: { ...go.env, GOWORK: file }, fix: go.fix }));
+          const selected: unknown = JSON.parse(run(go.command, ['list', '-m', '-json', item.module], { cwd: directory, env: { ...go.env, GOWORK: file } }));
           if (!isJsonObject(selected)) throw new Error(`${file}: go list -m -json printed no module object`);
           if (selected.Main === true && selected.Path === item.module) {
             const source = typeof selected.Dir === 'string' ? real(selected.Dir) : undefined;
@@ -763,7 +760,7 @@ export function cargo({ directory, args, checkouts = [], env = process.env, runn
   try {
     // K1270: cargo fmt takes no --config and formats only the files of the workspace's own crates, which no patch changes.
     if (checkouts.length && !(runner === 'cargo' && commandArgs[0] === 'fmt')) {
-      const workspace = path.dirname(run(tool.command, [...channel, 'locate-project', '--workspace', '--message-format', 'plain', ...manifestArgs], { cwd: consumer.scope, env: tool.env, fix: tool.fix }).trim());
+      const workspace = path.dirname(run(tool.command, [...channel, 'locate-project', '--workspace', '--message-format', 'plain', ...manifestArgs], { cwd: consumer.scope, env: tool.env }).trim());
       held = acquireHolderLock(path.join(consumer.top, 'var/link/cargo', path.relative(consumer.top, workspace).replaceAll('/', '_') || 'root', 'execution.lock'), { checkout: consumer.top, command: ['cargo', ...args].join(' ') });
       // A fresh copy of the tracked lock on every run, so the patches resolve against the lock of the tree.
       const copy = linkFile(consumer.top, path.join('cargo', path.relative(consumer.top, workspace).replaceAll('/', '_') || 'root', 'Cargo.lock'));
@@ -793,17 +790,17 @@ export function cargo({ directory, args, checkouts = [], env = process.env, runn
     }
     // K1269: the copy names the versions of the tags, and a linked crate of another version is an unused patch that --locked cannot
     // update; so cargo updates the copy offline for each patched crate with the same patches, and the tracked lock stays as it is.
-    if (patched.length) run(tool.command, [...channel, 'update', ...config, '--offline', ...patched.flatMap(name => ['-p', name]), ...manifestArgs], { cwd: directory, env: tool.env, fix: tool.fix });
+    if (patched.length) run(tool.command, [...channel, 'update', ...config, '--offline', ...patched.flatMap(name => ['-p', name]), ...manifestArgs], { cwd: directory, env: tool.env });
     // This validates the resolved workspace, including packages outside a caller's -p execution scope.
     if (checkouts.length && expected.size) {
-      const metadata = run(tool.command, [...channel, ...config, 'metadata', '--format-version=1', ...graphArgs], { cwd: directory, env: tool.env, fix: tool.fix });
+      const metadata = run(tool.command, [...channel, ...config, 'metadata', '--format-version=1', ...graphArgs], { cwd: directory, env: tool.env });
       verifyCargoSources(metadata, expected);
     }
     // The configuration follows the subcommand (K802): cargo passes a --config before it to no external subcommand, and cargo clippy runs
     // cargo again, which would resolve the git tag of the lock instead of the sibling.
     const [subcommand, ...options] = commandArgs;
     const outcome = execute(command, [...channel, ...(subcommand === undefined ? [] : [subcommand]), ...config, ...options], { cwd: directory, env: tool.env });
-    if (outcome.error) throw new Error(runner === 'cargo' && tool.fix !== undefined ? cannotStart(command, outcome.error, tool.fix) : `${command} could not start: ${outcome.error.message}`);
+    if (outcome.error) throw new Error(`${command} could not start: ${outcome.error.message}`);
     process.stdout.write(outcome.stdout);
     process.stderr.write(outcome.stderr);
     return outcome.status ?? 1;

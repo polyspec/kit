@@ -6,8 +6,6 @@
 
 ## Unreleased
 
-- K1276: `link.mjs`가 시작하는 go나 cargo가 시작할 수 없으면 test runner(K947)와 같은 형식과 설치 안내인 `cannot start <tool>: <cause>; <fix>`로 실패하며, 둘은 `scripts/kit/tool-install.mts`의 `cannotStart`와 `INSTALL`을 함께 씁니다. 전에는 cargo가 없을 때 `link.mjs cargo`가 rustup 설치 안내 없이 `cargo could not start: spawnSync cargo ENOENT`만 말했습니다. Red: `tests/kit/link.test.mts`의 K1276 시험이 설치 안내를 찾지 못했고, green: 그 시험과 link, run-tests 시험이 통과합니다.
-
 ## 0.0.116
 
 - K1273: `link.mjs cargo`가 lock 사본에 있는 patch된 crate의 각 version을 `-p <name>@<version>`으로 갱신합니다. 전에는 두 tag가 끌어온 한 crate의 두 version을 가진 사본에서 `cargo update -p <name>`이 모호하다며 101로 끝났습니다. Red: `tests/kit/link.test.mts`의 K1273 시험이 version별 갱신을 찾지 못했고, green: 그 시험과 link 시험이 통과합니다.

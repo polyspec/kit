@@ -5,8 +5,6 @@
 
 ## Unreleased
 
-- K1276: a go or cargo that `link.mjs` starts and that cannot start fails with `cannot start <tool>: <cause>; <fix>`, the form and the install fix of the test runner (K947), through `cannotStart` and `INSTALL` of `scripts/kit/tool-install.mts`, which both use. Before, `link.mjs cargo` without a cargo said only `cargo could not start: spawnSync cargo ENOENT`, without the install of rustup. Red: the K1276 test of `tests/kit/link.test.mts` found no install fix; green: it passes, with the link and run-tests tests.
-
 ## 0.0.116
 
 - K1273: `link.mjs cargo` updates each version of a patched crate in the lock copy by `-p <name>@<version>`. Before, a copy that held one crate at two versions, pulled in by two tags, made `cargo update -p <name>` exit 101 as ambiguous. Red: the K1273 test of `tests/kit/link.test.mts` found no per-version update; green: it passes, with the link tests.
