@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1281: item-new and item-edit take VERIFICATION_KO and DELIVERABLES_KO and write them into the Korean twin of the checklist; each is required wherever VERIFICATION or DELIVERABLES is given, as TASK_KO is with TASK. Before, the one VERIFICATION and the one DELIVERABLES were written into both twins, though such a cell holds prose as well as commands and paths, so the Korean twin received the English text. Red: the K1281 test of `tests/kit/plan.test.mts` found the English Verification and Deliverables in the Korean twin; green: the Korean twin holds the Korean texts, a text without its Korean twin is refused, and the plan tests pass.
+
 ## 0.0.118
 
 - K1280: link links a Python package folder of a provider only when site-packages holds the dist-info of that provider's distribution. Before, an existing folder of the package path counted as installed, so when two distributions of one checkout offer one package path and the project installs one, link also linked the provider whose distribution is not installed over the same path, and the last provider of the run decided the folder. link-check also reports a declared package whose provided folder does not exist, as an installed distribution whose folder a removed link left missing; before, it counted that folder as installed. Red: the K1280 test of `tests/kit/link.test.mts` got the folders of both providers; green: it gets the installed one alone, with the link, link-folders, link-check and uv-install tests.

@@ -5,10 +5,10 @@
 //   plan-new   NAME=<name> TITLE=<English title> TITLE_KO=<Korean title> [NAME_PATTERN=<regular expression>]
 //              writes docs/plans/<slug>/ with plan.md, checklist.md and their Korean twins: the doc-id, the language link,
 //              the header of the checklist table and the revision marker of each Korean file
-//   item-new   PLAN=<slug> ID=<id> TASK= TASK_KO= DELIVERABLES= VERIFICATION=
+//   item-new   PLAN=<slug> ID=<id> TASK= TASK_KO= DELIVERABLES= DELIVERABLES_KO= VERIFICATION= VERIFICATION_KO=
 //              adds the row of the item in the waiting state to the checklist of the plan and to its Korean twin: a sub-item
 //              (an ID that ends in -<n>) after the last sub-item of its parent, another item at the end of the last table
-//   item-edit  ID=<id> [TASK= TASK_KO= DELIVERABLES= VERIFICATION= | CAUSE= RETRY= CAUSE_KO= RETRY_KO=] [DONE_STAYS=1]
+//   item-edit  ID=<id> [TASK= TASK_KO= DELIVERABLES= DELIVERABLES_KO= VERIFICATION= VERIFICATION_KO= | CAUSE= RETRY= CAUSE_KO= RETRY_KO=] [DONE_STAYS=1]
 //              replaces the Task, Deliverables or Verification cells of the item in both languages, or rewrites the cause and the
 //              retry of a bypassed item (the cause alone of an impossible one) with the checks of item-state
 //   item-state ID=<id> STATE=<state> [CAUSE= RETRY= CAUSE_KO= RETRY_KO=]
@@ -149,7 +149,7 @@ function headBranch(root: string): string | undefined {
 }
 
 /** The new row of an item. */
-export type NewItem = { plan: string; id: string; task: string | undefined; taskKo: string | undefined; deliverables: string | undefined; verification: string | undefined };
+export type NewItem = { plan: string; id: string; task: string | undefined; taskKo: string | undefined; deliverables: string | undefined; deliverablesKo: string | undefined; verification: string | undefined; verificationKo: string | undefined };
 
 /**
  * Adds the waiting row of `item` to the checklist of its plan and to the Korean twin, and returns the two files as
@@ -168,9 +168,10 @@ export function newItem(root: string, item: NewItem): Record<string, string> {
   if (own !== undefined) throw new Error(`${item.id} is held by ${own.path}; choose a fresh ID`);
   const [held] = mainHolders(root, config, item.id);
   if (held !== undefined) throw new Error(`${item.id} is held by ${held} of main; choose a fresh ID`);
-  const tail = ` | ${cell(item.deliverables, 'DELIVERABLES')} | ${cell(item.verification, 'VERIFICATION')} | ${statesOf(tracker).waiting} |`;
-  const english = `| ${item.id} | ${cell(item.task, 'TASK')}${tail}`;
-  const korean = `| ${item.id} | ${cell(item.taskKo, 'TASK_KO')}${tail}`;
+  // Each twin takes its own Deliverables and Verification, since a cell holds prose as well as paths and commands (K1281).
+  const waiting = statesOf(tracker).waiting;
+  const english = `| ${item.id} | ${cell(item.task, 'TASK')} | ${cell(item.deliverables, 'DELIVERABLES')} | ${cell(item.verification, 'VERIFICATION')} | ${waiting} |`;
+  const korean = `| ${item.id} | ${cell(item.taskKo, 'TASK_KO')} | ${cell(item.deliverablesKo, 'DELIVERABLES_KO')} | ${cell(item.verificationKo, 'VERIFICATION_KO')} | ${waiting} |`;
   const read = (name: string) => readFileSync(path.join(root, name), 'utf8');
   const files = restamped(root, {
     [tracker.path]: inserted(read(tracker.path), item.id, english),
@@ -181,37 +182,40 @@ export function newItem(root: string, item: NewItem): Record<string, string> {
 }
 
 /**
- * Replaces the Verification cell of the row of the item `id` in the checklist and in its Korean twin (K353), or its Task cells, the
- * English `task` and the Korean `taskKo` together (K373), or its Deliverables cell, the same in both languages (K388), through the
- * checks of newItem; returns the two files as { path: text }. Throws, writing nothing, for an item that is no row, the Verification or
- * the Verification or the Deliverables of a done item when the caller declares `doneStays` (K1116), a Task without its Korean twin and a
- * cell that fails the checks of docs-check. The Task of a done item is corrected, since its words are no state.
+ * Replaces the Verification cells of the row of the item `id` in the checklist and in its Korean twin (K353), or its Task cells (K373),
+ * or its Deliverables cells (K388), each the English text and the Korean text together (K1281), through the checks of newItem; returns
+ * the two files as { path: text }. Throws, writing nothing, for an item that is no row, the Verification or the Deliverables of a done
+ * item when the caller declares `doneStays` (K1116), a text without its Korean twin and a cell that fails the checks of docs-check. The Task of a done item is corrected, since its words are no state.
  */
-export function editItem(root: string, { id, deliverables, verification, task, taskKo, doneStays = false }: { id: string; deliverables?: string | undefined; verification?: string | undefined; task?: string | undefined; taskKo?: string | undefined; doneStays?: boolean }): Record<string, string> {
+export function editItem(root: string, { id, deliverables, deliverablesKo, verification, verificationKo, task, taskKo, doneStays = false }: { id: string; deliverables?: string | undefined; deliverablesKo?: string | undefined; verification?: string | undefined; verificationKo?: string | undefined; task?: string | undefined; taskKo?: string | undefined; doneStays?: boolean }): Record<string, string> {
   if ((task === undefined) !== (taskKo === undefined)) throw new Error('item-edit takes TASK and TASK_KO together: the Korean twin holds the same information');
+  if ((deliverables === undefined) !== (deliverablesKo === undefined)) throw new Error('item-edit takes DELIVERABLES and DELIVERABLES_KO together: the Korean twin holds the same information');
+  if ((verification === undefined) !== (verificationKo === undefined)) throw new Error('item-edit takes VERIFICATION and VERIFICATION_KO together: the Korean twin holds the same information');
   // Without a Task or a Deliverables the Verification is edited, and an empty one is refused by its cell.
   const editsVerification = verification !== undefined || (task === undefined && deliverables === undefined);
   const trackers = trackersOf(loadConfig(root), workingPlanFiles(root));
   const read = (name: string) => readFileSync(path.join(root, name), 'utf8');
   const tracker = trackers.find(entry => readChecklist(read(entry.path), entry).items.some(item => item.id === id));
   if (!tracker) throw new Error(`${id} is no item of a checklist of ${PLANS}`);
-  const replaced = (text: string, taskText: string | undefined, taskName: string) => {
+  const replaced = (text: string, suffix: '' | '_KO', taskText: string | undefined, deliverablesText: string | undefined, verificationText: string | undefined) => {
     const lines = text.split('\n');
     const index = lines.findIndex(line => line.startsWith(`| ${id} |`));
     const cells = (lines[index] ?? '').replace(/^\| /, '').replace(/ \|$/, '').split(' | ');
     if (cells.length !== 5) throw new Error(`the row of ${id} holds ${cells.length} cells, not the 5 of a checklist row`);
-    // The Deliverables cell is the same text in both languages (K388), so it is edited in each file like the Verification.
     if (doneStays && (editsVerification || deliverables !== undefined)) {
       const { done } = statesOf(tracker);
       if (cells[4]?.startsWith(done)) throw new Error(`${id} is ${done}; from ${done} an item stays; a new finding is an item of its own`);
     }
-    if (editsVerification) cells[3] = cell(verification, 'VERIFICATION');
-    if (deliverables !== undefined) cells[2] = cell(deliverables, 'DELIVERABLES');
-    if (taskText !== undefined) cells[1] = cell(taskText, taskName);
+    if (editsVerification) cells[3] = cell(verificationText, `VERIFICATION${suffix}`);
+    if (deliverablesText !== undefined) cells[2] = cell(deliverablesText, `DELIVERABLES${suffix}`);
+    if (taskText !== undefined) cells[1] = cell(taskText, `TASK${suffix}`);
     lines[index] = `| ${cells.join(' | ')} |`;
     return lines.join('\n');
   };
-  const files = restamped(root, { [tracker.path]: replaced(read(tracker.path), task, 'TASK'), [tracker.translation]: replaced(read(tracker.translation), taskKo, 'TASK_KO') });
+  const files = restamped(root, {
+    [tracker.path]: replaced(read(tracker.path), '', task, deliverables, verification),
+    [tracker.translation]: replaced(read(tracker.translation), '_KO', taskKo, deliverablesKo, verificationKo),
+  });
   for (const [name, text] of Object.entries(files)) writeFileSync(path.join(root, name), text);
   return files;
 }
@@ -504,7 +508,7 @@ if (isMain(import.meta.url)) {
     if (command === 'plan-new') {
       for (const file of Object.keys(newPlan(root, { name: required(env.NAME, 'NAME'), title: env.TITLE, titleKo: env.TITLE_KO, pattern: env.NAME_PATTERN || undefined }))) console.log(`[plan] wrote ${file}`);
     } else if (command === 'item-new') {
-      const item = { plan: required(env.PLAN, 'PLAN'), id: required(env.ID, 'ID'), task: env.TASK, taskKo: env.TASK_KO, deliverables: env.DELIVERABLES, verification: env.VERIFICATION };
+      const item = { plan: required(env.PLAN, 'PLAN'), id: required(env.ID, 'ID'), task: env.TASK, taskKo: env.TASK_KO, deliverables: env.DELIVERABLES, deliverablesKo: env.DELIVERABLES_KO, verification: env.VERIFICATION, verificationKo: env.VERIFICATION_KO };
       const branch = headBranch(root);
       if (branch === 'main') registerOnMain(root, item, required(env.BODY_FILE, 'BODY_FILE'), env);
       else for (const file of Object.keys(newItem(root, item))) console.log(`[plan] added ${item.id} to ${file}`);
@@ -512,10 +516,10 @@ if (isMain(import.meta.url)) {
       const id = required(env.ID, 'ID');
       // The cause and the retry of a held item are edited apart from the cells of editItem.
       const held = [env.CAUSE, env.RETRY, env.CAUSE_KO, env.RETRY_KO].some(value => value !== undefined);
-      if (held && [env.TASK, env.TASK_KO, env.DELIVERABLES, env.VERIFICATION].some(value => value !== undefined)) throw new Error('item-edit takes CAUSE, RETRY, CAUSE_KO and RETRY_KO apart from TASK, TASK_KO, DELIVERABLES and VERIFICATION');
+      if (held && [env.TASK, env.TASK_KO, env.DELIVERABLES, env.DELIVERABLES_KO, env.VERIFICATION, env.VERIFICATION_KO].some(value => value !== undefined)) throw new Error('item-edit takes CAUSE, RETRY, CAUSE_KO and RETRY_KO apart from TASK, TASK_KO, DELIVERABLES, DELIVERABLES_KO, VERIFICATION and VERIFICATION_KO');
       const files = held
         ? editState(root, { id, cause: env.CAUSE, retry: env.RETRY, causeKo: env.CAUSE_KO, retryKo: env.RETRY_KO })
-        : editItem(root, { id, deliverables: env.DELIVERABLES, verification: env.VERIFICATION, task: env.TASK, taskKo: env.TASK_KO, doneStays: env.DONE_STAYS === '1' });
+        : editItem(root, { id, deliverables: env.DELIVERABLES, deliverablesKo: env.DELIVERABLES_KO, verification: env.VERIFICATION, verificationKo: env.VERIFICATION_KO, task: env.TASK, taskKo: env.TASK_KO, doneStays: env.DONE_STAYS === '1' });
       for (const file of Object.keys(files)) console.log(`[plan] edited ${id} in ${file}`);
     } else if (command === 'item-state') {
       const change = { id: required(env.ID, 'ID'), state: required(env.STATE, 'STATE'), cause: env.CAUSE, retry: env.RETRY, causeKo: env.CAUSE_KO, retryKo: env.RETRY_KO };

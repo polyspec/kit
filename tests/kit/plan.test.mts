@@ -58,7 +58,7 @@ function plans(t: Parameters<typeof tree>[0], ...names: string[]) {
   return root;
 }
 
-const item = (plan: string, id: string, extra: Partial<Parameters<typeof newItem>[1]> = {}) => ({ plan, id, task: `Task ${id}`, taskKo: `작업 ${id}`, deliverables: '`a.mts`', verification: '`node --test a.test.mts`', ...extra });
+const item = (plan: string, id: string, extra: Partial<Parameters<typeof newItem>[1]> = {}) => ({ plan, id, task: `Task ${id}`, taskKo: `작업 ${id}`, deliverables: '`a.mts`', deliverablesKo: '`a.mts`', verification: '`node --test a.test.mts`', verificationKo: '`node --test a.test.mts`', ...extra });
 const rows = (root: string, file: string) => readFileSync(path.join(root, file), 'utf8').split('\n').filter(line => line.startsWith('| T'));
 
 test('item-new adds a waiting row to a checklist and its twin, a sub-item after the last sub-item of its parent (K249-1)', (t) => {
@@ -92,7 +92,8 @@ test('item-new and item-edit write each text through make as given, with its dol
   const root = plans(t, 'parser');
   writeFileSync(path.join(root, 'Makefile'), KIT_MAKEFILE);
   const text = 'run $(RUN_TESTS) and $$HOME, it\'s "quoted"';
-  const made = spawnSync('make', ['--no-print-directory', '-C', root, 'item-new', 'PLAN=parser', 'ID=T1', `TASK=${text}`, 'TASK_KO=작업', 'DELIVERABLES=`a.mts`', 'VERIFICATION=`node --test a.test.mts`'], { encoding: 'utf8' });
+  const made = spawnSync('make', ['--no-print-directory', '-C', root, 'item-new', 'PLAN=parser', 'ID=T1', `TASK=${text}`, 'TASK_KO=작업', 'DELIVERABLES=`a.mts`', 'DELIVERABLES_KO=`a.mts` $(KO)', 'VERIFICATION=`node --test a.test.mts`', 'VERIFICATION_KO=`node --test a.test.mts` $$KO'], { encoding: 'utf8' });
+  assert.equal(rows(root, 'docs/plans/parser/checklist.ko.md')[0], '| T1 | 작업 | `a.mts` $(KO) | `node --test a.test.mts` $$KO | [ ] |', 'the Korean texts reach their twin as given (K1281)');
   assert.equal(made.status, 0, made.stdout + made.stderr);
   assert.ok((rows(root, 'docs/plans/parser/checklist.md')[0] ?? '').includes(` | ${text} | `), rows(root, 'docs/plans/parser/checklist.md').join('\n'));
   const edited = `run $(HOME) and $$(date), it's`;
@@ -227,7 +228,7 @@ test('item-new, item-edit and item-state write the marker of the new English tex
   const marker = () => /<!-- source-sha256: ([^>]*?) -->/.exec(text(twin))?.[1];
   newItem(root, item('parser', 'T2'));
   assert.equal(marker(), sha256(text(english)));
-  editItem(root, { id: 'T1', verification: '`node --test b.test.mts`' });
+  editItem(root, { id: 'T1', verification: '`node --test b.test.mts`', verificationKo: '`node --test b.test.mts`' });
   assert.equal(marker(), sha256(text(english)));
   setState(root, { id: 'T1', state: '[~]' });
   assert.equal(marker(), sha256(text(english)));
@@ -306,10 +307,10 @@ test('the type check runs the typecheck script of the package when it has one, a
 test('item-edit replaces the Verification cell in both languages, and not of a done item (K353)', (t) => {
   const root = plans(t, 'parser');
   newItem(root, item('parser', 'T1'));
-  editItem(root, { id: 'T1', verification: '`node -e "process.exit(0)"`' });
+  editItem(root, { id: 'T1', verification: '`node -e "process.exit(0)"`', verificationKo: '`node -e "process.exit(0)"`' });
   assert.deepEqual(rows(root, 'docs/plans/parser/checklist.md'), ['| T1 | Task T1 | `a.mts` | `node -e "process.exit(0)"` | [ ] |']);
   assert.deepEqual(rows(root, 'docs/plans/parser/checklist.ko.md'), ['| T1 | 작업 T1 | `a.mts` | `node -e "process.exit(0)"` | [ ] |']);
-  assert.throws(() => editItem(root, { id: 'T9', verification: '`node -e "1"`' }), /T9 is no item/);
+  assert.throws(() => editItem(root, { id: 'T9', verification: '`node -e "1"`', verificationKo: '`node -e "1"`' }), /T9 is no item/);
 });
 
 test('the type check builds the workspace package that tsc cannot find, once, and then passes (K353)', (t) => {
@@ -397,13 +398,13 @@ test('item-edit replaces the Task cells of a row in any state (K373)', (t) => {
   setState(root, { id: 'T1', state: '[o]' });
   editItem(root, { id: 'T1', task: 'Done task', taskKo: '끝난 작업' });
   assert.equal(rows(root, english)[0], '| T1 | Done task | `a.mts` | `node --test a.test.mts` | [o] |', 'the Task of a done item is corrected');
-  assert.throws(() => editItem(root, { id: 'T1', verification: '`node -e "1"`', doneStays: true }), /T1 is \[o\]/, 'the Verification of a done item stays');
+  assert.throws(() => editItem(root, { id: 'T1', verification: '`node -e "1"`', verificationKo: '`node -e "1"`', doneStays: true }), /T1 is \[o\]/, 'the Verification of a done item stays');
 });
 
 test('item-edit replaces the Deliverables cell in both languages, and not of a done item (K388)', (t) => {
   const root = plans(t, 'parser');
   newItem(root, item('parser', 'T1'));
-  editItem(root, { id: 'T1', deliverables: '`b.mts`' });
+  editItem(root, { id: 'T1', deliverables: '`b.mts`', deliverablesKo: '`b.mts`' });
   assert.deepEqual(rows(root, 'docs/plans/parser/checklist.md'), ['| T1 | Task T1 | `b.mts` | `node --test a.test.mts` | [ ] |']);
   assert.deepEqual(rows(root, 'docs/plans/parser/checklist.ko.md'), ['| T1 | 작업 T1 | `b.mts` | `node --test a.test.mts` | [ ] |']);
   const done = committed(t, 'T2');
@@ -413,7 +414,26 @@ test('item-edit replaces the Deliverables cell in both languages, and not of a d
   commitState(done, 'verification');
   for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(done, file), `${CHANGELOG}- Task (T2).\n`);
   setState(done, { id: 'T2', state: '[o]' });
-  assert.throws(() => editItem(done, { id: 'T2', deliverables: '`b.mts`', doneStays: true }), /is \[o\]/);
+  assert.throws(() => editItem(done, { id: 'T2', deliverables: '`b.mts`', deliverablesKo: '`b.mts`', doneStays: true }), /is \[o\]/);
+});
+
+// K1281: a Verification or a Deliverables cell holds prose as well as commands and paths, so each twin takes its own text.
+test('K1281: item-new and item-edit write VERIFICATION_KO and DELIVERABLES_KO into the Korean twin, and refuse one without the other', (t) => {
+  const root = plans(t, 'parser');
+  const english = 'docs/plans/parser/checklist.md';
+  const korean = 'docs/plans/parser/checklist.ko.md';
+  newItem(root, item('parser', 'T1', { deliverables: '`a.mts`, the parser', deliverablesKo: '`a.mts`, 파서', verification: '`node --test a.test.mts`; stays in verification', verificationKo: '`node --test a.test.mts`; 검증 중으로 남는다' }));
+  assert.deepEqual([rows(root, english)[0], rows(root, korean)[0]], ['| T1 | Task T1 | `a.mts`, the parser | `node --test a.test.mts`; stays in verification | [ ] |', '| T1 | 작업 T1 | `a.mts`, 파서 | `node --test a.test.mts`; 검증 중으로 남는다 | [ ] |']);
+  editItem(root, { id: 'T1', verification: '`node --test b.test.mts`; CI ran', verificationKo: '`node --test b.test.mts`; CI가 실행했다' });
+  editItem(root, { id: 'T1', deliverables: '`b.mts`, the lexer', deliverablesKo: '`b.mts`, 렉서' });
+  assert.deepEqual([rows(root, english)[0], rows(root, korean)[0]], ['| T1 | Task T1 | `b.mts`, the lexer | `node --test b.test.mts`; CI ran | [ ] |', '| T1 | 작업 T1 | `b.mts`, 렉서 | `node --test b.test.mts`; CI가 실행했다 | [ ] |']);
+  const kept = [readFileSync(path.join(root, english), 'utf8'), readFileSync(path.join(root, korean), 'utf8')];
+  assert.throws(() => editItem(root, { id: 'T1', verification: '`node --test c.test.mts`' }), /VERIFICATION and VERIFICATION_KO together/);
+  assert.throws(() => editItem(root, { id: 'T1', verificationKo: '`node --test c.test.mts`' }), /VERIFICATION and VERIFICATION_KO together/);
+  assert.throws(() => editItem(root, { id: 'T1', deliverables: '`c.mts`' }), /DELIVERABLES and DELIVERABLES_KO together/);
+  assert.throws(() => newItem(root, item('parser', 'T2', { verificationKo: undefined })), /VERIFICATION_KO is empty/);
+  assert.throws(() => newItem(root, item('parser', 'T2', { deliverablesKo: undefined })), /DELIVERABLES_KO is empty/);
+  assert.deepEqual([readFileSync(path.join(root, english), 'utf8'), readFileSync(path.join(root, korean), 'utf8')], kept, 'a refused edit writes nothing');
 });
 
 // K1116: a done item stays only when the caller declares that rule (DONE_STAYS=1 of kit's recipe); without it item-edit edits the
@@ -427,10 +447,10 @@ test('K1116: item-edit refuses a done item only when the caller declares DONE_ST
   for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(done, file), `${CHANGELOG}- Task (T3).\n`);
   setState(done, { id: 'T3', state: '[o]' });
   const english = 'docs/plans/parser/checklist.md';
-  for (const [file, text] of Object.entries(editItem(done, { id: 'T3', deliverables: '`c.mts`' }))) writeFileSync(path.join(done, file), text);
+  for (const [file, text] of Object.entries(editItem(done, { id: 'T3', deliverables: '`c.mts`', deliverablesKo: '`c.mts`' }))) writeFileSync(path.join(done, file), text);
   assert.equal(rows(done, english).find(row => row.startsWith('| T3 |')), '| T3 | Task T3 | `c.mts` | `node --test a.test.mts` | [o] |', 'without the rule a done item is edited');
   const plan = fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url));
-  const run = (env: Record<string, string>) => spawnSync(process.execPath, [plan, 'item-edit'], { cwd: done, env: { ...process.env, ID: 'T3', DELIVERABLES: '`d.mts`', ...env }, encoding: 'utf8' });
+  const run = (env: Record<string, string>) => spawnSync(process.execPath, [plan, 'item-edit'], { cwd: done, env: { ...process.env, ID: 'T3', DELIVERABLES: '`d.mts`', DELIVERABLES_KO: '`d.mts`', ...env }, encoding: 'utf8' });
   const declared = run({ DONE_STAYS: '1' });
   assert.equal(declared.status, 1);
   assert.match(declared.stderr, /T3 is \[o\]/);
@@ -483,7 +503,7 @@ test('item-new on main commits the registration of its row, and refuses without 
   const root = committed(t, 'T1');
   assert.equal(spawnSync('git', ['checkout', '-q', '-B', 'main'], { cwd: root }).status, 0);
   const T2 = item('parser', 'T2');
-  const env = { ...process.env, ...identity, PLAN: 'parser', ID: 'T2', TASK: T2.task, TASK_KO: T2.taskKo, DELIVERABLES: T2.deliverables, VERIFICATION: T2.verification };
+  const env = { ...process.env, ...identity, PLAN: 'parser', ID: 'T2', TASK: T2.task, TASK_KO: T2.taskKo, DELIVERABLES: T2.deliverables, DELIVERABLES_KO: T2.deliverablesKo, VERIFICATION: T2.verification, VERIFICATION_KO: T2.verificationKo };
   const itemNew = (extra: Record<string, string>) => spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url)), 'item-new'], { cwd: root, env: { ...env, ...extra }, encoding: 'utf8' });
   const head = () => spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
   const before = head();
