@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+## 0.0.116
+
 - K1273: `link.mjs cargo` updates each version of a patched crate in the lock copy by `-p <name>@<version>`. Before, a copy that held one crate at two versions, pulled in by two tags, made `cargo update -p <name>` exit 101 as ambiguous. Red: the K1273 test of `tests/kit/link.test.mts` found no per-version update; green: it passes, with the link tests.
 
 - K1272: link never links a Python package of the checkout's own repository. Before, with a `.links`, link replaced a uv copy install of an own package in a venv of the checkout by a link to the checkout's source; the next `uv pip install --link-mode copy` removed the old install through that link and deleted tracked source files. uv installs the own package itself, and `make uv-install` removes an earlier such link before uv writes (K539). Red: the K1272 test of `tests/kit/link.test.mts` reported the copy linked to the own source; green: it passes, with the link, link-check, uv-install and link-folders tests.
