@@ -559,7 +559,8 @@ Dropped behaviors:
   tool keeps its own limits.
 - crudui's `recordSuiteRun` of a conformance record and its start of cargo through `run-rust-command.mjs`, template's
   `tools.mjs` entry of vitest, and hyper's `toolPath`: repository specific. The runner starts `cargo` and `go` from `PATH`
-  (the Makefile puts `var/tools` first) and vitest from `node_modules/vitest/vitest.mjs`.
+  (the Makefile puts `var/tools` first), cargo through `link.mjs cargo` of the package directory, so a checkout with a `.links`
+  tests the linked crates and one without runs cargo as given (K1268), and vitest from `node_modules/vitest/vitest.mjs`.
 
 ## CI report tools (K8.1-3)
 

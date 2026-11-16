@@ -512,7 +512,8 @@ Export된 `runCommand`는 자신이 시작한 command만 소유한다. 긴 comma
   timeout, gap watch, node test 파일의 exit deadline, PHPUnit deadline extension. 각 tool은 자기 제한을 그대로 가집니다.
 - crudui의 conformance record를 쓰는 `recordSuiteRun`과 `run-rust-command.mjs`를 통한 cargo 시작, template의 `tools.mjs`
   vitest 진입점, hyper의 `toolPath`는 저장소 전용입니다. 실행기는 `cargo`와 `go`를 `PATH`에서 시작하고(Makefile이 `var/tools`를
-  앞에 둠) vitest는 `node_modules/vitest/vitest.mjs`로 시작합니다.
+  앞에 둠), cargo는 package 디렉터리의 `link.mjs cargo`를 거쳐 시작하므로 `.links`가 있는 checkout은 link된 crate를 시험하고
+  없는 checkout은 cargo를 주어진 그대로 실행하며(K1268), vitest는 `node_modules/vitest/vitest.mjs`로 시작합니다.
 
 ## CI report 도구 (K8.1-3)
 

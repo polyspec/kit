@@ -208,10 +208,13 @@ export function toolCommand({ tool, cwd, args, phpExtensions = [], venv, module 
       // go is the one of mise.toml, run by the shim of the checkout, else the go of PATH (K947).
       // The build runs the test binaries with `true`, which ends at once, so it compiles each binary and runs no test (K549-1).
       return { command: miseCommand(root, 'go'), args: ['test', '-json', ...args], build: ['test', '-exec=true', ...args] };
-    case 'cargo':
+    case 'cargo': {
       // cargo is not pinned by kit: rustup finds it on PATH (rust-toolchain.toml), so it is the one command that is not resolved
-      // by the checkout. A caller that wants each test's start before its result passes -- --test-threads=1.
-      return { command: 'cargo', args: ['test', ...args], build: ['test', '--no-run', ...cargoArguments(args)] };
+      // by the checkout. It starts through `link.mjs cargo` of the package directory, so a checkout with a .links tests the linked
+      // crates and one without runs cargo as given (K1268). A caller that wants each test's start before its result passes -- --test-threads=1.
+      const link = [siblingTool(import.meta.url, 'link'), 'cargo', cwd];
+      return { command: process.execPath, args: [...link, 'test', ...args], build: [...link, 'test', '--no-run', ...cargoArguments(args)] };
+    }
     case 'phpunit': {
       // PHPUnit of the vendor directory that Composer gives the package of `cwd`: its own, or that of the nearest Composer
       // project above it, such as the root of a monorepo (composer-vendor.mts, K186); with none, the path of its own, whose

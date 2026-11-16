@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- K1268: run-tests가 cargo runner와 그 build를 package 디렉터리의 `link.mjs cargo`를 거쳐 시작합니다. 전에는 PATH의 `cargo`를 그대로 시작했으므로, link된 checkout에서 `$(RUN_TESTS) cargo ...`가 link된 crate가 아니라 lock의 tag된 core로 시험했습니다. `.links`가 없으면 cargo는 주어진 그대로 실행됩니다. Red: `tests/kit/run-tests.test.mts`의 K1175 시험이 `cargo test`를 찾았고, green: 그 시험과 run-tests, test-build-first 시험이 통과합니다.
+
 - K1267: config/release.json `files`가 contract case 파일 같은 저장소 파일을 나열하면, release는 그것을 base name의 asset으로 게시하고 `files.json`에 각 파일의 URL과 sha256을 경로별로 기록합니다. 이는 packages.json이 각 dist를 기록하는 것과 같습니다. 전에는 release가 package archive와 packages.json만 게시했으므로 소비자가 그런 파일을 version과 무결성으로 pin할 수 없었습니다. commit에 없는 경로와 base name이 같은 두 경로는 그 이름과 함께 실패합니다. Red: `tests/kit/release.test.mts`의 K1267 시험이 release 파일에서 fields.json을 찾지 못했고, green: 그 시험과 release, schema 시험이 통과합니다.
 
 - K1266: `link.mjs maturin <dir> <args>`가 Rust link 아래에서 maturin을 실행합니다. maturin은 cargo를 직접 실행하므로 `link.mjs cargo`가 닿지 않았고, link된 checkout에서 `maturin build`는 Python binding을 lock의 tag된 core로 build했으며 다른 Rust target은 link된 core를 썼습니다. 이 명령은 `MATURIN`이 가리키는 maturin을 실행하고 없으면 실패하며, PATH의 maturin은 쓰지 않습니다. `.links`가 있으면 이 명령은 lock 사본과 patch를 subcommand 뒤의 `--config` option으로 maturin에 주고, maturin 1.16은 그것을 cargo에 넘깁니다. 없으면 maturin을 주어진 그대로 실행합니다. Red: `tests/kit/link.test.mts`의 K1266 시험이 usage 오류로 실패했고, green: 그 시험과 link 시험이 통과합니다.

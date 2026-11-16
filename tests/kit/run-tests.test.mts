@@ -235,7 +235,9 @@ test('each tool starts with its progress arguments and no time limit of kit (K11
   assert.equal(toolCommand({ tool: 'playwright', cwd: path.join(packageRoot, 'app'), args: [] }, packageRoot).args[0], path.join(packageRoot, 'app/node_modules/@playwright/test/cli.js'));
   assert.throws(() => toolCommand({ tool: 'playwright', cwd: '/r', args: [] }, '/r'), /project-local Playwright CLI does not exist; run make install/);
   assert.deepEqual(toolCommand({ tool: 'go', cwd: '/r', args: ['./...'] }, shims), { command: path.join(shims, 'var/tools/mise/shims/go'), args: ['test', '-json', './...'], build: ['test', '-exec=true', './...'] });
-  assert.deepEqual(toolCommand({ tool: 'cargo', cwd: '/r', args: ['-p', 'x', '--', '--nocapture'] }, '/r').build, ['test', '--no-run', '-p', 'x']);
+  // K1268: cargo starts through `link.mjs cargo` of the package directory, so a checkout with a .links tests the linked crates.
+  const link = path.join(path.dirname(tool(import.meta.resolve('../../scripts/kit/run-tests.mts'))), 'link.mts');
+  assert.deepEqual(toolCommand({ tool: 'cargo', cwd: '/r', args: ['-p', 'x', '--', '--nocapture'] }, '/r'), { command: process.execPath, args: [link, 'cargo', '/r', 'test', '-p', 'x', '--', '--nocapture'], build: [link, 'cargo', '/r', 'test', '--no-run', '-p', 'x'] });
   assert.deepEqual(toolCommand({ tool: 'python', cwd: '/r', args: ['discover', '-s', 'tests'] }, shims), { command: path.join(shims, 'var/tools/mise/shims/python3'), args: ['-c', PYTHON_START, fileURLToPath(new URL('../../scripts/kit/runners/python.py', import.meta.url)), 'unittest', 'discover', '-s', 'tests', '-v'] });
 });
 
@@ -1046,7 +1048,7 @@ test('K1094: run-tests sets the runner flags and the environment of a run only a
   const playwrightRoot = tree(t, { 'node_modules/@playwright/test/cli.js': '' });
   assert.ok(!toolCommand({ tool: 'playwright', cwd: playwrightRoot, args: [] }, playwrightRoot).args.some(arg => arg.startsWith('--timeout')));
   assert.deepEqual(toolCommand({ tool: 'go', cwd: '/r', args: ['./...'] }, shims).args, ['test', '-json', './...']);
-  assert.deepEqual(toolCommand({ tool: 'cargo', cwd: '/r', args: ['-p', 'x', '--', '--nocapture'] }, '/r').args, ['test', '-p', 'x', '--', '--nocapture']);
+  assert.deepEqual(toolCommand({ tool: 'cargo', cwd: '/r', args: ['-p', 'x', '--', '--nocapture'] }, '/r').args.slice(3), ['test', '-p', 'x', '--', '--nocapture']);
   // A stub of python3 that records the variables of its environment and reports one passing test.
   const root = checkout(t, { 'tests/t.py': '' });
   const seen = path.join(root, 'seen.json');
