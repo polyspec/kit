@@ -86,12 +86,11 @@ export const repositoryName = (directory: string): string => path.basename(path.
 /** The top level of the work tree of `directory`, or `directory` itself outside Git. */
 export const workTreeOf = (directory: string): string => realpathSync(revParse(directory, '--show-toplevel')?.[0] ?? directory);
 
-/** Whether `directory` is the top level of a main checkout: its Git directory is the common one. */
-function isMainCheckout(directory: string): boolean {
-  const found = revParse(directory, '--show-toplevel', '--git-dir', '--git-common-dir');
+/** Whether `directory` is the top level of a work tree, a main checkout or a worktree. */
+function isWorkTreeTop(directory: string): boolean {
+  const found = revParse(directory, '--show-toplevel');
   if (!found) return false;
-  const [top, gitDir, common] = found.map(item => realpathSync(item));
-  return top === realpathSync(directory) && gitDir === common;
+  return realpathSync(found[0] ?? '') === realpathSync(directory);
 }
 
 /** The tracked files of the work tree `root` whose base name is one of `names`, relative to `root`. */
@@ -169,10 +168,13 @@ export function declaredCheckouts(directory: string): string[] | undefined {
   });
 }
 
-/** The main checkouts that `directories` names; a worktree or a folder inside a checkout fails, since it is no provider. */
+/**
+ * The checkouts that `directories` names, each the top level of a work tree: a main checkout or a worktree that the declaration names
+ * on purpose (K1259); a folder inside a work tree fails, since it is no provider. A worktree that is not named never provides (K448).
+ */
 export const mainCheckouts = (directories: readonly string[]): string[] => directories.map((directory) => {
   const checkout = realpathSync(directory);
-  if (!isMainCheckout(checkout)) throw new Error(`${directory} is not a main checkout: link takes the top level of a main checkout, not a worktree or a folder inside one`);
+  if (!isWorkTreeTop(checkout)) throw new Error(`${directory} is not the top level of a checkout: link takes the top level of a main checkout or of a worktree, not a folder inside one`);
   return checkout;
 });
 

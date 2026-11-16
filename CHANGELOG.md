@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1259: A checkout that `.links` names may be a worktree: link takes the top level of a main checkout or of a worktree as a provider and still refuses a folder inside a work tree. Before, a declared worktree failed with `is not a main checkout`, so a consumer could not link the lane of a provider that it develops against, and a worktree that a consumer declared as its app could not be linked by another worktree. A worktree that no declaration names still provides nothing (K448). Red: the new K1259 test of `tests/kit/link.test.mts` fails on 0.0.114 with `is not a main checkout`; green: it passes, with the 101 link and link-check tests.
+
 - K1258: The Python install of a development checkout links every provider that link-check requires. `uv-install` found the providers only in the package folders under `packages/` of each declared checkout, while link-check reads every tracked `pyproject.toml`; so a provider that moved to `legacy/packages/python` was unlinked by the install, installed as its release copy, not linked again, and then reported by link-check as a copy. The install now adds the providers of the tracked manifests of each main checkout. Red: `pythonProviders` of a checkout that tracks only `legacy/packages/python/pyproject.toml` found none on 0.0.114; green: it finds that provider.
 
 - K1257: `installedExecutable` of `install-vscode` takes the install command of its consumer, `fix`, and names it when the copy of VS Code is missing; it defaults to `make install-vscode`. Before, the error named `make install-vscode` in a repository whose Makefile names the target otherwise. Red: the new assertion of `tests/kit/install-vscode.test.mts` fails on 0.0.114; green: it passes.

@@ -11,7 +11,7 @@ import nodeTest, { type TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { buildState, buildTargets, rebuild } from '../../scripts/kit/link-build.mts';
 import { refreshLinked } from '../../scripts/kit/linked-build.mts';
-import { assertIgnored, declaredCheckouts, foreignEnvironment, isIgnored, providers, trackedManifests } from '../../scripts/kit/link-providers.mts';
+import { assertIgnored, declaredCheckouts, foreignEnvironment, isIgnored, mainCheckouts, providers, trackedManifests } from '../../scripts/kit/link-providers.mts';
 import { providedFolders } from '../../scripts/kit/link-folders.mts';
 import { linkFindings } from '../../scripts/kit/link-check.mts';
 import { acquireHolderLock } from '../../scripts/kit/holder-lock.mts';
@@ -1704,4 +1704,19 @@ test('K1238: native workspace source metadata accepts the declared source and re
   const rejected = linkLines([consumer], env, true);
   assert.equal(rejected.ok, false);
   assert.match(rejected.text, /native workspace source/);
+});
+
+test('K1259: a declared worktree is a provider at its top level; a folder inside a work tree is none', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-k1259-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const main = path.join(root, 'provider');
+  mkdirSync(path.join(main, 'packages/ts'), { recursive: true });
+  writeFileSync(path.join(main, 'packages/ts/package.json'), '{"name":"@polyspec/x"}');
+  git(main, 'init', '--quiet', '-b', 'main');
+  git(main, 'add', '-A');
+  git(main, '-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '--quiet', '-m', 'fixture');
+  const worktree = path.join(root, 'provider-lane');
+  git(main, 'worktree', 'add', '--quiet', worktree);
+  assert.deepEqual(mainCheckouts([main, worktree]), [main, worktree]);
+  assert.throws(() => mainCheckouts([path.join(worktree, 'packages')]), /is not the top level of a checkout/);
 });
