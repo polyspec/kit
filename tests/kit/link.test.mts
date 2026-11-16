@@ -1412,7 +1412,7 @@ test('K529: a uv workspace member links the package path that its hatchling sour
       '.venv/pyvenv.cfg': 'home = /usr\n',
       '.venv/lib/python3.14/site-packages/limepie/contracts/__init__.py': '',
     });
-    const found = providedFolders(repo, providers([repo], undefined, repo, repo).values(), { environment: '.venv' });
+    const found = providedFolders(repo, providers([repo], undefined, repo).values(), { environment: '.venv' });
     const lines = found.map(item => `${item.name} ${path.relative(repo, item.folder)} ${path.relative(repo, item.target)}`);
     assert.deepEqual(lines, ['limepie-contracts limepie/contracts .venv/lib/python3.14/site-packages/limepie/contracts contracts/src']);
   } finally {
@@ -1456,6 +1456,21 @@ test('K529, K888: a declared package of a project that is not installed is left 
   assert.equal(existsSync(path.join(consumer, 'var/not-installed/polyspec/y')), false);
 });
 
+
+// K1272: a package of the consumer's own repository that uv installed as a copy stays a copy. Replaced by a link to the source of the
+// checkout, the next uv install removed the old install through that link and deleted tracked source files.
+test('K1272: link leaves a copy-installed Python package of the own repository as it is', (t) => {
+  const { consumer, env } = workspace(t);
+  put(consumer, { 'python/src/cons/__init__.py': 'VALUE = 1\n' });
+  git(consumer, 'add', '-A');
+  git(consumer, 'commit', '-qm', 'own source');
+  put(consumer, { 'python/.venv/lib/python3.14/site-packages/cons/__init__.py': 'VALUE = 1\n' });
+  const linked = linkLines([consumer], env);
+  assert.equal(linked.ok, true, linked.text);
+  const folder = path.join(consumer, 'python/.venv/lib/python3.14/site-packages/cons');
+  assert.equal(lstatSync(folder).isSymbolicLink(), false, linked.text);
+  assert.equal(linkLines([consumer], env, true).ok, true, 'the check demands no link of the own package');
+});
 
 // K643: uv installs a path dependency editable: site-packages then holds no folder of the package, only its dist-info whose
 // direct_url.json (PEP 610) names the source folder. Such an install of the provider's folder is linked natively; one of another

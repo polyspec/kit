@@ -199,6 +199,9 @@ export function providers(checkouts: readonly string[], go: Tool | undefined, cw
       const absolute = path.join(checkout, file);
       const provided = providedName(absolute, go, cwd);
       if (!provided) continue;
+      // K1272: a Python package of the own repository is never linked: uv removes a copy install through such a link, which deletes
+      // the source of the checkout; uv installs the own package itself, editable or as a copy.
+      if (provided.ecosystem === 'python' && repository === ownRepository) continue;
       const key = providerKey(provided.ecosystem, provided.name);
       const provider: Provider = { ...provided, folder: path.dirname(absolute), repository, checkout };
       const earlier = found.get(key);

@@ -264,11 +264,11 @@ test('with no link declaration, an own Python package installed editable is no f
   const lines: string[] = [];
   assert.equal(linkCheck(own, false, text => lines.push(text), env).ok, true, lines.join('\n'));
   assert.deepEqual(lines.filter(line => line.includes('polyspec-own')), [], 'the own package is not demanded as a link');
-  // With a declaration, link links the own package into the environment, and link-check demands that link.
+  // K1272: with a declaration the own Python package is not linked either, so link-check demands no link of it.
   put(own, { '.links': '' });
   const declared: string[] = [];
-  assert.equal(linkCheck(own, false, text => declared.push(text), env).ok, false, declared.join('\n'));
-  assert.ok(declared.some(line => line.includes('polyspec-own') && line.includes('is missing; fix: make link')), declared.join('\n'));
+  assert.equal(linkCheck(own, false, text => declared.push(text), env).ok, true, declared.join('\n'));
+  assert.deepEqual(declared.filter(line => line.includes('polyspec-own')), [], declared.join('\n'));
 });
 
 // K1230: native records identify installed sources; kit only compares them with explicit local declarations.
