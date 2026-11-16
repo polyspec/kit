@@ -5,7 +5,7 @@
 
 ## Unreleased
 
-- K1266: `link.mjs maturin <dir> <args>` runs maturin under the Rust link. maturin runs cargo itself, so `link.mjs cargo` never reached it, and in a linked checkout `maturin build` built a Python binding against the tagged core of the lock while every other Rust target used the linked core. With a `.links` the command gives maturin the lock copy and the patches as `--config` options after its subcommand, which maturin 1.16 passes to cargo; with none it runs maturin as given. Red: the K1266 test of `tests/kit/link.test.mts` failed with the usage error; green: it passes, with the link tests.
+- K1266: `link.mjs maturin <dir> <args>` runs maturin under the Rust link. maturin runs cargo itself, so `link.mjs cargo` never reached it, and in a linked checkout `maturin build` built a Python binding against the tagged core of the lock while every other Rust target used the linked core. The command runs the maturin that `MATURIN` names and fails without it, never a maturin of PATH. With a `.links` it gives maturin the lock copy and the patches as `--config` options after its subcommand, which maturin 1.16 passes to cargo; with none it runs maturin as given. Red: the K1266 test of `tests/kit/link.test.mts` failed with the usage error; green: it passes, with the link tests.
 
 ## 0.0.115
 

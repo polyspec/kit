@@ -1237,6 +1237,15 @@ test('link maturin with a declaration passes the lock copy and the patches to ma
   assert.match(log(), /^maturin build --config resolver\.lockfile-path=\S+ --config patch\."https:\/\/github\.com\/polyspec\/prov"\.polyspec-prov\.path=\S+ --release$/m);
 });
 
+// K1266: maturin is no tool that kit installs into the checkout, so the command takes the checkout's maturin only from MATURIN and
+// never falls back to a maturin of PATH, whose release the result would then depend on.
+test('link maturin without MATURIN fails with a named error and runs nothing (K1266)', (t) => {
+  const { consumer, env } = workspace(t);
+  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'maturin', consumer, 'build'], { cwd: consumer, env, encoding: 'utf8' });
+  assert.notEqual(run.status, 0);
+  assert.match(run.stderr, /link\.mjs maturin needs MATURIN, the checkout's maturin/);
+});
+
 // K489: cargo patches the crates of a sibling checkout that the consumer's lock names from git, and needs nothing from a checkout
 // that has no config/release.json and that the lock does not name, such as an unrelated polyspec checkout (fsm) beside the consumer.
 test('link cargo with a declaration patches no crate of a checkout without config/release.json that the lock does not name (K489)', (t) => {

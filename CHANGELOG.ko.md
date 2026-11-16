@@ -6,7 +6,7 @@
 
 ## Unreleased
 
-- K1266: `link.mjs maturin <dir> <args>`가 Rust link 아래에서 maturin을 실행합니다. maturin은 cargo를 직접 실행하므로 `link.mjs cargo`가 닿지 않았고, link된 checkout에서 `maturin build`는 Python binding을 lock의 tag된 core로 build했으며 다른 Rust target은 link된 core를 썼습니다. `.links`가 있으면 이 명령은 lock 사본과 patch를 subcommand 뒤의 `--config` option으로 maturin에 주고, maturin 1.16은 그것을 cargo에 넘깁니다. 없으면 maturin을 주어진 그대로 실행합니다. Red: `tests/kit/link.test.mts`의 K1266 시험이 usage 오류로 실패했고, green: 그 시험과 link 시험이 통과합니다.
+- K1266: `link.mjs maturin <dir> <args>`가 Rust link 아래에서 maturin을 실행합니다. maturin은 cargo를 직접 실행하므로 `link.mjs cargo`가 닿지 않았고, link된 checkout에서 `maturin build`는 Python binding을 lock의 tag된 core로 build했으며 다른 Rust target은 link된 core를 썼습니다. 이 명령은 `MATURIN`이 가리키는 maturin을 실행하고 없으면 실패하며, PATH의 maturin은 쓰지 않습니다. `.links`가 있으면 이 명령은 lock 사본과 patch를 subcommand 뒤의 `--config` option으로 maturin에 주고, maturin 1.16은 그것을 cargo에 넘깁니다. 없으면 maturin을 주어진 그대로 실행합니다. Red: `tests/kit/link.test.mts`의 K1266 시험이 usage 오류로 실패했고, green: 그 시험과 link 시험이 통과합니다.
 
 ## 0.0.115
 

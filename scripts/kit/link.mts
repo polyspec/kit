@@ -745,8 +745,10 @@ export function cargo({ directory, args, checkouts = [], env = process.env, runn
   const consumer = consumerOf(directory);
   const tool = consumerTool(consumer.top, 'cargo', env);
   // K1266: maturin runs cargo itself, so the options of the link reach that cargo only as maturin's own --config options (maturin
-  // 1.16 `build --help`: --config <KEY=VALUE>); the workspace and the graph are still read with cargo. maturin is MATURIN, else that of PATH.
-  const command = runner === 'maturin' ? env.MATURIN || 'maturin' : tool.command;
+  // 1.16 `build --help`: --config <KEY=VALUE>); the workspace and the graph are still read with cargo. kit installs no maturin into
+  // the checkout, so the checkout's maturin is MATURIN, never a maturin of PATH.
+  const command = runner === 'maturin' ? env.MATURIN : tool.command;
+  if (!command) throw new Error("link.mjs maturin needs MATURIN, the checkout's maturin");
   const channel = runner === 'cargo' && args[0]?.startsWith('+') ? [args[0]] : [];
   const commandArgs = channel.length ? args.slice(1) : args;
   const graphArgs = cargoMetadataArguments(args);
