@@ -1220,6 +1220,23 @@ test('link cargo with a declaration passes the patches after the subcommand, whi
   assert.match(log(), /^cargo clippy --config resolver\.lockfile-path=\S+ --config patch\."https:\/\/github\.com\/polyspec\/prov"\.polyspec-prov\.path=\S+ --workspace -- -D warnings$/m);
 });
 
+// K1269: the lock copy names the version of the tag, and a linked checkout may hold another version of the crate, which cargo
+// leaves out of the graph as an unused patch and cannot update under --locked; so the copy is updated offline for each patched crate
+// with the same patches before the command, and the tracked lock stays as it is.
+test('link cargo with a declaration updates the lock copy offline for the patched crates before the command (K1269)', (t) => {
+  const { consumer, env, log } = workspace(t);
+  declareSiblings(consumer);
+  const lock = 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n';
+  put(consumer, { 'Cargo.lock': lock });
+  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', consumer, 'tree', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  const lines = log().split('\n');
+  const update = lines.findIndex(line => /^cargo update --config resolver\.lockfile-path=\S+ --config patch\."https:\/\/github\.com\/polyspec\/prov"\.polyspec-prov\.path=\S+ --offline -p polyspec-prov$/.test(line));
+  const tree = lines.findIndex(line => line.startsWith('cargo tree '));
+  assert.ok(update !== -1 && update < tree, log());
+  assert.equal(readFileSync(path.join(consumer, 'Cargo.lock'), 'utf8'), lock);
+});
+
 // K1266: maturin runs cargo itself, so the link gives maturin build the lock copy and the patches as its own --config options, which
 // maturin 1.16 passes to cargo (`maturin build --help`: --config <KEY=VALUE>); without a declaration maturin runs as given.
 test('link maturin with a declaration passes the lock copy and the patches to maturin after its subcommand (K1266)', (t) => {
