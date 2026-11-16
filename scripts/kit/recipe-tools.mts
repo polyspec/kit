@@ -120,15 +120,97 @@ function maskShellParameters(text: string): { text: string; name: string; values
   return { text: output.join(''), name, values };
 }
 
-/** `text` with the variables of make expanded from `variables`; a function call or an unknown variable stays as written. */
+/**
+ * `text` with the variables of make expanded from `variables`, as make expands a recipe: a variable, a variable whose name holds
+ * another reference (`$(CI_TARGETS_$(1))`), `$(call name,args)` with its arguments as $(1), $(2) and so on, and
+ * `$(foreach var,list,text)` and `$(if condition,then,else)` (K1260). Another function call, such as `$(shell …)`, and an unknown variable stay as written; `$$`
+ * stays, since make gives it to the shell as one `$`.
+ */
 export function expandMake(text: string, variables: ReadonlyMap<string, string>): string {
-  let result = text.replaceAll('$(MAKE)', 'make').replaceAll('${MAKE}', 'make');
-  for (let round = 0; round < MAX_EXPANSION; round += 1) {
-    const next = result.replace(/\$[({]([A-Za-z_][A-Za-z0-9_]*)[)}]/g, (reference, name: string) => variables.get(name) ?? reference);
-    if (next === result) break;
-    result = next;
+  return expandText(text.replaceAll('$(MAKE)', 'make').replaceAll('${MAKE}', 'make'), variables, 0);
+}
+
+/** The index of the bracket that closes the one at `open` in `text`, or -1. */
+function closing(text: string, open: number): number {
+  const pairs: Record<string, string> = { '(': ')', '{': '}' };
+  const stack: string[] = [];
+  for (let index = open; index < text.length; index += 1) {
+    const char = text.charAt(index);
+    if (char === '(' || char === '{') stack.push(pairs[char] ?? '');
+    else if (char === stack.at(-1)) {
+      stack.pop();
+      if (stack.length === 0) return index;
+    }
+  }
+  return -1;
+}
+
+/** The arguments of a function call of make: `text` split at each comma outside a bracket. */
+function callArguments(text: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text.charAt(index);
+    if (char === '(' || char === '{') depth += 1;
+    else if (char === ')' || char === '}') depth -= 1;
+    else if (char === ',' && depth === 0) {
+      parts.push(text.slice(start, index));
+      start = index + 1;
+    }
+  }
+  parts.push(text.slice(start));
+  return parts;
+}
+
+function expandText(text: string, variables: ReadonlyMap<string, string>, depth: number): string {
+  if (depth > MAX_EXPANSION) return text;
+  let result = '';
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text.charAt(index);
+    const next = text.charAt(index + 1);
+    if (char !== '$') { result += char; continue; }
+    if (next === '$') { result += '$$'; index += 1; continue; }
+    if (next !== '(' && next !== '{') { result += char; continue; }
+    const end = closing(text, index + 1);
+    if (end < 0) { result += text.slice(index); break; }
+    const reference = text.slice(index, end + 1);
+    result += expandReference(reference, text.slice(index + 2, end), variables, depth);
+    index = end;
   }
   return result;
+}
+
+function expandReference(reference: string, inner: string, variables: ReadonlyMap<string, string>, depth: number): string {
+  const call = /^call\s+([\s\S]*)$/.exec(inner);
+  if (call) {
+    const [name = '', ...args] = callArguments(call[1] ?? '').map(part => expandText(part, variables, depth + 1));
+    const body = variables.get(name.trim());
+    if (body === undefined) return reference;
+    const bound = new Map(variables);
+    args.forEach((value, position) => bound.set(String(position + 1), value));
+    return expandText(body, bound, depth + 1);
+  }
+  const each = /^foreach\s+([\s\S]*)$/.exec(inner);
+  if (each) {
+    const [name = '', list = '', body = ''] = callArguments(each[1] ?? '');
+    const words = expandText(list, variables, depth + 1).split(/\s+/).filter(Boolean);
+    const variable = expandText(name, variables, depth + 1).trim();
+    return words.map(word => expandText(body, new Map([...variables, [variable, word]]), depth + 1)).join(' ');
+  }
+  // $(if condition,then,else): the condition is empty only when it expands to blanks; one that holds an unknown reference counts as
+  // true, since the check reads what a recipe can reach.
+  const branch = /^if\s+([\s\S]*)$/.exec(inner);
+  if (branch) {
+    const [condition = '', then = '', otherwise = ''] = callArguments(branch[1] ?? '');
+    return expandText(expandText(condition, variables, depth + 1).trim() === '' ? otherwise : then, variables, depth + 1);
+  }
+  // Another function of make keeps its text; a name has no blank, comma or colon.
+  if (/[\s,:]/.test(inner.replace(/\$[({][^)}]*[)}]/g, ''))) return reference;
+  const name = expandText(inner, variables, depth + 1);
+  if (name === 'MAKE') return 'make';
+  const value = variables.get(name);
+  return value === undefined ? reference : expandText(value, variables, depth + 1);
 }
 
 /**

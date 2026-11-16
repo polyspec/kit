@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- K1260: rules-check는 make가 `$(call name,args)`, `$(foreach var,list,text)`, `$(if condition,then,else)`, 그리고 이름에 다른 참조를 가진 변수(`$(CI_TARGETS_$(1))` 같은)를 통해 도달하는 recipe의 target과, `env`나 `NAME=value` 접두가 실행하는 명령의 target에 도달합니다. 전에는 `expandMake`가 단순한 이름만 펼쳐서, `ci_run`을 쓰는 `make ci-check NAME=${{ matrix.name }}` 하나로 된 CI job이 자기 group의 어느 target에도 닿지 않았고, 그런 target이 강제하는 규칙은 모두 건너뛸 수 없는 지점이 닿지 않는다고 보고되었습니다. red: `tests/kit/check-rules.test.mts`의 새 K1260 시험은 main에서 `make first`와 `make second`를 닿지 않는다고 보고합니다. green: check-rules, recipe-tools, land, owner-check의 시험 74개와 함께 통과하고, 그 형태의 hyper tree의 rules-check finding은 48건에서 0건이 됩니다.
+
 - K1259: `.links`가 이름하는 checkout은 worktree여도 됩니다. link는 main checkout이나 worktree의 맨 위 폴더를 provider로 받고, work tree 안의 폴더는 여전히 거부합니다. 전에는 선언된 worktree가 `is not a main checkout`으로 실패해서, consumer가 개발 중인 provider의 lane을 link할 수 없었고, consumer가 app으로 선언한 worktree를 다른 worktree가 link할 수 없었습니다. 어떤 선언도 이름하지 않은 worktree는 여전히 아무것도 제공하지 않습니다(K448). red: `tests/kit/link.test.mts`의 새 K1259 시험은 0.0.114에서 `is not a main checkout`으로 실패합니다. green: link와 link-check 시험 101개와 함께 통과합니다.
 
 - K1258: 개발 checkout의 Python 설치는 link-check가 요구하는 provider를 모두 link합니다. `uv-install`은 선언된 각 checkout의 `packages/` 아래 package folder에서만 provider를 찾았고, link-check는 추적되는 `pyproject.toml`을 모두 읽습니다. 그래서 `legacy/packages/python`으로 옮겨진 provider는 설치가 link를 풀고 release 사본으로 설치한 뒤 다시 link하지 않았고, link-check는 그것을 사본으로 보고했습니다. 이제 설치는 각 main checkout의 추적되는 manifest의 provider를 더합니다. red: `legacy/packages/python/pyproject.toml`만 추적하는 checkout의 `pythonProviders`는 0.0.114에서 아무것도 찾지 못했습니다. green: 그 provider를 찾습니다.

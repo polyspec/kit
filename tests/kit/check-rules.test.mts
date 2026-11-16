@@ -218,6 +218,18 @@ test('a target is expanded for each set of variables it is called with, so every
   assert.deepEqual(checkRules(root, ['AGENTS.md']).findings, []);
 });
 
+// K1260: a recipe that calls a function of make, runs a foreach, or names a variable by another variable reaches the targets that make
+// runs, as `make -n` shows; a CI job that is one make recipe (HR-90) reaches every target of its group.
+test('a recipe reaches the targets of $(call), $(foreach) and a computed variable name (K1260)', (t) => {
+  const root = tree(t, {
+    Makefile: 'CI_TARGETS_gates := first\nci_run = status=0; env -u GITHUB_STEP_SUMMARY $(MAKE) --no-print-directory ci-targets TARGETS="$(CI_TARGETS_$(1))" || status=1; exit $$status\nci-check:\n\t$(call ci_run,$(NAME))\nci-each:\n\tSTATE=x $(foreach target,second,$(MAKE) $(target)$(if $(NAME),, QUIET=1);)\nci-targets:\n\t$(MAKE) $(TARGETS)\nfirst:\n\t@echo first\nsecond:\n\t@echo second\n',
+    '.github/workflows/ci.yml': 'name: ci\non: push\njobs:\n  a:\n    runs-on: ubuntu-24.04\n    strategy:\n      matrix:\n        name: [gates]\n    steps:\n      - run: make ci-check NAME=${{ matrix.name }}\n      - run: make ci-each\n',
+    'AGENTS.md': rules('- Own: First.\n  Enforced by: `make first`', '- Own: Second.\n  Enforced by: `make second`'),
+    'AGENTS.ko.md': rules('- Own: First.\n  Enforced by: `make first`', '- Own: Second.\n  Enforced by: `make second`'),
+  });
+  assert.deepEqual(checkRules(root, ['AGENTS.md']).findings, []);
+});
+
 // K1057: the CI pipeline is a workflow of the repository like any other (K1052): a target that one of its steps names is
 // reached, and config/ci.json, which kit's example pipeline reads, reaches nothing by itself.
 test('the CI pipeline of a repository is read as one of its workflows, and config/ci.json reaches no target (K1057)', (t) => {

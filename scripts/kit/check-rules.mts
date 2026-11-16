@@ -202,6 +202,27 @@ function workflowLines(text: string, file: string): string[] {
   }).map(line => line.replace(/\$\{\{[^}]*\}\}/g, 'GITHUB_EXPRESSION'));
 }
 
+/**
+ * The command that `env` runs in `words`, with its arguments: env takes its options (-i, -u NAME, -C DIR and their long forms) and
+ * the assignments NAME=value before the command, so `env -u GITHUB_STEP_SUMMARY make x` runs make, as `NAME=value make x` does in the
+ * shell (K1260). Other words stay as given.
+ */
+function envCommand(words: readonly string[]): readonly string[] {
+  // The shell runs `NAME=value command` as the command with NAME in its environment.
+  let start = 0;
+  while (/^[A-Za-z_][A-Za-z0-9_]*=/.test(words[start] ?? '')) start += 1;
+  if (start > 0) return envCommand(words.slice(start));
+  if (path.basename(words[0] ?? '') !== 'env') return words;
+  let index = 1;
+  while (index < words.length) {
+    const word = words[index] ?? '';
+    if (word === '-u' || word === '-C' || word === '--unset' || word === '--chdir') index += 2;
+    else if (word.startsWith('-') || /^[A-Za-z_][A-Za-z0-9_]*=/.test(word)) index += 1;
+    else break;
+  }
+  return words.slice(index);
+}
+
 /** The make targets and the paths that the points that cannot be skipped reach in `root`. */
 export function reached(root: string, make: MakeDatabase): { targets: Set<string>; paths: Set<string> } {
   const targets = new Set<string>();
@@ -212,7 +233,7 @@ export function reached(root: string, make: MakeDatabase): { targets: Set<string
     // A command that is not make runs no target of the Makefile; a word of its text that names one is prose (K941-1). The shell
     // builtin exec runs its command in place, so `exec make` is a make call.
     const [first, ...rest] = words;
-    const [command, ...args] = first === 'exec' ? rest : words;
+    const [command, ...args] = envCommand(first === 'exec' ? rest : words);
     if (command === undefined) return;
     if (path.basename(command) !== 'make') {
       // A command that runs a file of the repository hands it its arguments, and the file runs the targets that they name, as the
