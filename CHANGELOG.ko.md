@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- K1273: `link.mjs cargo`가 lock 사본에 있는 patch된 crate의 각 version을 `-p <name>@<version>`으로 갱신합니다. 전에는 두 tag가 끌어온 한 crate의 두 version을 가진 사본에서 `cargo update -p <name>`이 모호하다며 101로 끝났습니다. Red: `tests/kit/link.test.mts`의 K1273 시험이 version별 갱신을 찾지 못했고, green: 그 시험과 link 시험이 통과합니다.
+
 - K1272: link가 checkout 자신의 저장소의 Python 패키지를 link하지 않습니다. 전에는 `.links`가 있으면 link가 checkout의 venv에 있는 자기 패키지의 uv 복사 설치를 checkout의 source로 가는 link로 바꾸었고, 다음 `uv pip install --link-mode copy`가 그 link를 거쳐 옛 설치를 지우면서 추적되는 source 파일을 삭제했습니다. uv가 자기 패키지를 직접 설치하며, `make uv-install`은 uv가 쓰기 전에 예전의 그런 link를 지웁니다(K539). Red: `tests/kit/link.test.mts`의 K1272 시험이 자기 source로 link된 복사본을 보고했고, green: 그 시험과 link, link-check, uv-install, link-folders 시험이 통과합니다.
 
 - K1271: install-php가 checkout이 고른 PHP인 기존 var/tools/bin/php와 그 companion을 유지합니다. 전에는 실행마다 PATH의 php를 다시 wrapper로 썼으므로, PATH의 처음에 PHP 8.4가 없는 뒤의 `make install`이 8.4로 고른 checkout을 조용히 8.5로 바꾸었습니다. wrapper를 지우면 PATH의 php를 다시 씁니다. kit은 version을 비교하지 않습니다. Red: `tests/kit/install-php.test.mts`의 K1271 시험이 두 번째 install 뒤 8.5 wrapper를 찾았고, green: 그 시험과 install-php, install-tools 시험이 통과합니다.

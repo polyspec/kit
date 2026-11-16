@@ -1231,10 +1231,21 @@ test('link cargo with a declaration updates the lock copy offline for the patche
   const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', consumer, 'tree', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
   const lines = log().split('\n');
-  const update = lines.findIndex(line => /^cargo update --config resolver\.lockfile-path=\S+ --config patch\."https:\/\/github\.com\/polyspec\/prov"\.polyspec-prov\.path=\S+ --offline -p polyspec-prov$/.test(line));
+  const update = lines.findIndex(line => /^cargo update --config resolver\.lockfile-path=\S+ --config patch\."https:\/\/github\.com\/polyspec\/prov"\.polyspec-prov\.path=\S+ --offline -p polyspec-prov@0\.0\.1$/.test(line));
   const tree = lines.findIndex(line => line.startsWith('cargo tree '));
   assert.ok(update !== -1 && update < tree, log());
   assert.equal(readFileSync(path.join(consumer, 'Cargo.lock'), 'utf8'), lock);
+});
+
+// K1273: a lock may hold one patched crate at two versions, which two tags pull in; cargo update -p <name> is then ambiguous and exits
+// 101, so each version of the lock copy is updated by its name@version.
+test('link cargo updates each version of a patched crate of the lock copy by its name and version (K1273)', (t) => {
+  const { consumer, env, log } = workspace(t);
+  declareSiblings(consumer);
+  put(consumer, { 'Cargo.lock': 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.10"\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.13"\n' });
+  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', consumer, 'tree', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(log(), /^cargo update --config \S+ --config \S+ --offline -p polyspec-prov@0\.0\.10 -p polyspec-prov@0\.0\.13$/m);
 });
 
 // K1270: cargo fmt is an external subcommand that takes no --config (cargo 1.98 `cargo fmt --help`) and formats only the files of

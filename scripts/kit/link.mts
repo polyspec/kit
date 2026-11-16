@@ -768,7 +768,8 @@ export function cargo({ directory, args, checkouts = [], env = process.env, runn
       copyFileSync(path.join(workspace, 'Cargo.lock'), copy);
       config.push('--config', `resolver.lockfile-path=${JSON.stringify(copy)}`);
       const packages = readTomlFile(copy).package;
-      const locked = new Set((Array.isArray(packages) ? packages : []).flatMap((item: unknown) => isJsonObject(item) && typeof item.name === 'string' ? [item.name] : []));
+      const entries = (Array.isArray(packages) ? packages : []).flatMap((item: unknown) => isJsonObject(item) && typeof item.name === 'string' ? [{ name: item.name, version: typeof item.version === 'string' ? item.version : undefined }] : []);
+      const locked = new Set(entries.map(entry => entry.name));
       for (const checkout of mainCheckouts(checkouts).filter(item => repositoryOf(item) !== consumer.repository)) {
         const crates = trackedManifests(checkout, ['Cargo.toml']).filter(file => !EXCLUDED.test(file)).flatMap((file) => {
           const pkg = readTomlFile(path.join(checkout, file)).package;
@@ -782,7 +783,8 @@ export function cargo({ directory, args, checkouts = [], env = process.env, runn
         const url = declaredUrl(checkout);
         for (const crate of used) {
           config.push('--config', `patch.${JSON.stringify(url)}.${crate.name}.path=${JSON.stringify(crate.folder)}`);
-          patched.push(crate.name);
+          // K1273: each version of the crate in the lock copy, since a bare name is ambiguous when two tags pull in two versions.
+          for (const entry of entries.filter(item => item.name === crate.name)) patched.push(entry.version === undefined ? crate.name : `${crate.name}@${entry.version}`);
         }
       }
     }
