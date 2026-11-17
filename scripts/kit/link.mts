@@ -10,7 +10,8 @@
 //             go reads by itself, whatever version the module requires (K856), and that replaces each required version of a
 //             provider module with its folder, so go fetches no version that has no tag yet (K1212); unlink removes it;
 //   Rust      `cargo <dir> <args>` runs one cargo command with --config patches and a lock copy under var/link/cargo;
-//             `maturin <dir> <args>` runs one maturin command with the same options, which maturin passes to the cargo it runs (K1266).
+//             `maturin <dir> <args>` runs one maturin command with the same options, which maturin passes to the cargo it runs (K1266);
+//             `cargo --tracked-lock <dir> <args>` runs one cargo command as given, which writes the tracked lock (K1287).
 // No environment variable declares anything: without checkouts nothing is linked, and the installs stay the locked releases.
 // A consumer is a directory: the top of a work tree stands for every tracked manifest of it, another directory for those
 // below it; with --project the folder is the consumer and its own manifest is read, tracked or not (K212). Each file that link writes
@@ -18,7 +19,7 @@
 // unlink only removes the links and the files that link wrote; make install restores the locked installs, reinstalling each Python
 // distribution whose package folder a removed link left missing (K856).
 //   node link.mjs link [--project <dir>] [--runtime <runtime>] | unlink [--project <dir>] |
-//                 providers [--ecosystem npm|composer|python|go] [<checkout>...] | cargo <dir> <args>... | maturin <dir> <args>...
+//                 providers [--ecosystem npm|composer|python|go] [<checkout>...] | cargo [--tracked-lock] <dir> <args>... | maturin <dir> <args>...
 // The providers are the checkouts that the link declaration names (K869): LINKS_FILE at the root of the checkout itself (K1118), one path per
 // line; with no file nothing is linked. make link-check (link-check.mts) compares the declaration with the state.
 // A package name that two folders of a provider give (K1213) is judged only for the ecosystems of the runtime and in a project that
@@ -746,9 +747,10 @@ function declaredUrl(checkout: string): string {
 /**
  * Runs one cargo command in `directory`; with checkouts given, the polyspec git sources of those checkouts are patched to
  * their packages, and the lock of the tree is copied to var/link, so the patches resolve against it. Native arguments and the
- * environment, CARGO_TARGET_DIR among them, remain unchanged (K1049).
+ * environment, CARGO_TARGET_DIR among them, remain unchanged (K1049). With `trackedLock` the command runs as given, with no patch
+ * and no copy, so it reads and writes the tracked lock from the sources that the manifests name (K1287).
  */
-export function cargo({ directory, args, checkouts = [], env = process.env, runner = 'cargo' }: { directory: string; args: readonly string[]; checkouts?: readonly string[]; env?: NodeJS.ProcessEnv; runner?: 'cargo' | 'maturin' }): number {
+export function cargo({ directory, args, checkouts = [], env = process.env, runner = 'cargo', trackedLock = false }: { directory: string; args: readonly string[]; checkouts?: readonly string[]; env?: NodeJS.ProcessEnv; runner?: 'cargo' | 'maturin'; trackedLock?: boolean }): number {
   const consumer = consumerOf(directory);
   const tool = consumerTool(consumer.top, 'cargo', env);
   // K1266: maturin runs cargo itself, so the options of the link reach that cargo only as maturin's own --config options (maturin
@@ -766,7 +768,7 @@ export function cargo({ directory, args, checkouts = [], env = process.env, runn
   const patched: string[] = [];
   try {
     // K1270: cargo fmt takes no --config and formats only the files of the workspace's own crates, which no patch changes.
-    if (checkouts.length && !(runner === 'cargo' && commandArgs[0] === 'fmt')) {
+    if (!trackedLock && checkouts.length && !(runner === 'cargo' && commandArgs[0] === 'fmt')) {
       const workspace = path.dirname(run(tool.command, [...channel, 'locate-project', '--workspace', '--message-format', 'plain', ...manifestArgs], { cwd: consumer.scope, env: tool.env }).trim());
       held = acquireHolderLock(path.join(consumer.top, 'var/link/cargo', path.relative(consumer.top, workspace).replaceAll('/', '_') || 'root', 'execution.lock'), { checkout: consumer.top, command: ['cargo', ...args].join(' ') });
       // A fresh copy of the tracked lock on every run, so the patches resolve against the lock of the tree.
@@ -809,7 +811,11 @@ export function cargo({ directory, args, checkouts = [], env = process.env, runn
     // K1283: the streams pass through as cargo writes them, so `Running <target>` on stderr stays before the lines of its tests.
     const outcome = executeInherited(command, [...channel, ...(subcommand === undefined ? [] : [subcommand]), ...config, ...options], { cwd: directory, env: tool.env });
     if (outcome.error) throw new Error(`${command} could not start: ${outcome.error.message}`);
-    return outcome.status ?? 1;
+    const status = outcome.status ?? 1;
+    // K1287: no patch reaches this cargo, so no path of a linked checkout enters the tracked lock, and what only such a checkout
+    // provides fails in cargo; the line states that cause after the error of cargo.
+    if (trackedLock && checkouts.length && status !== 0) process.stderr.write(`link.mjs cargo --tracked-lock: cargo exited ${status} without the patches of ${LINKS_FILE}: a crate or a version that only a linked checkout provides is not in the sources that the manifests name until it is released\n`);
+    return status;
   } finally {
     held?.release();
   }
@@ -868,9 +874,11 @@ if (isMain(import.meta.url)) {
       }
       case 'cargo': {
         // K869: the providers are those of the link declaration of the project; with no file cargo runs as given.
-        const [directory, ...args] = rest;
-        if (!directory) throw new Error('Usage: link.mjs cargo <dir> <cargo args>...');
-        process.exitCode = cargo({ directory, args, checkouts: declaredCheckouts(directory) ?? [] });
+        // K1287: --tracked-lock before the directory runs cargo as given under a declaration too, so the command writes the tracked lock.
+        const trackedLock = rest[0] === '--tracked-lock';
+        const [directory, ...args] = trackedLock ? rest.slice(1) : rest;
+        if (!directory) throw new Error('Usage: link.mjs cargo [--tracked-lock] <dir> <cargo args>...');
+        process.exitCode = cargo({ directory, args, checkouts: declaredCheckouts(directory) ?? [], trackedLock });
         break;
       }
       case 'maturin': {
@@ -880,7 +888,7 @@ if (isMain(import.meta.url)) {
         process.exitCode = cargo({ directory, args, checkouts: declaredCheckouts(directory) ?? [], runner: 'maturin' });
         break;
       }
-      default: throw new Error('Usage: link.mjs link [--project <dir>] [--runtime <runtime>] | unlink [--project <dir>] | providers [--ecosystem npm|composer|python|go] [<checkout>...] | cargo <dir> <args>... | maturin <dir> <args>...');
+      default: throw new Error('Usage: link.mjs link [--project <dir>] [--runtime <runtime>] | unlink [--project <dir>] | providers [--ecosystem npm|composer|python|go] [<checkout>...] | cargo [--tracked-lock] <dir> <args>... | maturin <dir> <args>...');
     }
   } catch (error) {
     if (!(error instanceof Error)) throw error;

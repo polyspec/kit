@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f5e843782fe65ff8c24b89a456c2062a065323a288a638505ec17524f04da97d -->
+<!-- source-sha256: 8e0e00bd0888f715b7e4fd236f2a0fe1f5a38533d09a56b0b78560d77dd03659 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1287: `link.mjs cargo --tracked-lock <dir> <cargo args>`는 cargo 명령 하나를 link 없이 추적되는 `Cargo.lock`에 대해 실행합니다. `cargo` 뒤 첫 인자가 `--tracked-lock`이면 link 선언(`.links`)이 있든 없든 cargo는 `<dir>`에서 주어진 인자 그대로 실행됩니다. patch, `resolver.lockfile-path`, `var/link/cargo` 아래 lock 사본, offline 갱신, source 검사가 없으므로 cargo는 manifest가 가리키는 source를 resolve하고 workspace의 `Cargo.lock`을 쓰며, link된 checkout의 경로는 거기에 들어가지 않습니다. cargo가 실패하고 checkout에 link 선언이 있으면 도구는 cargo의 exit status를 유지하고 cargo의 오류 뒤에 `link.mjs cargo --tracked-lock: cargo exited <status> without the patches of .links: a crate or a version that only a linked checkout provides is not in the sources that the manifests name until it is released`를 stderr에 씁니다. `--tracked-lock`이 없는 link된 실행은 그대로이며 추적되는 lock을 쓰지 않고(K448-5-2, K1269), `link.mjs maturin`에는 이 형태가 없습니다. 이전에는 link 선언이 있는 checkout이 `fmt`를 뺀 모든 cargo 명령에 lock 사본을 넘겼으므로, manifest가 다른 tag를 가리킨 뒤의 `cargo update -p <crate>`는 사본을 갱신했고, 추적되는 lock은 그대로였으며, 선언 없는 이후의 `--locked` 실행이 실패했습니다. 추적되는 lock을 쓰는 명령 형태가 없었습니다.
 
 ## 0.0.120
 

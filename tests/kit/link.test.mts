@@ -1349,6 +1349,55 @@ test('link cargo without a declaration runs a plain locked fetch of the release 
   assert.match(log(), /^cargo fetch --locked$/m);
 });
 
+// K1287: a link never changes the tracked lock (K448-5-2, K1269), so a command that must write it, such as cargo update after a
+// manifest names another tag, takes the explicit form --tracked-lock: cargo runs as given, with no patch and no lock copy, and
+// resolves the sources that the manifests name.
+test('link cargo --tracked-lock with a declaration runs cargo as given, without the patches and the lock copy (K1287)', (t) => {
+  const { consumer, env, log } = workspace(t);
+  declareSiblings(consumer);
+  put(consumer, { 'Cargo.lock': 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n' });
+  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', '--tracked-lock', consumer, 'update', '-p', 'polyspec-prov'], { cwd: consumer, env, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(log(), 'cargo update -p polyspec-prov\n', 'one cargo command, with no --config, locate-project, offline update or metadata');
+  assert.equal(existsSync(path.join(consumer, 'var/link/cargo')), false, 'no lock copy is written');
+  assert.equal(run.stderr, '');
+});
+
+test('link cargo --tracked-lock without a declaration runs cargo as given (K1287)', (t) => {
+  const { consumer, env, log } = workspace(t);
+  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', '--tracked-lock', consumer, 'update', '-p', 'polyspec-prov'], { cwd: consumer, env, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(log(), 'cargo update -p polyspec-prov\n');
+});
+
+// K1287: without the patches cargo cannot resolve a crate or a version that only a linked checkout provides, and no path of that
+// checkout enters the tracked lock: the status of cargo is kept and the cause follows the error of cargo.
+test('link cargo --tracked-lock keeps the failure of cargo and names the missing patches as its cause under a declaration (K1287)', (t) => {
+  const { root, consumer, env } = workspace(t);
+  const fake = path.join(root, 'bin/failing-cargo');
+  put(root, { 'bin/failing-cargo': '#!/bin/sh\necho "error: failed to select a version for the requirement" >&2\nexit 101\n' });
+  chmodSync(fake, 0o755);
+  const lock = 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n';
+  put(consumer, { 'Cargo.lock': lock });
+  const tracked = () => spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', '--tracked-lock', consumer, 'update', '-p', 'polyspec-prov'], { cwd: consumer, env: { ...env, CARGO: fake }, encoding: 'utf8' });
+  const plain = tracked();
+  assert.equal(plain.status, 101);
+  assert.equal(plain.stderr, 'error: failed to select a version for the requirement\n', 'without a declaration no patch is left out');
+  declareSiblings(consumer);
+  const run = tracked();
+  assert.equal(run.status, 101, 'the exit status of cargo is that of the wrapper');
+  assert.match(run.stderr, /^error: failed to select a version for the requirement\nlink\.mjs cargo --tracked-lock: cargo exited 101 without the patches of \.links: a crate or a version that only a linked checkout provides is not in the sources that the manifests name until it is released\n$/);
+  assert.equal(readFileSync(path.join(consumer, 'Cargo.lock'), 'utf8'), lock);
+});
+
+test('link cargo --tracked-lock without a directory fails with the usage (K1287)', (t) => {
+  const { consumer, env, log } = workspace(t);
+  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', '--tracked-lock'], { cwd: consumer, env, encoding: 'utf8' });
+  assert.equal(run.status, 1);
+  assert.equal(run.stderr, 'Usage: link.mjs cargo [--tracked-lock] <dir> <cargo args>...\n');
+  assert.equal(log(), '', 'no cargo runs');
+});
+
 // K440-2: link writes a git-ignored go.work into each Go module of a checkout, the fixture module of kit included, so the
 // checkout of kit must ignore it; otherwise link fails before it writes the workspace hook of K440.
 test('every Go module of the kit checkout gets a git-ignored go.work (K440-2)', () => {
