@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 09abec8d8fe106001e10ea81ae22bdc4947639783cff6c75c20c0d46469ca021 -->
+<!-- source-sha256: 048400c5463b7c80a1798fd6af74f7072da26afdab38ee2fa3f7e7042470ed39 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.123
 
 - K1291: lint-go가 root `go.work`의 `use` 지시가 이름하지 않는 Go module의 golangci-lint와 deadcode step에 환경 `GOWORK=off`를 준다. 그래서 그런 module에서 `make lint-go`가 `pattern ./...: directory prefix . does not contain modules listed in go.work`로 실패하지 않는다(orm과 crud-ui). 작업 공간이 이름하는 module과 `go.work`가 없는 checkout은 전처럼 돈다.
 - K1292: `TOOLS=wasmBindgen`이 mise.toml의 `github:wasm-bindgen/wasm-bindgen`만 설치한다. `TOOLS=maturin`이 maturin을 설치하는 것과 같다. 그래서 WASM package를 만드는 job이 selector 하나로 mise.lock이 lock한 release를 설치한다.

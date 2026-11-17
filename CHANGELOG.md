@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+## 0.0.123
+
 - K1291: lint-go gives the golangci-lint and deadcode steps of a Go module that the `use` directives of the root `go.work` do not name the environment `GOWORK=off`, so `make lint-go` no longer fails with `pattern ./...: directory prefix . does not contain modules listed in go.work` for such a module (orm and crud-ui). A module the workspace names, and a checkout with no `go.work`, run as before.
 - K1292: `TOOLS=wasmBindgen` installs `github:wasm-bindgen/wasm-bindgen` of mise.toml alone, as `TOOLS=maturin` installs maturin, so a job that builds the WASM package installs the release that mise.lock locks with one selector.
 
