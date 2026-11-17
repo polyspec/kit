@@ -892,6 +892,8 @@ Left as it is, with the reason:
   no install step precedes the lint, build and test of an extension, since the build runs the `gen_stub.php` that phpize copies into `build/` of the source. Extension tests use PHPUnit installed
   with their Composer package, so Kit's private PHPUnit declaration is not required. A consumer with a nonempty PHP setup list must include every Composer project it needs, including
   root and package projects.
+  Python runtime jobs select the declared Python, uv, ruff, vulture and maturin (`github:PyO3/maturin` of `mise.toml`), each only
+  when the repository declares it, so a wheel recipe that runs maturin finds it in the job that builds the wheel (K1288).
   The pipeline separates planning from checks. A small `plan` job bootstraps the locked package and runs make ci-plan;
   it publishes the fan-out of the runtime jobs, their runner and whether the shared job sets up PHP, but runs no check or runtime
   setup. Each other job runs one recipe, make ci-shared or make ci-runtime RUNTIME=<runtime>, which reads the tools and the

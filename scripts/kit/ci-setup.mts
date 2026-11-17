@@ -51,7 +51,7 @@ const runtimeTools: Record<Runtime, string[]> = {
   ts: [],
   php: ['php', 'composer', 'phpcs', 'phpstan'],
   'php-ext': ['php', 'composer'],
-  python: ['python', 'uv', 'ruff', 'vulture'],
+  python: ['python', 'uv', 'ruff', 'vulture', 'maturin'],
   go: ['go', 'golangciLint', 'deadcode', 'govulncheck'],
   rust: ['rust', 'cargoAudit', 'cargoNextest', 'cargoDeny'],
 };

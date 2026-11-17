@@ -809,6 +809,8 @@ S10 PHP extension의 stub은 library의 class와 함수를 같은 이름과 sign
   선택하고 extension의 lint, build, test 전에 설치 단계가 필요 없습니다. build는 phpize가 `build/`에 복사한 `gen_stub.php`를 실행합니다. Extension test는 Composer package에 설치된
   PHPUnit을 사용하므로 Kit의 private PHPUnit 선언은 필요하지 않습니다. PHP setup 목록을 직접 지정하는 소비 저장소는 root와 package를 포함해 필요한 Composer project를
   모두 나열해야 합니다.
+  Python runtime job은 선언된 Python, uv, ruff, vulture, maturin(`mise.toml`의 `github:PyO3/maturin`)을 선택하며, 각각 저장소가
+  선언할 때만 선택합니다. 그래서 maturin을 실행하는 wheel recipe는 wheel을 빌드하는 job에서 maturin을 찾습니다(K1288).
   마지막 job `required`(ubuntu-24.04)는
   파이프라인의 모든 job을 needs로 하고 needs의 JSON으로 make ci-required를 실행하며, 그것은 plan이 선택한 job이 성공하지 않으면(skip된 경우 포함, K950) 실패합니다. plan이 고르지 않은 job은 skip되며 결과가 아닙니다.
   kit-ci-verify-gates는 없습니다.
