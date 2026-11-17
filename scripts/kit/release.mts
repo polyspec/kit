@@ -702,6 +702,19 @@ export function candidateAssets(ctx: Context, version: string): string[] {
   return assetsFromCommit(ctx, `HEAD candidate ${version}`, commit, version);
 }
 
+/**
+ * The version of a candidate that its caller does not name (K1286): the newest version of the change log of HEAD, the commit that
+ * the candidate packs, as the release reads it at its commit. An entry under ## Unreleased does not refuse it, since a candidate
+ * is built before the version-bump commit of the next version.
+ */
+export function candidateVersion(ctx: Context): string {
+  const { changelog } = ctx.config;
+  const shown = execute('git', ['show', `HEAD:${changelog}`], { cwd: ctx.root, env: ctx.env });
+  if (shown.error) throw new Stop(`git show HEAD:${changelog} did not start: ${shown.error.message}`);
+  if (shown.status !== 0) throw new Stop(`HEAD holds no ${changelog}, the change log that ${CONFIG} names; its first section ## X.Y.Z is the candidate version: ${(shown.stderr ?? '').trim()}`);
+  return releasedVersion(shown.stdout ?? '', `${changelog} at HEAD`);
+}
+
 /** The record of the draft release that publish created for `tag`, relative to the checkout: `{ "id": <id> }`. */
 /** The record of the draft release of `tag` in the folder of the release records that the caller names (RELEASE_RECORDS, K1115). */
 export function releaseRecord(ctx: Pick<Context, 'records'>, tag: string): string {
@@ -797,14 +810,14 @@ export function coverage(ctx: Context): string[] {
   return problems;
 }
 
-const USAGE = 'usage: node scripts/kit/release.mts assets|publish|undraft TAG | candidate-assets VERSION | coverage';
+const USAGE = 'usage: node scripts/kit/release.mts assets|publish|undraft TAG | candidate-assets [VERSION] | coverage';
 
 /** Runs a step of the command line; the exit status. */
 export function main(argv: string[], { root = repositoryRoot(), env = process.env, print = console.log, error = console.error }: CommandOptions = {}): number {
   const [mode, latest, ...rest] = argv;
   let tag = latest;
   const tagged = mode !== undefined && ['assets', 'publish', 'undraft'].includes(mode);
-  const candidate = mode === 'candidate-assets' && latest !== undefined && rest.length === 0;
+  const candidate = mode === 'candidate-assets' && rest.length === 0;
   if (!(tagged && tag && rest.length === 0) && !candidate && !(mode === 'coverage' && tag === undefined)) {
     error(USAGE);
     return 2;
@@ -827,8 +840,10 @@ export function main(argv: string[], { root = repositoryRoot(), env = process.en
   try {
     const ctx = context(root, { env, log: print });
     if (candidate) {
-      const names = candidateAssets(ctx, present(latest, 'candidate version'));
-      print(`[release] HEAD candidate ${latest}: built ${names.join(', ')} in ${assetFolder(ctx)}`);
+      const version = latest ?? candidateVersion(ctx);
+      if (latest === undefined) print(`[release] candidate-assets: the version is ${version}, the first section ## X.Y.Z of ${ctx.config.changelog} at HEAD`);
+      const names = candidateAssets(ctx, version);
+      print(`[release] HEAD candidate ${version}: built ${names.join(', ')} in ${assetFolder(ctx)}`);
       return 0;
     }
     const release = tag === 'latest' ? latestTag(ctx) : tag;

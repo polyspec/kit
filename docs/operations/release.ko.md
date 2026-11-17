@@ -22,7 +22,7 @@ tag가 없는 최상위 version은 version 변경 없이 다시 준비할 수 �
 릴리스는 세 단계로 준비하고 진행합니다. (1) commit `chore(release): Release X.Y.Z`가 모든 release manifest와 lock의 버전을 정하고
 `CHANGELOG.md(.ko)`의 Unreleased 절을 `## X.Y.Z`로 바꿉니다. packing 전에 버전을 commit합니다. native packer가 version 파일을
 `HEAD`에서 복원하는 package lifecycle script를 실행할 수 있기 때문입니다. tag 없는 candidate archive 전체는 커밋된 `HEAD`에서
-`make release-candidate-assets VERSION=X.Y.Z`로 만듭니다. 이 명령은 tag asset producer와 같은 manifest 검사, 생성 파일 처리 및 native
+`make release-candidate-assets VERSION=X.Y.Z`로 만듭니다. VERSION이 없으면(인자 없는 `release.mjs candidate-assets`) 이 명령은 config/release.json이 적는 change log를 `HEAD`에서 읽고, release가 하듯이 첫 section `## X.Y.Z`에서 X.Y.Z를 얻고, 얻은 version을 출력합니다. `## Unreleased` 아래의 entry는 이를 거부하지 않으며, 그런 section이 없는 `HEAD`의 change log와 change log가 없는 `HEAD`는 파일을 밝히며 실패합니다(K1286). 이 명령은 tag asset producer와 같은 manifest 검사, 생성 파일 처리 및 native
 packer를 사용하며 tag를 조회하거나 만들지 않습니다. package lifecycle script가 package directory 바깥의 build input도 읽을 수 있으므로
 candidate command는 tracked 변경과 ignore되지 않은 untracked 파일이 없는 checkout을 요구합니다. 거부되면 source 변경을 commit한 뒤 candidate
 command를 다시 실행합니다. 버전 변경은 package-manager lock을 다시 씁니다. `composer.lock`의 content-hash가 `version`을 포함하므로,

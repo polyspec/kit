@@ -853,11 +853,35 @@ test('the command line runs each step, prints a line per step and exits with 1 o
 
 test('the command line refuses a missing mode, missing arguments and extra arguments with the usage', (t) => {
   const box = releaseSandbox(t);
-  for (const args of [[], ['verify', 'v0.0.1'], ['tag', 'v0.0.1'], ['go-tags', 'v0.0.1'], ['candidate-assets'], ['bogus', 'v0.0.1'], ['assets', 'v0.0.1', 'extra'], ['candidate-assets', '0.0.1', 'extra'], ['coverage', 'v0.0.1']]) {
+  for (const args of [[], ['verify', 'v0.0.1'], ['tag', 'v0.0.1'], ['go-tags', 'v0.0.1'], ['bogus', 'v0.0.1'], ['assets', 'v0.0.1', 'extra'], ['candidate-assets', '0.0.1', 'extra'], ['coverage', 'v0.0.1']]) {
     const result = cli(box, args);
     assert.equal(result.status, 2, args.join(' '));
-    assert.match(result.stderr, /usage: node scripts\/kit\/release\.mts assets\|publish\|undraft TAG \| candidate-assets VERSION \| coverage/);
+    assert.match(result.stderr, /usage: node scripts\/kit\/release\.mts assets\|publish\|undraft TAG \| candidate-assets \[VERSION\] \| coverage/);
   }
+});
+
+// K1286: the candidate version is the one that the release reads, from the change log of the commit that the candidate packs.
+test('K1286: candidate-assets with no VERSION builds the candidate of the first section ## X.Y.Z of the change log of HEAD and prints the version it took', (t) => {
+  const box = releaseSandbox(t);
+  const result = cli(box, ['candidate-assets']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^\[release\] candidate-assets: the version is 0\.0\.1, the first section ## X\.Y\.Z of CHANGELOG\.md at HEAD$/m);
+  assert.match(result.stdout, /\[release\] HEAD candidate 0\.0\.1: built fixture-lib-0\.0\.1\.tgz/);
+  assert.ok(existsSync(path.join(box.root, 'var/release/assets', 'fixture-lib-0.0.1.tgz')));
+});
+
+test('K1286: candidate-assets with no VERSION fails, naming the file and the expected section, for a change log of HEAD without a version section or a HEAD without the change log', (t) => {
+  const none = releaseSandbox(t, { changelog: '# Changelog\n\n## Unreleased\n\n- An entry.\n' });
+  let result = cli(none, ['candidate-assets']);
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stderr, /\[release\] candidate-assets failed: CHANGELOG\.md at HEAD has no section ## X\.Y\.Z/);
+  const missing = releaseSandbox(t);
+  git(missing.root, 'rm', '--quiet', 'CHANGELOG.md');
+  git(missing.root, 'commit', '--quiet', '-m', 'remove the change log');
+  result = cli(missing, ['candidate-assets']);
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stderr, /\[release\] candidate-assets failed: HEAD holds no CHANGELOG\.md, the change log that config\/release\.json names; its first section ## X\.Y\.Z is the candidate version/);
+  for (const box of [none, missing]) assert.ok(!existsSync(path.join(box.root, 'var/release/assets')), 'nothing is built');
 });
 
 test('make runs each release step with the tag of the environment and fails without it', (t) => {
@@ -869,11 +893,13 @@ test('make runs each release step with the tag of the environment and fails with
     assert.equal(result.status, 2, target);
     assert.match(result.stdout + result.stderr, new RegExp(`${target}: TAG is required, for example make ${target} TAG=v0\\.0\\.1`));
   }
+  // K1286: with no VERSION the target passes none, and the tool takes the version of the change log of HEAD.
   let result = make('release-candidate-assets');
-  assert.equal(result.status, 2, 'the candidate target requires VERSION');
-  assert.match(result.stdout + result.stderr, /release-candidate-assets: VERSION is required, for example make release-candidate-assets VERSION=0\.0\.1/);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /\[release\] candidate-assets: the version is 0\.0\.1, the first section ## X\.Y\.Z of CHANGELOG\.md at HEAD/);
   result = make('release-candidate-assets', 'VERSION=0.0.1');
   assert.equal(result.status, 0, result.stderr);
+  assert.doesNotMatch(result.stdout, /the version is/);
   assert.match(result.stdout, /\[release\] HEAD candidate 0\.0\.1: built fixture-lib-0\.0\.1\.tgz/);
   result = make('release-coverage');
   assert.equal(result.status, 0, result.stderr);

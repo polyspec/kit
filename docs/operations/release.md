@@ -21,7 +21,7 @@ An untagged top version may be prepared again without changing that version: fol
 A release is prepared and cut in three steps. (1) A commit `chore(release): Release X.Y.Z` sets the version in every release
 manifest and lock, and turns the Unreleased section of `CHANGELOG.md(.ko)` into `## X.Y.Z`. Commit the version before packing:
 the native packers may run package lifecycle scripts that restore version files from `HEAD`. Build all tagless candidate archives
-from committed `HEAD` with `make release-candidate-assets VERSION=X.Y.Z`. This uses the same manifest validation, generated-file
+from committed `HEAD` with `make release-candidate-assets VERSION=X.Y.Z`. With no VERSION (`release.mjs candidate-assets` with no argument) the command reads the change log that config/release.json names at `HEAD`, takes X.Y.Z from its first section `## X.Y.Z` as the release does, and prints the version it took; entries under `## Unreleased` do not refuse it, and a change log of `HEAD` without such a section, or a `HEAD` without the change log, fails and names the file (K1286). This uses the same manifest validation, generated-file
 handling and native packers as the tagged asset producer; it neither resolves nor creates a tag. Run
 the candidate command from a clean tracked tree with no non-ignored untracked files, because package lifecycle scripts can read
 build inputs outside their package directories. Commit source changes and rerun the candidate command when this check refuses.

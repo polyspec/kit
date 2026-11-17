@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 97cccd943be9a087aebcedd8637a636ed1c1c435abc70628e62b7e02ebe6fc8c -->
+<!-- source-sha256: 262ce78cb18d9c174107213a6bb2dfcce9c13681776685183a748ad7c7c7c958 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1286: VERSION 없는 `release.mjs candidate-assets`와 VERSION 없는 `make release-candidate-assets`가 HEAD의 change log가 기록한 version의 candidate를 빌드한다. tool은 config/release.json의 `changelog`가 적는 파일을 candidate가 pack하는 commit인 HEAD에서 읽고(`git show`), release가 하듯이 첫 section `## X.Y.Z`의 제목을 얻고, 빌드 전에 `[release] candidate-assets: the version is X.Y.Z, the first section ## X.Y.Z of <file> at HEAD`를 출력한다. `## Unreleased` 아래의 entry는 이를 거부하지 않는다. 그런 section이 없는 HEAD의 change log와 change log가 없는 HEAD는 exit 1과 함께 파일과 기대한 section을 적은 message로 실패한다. `candidate-assets VERSION`은 그대로다. 전에는 둘 다 VERSION 없는 호출을 거부했고 kit의 어떤 명령도 그 version을 주지 않았다. package `exports`의 entry가 아닌 빌드 파일 `dist/release.mjs`의 함수만 그것을 읽었다. Red: `tests/kit/release.test.mts`의 K1286 시험 두 개가 usage와 exit 2를 받았다.
 - K1285: install-vscode가 rejection에 message가 없는 download 실패의 원인을 적습니다. 모든 주소에서 실패한 연결의 AggregateError처럼 message가 없는 Error에 대해 download process는 error의 name, code, cause, AggregateError의 errors와 stack을 보내고, Error가 아닌 rejection은 그 값을 보냅니다. download의 각 step은 시작할 때 보냅니다. 그래도 install이 text 없는 실패를 받으면 그 error는 VS Code `<version>`의 `<platform>` download가 message 없이 실패했다고 말하고 실행 중이던 step을 적으며, 결과 전에 끝난 download process도 그 step을 적습니다. message가 있는 rejection은 그 message를 유지하고, retry, 시간 제한, polling은 추가하지 않습니다. 전에는 download process가 빈 message를 보내고 install이 그것을 그대로 error에 넣어 install이 `Error` 한 줄로 실패했으며, `error`가 string이 아닌 실패는 결과로 읽지 않았습니다. Red: download가 message가 빈 Error, AggregateError, Error가 아닌 값으로 reject하는 download process와 빈 실패를 보내는 download process로 `tests/kit/install-vscode.test.mts`의 K1285 시험이 message가 빈 error를 받았고, green: install-vscode 시험과 함께 원인과 step을 받습니다.
 
 ## 0.0.119
