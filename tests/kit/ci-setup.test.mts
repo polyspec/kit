@@ -477,3 +477,21 @@ test('K1114 the runtimes of the plan are those that config/ci.json declares, not
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('K1288: the python job installs maturin when mise.toml declares it, and not otherwise', () => {
+  const root = fixture();
+  try {
+    const config = fixtureConfig(root);
+    config.runtimes = ['python'];
+    writeFileSync(path.join(root, 'config/ci.json'), JSON.stringify(config));
+    writeFileSync(path.join(root, 'mise.toml'), '[tools]\npython = "3.13.0"\n"github:PyO3/maturin" = "1.9.6"\n');
+    execFileSync('git', ['add', 'mise.toml', 'config/ci.json'], { cwd: root });
+    const python = () => ciPlan(root).runtimes.find(job => job.runtime === 'python')?.installTools ?? [];
+    assert.equal(python().includes('maturin'), true, 'a declared maturin is a tool of the python job');
+    assert.equal(ciPlan(root).commonTools.includes('maturin'), false, 'maturin is not installed by the shared job');
+    writeFileSync(path.join(root, 'mise.toml'), '[tools]\npython = "3.13.0"\n');
+    assert.equal(python().includes('maturin'), false, 'an undeclared maturin is not selected');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
