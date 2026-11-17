@@ -13,10 +13,11 @@ import { createServer as createHttpsServer } from 'node:https';
 import { tmpdir } from 'node:os';
 import { Server as NetServer } from 'node:net';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import type { Duplex } from 'node:stream';
-import { installVSCode, installedExecutable, vscodeCopy } from '../../scripts/kit/install-vscode.mts';
+import { downloadInProcessOf, installVSCode, installedExecutable, vscodeCopy } from '../../scripts/kit/install-vscode.mts';
 import type { Download } from '../../scripts/kit/install-vscode.mts';
 import { runCommand as runOwnedCommand } from '../../scripts/kit/run-command.mts';
 
@@ -128,6 +129,61 @@ test('the offline read of an installed copy returns its executable', async (t) =
   const { extension, tools } = setup(t);
   const installed = await installVSCode(extension, tools, fakeDownload([]));
   assert.ok(installedExecutable(extension, tools).startsWith(installed), 'the executable is not inside the installed copy');
+});
+
+// K1285: a failed download states its cause. The download process of each test is a file of the test that runs the real
+// downloadProcess with a download that rejects, or that sends its own messages, so the install reads them through its channel.
+const OPTIONS = { version: '1.138.0', platform: 'linux-x64', cachePath: 'unused' };
+
+/** The error of a download in a process that runs the module `source`. */
+const failureOf = async (t: TestContext, source: string): Promise<string> => {
+  const file = path.join(directory(t), 'download-process.mjs');
+  writeFileSync(file, source);
+  try {
+    await downloadInProcessOf(file)(OPTIONS);
+  } catch (error) {
+    assert.ok(error instanceof Error, 'the install rejects with an Error');
+    return error.message;
+  }
+  return assert.fail('the download of a failing process succeeded');
+};
+
+/** The module of a download process whose download names the step `resolvingCDNLocation` and then rejects with the expression `rejection`. */
+const rejecting = (rejection: string): string => `
+  import { downloadProcess } from ${JSON.stringify(pathToFileURL(path.resolve('scripts/kit/install-vscode.mts')).href)};
+  await downloadProcess(${JSON.stringify(OPTIONS)}, async (_options, step) => { step('resolvingCDNLocation'); throw ${rejection}; });
+`;
+
+test('K1285: a rejection with a message keeps its message', async (t) => {
+  assert.equal(await failureOf(t, rejecting(`new Error('getaddrinfo ENOTFOUND update.code.visualstudio.com')`)), 'getaddrinfo ENOTFOUND update.code.visualstudio.com');
+});
+
+test('K1285: an Error without a message is sent with its name, its code, its cause and its stack', async (t) => {
+  const message = await failureOf(t, rejecting(`Object.assign(new Error('', { cause: new Error('socket hang up') }), { code: 'ECONNRESET' })`));
+  assert.match(message, /^Error without a message\ncode: ECONNRESET\ncause: socket hang up\nstack: Error\n\s+at /);
+});
+
+test('K1285: an AggregateError without a message is sent with its errors', async (t) => {
+  const message = await failureOf(t, rejecting(`Object.assign(new AggregateError([new Error('connect ECONNREFUSED 127.0.0.1:443'), new Error('connect ECONNREFUSED ::1:443')], ''), { code: 'ECONNREFUSED' })`));
+  assert.match(message, /^AggregateError without a message\ncode: ECONNREFUSED\nerrors: connect ECONNREFUSED 127\.0\.0\.1:443; connect ECONNREFUSED ::1:443\nstack: AggregateError\n\s+at /);
+});
+
+test('K1285: a rejection that is no Error is sent with its value', async (t) => {
+  assert.equal(await failureOf(t, rejecting('undefined')), 'a rejection with the value undefined, which is no Error');
+  assert.equal(await failureOf(t, rejecting(`''`)), `a rejection with the value '', which is no Error`);
+  assert.equal(await failureOf(t, rejecting(`{ status: 503 }`)), 'a rejection with the value { status: 503 }, which is no Error');
+});
+
+test('K1285: a failure that arrives without a text names the version, the platform and the step that was running', async (t) => {
+  assert.equal(await failureOf(t, `process.send({ step: 'fetchingVersion' }); process.send({ error: '' });`),
+    'the download of VS Code 1.138.0 for linux-x64 failed without a message during the step fetchingVersion');
+  assert.equal(await failureOf(t, `process.send({ error: null });`),
+    'the download of VS Code 1.138.0 for linux-x64 failed without a message during the step start; its process sent the error null');
+});
+
+test('K1285: a download process that ends before its result names the step that was running', async (t) => {
+  assert.equal(await failureOf(t, `process.send({ step: 'downloading' }, () => process.exit(3));`),
+    'the download process of VS Code 1.138.0 ended with 3 during the step downloading, before its result');
 });
 
 // The command against a stub of update.code.visualstudio.com (K173). @vscode/test-electron pipes a .tar.gz download into a

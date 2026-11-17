@@ -9,10 +9,13 @@
 // @vscode/test-electron downloads into the copy's own directory, so a new copy is downloaded into <tools>/.next-<pid> and
 // renamed into place: a reader finds no copy or a complete one, and two installs at once keep the copy of the first.
 // The command runs the download in a process of its own (K173), then requests owned cleanup once the download settles.
+// A failed download fails with its cause: the message of its error or, for an error without one, what the error holds, and
+// the step that was running (K1285).
 import { fork } from 'node:child_process';
 import { existsSync, mkdirSync, renameSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { inspect } from 'node:util';
 import util from '@vscode/test-electron/out/util.js';
 import { readNpmManifestFile } from './manifests.mts';
 import { isMain } from './paths.mts';
@@ -79,30 +82,62 @@ export async function installVSCode(extension: string, base: string, download: D
   }
 }
 
-/** The result that the download process sends to the install: the executable, or the message of the failure. */
-type Settled = { executable: string } | { error: string };
+/** The result that the download process sends to the install: the executable, or the text of the failure, which the install reads as it arrives. */
+type Settled = { executable: string } | { error: unknown };
 
 const isSettled = (message: unknown): message is Settled =>
-  typeof message === 'object' && message !== null && (typeof (message as { executable?: unknown }).executable === 'string' || typeof (message as { error?: unknown }).error === 'string');
+  typeof message === 'object' && message !== null && (typeof (message as { executable?: unknown }).executable === 'string' || 'error' in message);
+
+/** The step that the download process sends to the install as the step starts. */
+const isStep = (message: unknown): message is { step: string } =>
+  typeof message === 'object' && message !== null && typeof (message as { step?: unknown }).step === 'string';
+
+const hasText = (value: unknown): value is string => typeof value === 'string' && value.trim() !== '';
 
 /**
- * downloadAndUnzipVSCode in a process of its own. @vscode/test-electron 3.1.0 pipes a .tar.gz download into a
+ * The text of the rejection `error` of a download: its message, or, for an Error without one, such as the AggregateError of
+ * a connection that failed on every address, its name, code, cause, errors and stack; a rejection that is no Error is named by its value (K1285).
+ */
+function failureText(error: unknown): string {
+  if (!(error instanceof Error)) return hasText(error) ? error : `a rejection with the value ${inspect(error)}, which is no Error`;
+  if (hasText(error.message)) return error.message;
+  const code: unknown = 'code' in error ? error.code : undefined;
+  return [
+    `${error.name} without a message`,
+    ...(code === undefined ? [] : [`code: ${typeof code === 'string' ? code : inspect(code)}`]),
+    ...(error.cause === undefined ? [] : [`cause: ${failureText(error.cause)}`]),
+    ...(error instanceof AggregateError ? [`errors: ${error.errors.map(failureText).join('; ')}`] : []),
+    ...(error.stack === undefined ? [] : [`stack: ${error.stack}`]),
+  ].join('\n');
+}
+
+/** A download that names each of its steps with `step` as the step starts. */
+export type SteppedDownload = (options: Parameters<Download>[0], step: (name: string) => void) => Promise<string>;
+
+/**
+ * A download in a process of its own, which runs `file` with the arguments of the download process. @vscode/test-electron 3.1.0 pipes a .tar.gz download into a
  * `tar -xzf -` child and neither ends nor kills that child when the response fails ("aborted"): the child waits on its
  * input and keeps the event loop alive after a retry succeeds, so the install never exited (K173). The download process
  * leads its own process group, which receives a termination request once the download has settled, so a tar that it left ends with it; it
- * ends itself when the install goes away first. A failed download fails with its error.
+ * ends itself when the install goes away first. A failed download fails with the text that its process sent; a failure
+ * without a text, and a process that ends before its result, name the step that the process sent last (K1285).
  */
-export const downloadInOwnProcess: Download = (options) =>
+export const downloadInProcessOf = (file: string): Download => (options) =>
   new Promise((resolve, reject) => {
     const since = Date.now();
-    const child = fork(fileURLToPath(import.meta.url), [DOWNLOAD, options.version, options.platform, options.cachePath], { detached: true, stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
+    const child = fork(file, [DOWNLOAD, options.version, options.platform, options.cachePath], { detached: true, stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
     const root = watchRoot(child, since);
     const closed = new Promise<void>(resolveClosed => child.once('close', () => resolveClosed()));
     let shutdown: Promise<void> | undefined;
     let cleanupError: unknown;
     let settled: Settled | undefined;
+    let step = 'start';
+    const failure = (error: unknown): Error =>
+      new Error(hasText(error) ? error : `the download of VS Code ${options.version} for ${options.platform} failed without a message during the step ${step}${typeof error === 'string' ? '' : `; its process sent the error ${inspect(error)}`}`);
     child.on('message', (message: unknown) => {
-      if (settled !== undefined || !isSettled(message)) return;
+      if (settled !== undefined) return;
+      if (isStep(message)) step = message.step;
+      if (!isSettled(message)) return;
       settled = message;
       // Settlement preserves the result while the owned group gets one second to close before escalation.
       if (child.pid !== undefined) shutdown = stopGroup(child.pid, closed, 1000, undefined, root).catch(error => { cleanupError = error; });
@@ -111,34 +146,55 @@ export const downloadInOwnProcess: Download = (options) =>
     child.on('close', async (code, signal) => {
       await shutdown;
       if (cleanupError !== undefined) {
-        reject(new AggregateError([...(settled !== undefined && 'error' in settled ? [new Error(settled.error)] : []), cleanupError], `the download process of VS Code ${options.version} could not be cleaned up`, { cause: cleanupError }));
-      } else if (settled === undefined) reject(new Error(`the download process of VS Code ${options.version} ended with ${code ?? signal} before its result`));
+        reject(new AggregateError([...(settled !== undefined && 'error' in settled ? [failure(settled.error)] : []), cleanupError], `the download process of VS Code ${options.version} could not be cleaned up`, { cause: cleanupError }));
+      } else if (settled === undefined) reject(new Error(`the download process of VS Code ${options.version} ended with ${code ?? signal} during the step ${step}, before its result`));
       else if ('executable' in settled) resolve(settled.executable);
-      else reject(new Error(settled.error));
+      else reject(failure(settled.error));
     });
   });
 
-/** The download process: runs downloadAndUnzipVSCode with `options` and sends its result to the install. */
-async function downloadProcess(options: Parameters<Download>[0]): Promise<void> {
+/** The download of the command: downloadAndUnzipVSCode in the download process of this file. */
+export const downloadInOwnProcess: Download = downloadInProcessOf(fileURLToPath(import.meta.url));
+
+/** The download process: runs `download` with `options` and sends its result to the install. */
+export async function downloadProcess(options: Parameters<Download>[0], download: SteppedDownload): Promise<void> {
   // The install went away (an interrupt reaches the group of the install, not this one): the download ends too.
   process.on('disconnect', () => process.exit(1));
-  const { downloadAndUnzipVSCode } = await import('@vscode/test-electron');
-  let settled: Settled;
-  try {
-    settled = { executable: await downloadAndUnzipVSCode(options) };
-  } catch (error) {
-    settled = { error: error instanceof Error ? error.message : String(error) };
-  }
   // fork gave this process its channel to the install.
   if (process.send === undefined) throw new Error(`${DOWNLOAD} runs in a process that the install forked`);
-  process.send(settled);
+  const send = process.send.bind(process);
+  let settled: Settled;
+  try {
+    settled = { executable: await download(options, name => { send({ step: name }); }) };
+  } catch (error) {
+    settled = { error: failureText(error) };
+  }
+  send(settled);
 }
+
+/** downloadAndUnzipVSCode of @vscode/test-electron with its console reporter, which names each stage of the download once as the stage starts. */
+const downloadAndUnzip: SteppedDownload = async (options, step) => {
+  const { downloadAndUnzipVSCode, makeConsoleReporter } = await import('@vscode/test-electron');
+  const reporter = await makeConsoleReporter();
+  let stage: string | undefined;
+  return downloadAndUnzipVSCode({
+    ...options,
+    reporter: {
+      report: (report) => {
+        // The stage `downloading` is reported for each part of the archive; the install needs each stage once.
+        if (report.stage !== stage) step(stage = report.stage);
+        reporter.report(report);
+      },
+      error: (error) => { reporter.error(error); },
+    },
+  });
+};
 
 if (isMain(import.meta.url)) {
   const [first, ...rest] = process.argv.slice(2);
   const [version, platform, cachePath, ...extra] = rest;
   if (first === DOWNLOAD && version !== undefined && platform !== undefined && cachePath !== undefined && extra.length === 0) {
-    await downloadProcess({ version, platform, cachePath });
+    await downloadProcess({ version, platform, cachePath }, downloadAndUnzip);
   } else if (first === undefined || first === DOWNLOAD || rest.length !== 1) {
     console.error('usage: node scripts/kit/install-vscode.mts <extension package directory> <tools directory>');
     process.exit(2);

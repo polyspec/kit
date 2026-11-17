@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6da7a3770c47876e4ebeb26cf648a7d4c0db5b28797108aa4a1ed2600af39e79 -->
+<!-- source-sha256: 97cccd943be9a087aebcedd8637a636ed1c1c435abc70628e62b7e02ebe6fc8c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1285: install-vscode가 rejection에 message가 없는 download 실패의 원인을 적습니다. 모든 주소에서 실패한 연결의 AggregateError처럼 message가 없는 Error에 대해 download process는 error의 name, code, cause, AggregateError의 errors와 stack을 보내고, Error가 아닌 rejection은 그 값을 보냅니다. download의 각 step은 시작할 때 보냅니다. 그래도 install이 text 없는 실패를 받으면 그 error는 VS Code `<version>`의 `<platform>` download가 message 없이 실패했다고 말하고 실행 중이던 step을 적으며, 결과 전에 끝난 download process도 그 step을 적습니다. message가 있는 rejection은 그 message를 유지하고, retry, 시간 제한, polling은 추가하지 않습니다. 전에는 download process가 빈 message를 보내고 install이 그것을 그대로 error에 넣어 install이 `Error` 한 줄로 실패했으며, `error`가 string이 아닌 실패는 결과로 읽지 않았습니다. Red: download가 message가 빈 Error, AggregateError, Error가 아닌 값으로 reject하는 download process와 빈 실패를 보내는 download process로 `tests/kit/install-vscode.test.mts`의 K1285 시험이 message가 빈 error를 받았고, green: install-vscode 시험과 함께 원인과 step을 받습니다.
 
 ## 0.0.119
 
