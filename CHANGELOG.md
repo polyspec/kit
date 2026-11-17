@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+## 0.0.119
+
 - K1283: `link.mjs cargo` runs the cargo command with the stdio of the wrapper, so its stdout and stderr lines reach the reader in the order that cargo writes them; the exit status and the error of a command that cannot start stay. Before, the wrapper buffered both streams and wrote all of stdout and then all of stderr, so the `Running <target>` line of cargo test came after the lines of its tests and run-tests named no suite of a test. No caller read the buffered output of that command. Red: the K1283 test of `tests/kit/link.test.mts`, a cargo stub that writes stderr and stdout lines in turn into one file, got the stdout lines first; green: it gets the order of the stub, with the link and run-tests tests.
 
 - K1284: rules-check reads an AGENTS item `Refines <id>: No object: <reason>` as the statement that the principle `<id>` has no object in the repository, such as S10 in a repository that holds no PHP library: the checks of that principle's `Enforced by:` line are not checked there, and the item is checked with its own `Enforced by:` line, names a rule of PRINCIPLES.md and needs no term of the repository. `docs/operations/adoption.md` states the form. Before, every principle's checks were checked, so such a repository failed with `make <target> is no target of the Makefile` for targets that it has no reason to define. Red: the K1284 test of `tests/kit/check-rules.test.mts` got the findings of the S10 targets and of the missing term; green: it gets none, and the check-rules tests and kit's own rules-check pass.

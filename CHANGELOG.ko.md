@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 019ced55e39d71416eb75d0c961d9d384db04b75567b8217695e007c341e6d64 -->
+<!-- source-sha256: 6da7a3770c47876e4ebeb26cf648a7d4c0db5b28797108aa4a1ed2600af39e79 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.119
 
 - K1283: `link.mjs cargo`가 cargo 명령을 wrapper의 stdio로 실행하므로, stdout과 stderr 줄이 cargo가 쓰는 순서대로 읽는 쪽에 닿습니다. exit status와 시작할 수 없는 명령의 error는 그대로입니다. 전에는 wrapper가 두 stream을 buffer하고 stdout 전체, 그다음 stderr 전체를 썼으므로, cargo test의 `Running <target>` 줄이 그 test 줄 뒤에 왔고 run-tests는 test의 suite를 적지 못했습니다. 그 명령의 buffer된 출력을 읽는 호출자는 없었습니다. Red: stderr 줄과 stdout 줄을 번갈아 한 파일에 쓰는 cargo stub으로 `tests/kit/link.test.mts`의 K1283 시험이 stdout 줄을 먼저 받았고, green: link와 run-tests 시험과 함께 stub의 순서를 받습니다.
 
