@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: aa6605527de0991d53dd879b06c0f146d19108af426c6c8c15674d9ac60c66d4 -->
+<!-- source-sha256: 09abec8d8fe106001e10ea81ae22bdc4947639783cff6c75c20c0d46469ca021 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.122
 
 - K1290: `tests/kit/run-tests.test.mts`의 K1231-1 시험은 TMPDIR로 넘기는 임시 디렉터리를 만들 때 `realpathSync`로 resolve하고, 그 한 값을 결과 디렉터리의 부모와 `tmp`에 비교합니다. 이전에는 부모로 resolve된 경로를, `tmp`로 resolve하지 않은 경로를 기대했는데 runner는 resolve된 경로를 보고하므로, `/var`가 `/private/var`로의 link인 macOS에서 `/private/var/folders/...`를 기대한 곳에서 `/var/folders/...`를 읽고 실패했습니다. Linux에는 그런 link가 없습니다. `tests/kit`의 다른 시험은 임시 경로를 보고된 경로와 한쪽을 resolve하지 않은 채 비교하지 않습니다. Red: macOS에서 시험이 `'/private/var/folders/...'`에 대한 `parent: '/var/folders/...'`로 실패했습니다. Green: macOS에서 통과합니다.
 
