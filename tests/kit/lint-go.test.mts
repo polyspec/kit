@@ -54,6 +54,26 @@ test('golangci-lint and deadcode -test run in each Go module folder, and not in 
   ]);
 });
 
+// #60: a go.work that does not use a module folder makes the go tool refuse the module there (`pattern ./...: directory prefix . does
+// not contain modules listed in go.work`), so each step of a module outside the workspace runs with GOWORK=off, and a module the
+// workspace uses runs as before. A `use` line and a `use (` block both name the modules.
+test('lint-go runs a Go module that go.work does not use with GOWORK=off (#60)', (t) => {
+  const { root } = checkout(t, { extra: { 'go.work': 'go 1.27.2\n\nuse (\n\t./packages/go\n)\n' } });
+  const steps = lintSteps(root);
+  const used = steps.filter(step => step.cwd === 'packages/go');
+  const unused = steps.filter(step => step.cwd === 'packages/codec/go');
+  assert.ok(used.length > 0 && unused.length > 0, 'both modules have steps');
+  for (const step of used) assert.equal(step.env, undefined, `${step.label} is in go.work`);
+  for (const step of unused) assert.deepEqual(step.env, { GOWORK: 'off' }, `${step.label} is outside go.work`);
+});
+
+test('lint-go reads a single-line use directive of go.work (#60)', (t) => {
+  const { root } = checkout(t, { extra: { 'go.work': 'go 1.27.2\n\nuse ./packages/codec/go\n' } });
+  const steps = lintSteps(root);
+  for (const step of steps.filter(step => step.cwd === 'packages/codec/go')) assert.equal(step.env, undefined, step.label);
+  for (const step of steps.filter(step => step.cwd === 'packages/go')) assert.deepEqual(step.env, { GOWORK: 'off' }, step.label);
+});
+
 test('lint-go lints the files behind each build tag that the module declares (K406)', (t) => {
   const { root, calls } = checkout(t, {
     extra: {

@@ -141,6 +141,15 @@ test('K1278: TOOLS=maturin installs the github:PyO3/maturin of mise.toml alone, 
   assert.deepEqual(stubs.calls(), ['mise install github:PyO3/maturin']);
 });
 
+// #61: the wasm-bindgen CLI that mise.toml pins (github:wasm-bindgen/wasm-bindgen, locked in mise.lock) is a selector of its own, as
+// maturin is, so a job that builds the WASM package installs that release alone with TOOLS=wasmBindgen.
+test('#61: TOOLS=wasmBindgen installs the github:wasm-bindgen/wasm-bindgen of mise.toml alone, a release binary with no prerequisite', (t) => {
+  const { root, stubs } = checkout(t, '[tools]\n"github:wasm-bindgen/wasm-bindgen" = "0.2.130"\n');
+  const result = start(INSTALL_TOOLS, root, stubs.env, 'wasmBindgen');
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(stubs.calls(), ['mise install github:wasm-bindgen/wasm-bindgen']);
+});
+
 test('a requested tool absent from the checkout declaration is refused before mutation, and install-tools needs bootstrap mise', (t) => {
   const { root, stubs } = checkout(t, '[tools]\n');
   const named = start(INSTALL_TOOLS, root, stubs.env, 'ruff');
