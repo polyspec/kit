@@ -1358,8 +1358,8 @@ test('link cargo --tracked-lock with a declaration runs cargo as given, without 
   put(consumer, { 'Cargo.lock': 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n' });
   const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', '--tracked-lock', consumer, 'update', '-p', 'polyspec-prov'], { cwd: consumer, env, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
-  assert.equal(log(), 'cargo update -p polyspec-prov\n', 'one cargo command, with no --config, locate-project, offline update or metadata');
-  assert.equal(existsSync(path.join(consumer, 'var/link/cargo')), false, 'no lock copy is written');
+  assert.equal(log(), 'cargo locate-project --workspace --message-format plain\ncargo update -p polyspec-prov\n', 'the workspace of the execution lock, then the command with no --config, offline update or metadata');
+  assert.equal(existsSync(path.join(consumer, 'var/link/cargo/root/Cargo.lock')), false, 'no lock copy is written');
   assert.equal(run.stderr, '');
 });
 
@@ -1375,7 +1375,7 @@ test('link cargo --tracked-lock without a declaration runs cargo as given (K1287
 test('link cargo --tracked-lock keeps the failure of cargo and names the missing patches as its cause under a declaration (K1287)', (t) => {
   const { root, consumer, env } = workspace(t);
   const fake = path.join(root, 'bin/failing-cargo');
-  put(root, { 'bin/failing-cargo': '#!/bin/sh\necho "error: failed to select a version for the requirement" >&2\nexit 101\n' });
+  put(root, { 'bin/failing-cargo': '#!/bin/sh\nfor arg in "$@"; do if [ "$arg" = locate-project ]; then echo "$PWD/Cargo.toml"; exit 0; fi; done\necho "error: failed to select a version for the requirement" >&2\nexit 101\n' });
   chmodSync(fake, 0o755);
   const lock = 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n';
   put(consumer, { 'Cargo.lock': lock });
@@ -1388,6 +1388,33 @@ test('link cargo --tracked-lock keeps the failure of cargo and names the missing
   assert.equal(run.status, 101, 'the exit status of cargo is that of the wrapper');
   assert.match(run.stderr, /^error: failed to select a version for the requirement\nlink\.mjs cargo --tracked-lock: cargo exited 101 without the patches of \.links: a crate or a version that only a linked checkout provides is not in the sources that the manifests name until it is released\n$/);
   assert.equal(readFileSync(path.join(consumer, 'Cargo.lock'), 'utf8'), lock);
+});
+
+// K1287: a --tracked-lock run writes the tracked lock that a linked run of the same workspace copies, so under a declaration it holds
+// the execution lock of that workspace, the one a linked run holds, while cargo runs: neither run starts while the other holds it.
+test('link cargo --tracked-lock under a declaration is refused while the execution lock of the workspace is held (K1287)', (t) => {
+  const { consumer, env, log } = workspace(t);
+  const lock = 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n';
+  put(consumer, { 'Cargo.lock': lock });
+  const held = acquireHolderLock(path.join(consumer, 'var/link/cargo/root/execution.lock'));
+  try {
+    assert.throws(() => cargo({ directory: consumer, args: ['update', '-p', 'polyspec-prov'], checkouts: current, env, trackedLock: true }), /execution\.lock is held by/);
+    assert.doesNotMatch(log(), /^cargo update/m, 'the command that writes the tracked lock does not run');
+  } finally { held.release(); }
+});
+
+test('link cargo --tracked-lock under a declaration holds the execution lock of the workspace while cargo runs and releases it (K1287)', (t) => {
+  const { consumer, env } = workspace(t);
+  declareSiblings(consumer);
+  put(consumer, { 'Cargo.lock': 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n' });
+  const lockFile = path.join(consumer, 'var/link/cargo/root/execution.lock');
+  const seen = path.join(consumer, 'lock-seen');
+  // The stub records, as the command runs, whether the lock exists: an event of the run, no timing.
+  stub(path.dirname(env.CARGO), path.join(consumer, 'cargo-lock.log'), 'cargo', `for arg in "$@"; do if [ "$arg" = locate-project ]; then echo "$PWD/Cargo.toml"; exit 0; fi; done; if [ -f ${JSON.stringify(lockFile)} ]; then echo held > ${JSON.stringify(seen)}; else echo free > ${JSON.stringify(seen)}; fi`);
+  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', '--tracked-lock', consumer, 'update', '-p', 'polyspec-prov'], { cwd: consumer, env, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(readFileSync(seen, 'utf8'), 'held\n', 'the lock is held while cargo runs');
+  assert.equal(existsSync(lockFile), false, 'the lock is released when the run ends');
 });
 
 test('link cargo --tracked-lock without a directory fails with the usage (K1287)', (t) => {

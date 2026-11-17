@@ -748,7 +748,8 @@ function declaredUrl(checkout: string): string {
  * Runs one cargo command in `directory`; with checkouts given, the polyspec git sources of those checkouts are patched to
  * their packages, and the lock of the tree is copied to var/link, so the patches resolve against it. Native arguments and the
  * environment, CARGO_TARGET_DIR among them, remain unchanged (K1049). With `trackedLock` the command runs as given, with no patch
- * and no copy, so it reads and writes the tracked lock from the sources that the manifests name (K1287).
+ * and no copy, so it reads and writes the tracked lock from the sources that the manifests name, and with checkouts given it
+ * holds the execution lock of the workspace, as a linked run does (K1287).
  */
 export function cargo({ directory, args, checkouts = [], env = process.env, runner = 'cargo', trackedLock = false }: { directory: string; args: readonly string[]; checkouts?: readonly string[]; env?: NodeJS.ProcessEnv; runner?: 'cargo' | 'maturin'; trackedLock?: boolean }): number {
   const consumer = consumerOf(directory);
@@ -768,32 +769,35 @@ export function cargo({ directory, args, checkouts = [], env = process.env, runn
   const patched: string[] = [];
   try {
     // K1270: cargo fmt takes no --config and formats only the files of the workspace's own crates, which no patch changes.
-    if (!trackedLock && checkouts.length && !(runner === 'cargo' && commandArgs[0] === 'fmt')) {
+    if (checkouts.length && !(runner === 'cargo' && commandArgs[0] === 'fmt')) {
       const workspace = path.dirname(run(tool.command, [...channel, 'locate-project', '--workspace', '--message-format', 'plain', ...manifestArgs], { cwd: consumer.scope, env: tool.env }).trim());
       held = acquireHolderLock(path.join(consumer.top, 'var/link/cargo', path.relative(consumer.top, workspace).replaceAll('/', '_') || 'root', 'execution.lock'), { checkout: consumer.top, command: ['cargo', ...args].join(' ') });
-      // A fresh copy of the tracked lock on every run, so the patches resolve against the lock of the tree.
-      const copy = linkFile(consumer.top, path.join('cargo', path.relative(consumer.top, workspace).replaceAll('/', '_') || 'root', 'Cargo.lock'));
-      mkdirSync(path.dirname(copy), { recursive: true });
-      copyFileSync(path.join(workspace, 'Cargo.lock'), copy);
-      config.push('--config', `resolver.lockfile-path=${JSON.stringify(copy)}`);
-      const packages = readTomlFile(copy).package;
-      const entries = (Array.isArray(packages) ? packages : []).flatMap((item: unknown) => isJsonObject(item) && typeof item.name === 'string' ? [{ name: item.name, version: typeof item.version === 'string' ? item.version : undefined }] : []);
-      const locked = new Set(entries.map(entry => entry.name));
-      for (const checkout of mainCheckouts(checkouts).filter(item => repositoryOf(item) !== consumer.repository)) {
-        const crates = trackedManifests(checkout, ['Cargo.toml']).filter(file => !EXCLUDED.test(file)).flatMap((file) => {
-          const pkg = readTomlFile(path.join(checkout, file)).package;
-          return isJsonObject(pkg) && typeof pkg.name === 'string' ? [{ name: pkg.name, folder: path.join(checkout, path.dirname(file)) }] : [];
-        });
-        for (const crate of crates) expected.set(crate.name, crate.folder);
-        if (!crates.length) continue;
-        // K448-5-1: a crate the lock does not name is never used, so its patch would be recorded as an unused patch of the lock (K489 needs no release file for it).
-        const used = crates.filter(crate => locked.has(crate.name));
-        if (!used.length) continue;
-        const url = declaredUrl(checkout);
-        for (const crate of used) {
-          config.push('--config', `patch.${JSON.stringify(url)}.${crate.name}.path=${JSON.stringify(crate.folder)}`);
-          // K1273: each version of the crate in the lock copy, since a bare name is ambiguous when two tags pull in two versions.
-          for (const entry of entries.filter(item => item.name === crate.name)) patched.push(entry.version === undefined ? crate.name : `${crate.name}@${entry.version}`);
+      // K1287: a --tracked-lock run writes the lock that a linked run copies, so it holds the same lock and takes no patch and no copy.
+      if (!trackedLock) {
+        // A fresh copy of the tracked lock on every run, so the patches resolve against the lock of the tree.
+        const copy = linkFile(consumer.top, path.join('cargo', path.relative(consumer.top, workspace).replaceAll('/', '_') || 'root', 'Cargo.lock'));
+        mkdirSync(path.dirname(copy), { recursive: true });
+        copyFileSync(path.join(workspace, 'Cargo.lock'), copy);
+        config.push('--config', `resolver.lockfile-path=${JSON.stringify(copy)}`);
+        const packages = readTomlFile(copy).package;
+        const entries = (Array.isArray(packages) ? packages : []).flatMap((item: unknown) => isJsonObject(item) && typeof item.name === 'string' ? [{ name: item.name, version: typeof item.version === 'string' ? item.version : undefined }] : []);
+        const locked = new Set(entries.map(entry => entry.name));
+        for (const checkout of mainCheckouts(checkouts).filter(item => repositoryOf(item) !== consumer.repository)) {
+          const crates = trackedManifests(checkout, ['Cargo.toml']).filter(file => !EXCLUDED.test(file)).flatMap((file) => {
+            const pkg = readTomlFile(path.join(checkout, file)).package;
+            return isJsonObject(pkg) && typeof pkg.name === 'string' ? [{ name: pkg.name, folder: path.join(checkout, path.dirname(file)) }] : [];
+          });
+          for (const crate of crates) expected.set(crate.name, crate.folder);
+          if (!crates.length) continue;
+          // K448-5-1: a crate the lock does not name is never used, so its patch would be recorded as an unused patch of the lock (K489 needs no release file for it).
+          const used = crates.filter(crate => locked.has(crate.name));
+          if (!used.length) continue;
+          const url = declaredUrl(checkout);
+          for (const crate of used) {
+            config.push('--config', `patch.${JSON.stringify(url)}.${crate.name}.path=${JSON.stringify(crate.folder)}`);
+            // K1273: each version of the crate in the lock copy, since a bare name is ambiguous when two tags pull in two versions.
+            for (const entry of entries.filter(item => item.name === crate.name)) patched.push(entry.version === undefined ? crate.name : `${crate.name}@${entry.version}`);
+          }
         }
       }
     }
