@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- K1291: lint-go gives the golangci-lint and deadcode steps of a Go module that the `use` directives of the root `go.work` do not name the environment `GOWORK=off`, so `make lint-go` no longer fails with `pattern ./...: directory prefix . does not contain modules listed in go.work` for such a module (orm and crud-ui). A module the workspace names, and a checkout with no `go.work`, run as before.
+- K1292: `TOOLS=wasmBindgen` installs `github:wasm-bindgen/wasm-bindgen` of mise.toml alone, as `TOOLS=maturin` installs maturin, so a job that builds the WASM package installs the release that mise.lock locks with one selector.
+
 ## 0.0.122
 
 - K1290: The K1231-1 test of `tests/kit/run-tests.test.mts` resolves the temporary directory that it passes as TMPDIR with `realpathSync` when it creates it, and compares that one value with the parent of the result directory and with `tmp`. Before, it expected the resolved path as the parent and the unresolved path as `tmp`, while the runner reports the resolved path, so on macOS, where `/var` is a link to `/private/var`, it read `/var/folders/...` where it expected `/private/var/folders/...` and failed; Linux has no such link. No other test of `tests/kit` compares a temporary path with a reported path with one side unresolved. Red: on macOS the test failed with `parent: '/var/folders/...'` against `'/private/var/folders/...'`; Green: it passes on macOS.

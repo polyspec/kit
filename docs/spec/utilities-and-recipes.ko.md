@@ -107,6 +107,11 @@ case-sensitive 시험 filesystem을 유지한다.
 모두 자식의 임시 디렉터리 environment를 바꾸지 않는다. Cleanup 실패는
 남아 있는 resource를 보고하며 중단되거나 실패한 실행을 성공으로 바꾸지 않는다.
 
+## Go workspace lint와 wasm-bindgen selector (K1291, K1292)
+
+- `make lint-go`는 checkout의 Go module(go.mod)마다 step을 돌린다. root `go.work`의 `use` 지시가 이름하지 않는 module은 `GOWORK=off`로 step을 돌린다. go tool이 작업 공간 밖 module의 pattern을 거부하기 때문이다. 작업 공간이 이름하는 module과 `go.work`가 없는 checkout은 호출자의 환경으로 돈다.
+- `make install-tools TOOLS=wasmBindgen`은 WASM crate를 묶는 CLI인 mise.toml의 `github:wasm-bindgen/wasm-bindgen`만 설치한다. `TOOLS=maturin`이 그 tool을 설치하는 것과 같다(K1278). selector는 다른 tool selector처럼 camelCase이다.
+
 ## Native event identity (K1091)
 
 Native event parser는 framework의 완전한 test identity를 보존한다. PHPUnit TeamCity message의

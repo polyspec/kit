@@ -110,6 +110,11 @@ parent, creates that parent when absent, and removes the private directory befor
 keeps the caller temporary-directory placement. Neither form changes the child temporary-directory environment.
 A cleanup failure reports the resources that remain; it never turns an interrupted or failed run into success.
 
+## Go workspace lint and wasm-bindgen selector (K1291, K1292)
+
+- `make lint-go` runs the steps of each Go module (go.mod) of the checkout. A module that the `use` directives of the root `go.work` do not name runs its steps with `GOWORK=off`, since the go tool refuses the patterns of a module outside the workspace; a module the workspace names, and a checkout with no `go.work`, run with the environment of the caller.
+- `make install-tools TOOLS=wasmBindgen` installs the `github:wasm-bindgen/wasm-bindgen` of mise.toml alone, the CLI that binds a WASM crate, as `TOOLS=maturin` installs its tool (K1278). The selectors are camelCase like the other tool selectors.
+
 ## Native event identity (K1091)
 
 A native event parser preserves the framework's complete test identity. For PHPUnit TeamCity messages,

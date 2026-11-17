@@ -6,6 +6,9 @@
 
 ## Unreleased
 
+- K1291: lint-go가 root `go.work`의 `use` 지시가 이름하지 않는 Go module의 golangci-lint와 deadcode step에 환경 `GOWORK=off`를 준다. 그래서 그런 module에서 `make lint-go`가 `pattern ./...: directory prefix . does not contain modules listed in go.work`로 실패하지 않는다(orm과 crud-ui). 작업 공간이 이름하는 module과 `go.work`가 없는 checkout은 전처럼 돈다.
+- K1292: `TOOLS=wasmBindgen`이 mise.toml의 `github:wasm-bindgen/wasm-bindgen`만 설치한다. `TOOLS=maturin`이 maturin을 설치하는 것과 같다. 그래서 WASM package를 만드는 job이 selector 하나로 mise.lock이 lock한 release를 설치한다.
+
 ## 0.0.122
 
 - K1290: `tests/kit/run-tests.test.mts`의 K1231-1 시험은 TMPDIR로 넘기는 임시 디렉터리를 만들 때 `realpathSync`로 resolve하고, 그 한 값을 결과 디렉터리의 부모와 `tmp`에 비교합니다. 이전에는 부모로 resolve된 경로를, `tmp`로 resolve하지 않은 경로를 기대했는데 runner는 resolve된 경로를 보고하므로, `/var`가 `/private/var`로의 link인 macOS에서 `/private/var/folders/...`를 기대한 곳에서 `/var/folders/...`를 읽고 실패했습니다. Linux에는 그런 link가 없습니다. `tests/kit`의 다른 시험은 임시 경로를 보고된 경로와 한쪽을 resolve하지 않은 채 비교하지 않습니다. Red: macOS에서 시험이 `'/private/var/folders/...'`에 대한 `parent: '/var/folders/...'`로 실패했습니다. Green: macOS에서 통과합니다.

@@ -12,7 +12,7 @@
 // A missing tool is a failure with its fix, never a skip; lint-steps.mts runs the steps.
 //
 //   node scripts/kit/lint-go.mts
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { foldersOf, lintCommands, lintMain, runLint } from './lint-steps.mts';
@@ -50,6 +50,32 @@ function moduleTags(root: string, files: readonly string[], folder: string): str
   return [...tags].sort();
 }
 
+/**
+ * The module folders that the `use` directives of the go.work of `root` name, relative to `root` (`.` for the root module), or
+ * undefined when the checkout has no go.work. A `use` line and a `use (` block both name them.
+ */
+export function workspaceModules(root: string): Set<string> | undefined {
+  const file = path.join(root, 'go.work');
+  if (!existsSync(file)) return undefined;
+  const modules = new Set<string>();
+  let block = false;
+  for (const raw of readFileSync(file, 'utf8').split('\n')) {
+    const line = raw.replace(/\/\/.*$/, '').trim();
+    let entry: string | undefined;
+    if (block) {
+      if (line === ')') block = false;
+      else entry = line;
+    } else if (line === 'use (') {
+      block = true;
+    } else if (line.startsWith('use ')) {
+      entry = line.slice('use '.length).trim();
+    }
+    if (entry === undefined || entry === '') continue;
+    modules.add(path.posix.normalize(entry.replace(/^"(.*)"$/, '$1')).replace(/\/$/, '') || '.');
+  }
+  return modules;
+}
+
 // The judgment of deadcode over the build tags of a module (K536), beside this module, built or from source.
 const HERE = fileURLToPath(import.meta.url);
 const DEADCODE_UNION = path.join(path.dirname(HERE), `deadcode-union${path.extname(HERE)}`);
@@ -60,15 +86,18 @@ export function lintSteps(root: string): LintStep[] {
   if (modules.length === 0) return [];
   const tools = lintCommands(root, shimsPath(root), ['golangci-lint', 'deadcode', 'go'], 'declare go, golangci-lint and go:golang.org/x/tools/cmd/deadcode in mise.toml and run make install-tools');
   const files = checkedFiles(root);
+  const workspace = workspaceModules(root);
   return modules.flatMap((folder) => {
     const golangci = present(tools['golangci-lint'], 'tools[\'golangci-lint\']');
     const tags = moduleTags(root, files, folder);
+    // A module that go.work does not use is outside the workspace: the go tool refuses its patterns there, so its steps run alone (#60).
+    const alone: Pick<LintStep, 'env'> = workspace !== undefined && !workspace.has(folder) ? { env: { GOWORK: 'off' } } : {};
     return [
-      { label: `golangci-lint ${folder}`, command: golangci, args: ['run', './...'], cwd: folder },
+      { label: `golangci-lint ${folder}`, command: golangci, args: ['run', './...'], cwd: folder, ...alone },
       // K406: the files behind each build tag of the module, which the untagged run never reaches.
-      ...tags.map(tag => ({ label: `golangci-lint ${folder} (tag ${tag})`, command: golangci, args: ['run', `--build-tags=${tag}`, './...'], cwd: folder })),
+      ...tags.map(tag => ({ label: `golangci-lint ${folder} (tag ${tag})`, command: golangci, args: ['run', `--build-tags=${tag}`, './...'], cwd: folder, ...alone })),
       // K536: deadcode over the union of the tags; it exits 0 when it reports a function, so its output fails the step.
-      { label: `deadcode ${folder}`, command: process.execPath, args: [DEADCODE_UNION, present(tools.deadcode, 'tools.deadcode'), present(tools.go, 'tools.go'), ...tags], cwd: folder, quiet: true },
+      { label: `deadcode ${folder}`, command: process.execPath, args: [DEADCODE_UNION, present(tools.deadcode, 'tools.deadcode'), present(tools.go, 'tools.go'), ...tags], cwd: folder, quiet: true, ...alone },
     ];
   });
 }

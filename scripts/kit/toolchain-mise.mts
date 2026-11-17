@@ -13,6 +13,7 @@
 //   pie           http:pie, with the url of pie.phar and its checksum from the PIE release; a repository runs it in its own recipe
 //   vulture       pypi:vulture, whose wheel and dependencies mise.lock pins with uv (.mise/locks)
 //   maturin       github:PyO3/maturin, the native binary of each platform, which `link.mjs maturin` runs (K1266, K1278)
+//   wasmBindgen   github:wasm-bindgen/wasm-bindgen, the native binary of each platform, the CLI that binds a WASM crate (#61)
 // A release is taken as mise.toml declares it. A key of another tool, a repository's own http: tool among them, passes
 // through to mise, which judges its configuration; kit checks the tools above only (K839). The TOML is read by readTomlFile
 // (smol-toml). mise.lock is mise's record: `mise install --locked` checks it, and kit does not judge it (K835).
@@ -40,10 +41,11 @@ export const MISE_TOOLS = {
   pie: { key: 'http:pie', command: 'pie' },
   vulture: { key: 'pypi:vulture', command: 'vulture' },
   maturin: { key: 'github:PyO3/maturin', command: 'maturin' },
+  wasmBindgen: { key: 'github:wasm-bindgen/wasm-bindgen', command: 'wasm-bindgen' },
 } as const;
 
 /** The tool names that install-tools and ci-setup select from: the tools that kit installs itself, then the tools of mise.toml (K854). */
-export const TOOLS = ['node', 'npm', 'mise', 'rust', 'php', 'phpunit', 'phpcs', 'phpstan', 'go', 'python', 'uv', 'ruff', 'alint', 'golangciLint', 'deadcode', 'govulncheck', 'cargoAudit', 'cargoNextest', 'cargoDeny', 'composer', 'pie', 'vulture', 'maturin'] as const satisfies readonly ('node' | 'npm' | 'mise' | 'rust' | 'php' | 'phpunit' | 'phpcs' | 'phpstan' | keyof typeof MISE_TOOLS)[];
+export const TOOLS = ['node', 'npm', 'mise', 'rust', 'php', 'phpunit', 'phpcs', 'phpstan', 'go', 'python', 'uv', 'ruff', 'alint', 'golangciLint', 'deadcode', 'govulncheck', 'cargoAudit', 'cargoNextest', 'cargoDeny', 'composer', 'pie', 'vulture', 'maturin', 'wasmBindgen'] as const satisfies readonly ('node' | 'npm' | 'mise' | 'rust' | 'php' | 'phpunit' | 'phpcs' | 'phpstan' | keyof typeof MISE_TOOLS)[];
 
 /** A tool of kit that mise installs. */
 export type MiseTool = keyof typeof MISE_TOOLS;
