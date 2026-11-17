@@ -854,7 +854,8 @@ test('selected', () => {
 });
 `,
   });
-  const scratch = mkdtempSync(path.join(tmpdir(), 'kit-count-owner-'));
+  // The runner resolves TMPDIR, so the test resolves it too: on macOS the temporary directory lies under the link /var.
+  const scratch = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-count-owner-')));
   t.after(() => rmSync(scratch, { recursive: true, force: true }));
   for (const failing of [false, true]) {
     const result = runner(root, ['node', '--results', 'reports/only-report.json', '--', 'tests/selected.test.mjs'], { TMPDIR: scratch, FAIL_CASE: failing ? '1' : '' });
@@ -867,7 +868,7 @@ test('selected', () => {
   }
   const result = runner(root, ['node', '--', 'tests/selected.test.mjs'], { TMPDIR: scratch });
   assert.equal(result.status, 0, output(result));
-  assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'seen.json'), 'utf8')), { parent: realpathSync(scratch), tmp: scratch });
+  assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'seen.json'), 'utf8')), { parent: scratch, tmp: scratch });
   assert.deepEqual(readdirSync(scratch), []);
 });
 

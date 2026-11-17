@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1290: The K1231-1 test of `tests/kit/run-tests.test.mts` resolves the temporary directory that it passes as TMPDIR with `realpathSync` when it creates it, and compares that one value with the parent of the result directory and with `tmp`. Before, it expected the resolved path as the parent and the unresolved path as `tmp`, while the runner reports the resolved path, so on macOS, where `/var` is a link to `/private/var`, it read `/var/folders/...` where it expected `/private/var/folders/...` and failed; Linux has no such link. No other test of `tests/kit` compares a temporary path with a reported path with one side unresolved. Red: on macOS the test failed with `parent: '/var/folders/...'` against `'/private/var/folders/...'`; Green: it passes on macOS.
+
 - K1288: The python job of the CI pipeline installs maturin when `mise.toml` declares `github:PyO3/maturin`. Before, `runtimeTools` of `scripts/kit/ci-setup.mts` gave the python runtime only python, uv, ruff and vulture, so the job ran no `install-tools` for maturin, although the selector `maturin` exists since K1278, and a wheel recipe that runs maturin stopped in CI. A repository that does not declare maturin gets no maturin. Red: the K1288 test of `tests/kit/ci-setup.test.mts` found no maturin in the tools of the python job; Green: it finds it, and the 22 ci-setup tests pass.
 
 ## 0.0.121
