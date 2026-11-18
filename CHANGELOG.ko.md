@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 75cb53ae203a0d905610ce864b74d7cde3dc76c6b972574102af7db8bbd8733c -->
+<!-- source-sha256: 66a8d4cb6cf1572f730c3de239ab6504368765fb2bf0e631bdd5091a0b7e16e3 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.124
 
 - K1293: install-tools는 `--php=<path>`(make `PHP=<path>`)의 php를, 없으면 PATH의 php를, 그 `PHP_MAJOR_VERSION.PHP_MINOR_VERSION`이 `.php-version`이나 `config/toolchain.json` `php`가 선언한 release일 때만 wrapper로 쓴다. 전에는 `.php-version`이 8.4이고 PATH의 처음에 php 8.5가 있으면 8.5의 var/tools/bin/php를 쓰고 0으로 끝났으며, 뒤의 모든 실행이 그 wrapper를 유지했으므로(K1271) 손으로 지우는 것만이 복구였다. 이제 잘못된 minor는 찾은 minor, 그 path, 선언한 release를 이름 지어 실패하며 아무것도 쓰지 않는다. 각 wrapper는 그 path 옆에 쓰고 php wrapper를 실행해 본 뒤 rename한다. 다른 php의 wrapper는 바뀌고, 같은 php의 재실행은 아무것도 쓰지 않는다(issue 38). Red: `tests/kit/install-php.test.mts`의 K1293 test 셋이 실패했다. Green: `node --test tests/kit/install-php.test.mts tests/kit/install-tools.test.mts`가 32개 중 32개 통과한다.
 
