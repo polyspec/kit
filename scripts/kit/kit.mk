@@ -76,7 +76,7 @@ install-tools: ## Install all locked tools or selected tool names of toolchain-m
 ifeq ($(TOOLS),npm)
 	$(ONLINE) $(BOOTSTRAP_NODE) $(KIT)/bootstrap/bootstrap.$(KIT_EXT)
 else
-	$(ONLINE) $(NODE) $(KIT)/install-tools.$(KIT_EXT) --no-self-update $(if $(PHP),--php=$(PHP)) $(TOOLS)
+	$(ONLINE) $(NODE) $(KIT)/install-tools.$(KIT_EXT) --no-self-update$(if $(PHP), --php=$(PHP)) $(TOOLS)
 endif
 
 # toolchain-lock is mise lock (K836) with the mise of config/toolchain.json, which the bootstrap installs (make install-tools
