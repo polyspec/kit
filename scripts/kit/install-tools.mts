@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Installs the tools of the checkout into var/tools (`make install-tools`, ONLINE), after the bootstrap installed mise, node and npm of mise.toml:
 //
-//   node scripts/kit/install-tools.mts [<rustup install flag>...] [<tool>...]
+//   node scripts/kit/install-tools.mts [--php=<path>] [<rustup install flag>...] [<tool>...]
 //
+// --php=<path> names the php that install-php wraps (make PHP=<path>); without it install-php wraps the php of PATH (K1293).
 // An argument that starts with - is a flag of `rustup toolchain install`, such as --no-self-update, which the caller chooses (K1097).
 //
 // mise installs every tool of mise.toml with `mise install` and no flag of kit, by the wrapper var/tools/bin/mise, which keeps
@@ -12,7 +13,7 @@
 // with rustup, which stays the toolchain manager of Rust). The PHP programs of kit have their own make target, kit-install-symbols,
 // which install-kit runs from the declarations of the repository (kit-install-declared, K861). Each is installed only
 // when it is declared, and each tool judges what is already installed. The tools of the machine are never changed. Node.js is a tool of mise.toml, which
-// the bootstrap installs first (K171); PHP is provided by the machine: install-php.mts wraps the php of PATH as it is (K283, K862). With no selectors the command installs all tools. A selector list of the tool names of toolchain-mise.mts installs only those pinned tools and their prerequisites, for example `make install-tools TOOLS="go python"`. Unknown, empty and undeclared selectors fail before the checkout is changed. `TOOLS=npm` remains the bootstrap. It prints a line for each
+// the bootstrap installs first (K171); PHP is provided by the machine: install-php.mts wraps the php of --php=<path>, else of PATH, when its minor is a declared release (K283, K862, K1293). With no selectors the command installs all tools. A selector list of the tool names of toolchain-mise.mts installs only those pinned tools and their prerequisites, for example `make install-tools TOOLS="go python"`. Unknown, empty and undeclared selectors fail before the checkout is changed. `TOOLS=npm` remains the bootstrap. It prints a line for each
 // step and has no time limit.
 import { existsSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
@@ -86,7 +87,7 @@ function installSelection(root: string, selected: readonly string[] | undefined)
 }
 
 /** Installs the tools of mise.lock and the declared tools that mise does not install into var/tools of `root`. */
-export function installTools({ root = repositoryRoot(), tools, rustupFlags = [], print = () => {} }: { root?: string; tools?: readonly string[]; rustupFlags?: readonly string[]; print?: (text: string) => void } = {}): void {
+export function installTools({ root = repositoryRoot(), tools, php: explicitPhp, rustupFlags = [], print = () => {} }: { root?: string; tools?: readonly string[]; php?: string | undefined; rustupFlags?: readonly string[]; print?: (text: string) => void } = {}): void {
   const selection = installSelection(root, tools);
   const mise = process.platform === 'win32' ? miseBinary(toolsPath(root, 'mise-release')) : toolsPath(root, 'bin', 'mise');
   if (!existsSync(mise)) throw new Error(`${path.relative(root, mise)} is missing; run make install-tools TOOLS=npm, the bootstrap that installs mise`);
@@ -101,8 +102,8 @@ export function installTools({ root = repositoryRoot(), tools, rustupFlags = [],
   else removeStaleWrappers(root, [], print, selectedStaleWrappers(selection.mise));
   // The wrapper sets the environment of mise itself; the installs of kit that follow run the tools of mise.
   if (selection.all || selection.mise.length > 0) run(mise, ['install', ...(selection.all ? [] : selection.mise)], { cwd: root, env: process.platform === 'win32' ? miseEnvironment(root) : process.env }, print);
-  // The wrappers of php come before the installs that run Composer, so that Composer runs on the php of PATH.
-  if (selection.php && php) installPhp({ root, print });
+  // The wrappers of php come before the installs that run Composer, so that Composer runs on the selected php.
+  if (selection.php && php) installPhp({ root, explicit: explicitPhp, declared: php, print });
   if (selection.phpunit && phpunit) installPhpunit({ root, declared: phpunit, print });
   if (selection.phpLint && phpLint) installPhpLint({ root, declared: phpLint, print });
   if (selection.rust && existsSync(path.join(root, 'rust-toolchain.toml'))) installRustToolchain({ root, flags: rustupFlags, print });
@@ -136,10 +137,13 @@ function selectedStaleWrappers(mise: readonly string[]): string[] {
 
 if (isMain(import.meta.url)) {
   try {
-    const args = process.argv.slice(2);
+    const all = process.argv.slice(2);
+    const phpArgs = all.filter(arg => arg.startsWith('--php='));
+    if (phpArgs.length > 1) throw new Error(`--php is given ${phpArgs.length} times; pass it once`);
+    const args = all.filter(arg => !arg.startsWith('--php='));
     const rustupFlags = args.filter(arg => arg.startsWith('-'));
     const names = args.filter(arg => !arg.startsWith('-'));
-    installTools({ ...(names.length > 0 ? { tools: names } : {}), rustupFlags, print: text => console.log(`[install-tools] ${text}`) });
+    installTools({ ...(names.length > 0 ? { tools: names } : {}), php: phpArgs[0]?.slice('--php='.length), rustupFlags, print: text => console.log(`[install-tools] ${text}`) });
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     console.error(`[install-tools] ${error.message}`);

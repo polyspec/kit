@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1293: install-tools wraps the php of `--php=<path>` (make `PHP=<path>`), else the php of PATH, only when its `PHP_MAJOR_VERSION.PHP_MINOR_VERSION` is a release that `.php-version` or `config/toolchain.json` `php` declares. Before, with `.php-version` 8.4 and a php 8.5 first on PATH, it wrote var/tools/bin/php for 8.5 and exited 0, and every later run kept that wrapper (K1271), so only removing it by hand recovered. Now a wrong minor fails with the found minor, its path and the declared releases and writes nothing; each wrapper is staged beside its path, the php wrapper is run, and then they are renamed; a wrapper of another php is replaced, and a rerun with the same php writes nothing (issue 38). Red: three K1293 tests of `tests/kit/install-php.test.mts` failed. Green: `node --test tests/kit/install-php.test.mts tests/kit/install-tools.test.mts` passes 32 of 32.
+
 ## 0.0.123
 
 - K1291: lint-go gives the golangci-lint and deadcode steps of a Go module that the `use` directives of the root `go.work` do not name the environment `GOWORK=off`, so `make lint-go` no longer fails with `pattern ./...: directory prefix . does not contain modules listed in go.work` for such a module (orm and crud-ui). A module the workspace names, and a checkout with no `go.work`, run as before.

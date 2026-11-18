@@ -1,5 +1,5 @@
-// Tests of the PHP of install-tools (K283, K862): the php of PATH is written as it is as exec wrappers of var/tools/bin (php,
-// and php-config and phpize when they exist beside it), with no release compared and no other place searched. The machine is a
+// Tests of the PHP of install-tools (K283, K862, K1293): the php of --php=<path>, else of PATH, is written as exec wrappers of
+// var/tools/bin (php, and php-config and phpize when they exist beside it) when its minor is a declared release. The machine is a
 // sandbox PATH of fake commands: shell scripts that print the release they stand for, so no real PHP, Homebrew or apt is
 // involved, and the commands never start a process.
 import assert from 'node:assert/strict';
@@ -66,11 +66,11 @@ test('a wrapper of an earlier run is never wrapped, as install-php strips var/to
   const result = start(root, machine(bin));
   assert.equal(result.status, 1);
   assert.match(result.stderr, /php is not on PATH/);
-  // K1271: an existing wrapper is kept as it is, never wrapped again.
+  // An existing wrapper on PATH is not found either, so it is never wrapped again (K1293 replaces it only with the selected php).
   writeFileSync(path.join(bin, 'php'), text, { mode: 0o755 });
-  const kept = start(root, machine(bin));
-  assert.equal(kept.status, 0, kept.stderr);
-  assert.equal(wrapper(bin, 'php'), text);
+  const again = start(root, machine(bin));
+  assert.equal(again.status, 1);
+  assert.match(again.stderr, /php is not on PATH/);
 });
 
 test('no php on PATH fails with php is not on PATH, and nothing else is judged (K862)', (t) => {
@@ -126,8 +126,6 @@ test('install-php wraps php-fpm of the same prefix as php (K341)', (t) => {
   assert.equal(result.status, 0, result.stderr);
   assert.ok(wrapper(bin, 'php-fpm').includes(quoted(fpm)), 'php-fpm holds the sbin of the prefix of php');
   rmSync(fpm);
-  // K1271: an existing wrapper is kept, so the checkout chooses again by removing it.
-  rmSync(path.join(bin, 'php'));
   const without = start(root, machine(path.join(prefix, 'bin')));
   assert.equal(without.status, 0, without.stderr);
   assert.deepEqual(readdirSync(bin).sort(), ['mise', 'php', 'phpcs', 'phpstan'], 'no php-fpm wrapper without sbin/php-fpm, and the earlier one is removed');

@@ -72,11 +72,11 @@ kit-install-declared: ## Install the declared PHP programs of kit (install-symbo
 
 # TOOLS=npm is the first step of a checkout, before npm ci installs the packages that the other tools import, so it runs the
 # bootstrap installer of $(KIT)/bootstrap, which imports only Node.js built-ins.
-install-tools: ## Install all locked tools or selected tool names of toolchain-mise; TOOLS=npm runs the bootstrap; ONLINE
+install-tools: ## Install all locked tools or selected tool names of toolchain-mise; PHP=<path> names the php to wrap, else the php of PATH (K1293); TOOLS=npm runs the bootstrap; ONLINE
 ifeq ($(TOOLS),npm)
 	$(ONLINE) $(BOOTSTRAP_NODE) $(KIT)/bootstrap/bootstrap.$(KIT_EXT)
 else
-	$(ONLINE) $(NODE) $(KIT)/install-tools.$(KIT_EXT) --no-self-update $(TOOLS)
+	$(ONLINE) $(NODE) $(KIT)/install-tools.$(KIT_EXT) --no-self-update $(if $(PHP),--php=$(PHP)) $(TOOLS)
 endif
 
 # toolchain-lock is mise lock (K836) with the mise of config/toolchain.json, which the bootstrap installs (make install-tools

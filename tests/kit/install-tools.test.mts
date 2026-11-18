@@ -114,6 +114,7 @@ test('selected tools include only their declared mise prerequisites, and a missi
   assert.deepEqual(missingPhpStubs.calls(), [], 'Composer without a declared PHP pin fails before mutation');
 
   const { root: phpConfigOnly, stubs: phpConfigStubs } = checkout(t, composerToml, { 'config/toolchain.json': JSON.stringify({ schema: 1, php: ['8.4'] }) });
+  writeFileSync(path.join(phpConfigStubs.directory, 'bin/php'), '#!/bin/sh\nprintf "8.4\\n"\n', { mode: 0o755 });
   const configOnly = start(INSTALL_TOOLS, phpConfigOnly, phpConfigStubs.env, 'composer');
   assert.equal(configOnly.status, 0, `PHP declared by config/toolchain.json needs no .php-version to be wrapped (K862): ${configOnly.stderr}`);
 
@@ -196,7 +197,8 @@ test('K861: install-tools runs rustup toolchain install for each declared Rust c
 test('K861: install-tools installs no symbol extractor; their make targets are the one path', (t) => {
   const composerToml = '[tools]\n"http:composer" = { version = "2.8.12", url = "https://getcomposer.org/download/2.8.12/composer.phar" }\n';
   const { root, stubs } = checkout(t, composerToml, { '.php-version': '8.4\n', 'config/toolchain.json': JSON.stringify({ schema: 1, symbolExtractors: ['php'] }), 'packages/php-ext/config.m4': '' });
-  for (const name of ['php', 'php-config', 'phpize']) writeFileSync(path.join(stubs.directory, 'bin', name), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  // K1293: the php stub reports the declared minor, which install-php checks before it writes.
+  for (const name of ['php', 'php-config', 'phpize']) writeFileSync(path.join(stubs.directory, 'bin', name), '#!/bin/sh\nprintf "8.4\\n"\n', { mode: 0o755 });
   mkdirSync(path.join(root, 'var/tools/mise/shims'), { recursive: true });
   writeFileSync(path.join(root, 'var/tools/mise/shims/composer'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
   const result = start(INSTALL_TOOLS, root, stubs.env);
