@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: bedc2217e2ae3bd75f88c873323b37c622cea79a874f569160c0c743e68ed9ea -->
+<!-- source-sha256: c24a84aa6233337acc06f05ea97a35eccbc8d7c9fcad933a6ce4d3fbf7e4c284 -->
 
 # 도구 목록
 
@@ -66,10 +66,10 @@ Windows에서 동작하거나 Windows PHP extension SDK를 지원한다고 입�
 PHP는 설치하지 않고 wrapper로 제공합니다(K283, K862). `.php-version`이나 `config/toolchain.json`의 `php`는 checkout이 PHP를
 쓴다는 선언입니다. `.php-version`은 CI setup-php의 입력으로서 적힌 그대로 읽으며, PHP가 필요한 저장소가 이를
 선언합니다(K193, 아래).
-기존 `var/tools/bin/php`는 checkout이 고른 PHP이므로 그 companion과 함께 유지되며, PATH의 첫 php가 다른 뒤의 install도 아무것도 바꾸지 않습니다. 그것을 지우면 PATH의 php를 다시 wrapper로 씁니다(K1271).
-`install-php.mts`는 bootstrap의 PATH(`var/tools/bin` 제외, 자기 wrapper를 찾지 않기 위해)의 `php`를 그대로 쓰며 release를
-비교하지 않습니다. 패키지의 `require`가 제외하는 PHP는 Composer의 platform 검사가 거부하고, 나머지는 저장소 자신의 검사가
-맡습니다. 절대 경로를 담은 exec wrapper로
+`install-php.mts`는 install-tools의 `--php=<path>`(make `PHP=<path>`)의 php를, 없으면 bootstrap의 PATH(`var/tools/bin` 제외, 자기 wrapper를 찾지 않기 위해)의 `php`를 씁니다.
+그 php를 실행해 `PHP_MAJOR_VERSION.PHP_MINOR_VERSION`을 읽고, 선언한 release(`.php-version`이나 `config/toolchain.json` `php`의 각 release의 major.minor)가 이름 짓지 않는 minor는
+찾은 minor, 그 path, 선언한 release를 이름 지어 실패하며 아무것도 쓰지 않습니다. 저장소가 platform을 가장 낮은 minor로 고정하면 Composer의 platform 검사는 아무것도 거부하지 않기 때문입니다(K1293). 다른 php를 이름 짓는 wrapper는 바뀌므로, 맞는 php의 재실행은 손으로 지우지 않고 잘못된 wrapper를 고치며, 같은 php의 재실행은 아무것도 쓰지 않습니다.
+각 wrapper는 그 path 옆에 쓰고 한 번 실행해 본 뒤 rename합니다. 절대 경로를 담은 exec wrapper로
 `var/tools/bin/php`를 쓰며 link는 만들지 않고, Composer 설치보다 먼저 써서 Composer가 그 PHP로 실행되게 합니다. `php-config`와
 `phpize`는 php 옆에 있으면 wrapper로 쓰고 없으면 빼며, phpize를 실행하는 extension build가 이들 없이
 실패합니다(K1117). kit은 설치를 판정하지 않습니다. 다른 설치용으로 빌드된 extension은 PHP 자신이 로드를 거부합니다. PATH에 php가 없으면

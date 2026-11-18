@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: a6f944a6f072b140224e0bbe2beed8db5f5def343024fb78cc3a83ed1314fa7d -->
+<!-- source-sha256: 96154a94d35e98b1bf172a472ef9009caf644b88cd76429808f30abe0883233b -->
 # 개발
 
 [English](AGENTS.md)
@@ -108,8 +108,8 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   rustup 1.28은 cargo가 처음 실행될 때 더는 설치하지 않습니다), config/toolchain.json `exceptions`가 선언한 Rust channel도
   설치합니다. rustup이 없으면 그 설치 방법과 함께 실패하고, 설치되지 않은 toolchain은 cargo가 실행될 때 rustup이 이름으로
   알립니다. PHP는 설치하지 않고 wrapper로 제공합니다(K283, K862):
-  `.php-version`이나 config/toolchain.json `php`가 PHP를 선언하면 `make install-tools`가 PATH의 `php`를 그대로, 그 옆의
-  php-config, phpize와 함께 var/tools/bin에 wrapper로 쓰고, release를 비교하지 않으며, checkout이 고른 PHP인 기존 wrapper는 유지하므로 뒤의 install이 그것을 바꾸지 않습니다. var/tools/bin/php를 지우면 다시 고릅니다(K1271). PATH에 php가 없거나
+  `.php-version`이나 config/toolchain.json `php`가 PHP를 선언하면 `make install-tools`가 `--php=<path>`(make `PHP=<path>`)의 php를, 없으면 PATH의 `php`를, 그 옆의
+  php-config, phpize와 함께 var/tools/bin에 wrapper로 씁니다. 먼저 그 php를 실행해 `PHP_MAJOR_VERSION.PHP_MINOR_VERSION`이 선언한 release가 아니면 찾은 minor, 그 path, 선언한 release를 이름 지어 실패하고 아무것도 쓰지 않습니다. 다른 minor의 wrapper는 모든 PHP 결과를 잘못된 release의 증거로 만들기 때문입니다. 각 wrapper는 그 path 옆에 쓰고 실행해 본 뒤 rename하며, 다른 php를 이름 짓는 wrapper는 바꾸므로, 맞는 php의 재실행은 잘못된 wrapper를 고치고 같은 php의 재실행은 아무것도 쓰지 않습니다(K1293). PATH에 php가 없거나
   `packages/php-ext`에 php-config나 phpize가 없으면 실패합니다. PHP가 필요한 저장소는 CI setup-php의 입력인 `.php-version`을
   둡니다. 이 파일이 없으면 setup-php는 조용히 다른 PHP를 설치합니다(K193).
   Enforced by: `tests/kit/install-rust.test.mts`, `tests/kit/install-tools.test.mts`, `tests/kit/install-php.test.mts`

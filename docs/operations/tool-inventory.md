@@ -73,11 +73,13 @@ These pins and smoke cases do not establish that every Kit gate runs on Windows 
 PHP is wrapped, not installed (K283, K862). `.php-version` or `config/toolchain.json` `php` declares that the checkout uses
 PHP; `.php-version` is read as written, as the input of CI's setup-php, which a repository that needs PHP declares
 (K193, below).
-An existing `var/tools/bin/php` is the PHP that the checkout chose and is kept with its companions, so a later install with another php first on PATH changes nothing; removing it wraps the php of PATH again (K1271).
-`install-php.mts` takes the `php` of the PATH of the bootstrap (without `var/tools/bin`, so it never finds its own wrapper) as it
-is and compares no release: a PHP that the packages' `require` excludes is refused by Composer's platform check, and what
-remains is the repository's own checks. It writes `var/tools/bin/php`
-as an exec wrapper with the absolute path, never a link, before the Composer installs, so Composer runs on that PHP.
+`install-php.mts` takes the php of `--php=<path>` of install-tools (make `PHP=<path>`), else the `php` of the PATH of the bootstrap
+(without `var/tools/bin`, so it never finds its own wrapper). It runs that php and reads `PHP_MAJOR_VERSION.PHP_MINOR_VERSION`; a
+minor that no declared release names (the major.minor of each release of `.php-version` or `config/toolchain.json` `php`) fails
+with the found minor, its path and the declared releases, and nothing is written, since Composer's platform check refuses
+nothing when a repository pins its platform to the lowest minor (K1293). A wrapper that names another php is replaced, so a
+rerun with the right php repairs a wrong wrapper with no removal by hand, and a rerun with the same php writes nothing. It writes `var/tools/bin/php`
+as an exec wrapper with the absolute path, never a link, each one beside its path, run once and then renamed, before the Composer installs, so Composer runs on that PHP.
 `php-config` and `phpize` are wrapped when they exist beside it and left out when they do not; the build of an extension,
 which runs phpize, fails without them (K1117). Kit judges no install: PHP itself refuses to load an extension built for another install. No php on PATH
 fails with `php is not on PATH`.

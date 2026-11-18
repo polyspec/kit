@@ -1,5 +1,5 @@
 <!-- doc-id: spec-utilities-and-recipes -->
-<!-- source-sha256: 64f17900d1104c64804fe23bff2a436756f35c91ccefb9b4f51ee0bd290143c4 -->
+<!-- source-sha256: d5f384f6e16e2723e635837a1d844ed719e9d9af858d718ff7cad71c5473f432 -->
 # 유틸리티와 예제
 
 [English](utilities-and-recipes.md)
@@ -111,6 +111,12 @@ case-sensitive 시험 filesystem을 유지한다.
 
 - `make lint-go`는 checkout의 Go module(go.mod)마다 step을 돌린다. root `go.work`의 `use` 지시가 이름하지 않는 module은 `GOWORK=off`로 step을 돌린다. go tool이 작업 공간 밖 module의 pattern을 거부하기 때문이다. 작업 공간이 이름하는 module과 `go.work`가 없는 checkout은 호출자의 환경으로 돈다.
 - `make install-tools TOOLS=wasmBindgen`은 WASM crate를 묶는 CLI인 mise.toml의 `github:wasm-bindgen/wasm-bindgen`만 설치한다. `TOOLS=maturin`이 그 tool을 설치하는 것과 같다(K1278). selector는 다른 tool selector처럼 camelCase이다.
+
+## install-tools의 PHP (K1293)
+
+- `make install-tools PHP=<path>`는 `install-tools`에 `--php=<path>`를 넘기고, install-tools는 그 php를 wrapper로 쓴다. `--php`가 없으면 PATH의 `php`를 wrapper로 쓴다. PHP가 하나인 기계와 CI runner는 그것을 PATH에 두기 때문이며, 아래 검사가 두 선택을 모두 판정한다.
+- install-tools는 쓰기 전에 고른 php를 실행해 `PHP_MAJOR_VERSION.PHP_MINOR_VERSION`을 읽는다. 선언한 release(`.php-version`이나 `config/toolchain.json` `php`의 각 release의 major.minor) 중 그것과 같은 것이 없으면 0이 아닌 status와 메시지 `php <found> (<path>) is not a release that <source> declares (<releases>); pass PHP=<path> of a PHP <releases>`로 실패하며, wrapper를 쓰지도 지우지도 않는다.
+- 각 wrapper는 그 path 옆에 쓰고, php wrapper를 실행해 같은 minor를 보고하는지 확인한 뒤 각각 rename한다. 다른 php를 이름 짓는 wrapper는 바뀌고, 같은 php의 재실행은 아무것도 쓰지 않는다.
 
 ## Native event identity (K1091)
 

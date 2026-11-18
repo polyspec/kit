@@ -115,6 +115,12 @@ A cleanup failure reports the resources that remain; it never turns an interrupt
 - `make lint-go` runs the steps of each Go module (go.mod) of the checkout. A module that the `use` directives of the root `go.work` do not name runs its steps with `GOWORK=off`, since the go tool refuses the patterns of a module outside the workspace; a module the workspace names, and a checkout with no `go.work`, run with the environment of the caller.
 - `make install-tools TOOLS=wasmBindgen` installs the `github:wasm-bindgen/wasm-bindgen` of mise.toml alone, the CLI that binds a WASM crate, as `TOOLS=maturin` installs its tool (K1278). The selectors are camelCase like the other tool selectors.
 
+## The PHP of install-tools (K1293)
+
+- `make install-tools PHP=<path>` passes `--php=<path>` to `install-tools`, which wraps that php; with no `--php` it wraps the `php` of PATH, because a machine or a CI runner with one PHP names it there, and the check below judges either choice.
+- Before it writes, install-tools runs the selected php and reads `PHP_MAJOR_VERSION.PHP_MINOR_VERSION`. When no declared release (the major.minor of each release of `.php-version` or `config/toolchain.json` `php`) equals it, install-tools fails with nonzero status and the message `php <found> (<path>) is not a release that <source> declares (<releases>); pass PHP=<path> of a PHP <releases>`, and writes and removes no wrapper.
+- Each wrapper is written beside its path, the php wrapper is run and must report the same minor, and then each is renamed into place. A wrapper whose text names another php is replaced; a rerun with the same php writes nothing.
+
 ## Native event identity (K1091)
 
 A native event parser preserves the framework's complete test identity. For PHPUnit TeamCity messages,
