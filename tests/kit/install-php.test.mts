@@ -4,7 +4,7 @@
 // involved, and the commands never start a process.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
@@ -58,20 +58,6 @@ test('a php on PATH of the release of .php-version is wrapped with its companion
   assert.equal(spawnSync(path.join(bin, 'php'), ['--id'], { encoding: 'utf8' }).stdout.trim(), path.join(dir, 'php'), 'the wrapper runs the matched php');
   const second = start(root, machine(dir));
   assert.doesNotMatch(second.stdout, /wrote var\/tools\/bin\/php/, 'a second run writes nothing');
-});
-
-test('K862: the php on PATH is wrapped as it is, whatever .php-version names, and no keg of Homebrew is looked for', (t) => {
-  const { root, directory, machine, bin } = sandbox(t, '8.4');
-  const dir = path.join(directory, 'path');
-  for (const name of ['php', 'php-config', 'phpize']) fake(path.join(dir, name), '8.5.10');
-  const prefix = path.join(directory, 'homebrew');
-  const brew = path.join(directory, 'brewbin/brew');
-  mkdirSync(path.dirname(brew), { recursive: true });
-  writeFileSync(brew, `#!/bin/sh\n[ "$1" = "--prefix" ] && echo '${prefix}'\n`, { mode: 0o755 });
-  for (const name of ['php', 'php-config', 'phpize']) fake(path.join(prefix, 'opt/php@8.4/bin', name), '8.4.9');
-  const result = start(root, machine(dir, path.dirname(brew)));
-  assert.equal(result.status, 0, result.stderr);
-  for (const name of ['php', 'php-config', 'phpize']) assert.ok(wrapper(bin, name).includes(quoted(path.join(dir, name))), `${name} holds the ${name} of PATH`);
 });
 
 test('a wrapper of an earlier run is never wrapped, as install-php strips var/tools/bin from PATH (K283)', (t) => {
@@ -147,18 +133,57 @@ test('install-php wraps php-fpm of the same prefix as php (K341)', (t) => {
   assert.deepEqual(readdirSync(bin).sort(), ['mise', 'php', 'phpcs', 'phpstan'], 'no php-fpm wrapper without sbin/php-fpm, and the earlier one is removed');
 });
 
-// K1271: the wrapper is the PHP that the checkout chose, so a later install keeps it whatever php PATH names then; a run that
-// rewrote it silently switched a checkout chosen at 8.4 to a machine's 8.5. Removing the wrapper chooses the php of PATH again.
-test('K1271: an existing php wrapper is kept when a later install finds another php on PATH', (t) => {
+// K1293: the selected php is run before anything is written; a minor that no declared release names fails and writes nothing,
+// a wrapper of another php is replaced, and a rerun with the same php writes nothing.
+const escaped = (text: string) => new RegExp(text.replace(/[$"*.()[\]]/g, '\\$&'));
+
+test('K1293: a php of another minor than .php-version fails, names its minor, path and the pin, and writes no wrapper', (t) => {
   const { root, directory, machine, bin } = sandbox(t, '8.4');
-  const chosen = path.join(directory, 'php84');
-  const other = path.join(directory, 'php85');
-  for (const name of ['php', 'php-config', 'phpize']) { fake(path.join(chosen, name), '8.4.12'); fake(path.join(other, name), '8.5.10'); }
-  assert.equal(start(root, machine(chosen)).status, 0);
-  const later = start(root, machine(other));
-  assert.equal(later.status, 0, later.stderr);
-  for (const name of ['php', 'php-config', 'phpize']) assert.match(wrapper(bin, name), new RegExp(quoted(path.join(chosen, name)).replace(/[$"*.]/g, '\\$&')), `${name} keeps the chosen PHP`);
-  rmSync(path.join(bin, 'php'));
-  assert.equal(start(root, machine(other)).status, 0);
-  assert.match(wrapper(bin, 'php'), new RegExp(quoted(path.join(other, 'php')).replace(/[$"*.]/g, '\\$&')), 'without a wrapper the php of PATH is wrapped');
+  const dir = path.join(directory, 'php85');
+  for (const name of ['php', 'php-config', 'phpize']) fake(path.join(dir, name), '8.5.10');
+  const result = start(root, machine(dir));
+  assert.notEqual(result.status, 0, 'install-tools fails');
+  assert.match(result.stderr, escaped(`php 8.5 (${path.join(dir, 'php')})`), 'the message names the found minor and its path');
+  assert.match(result.stderr, /\.php-version declares \(8\.4\)/, 'the message names the pin');
+  for (const name of ['php', 'php-config', 'phpize']) assert.equal(readdirSync(bin).includes(name), false, `no ${name} wrapper is written`);
+});
+
+test('K1293: an existing 8.5 wrapper is replaced by a rerun with an 8.4 php, with no removal by hand', (t) => {
+  const { root, directory, machine, bin } = sandbox(t, '8.4');
+  const wrong = path.join(directory, 'php85');
+  const right = path.join(directory, 'php84');
+  for (const name of ['php', 'php-config', 'phpize']) { fake(path.join(wrong, name), '8.5.10'); fake(path.join(right, name), '8.4.12'); }
+  mkdirSync(bin, { recursive: true });
+  for (const name of ['php', 'php-config', 'phpize']) writeFileSync(path.join(bin, name), `#!/bin/sh\n${quoted(path.join(wrong, name))}\n`, { mode: 0o755 });
+  const result = start(root, machine(right));
+  assert.equal(result.status, 0, result.stderr);
+  for (const name of ['php', 'php-config', 'phpize']) assert.match(wrapper(bin, name), escaped(quoted(path.join(right, name))), `${name} names the 8.4 ${name}`);
+  assert.equal(spawnSync(path.join(bin, 'php'), ['-r', ''], { encoding: 'utf8' }).stdout, '8.4');
+});
+
+test('K1293: a rerun with the same php changes nothing', (t) => {
+  const { root, directory, machine, bin } = sandbox(t, '8.4');
+  const dir = path.join(directory, 'php84');
+  for (const name of ['php', 'php-config', 'phpize']) fake(path.join(dir, name), '8.4.12');
+  assert.equal(start(root, machine(dir)).status, 0);
+  const before = Object.fromEntries(['php', 'php-config', 'phpize'].map(name => [name, [wrapper(bin, name), statSync(path.join(bin, name)).mtimeMs]]));
+  const again = start(root, machine(dir));
+  assert.equal(again.status, 0, again.stderr);
+  assert.doesNotMatch(again.stdout, /wrote|removed/, 'the rerun writes and removes nothing');
+  for (const name of ['php', 'php-config', 'phpize']) assert.deepEqual([wrapper(bin, name), statSync(path.join(bin, name)).mtimeMs], before[name]);
+  assert.deepEqual(readdirSync(bin).filter(name => name.includes('.next-')), [], 'no staging file is left');
+});
+
+test('K1293: --php=<path> selects that php over the php of PATH, and its minor is checked too', (t) => {
+  const { root, directory, machine, bin } = sandbox(t, '8.4');
+  const onPath = path.join(directory, 'php85');
+  const chosen = path.join(directory, 'opt/php@8.4/bin');
+  for (const name of ['php', 'php-config', 'phpize']) { fake(path.join(onPath, name), '8.5.10'); fake(path.join(chosen, name), '8.4.12'); }
+  const result = spawnSync(process.execPath, [tool(INSTALL_TOOLS), `--php=${path.join(chosen, 'php')}`], { cwd: root, env: machine(onPath), encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+  for (const name of ['php', 'php-config', 'phpize']) assert.match(wrapper(bin, name), escaped(quoted(path.join(chosen, name))));
+  const refused = spawnSync(process.execPath, [tool(INSTALL_TOOLS), `--php=${path.join(onPath, 'php')}`], { cwd: root, env: machine(chosen), encoding: 'utf8' });
+  assert.notEqual(refused.status, 0);
+  assert.match(refused.stderr, escaped(`php 8.5 (${path.join(onPath, 'php')})`));
+  assert.match(wrapper(bin, 'php'), escaped(quoted(path.join(chosen, 'php'))), 'a refused php leaves the wrapper as it was');
 });
